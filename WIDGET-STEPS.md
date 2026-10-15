@@ -15,12 +15,12 @@ Tick each box when the step is done.
 
 ## Step 1: Project setup
 
-- [ ] 1.1 Create `frontend/widgets/` with Preact, TypeScript and Vite (R)
-- [ ] 1.2 Folder layout: `core/`, `neo-fertility/`, `neo-follicle/`, `derma-solutions/`, `playground/`, `tests/` (R)
-- [ ] 1.3 Vite library build with 3 entries: `dist/neo-fertility.js`, `dist/neo-follicle.js` and `dist/derma-solutions.js` (R)
-- [ ] 1.4 Size check in `vite.config.ts`: the build fails if any bundle is over 40 KB compressed (R)
-- [ ] 1.5 Add a `.gitignore` (node_modules, dist) plus ESLint and Prettier
-- [ ] 1.6 Add `npm run dev`, `build`, `test` and `size` scripts (R)
+- [x] 1.1 Create `frontend/widgets/` with Preact, TypeScript and Vite (R)
+- [x] 1.2 Folder layout: `core/`, `neo-fertility/`, `neo-follicle/`, `derma-solutions/`, `playground/`, `tests/` (R)
+- [x] 1.3 Vite library build with 3 entries: `dist/neo-fertility.js`, `dist/neo-follicle.js` and `dist/derma-solutions.js` (R)
+- [x] 1.4 Size check in `vite.config.ts`: the build fails if any bundle is over 40 KB compressed (R)
+- [x] 1.5 Add a `.gitignore` (node_modules, dist) plus ESLint and Prettier
+- [x] 1.6 Add `npm run dev`, `build`, `test` and `size` scripts (R)
 
 ## Step 2: Core shell (shared by all clinics)
 

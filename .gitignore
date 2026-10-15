@@ -1,0 +1,25 @@
+# dependencies and builds
+node_modules/
+dist/
+.next/
+out/
+
+# test output
+test-results/
+playwright-report/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

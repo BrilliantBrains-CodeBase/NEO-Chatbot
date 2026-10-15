@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NEO widget playground</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; }
+      nav a { margin-right: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>NEO widget playground</h1>
+    <nav>
+      <a href="?clinic=neo-fertility">Neo Fertility (Navya)</a>
+      <a href="?clinic=neo-follicle">Neo Follicle (Arya)</a>
+      <a href="?clinic=derma-solutions">Derma Solutions (Diya)</a>
+    </nav>
+    <script type="module">
+      const faces = {
+        'neo-fertility': () => import('../neo-fertility/main.ts'),
+        'neo-follicle': () => import('../neo-follicle/main.ts'),
+        'derma-solutions': () => import('../derma-solutions/main.ts'),
+      };
+      const clinic = new URLSearchParams(location.search).get('clinic') || 'neo-fertility';
+      (faces[clinic] || faces['neo-fertility'])();
+    </script>
+  </body>
+</html>
