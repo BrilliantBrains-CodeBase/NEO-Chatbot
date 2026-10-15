@@ -83,6 +83,7 @@ neo-chatbot/
 ├── frontend/
 │   ├── widgets/                    # Chatbot widgets (Preact + TypeScript)
 │   │   ├── core/                   # shared by all clinics
+│   │   │   ├── loader.ts           # tiny launcher (under 5 KB), loads the clinic widget on first open
 │   │   │   ├── api.ts              # config fetch, send message, retries
 │   │   │   ├── session.ts          # visitor_id and session_id (no personal data)
 │   │   │   ├── renderer.tsx        # maps ui.type from the backend to components
@@ -193,7 +194,39 @@ The backend replies with what to show:
 ```
 
 Events: `start`, `text`, `button`, `input`, `restart`.
-UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `time_grid`, `doctor_carousel`, `doctor_card`, `summary`, `link_buttons`, `emergency`, `status_line`.
+UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `time_grid`, `doctor_carousel`, `doctor_card`, `treatment_card`, `summary`, `link_buttons`, `emergency`, `status_line`.
+Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by default, patient can change it), `email`, `none`.
+
+- `doctor_card`: About Doctor profile (name, role, qualifications, stats grid, Book with / Read full profile buttons).
+- `treatment_card`: treatment name, short description, "Book for <treatment>" and "Read more on our website".
+
+---
+
+## Clinic details (from the approved mockups)
+
+| Clinic | Open | Closed | Clinic phone and WhatsApp | Doctors |
+|---|---|---|---|---|
+| Neo Fertility | Monday to Sunday, 09:30 to 18:30 | None | +91 73377 61236 | Dr. Payal Mahapatra |
+| Neo Follicle | Wednesday to Monday, 10 AM to 7 PM | Tuesday | +91 97312 07940 | Dr. Sandeep Mahapatra |
+| Derma Solutions | Monday and Wednesday to Sunday, 10 AM to 8 PM | Tuesday | +91 97412 23217 | Dr Sandeep Mahapatra, Dr Sumedha Tirthani, Dr Thyagaraj, Dr Chandhana Vishal N |
+
+## Booking rules
+
+- **Time slots are 15 minutes** inside clinic hours. Clinic staff can change the slot length later in NEO CRM.
+- Past dates and the clinic's closed days are disabled in the date picker. Past times are hidden for today.
+- **Phone number**: the country code is changeable. India (+91) needs 10 digits starting with 6 to 9; other countries need 6 to 12 digits.
+- **Cancel and reschedule, no OTP**: the patient gives name and contact number (or email). The backend checks these against existing bookings. If they match, the request is linked to that booking. If they do not match, the request is still sent to clinic staff, marked "No matching booking", for manual approval. In both cases the patient sees the same confirmation message and staff confirm by phone.
+- **Booked date picker** (cancel and reschedule, "Which date is your appointment booked for?"): allows both previous and future dates, from 2 months back. Closed days stay disabled.
+- Every booking, cancel, reschedule and callback becomes a lead in NEO CRM.
+
+## Widget layout (from the approved mockups)
+
+| Item | Desktop | Mobile |
+|---|---|---|
+| Panel | Floating, 380 x 580, radius 20, bottom right | Bottom sheet at 88% height with backdrop, can expand to full screen |
+| Launcher | 60 px circle with unread dot, plus "Chat with us" label | 60 px circle only, sits above the site's sticky bar |
+| Tap targets | Pills 40 px high | Pills 44 px high, input text 16 px so iPhone does not zoom |
+| Auto open | Never auto opens the panel | Never auto opens the panel |
 
 ---
 
@@ -201,11 +234,12 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 
 | Week | Work |
 |---|---|
-| **1** | NEO CRM frontend in Next.js from the approved mockups: auth, dashboard, leads, inbox, doctors availability, appointments, patients, reports, team, settings, profile, tasks |
-| **2** | Chatbot widgets in Preact: shared core, then the 3 clinic faces (Fertility tiles, Follicle cards, Derma pills with doctor carousel and week strip), mobile sheet, session restore, size check under 40 KB each |
+| **1** | Chatbot widgets in Preact: shared core, then the 3 clinic faces (Fertility tiles, Follicle cards, Derma pills with doctor carousel and week strip), mobile sheet, session restore, size check under 40 KB each. Step-by-step list in [WIDGET-STEPS.md](WIDGET-STEPS.md) |
+| **2** | NEO CRM frontend in Next.js from the approved mockups: auth, dashboard, leads, inbox, doctors availability, appointments, patients, reports, team, settings, profile, tasks |
 | **3** | Backend part 1: Supabase migrations and seed, widget config API, sessions, flows (book, online, cancel, reschedule, callback), leads and outbox |
 | **4** | Backend part 2: intent router, emergency and medical guard, FAQ embeddings and matching, caching, LLM fallback with validation, CRM API |
-| **5** | Integrations and testing: Google Sheets sync, Interakt messages, Google Meet links, Playwright and pytest suites, threshold tuning Deploy to Linode Mumbai, load test, clinic UAT and sign-off, staff training, go live on all 3 websites |
+| **5** | Integrations and testing: Google Sheets sync, Interakt messages, Google Meet links, Playwright and pytest suites, threshold tuning |
+| **6** | Deploy to Linode Mumbai, load test, clinic UAT and sign-off, staff training, go live on all 3 websites |
 
 ### Phase 2 (after go-live)
 
@@ -219,7 +253,9 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 
 ## Documentation
 
-- [RAG and lead storage](docs/RAG-AND-LEADS.md): answer pipeline, knowledge base (FAQs and treatment pages), chunking, retrieval, prompt template, injection defence, grounded answer check, caching, and how every lead is stored in Supabase
+- [Widget behaviour spec](frontend.md): exact bot wording, buttons and inputs for every flow on all 3 clinics
+- [Widget build steps](WIDGET-STEPS.md): step-by-step checklist for the chatbot widgets
+- [RAG and lead storage](docs/RAG-AND-LEADS.md) (to be written in the backend phase, file not in the repo yet): answer pipeline, knowledge base (FAQs and treatment pages), chunking, retrieval, prompt template, injection defence, grounded answer check, caching, and how every lead is stored in Supabase
 - Migrations: `001_core.sql` (core schema, constraints, RLS), `002_kb_pages_and_lead_fields.sql` (treatment page knowledge, lead consent and tracking)
 
 ## Targets
@@ -244,7 +280,7 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 
 ```bash
 # backend
-cd backend && python -m venv .venv && source .venv/bin/activate
+cd backend && python -m venv .venv && source .venv/bin/activate   # Windows PowerShell: .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env            # Supabase, Redis, Gemini, Groq, Interakt keys
 uvicorn app.main:app --reload
