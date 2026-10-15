@@ -1,0 +1,52 @@
+/* Base styles for the full widget. Values are from the approved mockups.
+   Clinic colours (--rose, --rose-d, --blush, --tint) come from each clinic's theme.css;
+   --ink, --line, --honey and --font are set in launcher.css, which is always loaded first. */
+:host {
+  --mute: #6b5f63;
+  --surface: #faf6f7;
+  --wa: #1f9d55;
+}
+
+.nb {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.nb *,
+.nb *::before,
+.nb *::after {
+  box-sizing: border-box;
+}
+.nb button,
+.nb input,
+.nb select {
+  font: inherit;
+  color: inherit;
+}
+.nb svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nb button:focus-visible,
+.nb a:focus-visible,
+.nb select:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb *,
+  .nb *::before,
+  .nb *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

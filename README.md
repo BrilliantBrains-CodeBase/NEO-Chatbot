@@ -83,7 +83,7 @@ neo-chatbot/
 ├── frontend/
 │   ├── widgets/                    # Chatbot widgets (Preact + TypeScript)
 │   │   ├── core/                   # shared by all clinics
-│   │   │   ├── loader.ts           # tiny launcher (under 5 KB), loads the clinic widget on first open
+│   │   │   ├── loader.ts           # tiny launcher (under 5 KB), loads <clinic>.app.js on first open
 │   │   │   ├── api.ts              # config fetch, send message, retries
 │   │   │   ├── session.ts          # visitor_id and session_id (no personal data)
 │   │   │   ├── renderer.tsx        # maps ui.type from the backend to components
@@ -154,7 +154,7 @@ neo-chatbot/
 | One fix for all | Booking, phone input, time grid and the backend contract live in `core/` |
 | Clinic 4 | Copy a face folder, change theme and menu, add one build entry |
 
-Each clinic website loads only its own file:
+Each clinic website loads only its own file. That file is the small loader (launcher only); it fetches the full widget (`neo-fertility.app.js` and so on, from the same folder) the first time the patient opens the chat:
 
 ```html
 <!-- neofertility.co.in -->

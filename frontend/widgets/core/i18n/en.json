@@ -1,0 +1,17 @@
+{
+  "launcher_label": "Chat with us",
+  "open_chat": "Open chat",
+  "close_chat": "Close chat",
+  "restart_chat": "Restart chat",
+  "subtitle": "Instant Reply Assistant",
+  "placeholder": "Type your question",
+  "send": "Send",
+  "country_code": "Country code",
+  "main_menu": "Main menu",
+  "back": "Back",
+  "footer_disclaimer": "AI Generated Responses, Not For Medical Advice",
+  "footer_powered_by": "Powered By",
+  "footer_brand": "Brilliant Brains",
+  "error_offline": "You seem to be offline. Please check your connection and try again.",
+  "error_generic": "Something went wrong. Please try again."
+}

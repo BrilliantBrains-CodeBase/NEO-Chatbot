@@ -1,5 +1,5 @@
-// Builds dist/neo-fertility.js, dist/neo-follicle.js and dist/derma-solutions.js,
-// then fails the build if any bundle is over the gzip size limit.
+// Builds, for every clinic, the loader (dist/<id>.js) and the full widget (dist/<id>.app.js),
+// then fails the build if any file is over its gzip size limit.
 import { build } from 'vite';
 import preact from '@preact/preset-vite';
 import { rmSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { checkSizes } from './size.mjs';
 const root = resolve(import.meta.dirname, '..');
 rmSync(resolve(root, 'dist'), { recursive: true, force: true });
 
-for (const clinic of CLINICS) {
+async function bundle(entry, fileName) {
   await build({
     root,
     configFile: false,
@@ -20,16 +20,15 @@ for (const clinic of CLINICS) {
       outDir: 'dist',
       emptyOutDir: false,
       target: 'es2019',
-      cssCodeSplit: false,
-      lib: {
-        entry: resolve(root, clinic.entry),
-        formats: ['iife'],
-        name: 'NeoWidget',
-        fileName: () => `${clinic.id}.js`,
-      },
+      lib: { entry: resolve(root, entry), formats: ['iife'], name: 'NeoWidget', fileName: () => fileName },
     },
   });
-  console.log(`built dist/${clinic.id}.js`);
+  console.log(`built dist/${fileName}`);
+}
+
+for (const clinic of CLINICS) {
+  await bundle(`${clinic.dir}/main.ts`, `${clinic.id}.js`);
+  await bundle(`${clinic.dir}/app.ts`, `${clinic.id}.app.js`);
 }
 
 if (!checkSizes()) process.exit(1);

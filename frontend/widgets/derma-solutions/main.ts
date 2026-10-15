@@ -1,3 +1,9 @@
-import { mount } from '../core';
+// Loader for this clinic (dist/derma-solutions.js). The website includes only this file.
+import { boot, loadScript } from '../core/loader';
+import themeCss from './theme.css?inline';
 
-mount({ clinicId: 'derma-solutions', botName: 'Diya AI' });
+boot({
+  clinicId: 'derma-solutions',
+  themeCss,
+  loadApp: (handle) => (import.meta.env.DEV ? import('./app') : loadScript(handle.appUrl)),
+});

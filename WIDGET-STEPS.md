@@ -24,12 +24,12 @@ Tick each box when the step is done.
 
 ## Step 2: Core shell (shared by all clinics)
 
-- [ ] 2.1 `shadow.ts`: mount the widget inside Shadow DOM and inject the CSS, so clinic site styles can't break it (R)
-- [ ] 2.2 Small loader: shows only the launcher, then loads the full widget on first open. Loader must be under 5 KB (R targets)
-- [ ] 2.3 `styles/base.css`: Figtree font, shared tokens (`--ink`, `--mute`, `--line`, `--surface`, `--honey`, `--wa`) (M)
-- [ ] 2.4 `i18n/en.json`: every piece of widget text in one file, English only (R, D)
-- [ ] 2.5 `session.ts`: `visitor_id` and `session_id` in localStorage, no personal data (R)
-- [ ] 2.6 `api.ts`: config fetch, `POST /v1/chat/message`, retries, timeout, offline message (R)
+- [x] 2.1 `shadow.ts`: mount the widget inside Shadow DOM and inject the CSS, so clinic site styles can't break it (R)
+- [x] 2.2 Small loader: shows only the launcher, then loads the full widget on first open. Loader must be under 5 KB (R targets)
+- [x] 2.3 `styles/base.css`: Figtree font, shared tokens (`--ink`, `--mute`, `--line`, `--surface`, `--honey`, `--wa`) (M)
+- [x] 2.4 `i18n/en.json`: every piece of widget text in one file, English only (R, D)
+- [x] 2.5 `session.ts`: `visitor_id` and `session_id` in localStorage, no personal data (R)
+- [x] 2.6 `api.ts`: config fetch, `POST /v1/chat/message`, retries, timeout, offline message (R)
 
 ## Step 3: Layout and container
 
