@@ -197,7 +197,7 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 
 ---
 
-## Project plan (6 weeks, one developer)
+## Project plan
 
 | Week | Work |
 |---|---|
