@@ -135,7 +135,7 @@ neo-chatbot/
 │   │   ├── integrations/           # sheets, interakt, google_calendar, healthplix, outbox
 │   │   └── workers/                # embedding job, outbox job
 │   ├── supabase/
-│   │   └── migrations/             # 001_core.sql, 002_seed.sql, 003_views.sql
+│   │   └── migrations/             # 001_core.sql, 002_kb_pages_and_lead_fields.sql, 003_seed.sql
 │   ├── tests/
 │   ├── pyproject.toml
 │   └── Dockerfile
@@ -217,6 +217,11 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 - Payment link before online consults (for example Razorpay)
 
 ---
+
+## Documentation
+
+- [RAG and lead storage](docs/RAG-AND-LEADS.md): answer pipeline, knowledge base (FAQs and treatment pages), chunking, retrieval, prompt template, injection defence, grounded answer check, caching, and how every lead is stored in Supabase
+- Migrations: `001_core.sql` (core schema, constraints, RLS), `002_kb_pages_and_lead_fields.sql` (treatment page knowledge, lead consent and tracking)
 
 ## Targets
 
