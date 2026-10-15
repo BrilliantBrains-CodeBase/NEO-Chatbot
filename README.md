@@ -205,8 +205,7 @@ UI blocks: `menu`, `chips`, `phone`, `email`, `month_calendar`, `week_strip`, `t
 | **2** | Chatbot widgets in Preact: shared core, then the 3 clinic faces (Fertility tiles, Follicle cards, Derma pills with doctor carousel and week strip), mobile sheet, session restore, size check under 40 KB each |
 | **3** | Backend part 1: Supabase migrations and seed, widget config API, sessions, flows (book, online, cancel, reschedule, callback), leads and outbox |
 | **4** | Backend part 2: intent router, emergency and medical guard, FAQ embeddings and matching, caching, LLM fallback with validation, CRM API |
-| **5** | Integrations and testing: Google Sheets sync, Interakt messages, Google Meet links, Playwright and pytest suites, threshold tuning |
-| **6** | Deploy to Linode Mumbai, load test, clinic UAT and sign-off, staff training, go live on all 3 websites |
+| **5** | Integrations and testing: Google Sheets sync, Interakt messages, Google Meet links, Playwright and pytest suites, threshold tuning Deploy to Linode Mumbai, load test, clinic UAT and sign-off, staff training, go live on all 3 websites |
 
 ### Phase 2 (after go-live)
 
