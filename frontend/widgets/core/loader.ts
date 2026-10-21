@@ -49,7 +49,8 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
   const start = () => {
     loadFont(FONT_URL);
     const { shadow } = createShadowHost(clinicId);
-    injectStyles(shadow, themeCss + launcherCss);
+    // Clinic theme last, so it can override shared tokens such as --honey.
+    injectStyles(shadow, launcherCss + themeCss);
 
     const root = document.createElement('div');
     root.className = 'nb' + (seen() ? ' seen' : '');

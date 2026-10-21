@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 const CLINICS = [
-  { id: 'neo-fertility', bot: 'Navya AI', rose: 'rgb(61, 32, 63)' },
-  { id: 'neo-follicle', bot: 'Arya AI', rose: 'rgb(62, 116, 217)' },
-  { id: 'derma-solutions', bot: 'Diya AI', rose: 'rgb(72, 30, 11)' },
+  { id: 'neo-fertility', cl: 'CL02', bot: 'Navya AI', rose: 'rgb(61, 32, 63)' },
+  { id: 'neo-follicle', cl: 'CL01', bot: 'Arya AI', rose: 'rgb(62, 116, 217)' },
+  { id: 'derma-solutions', cl: 'CL03', bot: 'Diya AI', rose: 'rgb(72, 30, 11)' },
 ];
 
 for (const c of CLINICS) {
@@ -12,7 +12,7 @@ for (const c of CLINICS) {
     page.on('request', (r) => r.url().endsWith('.app.js') && appRequests.push(r.url()));
 
     await page.goto(`/host.html?clinic=${c.id}`);
-    const launcher = page.locator(`#neo-widget-${c.id} .nb-launch`);
+    const launcher = page.locator(`#neo-widget-${c.cl} .nb-launch`);
     await expect(launcher).toBeVisible();
     await expect(launcher).toHaveAttribute('aria-expanded', 'false');
 
@@ -40,10 +40,10 @@ for (const c of CLINICS) {
 
 test('visitor and session ids are stored, no personal data', async ({ page }) => {
   await page.goto('/host.html');
-  await page.locator('#neo-widget-neo-fertility .nb-launch').click();
+  await page.locator('#neo-widget-CL02 .nb-launch').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const stored = await page.evaluate(() => ({ ...localStorage }));
   expect(stored.neo_vid).toMatch(/^v_[0-9a-f]{32}$/);
-  expect(JSON.parse(stored['neo_sid_neo-fertility']).id).toMatch(/^s_[0-9a-f]{32}$/);
-  expect(Object.keys(stored).sort()).toEqual(['neo_sid_neo-fertility', 'neo_vid']);
+  expect(JSON.parse(stored.neo_sid_CL02).id).toMatch(/^s_[0-9a-f]{32}$/);
+  expect(Object.keys(stored).sort()).toEqual(['neo_sid_CL02', 'neo_vid']);
 });

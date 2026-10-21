@@ -3,7 +3,7 @@ import { boot, loadScript } from '../core/loader';
 import themeCss from './theme.css?inline';
 
 boot({
-  clinicId: 'derma-solutions',
+  clinicId: 'CL03',
   themeCss,
   loadApp: (handle) => (import.meta.env.DEV ? import('./app') : loadScript(handle.appUrl)),
 });
