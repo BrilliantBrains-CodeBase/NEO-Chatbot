@@ -46,6 +46,161 @@ export const MENU: MenuBlock = {
   ],
 };
 
+const MAPS = 'https://maps.app.goo.gl/jKaWhcfQuKZXRvE48';
+const HAIR_ANALYSIS: Choice = { label: 'Try AI Hair Analysis', href: SITE + 'hair-assessment/' };
+const WHATSAPP_US: Choice = { label: 'WhatsApp us', href: WA, variant: 'wa' };
+const OPEN_HOURS = 'Wednesday to Monday, 10 AM to 7 PM. Tuesday closed.';
+
+// Explore Treatments: short answer, website page and the list it belongs to (approved mockup).
+export const TREATMENT_INFO: Record<string, { text: string; path: string; list: 'ht' | 'hf' | 'treat' }> = {
+  'Direct Hair Transplant (DHI / FUE)': {
+    text: 'Follicles are extracted one by one and implanted directly, for a natural hairline and quicker healing.',
+    path: 'best-hair-transplant-in-bangalore/',
+    list: 'ht',
+  },
+  'Hair Transplant for Men': {
+    text: 'For a receding hairline, frontal baldness and crown thinning, planned around your baldness grade and donor strength.',
+    path: 'hair-transplant-for-men-in-bangalore/',
+    list: 'ht',
+  },
+  'Female Hair Transplant': {
+    text: 'For thinning, a widening parting and female pattern hair loss, planned only after the cause is diagnosed.',
+    path: 'female-hair-transplant-in-bangalore/',
+    list: 'ht',
+  },
+  'Failed Hair Transplant Repair': {
+    text: 'Corrects unnatural hairlines, low density, wrong growth direction and scars from an earlier transplant.',
+    path: 'failed-hair-transplant-repair-in-bangalore/',
+    list: 'ht',
+  },
+  'Unshaven Hair Transplant': {
+    text: 'A discreet transplant without shaving your head, so it stays unnoticeable.',
+    path: 'unshaven-hair-transplant/',
+    list: 'ht',
+  },
+  'Body Hair Transplant': {
+    text: 'Hair from the body, such as the chest or beard, is moved to the scalp when scalp donor hair is limited.',
+    path: 'body-hair-transplant/',
+    list: 'ht',
+  },
+  'Stem Cell Therapy': {
+    text: 'Regenerative therapy to strengthen weak follicles and improve hair density.',
+    path: 'stem-cell-therapy-for-hair-loss-in-bangalore/',
+    list: 'hf',
+  },
+  'PRP Treatment': {
+    text: 'Platelet rich plasma from your own blood is injected into the scalp to strengthen roots and reduce hair fall.',
+    path: 'best-prp-hair-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'GFC Treatment': {
+    text: 'Concentrated growth factors from your own blood to boost thinning hair.',
+    path: 'gfc-hair-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'QR678 Treatment': {
+    text: 'A non-surgical scalp injection treatment for hair fall and thinning.',
+    path: 'qr678-hair-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'Exosome Therapy': {
+    text: 'Advanced cell-based therapy to support healthier, fuller hair growth.',
+    path: 'exosome-hair-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'Dutexome Treatment': {
+    text: 'A targeted scalp therapy for pattern hair loss.',
+    path: 'dutexome-hair-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'Laser Hair Therapy': {
+    text: 'Painless low level laser light to stimulate follicles and support regrowth.',
+    path: 'low-level-laser-therapy/',
+    list: 'hf',
+  },
+  'Scalp Micropigmentation': {
+    text: 'Fine pigment dots that create the look of fuller hair or a closely shaved head.',
+    path: 'scalp-micropigmentation-in-bangalore/',
+    list: 'hf',
+  },
+  'Alopecia Treatment': {
+    text: 'Diagnosis and treatment for patchy hair loss such as alopecia areata.',
+    path: 'alopecia-areata-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'Dandruff Treatment': {
+    text: 'Treats dandruff and scalp conditions that can trigger hair fall.',
+    path: 'dandruff-treatment-in-bangalore/',
+    list: 'hf',
+  },
+  'Beard Transplant': {
+    text: 'Fills a patchy beard, moustache, goatee and sideburns, matching natural growth direction.',
+    path: 'beard-transplant-in-bangalore/',
+    list: 'treat',
+  },
+  'Eyebrow Restoration': {
+    text: 'Rebuilds thin, over-plucked or scarred brows with single hair precision and a natural angle.',
+    path: 'eyebrow-restoration-in-bangalore/',
+    list: 'treat',
+  },
+};
+
+// "Book for <treatment>" preselects the matching booking option; treatments without one ask as usual.
+export const BOOKING_OPTION: Record<string, string> = {
+  'Unshaven Hair Transplant': 'Unshaven & Body Hair Transplant',
+  'Body Hair Transplant': 'Unshaven & Body Hair Transplant',
+  'PRP Treatment': 'Non-Surgical Treatment (GFC, PRP, QR678)',
+  'GFC Treatment': 'Non-Surgical Treatment (GFC, PRP, QR678)',
+  'QR678 Treatment': 'Non-Surgical Treatment (GFC, PRP, QR678)',
+};
+
+const NOT_SURE: Choice = { label: 'Not sure, help me choose', action: 'go', value: 'notsure' };
+const treatmentChoices = (list: 'ht' | 'hf'): Choice[] => [
+  ...Object.keys(TREATMENT_INFO)
+    .filter((name) => TREATMENT_INFO[name].list === list)
+    .map((name) => ({ label: name, action: 'treat', value: name })),
+  NOT_SURE,
+];
+
+// The treatment card: name and short answer, then Book for and Read more.
+export function treatmentCard(name: string): ChatResponse | null {
+  const info = TREATMENT_INFO[name];
+  if (!info) return null;
+  return {
+    messages: [{ type: 'text', text: `**${name}**\n${info.text}` }],
+    ui: {
+      type: 'chips',
+      options: [
+        { label: `Book for ${name}`, action: 'book_for', value: name, primary: true },
+        { label: 'Read more on our website', href: SITE + info.path },
+      ],
+      back: { label: 'Back', action: 'go', value: info.list },
+      main: true,
+    },
+    input: TYPE,
+  };
+}
+
+const getQuote = (topic: string): Choice => ({ label: 'Get exact quote', action: 'callback', value: topic });
+
+// Cost guide (approved mockup): graft based, by hair loss pattern.
+function costAnswer(text: string, then: Choice[]): ChatResponse {
+  return {
+    messages: [{ type: 'text', text }],
+    ui: { type: 'chips', options: then, back: { label: 'Back', action: 'go', value: 'cost' }, main: true },
+    input: TYPE,
+  };
+}
+const costRange = (grafts: string, rupees: string) =>
+  costAnswer(
+    `Typical need: **${grafts} grafts**.\nAt Rs 60 to Rs 100 per graft, that is about **${rupees}**.\nEMI available, no hidden charges. The final count is confirmed after a scalp evaluation.`,
+    [
+      getQuote('Hair transplant cost'),
+      HAIR_ANALYSIS,
+      { label: 'Book consultation', action: 'go', value: 'book' },
+    ],
+  );
+
 // Fixed replies, opened by { action: 'go', value: <key> }.
 export const NODES: Record<string, ChatResponse> = {
   book: {
@@ -110,4 +265,151 @@ export const NODES: Record<string, ChatResponse> = {
     },
     input: TYPE,
   },
+  treat: {
+    messages: [{ type: 'text', text: 'What would you like to explore?' }],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [
+        { label: 'Hair Transplant', action: 'go', value: 'ht' },
+        { label: 'Hair Fall & Scalp Treatments', action: 'go', value: 'hf' },
+        { label: 'Beard Transplant', action: 'treat', value: 'Beard Transplant' },
+        { label: 'Eyebrow Restoration', action: 'treat', value: 'Eyebrow Restoration' },
+        NOT_SURE,
+      ],
+    },
+    input: TYPE,
+  },
+  ht: {
+    messages: [{ type: 'text', text: 'Pick a hair transplant option.' }],
+    ui: {
+      type: 'chips',
+      options: treatmentChoices('ht'),
+      back: { label: 'Back', action: 'go', value: 'treat' },
+      main: true,
+    },
+    input: TYPE,
+  },
+  hf: {
+    messages: [{ type: 'text', text: 'Pick a treatment to learn more.' }],
+    ui: {
+      type: 'chips',
+      options: treatmentChoices('hf'),
+      back: { label: 'Back', action: 'go', value: 'treat' },
+      main: true,
+    },
+    input: TYPE,
+  },
+  notsure: {
+    messages: [
+      {
+        type: 'text',
+        text: 'No problem, most patients are not sure at first. The right treatment depends on the cause of your hair loss, which the doctor confirms after a scalp evaluation. You can get a quick estimate from your photos, or let our team guide you.',
+      },
+    ],
+    ui: {
+      type: 'chips',
+      options: [
+        HAIR_ANALYSIS,
+        { label: 'Book a consultation', action: 'book_for', value: 'Not sure yet', primary: true },
+        { label: 'Get a callback', action: 'callback', value: 'Help choosing a treatment' },
+        WHATSAPP_US,
+      ],
+      back: { label: 'Back', action: 'go', value: 'treat' },
+      main: true,
+    },
+    input: TYPE,
+  },
+  intl: {
+    messages: [
+      {
+        type: 'text',
+        text: 'Every international case is planned before you fly. Scalp assessment, graft count and donor mapping are confirmed on a video call first, and the procedure fits in one trip with follow-up after you return home.',
+      },
+    ],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [
+        { label: 'Plan my treatment', action: 'callback', value: 'International patient' },
+        { label: 'Share photos on WhatsApp', href: WA, variant: 'wa' },
+        { label: 'Read more', href: SITE + 'hair-transplant-medical-tourism-in-bangalore/' },
+      ],
+    },
+    input: TYPE,
+  },
+  talk: {
+    messages: [{ type: 'text', text: `Choose how you would like to reach us. We are open ${OPEN_HOURS}` }],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [
+        CALL,
+        WHATSAPP_US,
+        { label: 'Request a callback', action: 'callback', value: 'General enquiry' },
+      ],
+    },
+    input: TYPE,
+  },
+  clinic: {
+    messages: [
+      {
+        type: 'text',
+        text: `**Neo Follicle Hair Transplant Clinic**\n1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037.\nOpen ${OPEN_HOURS}`,
+      },
+    ],
+    ui: { type: 'chips', main: true, options: [{ label: 'Open in Google Maps', href: MAPS }, CALL] },
+    input: TYPE,
+  },
+  results: {
+    messages: [{ type: 'text', text: 'See real results from Neo Follicle patients.' }],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [
+        { label: 'Hair transplant', href: SITE + 'image-gallery/#hair-transplant-results' },
+        { label: 'Beard', href: SITE + 'image-gallery/#beard-transplant-results' },
+        { label: 'Eyebrow', href: SITE + 'image-gallery/#eyebrow-transplant-results' },
+        { label: 'Female hair', href: SITE + 'image-gallery/#female-hair-restoration' },
+        { label: 'Failed transplant repair', href: SITE + 'image-gallery/#failed-hair-transplant-repair' },
+        { label: 'GFC and PRP', href: SITE + 'image-gallery/#gfc-prp-therapy-results' },
+        { label: 'Patient videos', href: SITE + 'video-gallery/' },
+        { label: 'Celebrity patients', href: SITE + 'celebrity-hair-transplant/' },
+      ],
+    },
+    input: TYPE,
+  },
+  cost: {
+    messages: [
+      {
+        type: 'text',
+        text: 'Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. Which best describes your hair loss?',
+      },
+    ],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [
+        { label: 'Receding hairline', action: 'go', value: 'cost_receding' },
+        { label: 'Crown thinning', action: 'go', value: 'cost_crown' },
+        { label: 'Front and crown', action: 'go', value: 'cost_front_crown' },
+        { label: 'Advanced baldness', action: 'go', value: 'cost_advanced' },
+        { label: 'Beard or eyebrows', action: 'go', value: 'cost_beard' },
+        { label: 'Not sure', action: 'go', value: 'cost_unsure' },
+      ],
+    },
+    input: TYPE,
+  },
+  cost_receding: costRange('1,000 to 1,800', 'Rs 60,000 to Rs 1,80,000'),
+  cost_crown: costRange('1,200 to 2,000', 'Rs 72,000 to Rs 2,00,000'),
+  cost_front_crown: costRange('2,000 to 3,000', 'Rs 1,20,000 to Rs 3,00,000'),
+  cost_advanced: costRange('3,000+', 'Rs 1,80,000 and above'),
+  cost_beard: costAnswer(
+    'Cost depends on the area and graft count. Share a photo or get a callback for an exact quote.',
+    [getQuote('Beard or eyebrow cost'), WHATSAPP_US],
+  ),
+  cost_unsure: costAnswer(
+    'The AI Hair Analysis gives an estimate from your photos, or the team can guide you on a call.',
+    [HAIR_ANALYSIS, { label: 'Get a callback', action: 'callback', value: 'Cost guidance' }],
+  ),
 };

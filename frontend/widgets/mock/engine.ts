@@ -3,7 +3,7 @@
 // Arya (CL01) has the full flows; Navya and Diya only greet until their faces are built.
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
-import { ARYA, MENU, NODES, TYPE } from './arya';
+import { ARYA, BOOKING_OPTION, MENU, NODES, TYPE, treatmentCard } from './arya';
 
 const GREETING: Record<string, string> = {
   CL01: ARYA.greeting,
@@ -324,7 +324,8 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
         });
       f.email = value.toLowerCase();
       if (f.kind === 'question') return finish(leadTaken(f));
-      return advance(f, 'treatment');
+      // Booked from a treatment card: the treatment is already chosen.
+      return advance(f, f.treatment ? 'date' : 'treatment');
     case 'reason':
       if (value.length < 3)
         return reply(['Please add a few more words.'], null, { mode: 'text', placeholder: 'Short reason' });
@@ -405,8 +406,14 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
   return ask(f);
 }
 
-function start(session: string, kind: Kind, reason?: string, lead: string[] = []): ChatResponse {
-  sessions.set(session, { kind, step: 'name', reason });
+function start(
+  session: string,
+  kind: Kind,
+  reason?: string,
+  lead: string[] = [],
+  treatment?: string,
+): ChatResponse {
+  sessions.set(session, { kind, step: 'name', reason, treatment });
   return reply([...lead, INTRO[kind]], null, { mode: 'text', placeholder: 'Your full name' });
 }
 
@@ -439,6 +446,15 @@ export function handle(req: ChatRequest): ChatResponse {
     )
       return start(req.session_id, value);
     if (action === 'start' && value === 'callback') return start(req.session_id, 'callback');
+    if (action === 'treat') {
+      sessions.set(req.session_id, null);
+      return treatmentCard(value) ?? menu(client, 'How can I help you today?');
+    }
+    // Book for <treatment>: the matching booking option is preselected; without one the step is asked.
+    if (action === 'book_for') {
+      const option = ARYA.treatments.includes(value) ? value : BOOKING_OPTION[value];
+      return start(req.session_id, 'book', undefined, [], option);
+    }
     // A callback button with its topic, e.g. "Plan my treatment": the topic is the reason.
     if (action === 'callback') return start(req.session_id, 'callback', value || undefined);
     if (flow) {
