@@ -1,12 +1,12 @@
 // Entry for the full widget (<id>.app.js). Picks up the handle the loader created and renders into it.
 import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useState } from 'preact/hooks';
 import baseCss from './styles/base.css?inline';
 import { injectStyles } from './shadow';
 import { getHandle, type WidgetHandle } from './registry';
 import { createApi } from './api';
 import { getVisitorId, getSession } from './session';
-import t from './i18n/en.json';
+import { Panel } from './components/Panel';
 
 export interface Face {
   clinicId: string;
@@ -15,6 +15,7 @@ export interface Face {
 
 function Widget({ handle, face }: { handle: WidgetHandle; face: Face }) {
   const [open, setOpen] = useState(handle.isOpen);
+  const close = useCallback(() => handle.setOpen(false), [handle]);
 
   useEffect(() => {
     handle.onOpenChange = setOpen;
@@ -23,16 +24,9 @@ function Widget({ handle, face }: { handle: WidgetHandle; face: Face }) {
     };
   }, [handle]);
 
+  // The widget stays mounted while closed, so the conversation is kept when the patient reopens it.
   if (!open) return null;
-  // Step 2 placeholder panel. Step 3 replaces it with the header, message list, typing bar and footer.
-  return (
-    <div role="dialog" aria-label={`${face.botName} chat`} class="nb-panel-placeholder">
-      <b>{face.botName}</b> <span>{t.subtitle}</span>{' '}
-      <button type="button" aria-label={t.close_chat} onClick={() => handle.setOpen(false)}>
-        ×
-      </button>
-    </div>
-  );
+  return <Panel botName={face.botName} onClose={close} />;
 }
 
 export function mountApp(face: Face) {
