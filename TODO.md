@@ -6,6 +6,15 @@
   - "You seem to be offline. Please check your connection and try again."
   - "Something went wrong. Please try again."
 - [ ] **Config address**: the widget uses `/v1/widget/config/{clinic}`, since the README doesn't give an exact path. The backend will need to use the same one.
+- [ ] **Arya texts not in frontend.md or the mockups** (written during the build; same pattern for Navya and Diya). Please confirm or change them:
+  - After choosing "Other": "Please tell us briefly what you are looking for."
+  - Reason too short: "Please add a few more words."
+  - Summary with Any time: "24 Oct 2026, any time"; confirmation: "on 24 Oct 2026 (any time)"
+  - After tapping Main menu: "How can I help you today?"
+  - Question typed mid-booking with no answer (or medical): "I don't have a confirmed answer for that yet. I have noted your question for our team."
+  - Cost asked mid-booking: "Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. The final count is confirmed after a scalp evaluation."
+  - Address asked mid-booking: "We are at 1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037. Open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
+- [ ] **Supabase region**: the project is in Singapore (`ap-southeast-1`), not Mumbai as planned (DPDP Act, latency). A region cannot be changed later; decide before real patient data.
 
 ---
 
@@ -56,6 +65,23 @@
 - [x] Close button on the placeholder panel, so mobile users can close the chat before Step 3 adds the header
 - [x] WIDGET-STEPS.md: item 1.4 now names `scripts/size.mjs`; item 3.1 (Launcher) ticked, since it was built in Step 2
 
+### Backend skeleton (done 21 Oct 2026)
+- [x] FastAPI on Python 3.12 (uv), cloud Supabase through the connection string, `/v1/health` and `/v1/health/ready`
+- [x] Redis optional (Phase 2); tests use clinic CL99
+
+### Neo Follicle (Arya) widget, pieces 1 to 8 (done 21 Oct 2026)
+Each piece was checked (typecheck, lint, build, Playwright on desktop and mobile) and committed separately.
+- [x] 1: contract types, date helpers, icons, safe bold text
+- [x] 2: desktop panel 380 x 580, mobile sheet with backdrop, swipe down, header, footer
+- [x] 3: message bubbles, typing dots, offline and server errors with Try again, restart with a new session
+- [x] 4: typing bar with text, phone (15 country codes, IN +91 default) and email modes
+- [x] 5: Arya 3-column menu cards, chips with Back and Main menu, call, WhatsApp and website links
+- [x] 6: month calendar (closed days, 2-week window, booked date 2 months back) and 15-minute time grid
+- [x] 7: doctor card with stats grid
+- [x] 8: mock backend with every Arya flow word for word: booking (in-clinic, online), cancel, reschedule, callback, typed-question lead, Explore, Not sure, cost guide, International, Talk to us, emergency and medical rules, questions mid-booking
+- [x] Bugs found by the tests and fixed: shared button style overriding component styles (would have broken the 16 px iPhone input), invalid email blocked by the browser popup, mobile tap missed after typing, test timing race with the opening animation
+- [x] 150 Playwright tests pass; Arya widget 13.0 KB of the 40 KB limit, loader 1.9 KB of 5 KB
+
 ### Git
 - [x] Branch `dev`: docs commit (done 15 Oct 2026)
 - [x] Branch `feat/widgets`: Step 1 and Step 2 commits (done 15 Oct 2026)
@@ -65,5 +91,9 @@
 
 ## Next
 
-- [ ] Step 3: layout (desktop panel, mobile sheet, header, footer, typing bar)
+- [ ] Piece 9b: iPhone-size and keyboard-only tests for Arya
+- [ ] Piece 9c: restore the conversation after a page reload (WIDGET-STEPS 5.12)
+- [ ] Push the Arya commits to GitHub (`feat/widgets` and `frontend`)
+- [ ] Backend: database migrations, then the real `/v1/chat/message` for Arya (replaces the mock)
+- [ ] Navya and Diya faces
 - [ ] Optional: add `.gitattributes` to stop the "LF will be replaced by CRLF" warnings
