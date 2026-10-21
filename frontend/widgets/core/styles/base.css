@@ -597,3 +597,37 @@
     min-height: 40px;
   }
 }
+
+/* Doctor card: one bubble with a 3-column stats grid. */
+.nb-msg.nb-doc {
+  max-width: 100%;
+}
+.nb-q {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mute);
+}
+.nb-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.nb-stats div {
+  padding: 7px 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  line-height: 1.2;
+}
+/* .nb-msg prefix so this wins over the darker bold colour of bot bubbles. */
+.nb-msg .nb-stats b {
+  display: block;
+  font-size: 16px;
+  color: var(--rose);
+}
+.nb-stats span {
+  font-size: 10.5px;
+  color: var(--mute);
+}

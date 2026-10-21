@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { ChipsBlock, Choice, MenuBlock, UiBlock } from '../types';
+import type { ChipsBlock, Choice, DoctorCardBlock, MenuBlock, UiBlock } from '../types';
 import { Icon } from '../icons';
 import t from '../i18n/en.json';
 import { Calendar } from './Calendar';
@@ -102,6 +102,34 @@ function Chips({ block, onChoose }: { block: ChipsBlock; onChoose: OnChoose }) {
   );
 }
 
+// About Doctor profile (Arya mockup): name, role, qualifications and a 3-column stats grid in one bubble,
+// then its buttons.
+function DoctorCard({ block, onChoose }: { block: DoctorCardBlock; onChoose: OnChoose }) {
+  return (
+    <>
+      <div class="nb-msg bot nb-doc">
+        <b>{block.name}</b>
+        <br />
+        {block.title}
+        <br />
+        <span class="nb-q">{block.quals}</span>
+        <div class="nb-stats">
+          {block.stats.map((s) => (
+            <div key={s.label}>
+              <b>{s.value}</b>
+              <span>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <Chips
+        block={{ type: 'chips', options: block.options, back: block.back, main: block.main }}
+        onChoose={onChoose}
+      />
+    </>
+  );
+}
+
 // Every block stays visible and usable after a choice, so the patient can change their mind.
 export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose }) {
   switch (block.type) {
@@ -113,7 +141,7 @@ export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose 
       return <Calendar block={block} onChoose={onChoose} />;
     case 'time_grid':
       return <TimeGrid block={block} onChoose={onChoose} />;
-    default:
-      return null; // added in the next pieces
+    case 'doctor_card':
+      return <DoctorCard block={block} onChoose={onChoose} />;
   }
 }

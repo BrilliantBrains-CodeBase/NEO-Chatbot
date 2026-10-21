@@ -33,7 +33,43 @@ const TYPE: ChatResponse['input'] = { mode: 'text', placeholder: 'Type your ques
 const ARYA_CALL: Choice = { label: 'Call +91 97312 07940', href: 'tel:+919731207940' };
 
 // Small Arya replies to show the chips; the full flows come in piece 8.
+const ARYA_SITE = 'https://neofollicletransplant.com/';
+
 const NODES: Record<string, ChatResponse> = {
+  about: {
+    messages: [{ type: 'text', text: 'Which doctor would you like to know about?' }],
+    ui: {
+      type: 'chips',
+      main: true,
+      options: [{ label: 'Dr. Sandeep Mahapatra', action: 'go', value: 'doc_sandeep' }],
+    },
+    input: TYPE,
+  },
+  doc_sandeep: {
+    messages: [],
+    ui: {
+      type: 'doctor_card',
+      name: 'Dr. Sandeep Mahapatra',
+      title: 'Founder and Director, Neo Follicle',
+      quals: 'MBBS, MD (Dermatology), ISHRS Gold Member, Certified DHI Specialist',
+      stats: [
+        { value: '20+', label: 'Years experience' },
+        { value: '10,000+', label: 'Transplants' },
+        { value: '60 lakh+', label: 'Follicles placed' },
+        { value: '500+', label: 'International patients' },
+        { value: '1 lakh+', label: 'PRP sessions' },
+        { value: 'Gold', label: 'Medalist, MD' },
+      ],
+      options: [
+        { label: 'Book with Dr. Sandeep', action: 'start', value: 'book', primary: true },
+        { label: 'Read full profile', href: ARYA_SITE + 'dr-sandeep-mahapatra-hair-transplant-surgeon/' },
+        { label: 'Patient videos', href: ARYA_SITE + 'video-gallery/' },
+      ],
+      back: { label: 'Back', action: 'go', value: 'about' },
+      main: true,
+    },
+    input: TYPE,
+  },
   book: {
     messages: [{ type: 'text', text: 'What would you like to do?' }],
     ui: {
