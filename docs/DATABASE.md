@@ -8,12 +8,12 @@ How the one Supabase database is set up, structured, protected and kept healthy.
 
 | Item | Decision |
 |---|---|
-| Projects | **One** Supabase project for live data |
+| Projects | **One** Supabase project for live data (created in Mumbai on 21 Oct 2026; the earlier Singapore project is to be deleted) |
 | Region | **Mumbai (ap-south-1)**: patient data stays in India (DPDP Act 2023) and sits next to the Linode Mumbai server |
 | Plan | **Free** while building, **Pro before go-live** (Free pauses after 7 idle days and has no backups) |
 | Development and tests | The **same cloud project**, using the hidden test clinic **CL99** only. Tests create their rows under CL99 and delete them afterwards; CL99 is excluded from every report and from the CRM clinic switcher |
 | Redis | **Phase 2.** Until then: chat session state in `chat_sessions.state` (jsonb), slot holds in a `slot_holds` table (`expires_at`, unique per doctor and start time), rate limits in memory per server process |
-| Schema changes | Only through numbered migration files, applied with `supabase link` then `supabase db push`. Take a backup first |
+| Schema changes | Only through numbered migration files, applied by `backend/scripts/migrate.py` (dry run by default, `--apply` to apply; each file once, in one transaction, refused if edited after applying). Take a backup first |
 | Extensions | `vector` (pgvector), `pg_trgm` (fuzzy name search), `btree_gist` (no double booking), `pg_cron` (scheduled clean-up), `pgcrypto` (UUIDs) |
 
 Because there is only one project, test data lives only under clinic `CL99`. The test setup refuses to run unless every row it writes uses `CL99`, and removes those rows when it finishes.
