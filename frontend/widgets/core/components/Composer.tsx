@@ -35,7 +35,9 @@ export function Composer({ mode, placeholder, busy, onSend }: Props) {
   };
 
   return (
-    <form class="nb-foot" onSubmit={submit}>
+    // noValidate: the backend checks the value and answers in the chat ("Please enter a valid email
+    // address."). Without it the browser blocks the form with its own popup for type="email".
+    <form class="nb-foot" onSubmit={submit} noValidate>
       {mode === 'phone' && (
         <select
           class="nb-cc"

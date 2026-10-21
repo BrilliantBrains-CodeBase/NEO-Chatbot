@@ -1,130 +1,328 @@
 // Mock backend: answers like the real FastAPI backend will, using the contract in core/types.ts.
 // Used by the dev playground and the Playwright tests only; it is never part of a clinic's widget file.
-// The full Arya flows (frontend.md) are added in piece 8.
-import type { ChatRequest, ChatResponse, Choice, MenuBlock } from '../core/types';
+// Arya (CL01) has the full flows; Navya and Diya only greet until their faces are built.
+import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
+import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
+import { ARYA, MENU, NODES, TYPE } from './arya';
 
 const GREETING: Record<string, string> = {
-  CL01: "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?",
+  CL01: ARYA.greeting,
   CL02: "Hi, I'm Navya, Neo Fertility's AI assistant. How can I help you today?",
   CL03: "Hi, I'm Diya, Derma Solutions' AI assistant. How can I help you today?",
 };
 
-// Arya main menu (approved mockup and Arya guide): 3-column cards, Emergency across the full row.
-const ARYA_WA =
-  'https://wa.me/919731207940?text=' +
-  encodeURIComponent('Hi, I would like to know about hair treatment at Neo Follicle.');
-const MENU: Record<string, MenuBlock> = {
-  CL01: {
-    type: 'menu',
-    layout: 'cards3',
-    items: [
-      { label: 'Book Consultation', icon: 'cal', action: 'go', value: 'book' },
-      { label: 'Explore Treatments', icon: 'search', action: 'go', value: 'treat' },
-      { label: 'About Doctors', icon: 'steth', action: 'go', value: 'about' },
-      { label: 'International Patients', icon: 'globe', action: 'go', value: 'intl' },
-      { label: 'Call Back', icon: 'phone', action: 'start', value: 'callback' },
-      { label: 'WhatsApp', icon: 'chat', href: ARYA_WA, variant: 'wa' },
-      { label: 'Emergency', icon: 'sos', action: 'go', value: 'emergency', variant: 'sos' },
-    ],
-  },
-};
-
-const TYPE: ChatResponse['input'] = { mode: 'text', placeholder: 'Type your question' };
-const ARYA_CALL: Choice = { label: 'Call +91 97312 07940', href: 'tel:+919731207940' };
-
-// Small Arya replies to show the chips; the full flows come in piece 8.
-const ARYA_SITE = 'https://neofollicletransplant.com/';
-
-const NODES: Record<string, ChatResponse> = {
-  about: {
-    messages: [{ type: 'text', text: 'Which doctor would you like to know about?' }],
-    ui: {
-      type: 'chips',
-      main: true,
-      options: [{ label: 'Dr. Sandeep Mahapatra', action: 'go', value: 'doc_sandeep' }],
-    },
-    input: TYPE,
-  },
-  doc_sandeep: {
-    messages: [],
-    ui: {
-      type: 'doctor_card',
-      name: 'Dr. Sandeep Mahapatra',
-      title: 'Founder and Director, Neo Follicle',
-      quals: 'MBBS, MD (Dermatology), ISHRS Gold Member, Certified DHI Specialist',
-      stats: [
-        { value: '20+', label: 'Years experience' },
-        { value: '10,000+', label: 'Transplants' },
-        { value: '60 lakh+', label: 'Follicles placed' },
-        { value: '500+', label: 'International patients' },
-        { value: '1 lakh+', label: 'PRP sessions' },
-        { value: 'Gold', label: 'Medalist, MD' },
-      ],
-      options: [
-        { label: 'Book with Dr. Sandeep', action: 'start', value: 'book', primary: true },
-        { label: 'Read full profile', href: ARYA_SITE + 'dr-sandeep-mahapatra-hair-transplant-surgeon/' },
-        { label: 'Patient videos', href: ARYA_SITE + 'video-gallery/' },
-      ],
-      back: { label: 'Back', action: 'go', value: 'about' },
-      main: true,
-    },
-    input: TYPE,
-  },
-  book: {
-    messages: [{ type: 'text', text: 'What would you like to do?' }],
-    ui: {
-      type: 'chips',
-      main: true,
-      options: [
-        { label: 'Book appointment (in-clinic)', action: 'start', value: 'book' },
-        { label: 'Online consultation', action: 'start', value: 'online' },
-        { label: 'Cancel appointment', action: 'start', value: 'cancel' },
-        { label: 'Reschedule appointment', action: 'start', value: 'reschedule' },
-      ],
-    },
-    input: TYPE,
-  },
-  emergency: {
-    messages: [
-      {
-        type: 'text',
-        text: 'If you have heavy bleeding, severe swelling, fever or signs of infection, or a reaction after a procedure, get help now. For a medical emergency, call **108** or go to the nearest hospital. The clinic is open Wednesday to Monday, 10 AM to 7 PM.',
-      },
-    ],
-    ui: {
-      type: 'chips',
-      main: true,
-      options: [{ label: 'Call 108', href: 'tel:108', primary: true }, ARYA_CALL],
-    },
-    input: TYPE,
-  },
-};
-
 const NO_ANSWER =
   "I don't have a confirmed answer for that yet. Share your number and our team will call you back with the right information.";
+const CONSENT = 'By confirming, you agree to be contacted by phone, WhatsApp or email.';
+
+// The clock can be set by tests, so date and slot rules are checked at a fixed time.
+export const clock = { now: () => new Date() };
+
+// India time (UTC+5:30): today's date and minutes since midnight.
+function ist() {
+  const d = new Date(clock.now().getTime() + 330 * 60000);
+  return { today: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+
+const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+// Free slots for a day. Every slot is free in the mock; past times are removed for today.
+function slotsFor(ymd: string): string[] {
+  if (ARYA.closedWeekdays.includes(weekday(ymd))) return [];
+  const { today, minutes } = ist();
+  const out: string[] = [];
+  for (let m = ARYA.firstSlot; m <= ARYA.lastSlot; m += ARYA.slotMinutes) {
+    if (ymd !== today || m > minutes) out.push(hm(m));
+  }
+  return out;
+}
+
+// New booking: today (if a slot is left) up to the end of the booking window.
+function newDateRange() {
+  const { today } = ist();
+  return {
+    today,
+    min: slotsFor(today).length ? today : addDays(today, 1),
+    max: addDays(today, ARYA.bookingWindowDays),
+  };
+}
+
+function newDateCalendar(action: string): UiBlock {
+  return { type: 'month_calendar', action, ...newDateRange(), closed_weekdays: ARYA.closedWeekdays };
+}
+
+function bookable(ymd: string): boolean {
+  const { min, max } = newDateRange();
+  return ymd >= min && ymd <= max && slotsFor(ymd).length > 0;
+}
+
+// ---------- conversation state ----------
+
+type Kind = 'book' | 'online';
+type Step = 'name' | 'phone' | 'email' | 'treatment' | 'reason' | 'date' | 'time' | 'summary';
+
+interface Flow {
+  kind: Kind;
+  step: Step;
+  // After a "Change ..." button, return to the summary instead of continuing step by step.
+  backToSummary?: boolean;
+  name?: string;
+  phone?: string; // "+91 9876543210"
+  email?: string;
+  treatment?: string;
+  reason?: string;
+  date?: string; // YYYY-MM-DD
+  time?: string; // HH:MM or "any"
+}
+
+const sessions = new Map<string, Flow | null>();
+
+// ---------- validation (same rules the real backend will use) ----------
+
+const validName = (s: string) => /^\p{L}[\p{L} .'-]*\p{L}$/u.test(s.trim());
+const validEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim());
+function normalPhone(text: string, cc = '+91'): string | null {
+  const digits = text.replace(/[\s()-]/g, '');
+  const ok = cc === '+91' ? /^[6-9]\d{9}$/.test(digits) : /^\d{6,12}$/.test(digits);
+  return ok ? `${cc} ${digits}` : null;
+}
+const firstName = (name: string) => name.trim().split(/\s+/)[0];
+
+// ---------- replies ----------
+
+const reply = (texts: string[], ui: UiBlock | null = null, input = TYPE): ChatResponse => ({
+  messages: texts.map((text) => ({ type: 'text', text })),
+  ui,
+  input,
+});
+
+const INTRO: Record<Kind, string> = {
+  book: "Sure, let's book your appointment. May I know your full name?",
+  online: "Sure, let's book your online video consultation. May I know your full name?",
+};
+
+// The question for a step, with its input or picker. Also used to ask a step again.
+function ask(f: Flow, lead: string[] = []): ChatResponse {
+  switch (f.step) {
+    case 'name':
+      return reply([...lead, 'May I know your full name?'], null, {
+        mode: 'text',
+        placeholder: 'Your full name',
+      });
+    case 'phone':
+      return reply([...lead, `Thanks, ${firstName(f.name!)}. What is your contact number?`], null, {
+        mode: 'phone',
+        placeholder: 'Mobile number',
+      });
+    case 'email':
+      return reply([...lead, 'What is your email address?'], null, {
+        mode: 'email',
+        placeholder: 'name@example.com',
+      });
+    case 'treatment':
+      return reply([...lead, 'Which treatment are you looking for?'], {
+        type: 'chips',
+        options: ARYA.treatments.map((t) => ({ label: t, action: 'treatment', value: t })),
+      });
+    case 'reason':
+      return reply([...lead, 'Please tell us briefly what you are looking for.'], null, {
+        mode: 'text',
+        placeholder: 'Short reason',
+      });
+    case 'date':
+      return reply([...lead, 'Which date works for you?'], newDateCalendar('date'));
+    case 'time':
+      return reply([...lead, 'What time would you prefer?'], {
+        type: 'time_grid',
+        action: 'time',
+        slots: slotsFor(f.date!),
+        first: 4,
+        any_time: true,
+      });
+    case 'summary':
+      return summary(f, lead);
+  }
+}
+
+const treatmentText = (f: Flow) => (f.treatment === 'Other' && f.reason ? f.reason : f.treatment!);
+const whenText = (f: Flow) =>
+  f.time === 'any' ? `${fmtDate(f.date!)}, any time` : `${fmtDate(f.date!)} at ${fmtTime(f.time!)}`;
+const visitText = (f: Flow) =>
+  f.kind === 'online' ? 'Online video consultation (Google Meet)' : 'In-clinic visit';
+
+function summary(f: Flow, lead: string[] = []): ChatResponse {
+  const text = [
+    'Please check your details:',
+    `**${f.name}**`,
+    f.phone!,
+    f.email!,
+    treatmentText(f),
+    visitText(f),
+    whenText(f),
+    `**${CONSENT}**`,
+  ].join('\n');
+  const options: Choice[] = [
+    { label: 'Confirm booking', action: 'confirm' },
+    { label: 'Change treatment', action: 'change_treatment' },
+    { label: 'Change date and time', action: 'change_datetime' },
+    ...(f.kind === 'online' ? [{ label: 'Switch to in-clinic visit', action: 'switch_inclinic' }] : []),
+    { label: 'Start again', action: 'start_again' },
+  ];
+  return reply([...lead, text], { type: 'chips', options });
+}
+
+function confirmed(f: Flow): ChatResponse {
+  const when = f.time === 'any' ? `on ${fmtDate(f.date!)} (any time)` : `on ${whenText(f)}`;
+  const text =
+    f.kind === 'online'
+      ? `Your online consultation request for **${treatmentText(f)}** ${when} is received. You will get the Google Meet link on WhatsApp and email once the clinic confirms.`
+      : `Your appointment request for **${treatmentText(f)}** ${when} is received.`;
+  return reply([text], {
+    type: 'chips',
+    options: [
+      { label: 'Main menu', action: 'menu' },
+      { label: 'Talk to us', action: 'go', value: 'talk' },
+    ],
+  });
+}
+
+const menu = (client: string, text: string) => reply([text], client === 'CL01' ? MENU : null);
+
+// ---------- steps ----------
+
+// After a step is filled in: the next step, or back to the summary after a "Change ..." button.
+function advance(f: Flow, next: Step): ChatResponse {
+  f.step = f.backToSummary && next !== 'time' ? 'summary' : next;
+  if (f.step === 'summary') f.backToSummary = false;
+  return ask(f);
+}
+
+// Typed text while a step is open.
+function typed(f: Flow, text: string, cc?: string): ChatResponse {
+  const value = text.trim();
+  switch (f.step) {
+    case 'name':
+      if (!validName(value))
+        return reply(['Please enter your full name.'], null, { mode: 'text', placeholder: 'Your full name' });
+      f.name = value.replace(/\s+/g, ' ');
+      return advance(f, 'phone');
+    case 'phone': {
+      const phone = normalPhone(value, cc);
+      if (!phone)
+        return reply(['That number does not look right. Please check and enter it again.'], null, {
+          mode: 'phone',
+          placeholder: 'Mobile number',
+        });
+      f.phone = phone;
+      return advance(f, 'email');
+    }
+    case 'email':
+      if (!validEmail(value))
+        return reply(['Please enter a valid email address.'], null, {
+          mode: 'email',
+          placeholder: 'name@example.com',
+        });
+      f.email = value.toLowerCase();
+      return advance(f, 'treatment');
+    case 'reason':
+      if (value.length < 3)
+        return reply(['Please add a few more words.'], null, { mode: 'text', placeholder: 'Short reason' });
+      f.reason = value;
+      return advance(f, 'date');
+    default: {
+      // A treatment typed by name is accepted; anything else asks the same step again (questions: piece 8d).
+      const match = ARYA.treatments.find((t) => t.toLowerCase() === value.toLowerCase());
+      if (f.step === 'treatment' && match) return pickTreatment(f, match);
+      return ask(f);
+    }
+  }
+}
+
+function pickTreatment(f: Flow, treatment: string): ChatResponse {
+  f.treatment = treatment;
+  if (treatment === 'Other') {
+    f.step = 'reason';
+    return ask(f);
+  }
+  f.reason = undefined;
+  return advance(f, 'date');
+}
+
+// Buttons that belong to the booking flow. Earlier pickers stay usable, so they work from any step.
+function bookingButton(session: string, f: Flow, action: string, value: string): ChatResponse | null {
+  switch (action) {
+    case 'treatment':
+      return ARYA.treatments.includes(value) ? pickTreatment(f, value) : ask(f);
+    case 'date':
+      if (!bookable(value)) return ask(f);
+      f.date = value;
+      f.time = undefined;
+      f.step = 'time';
+      return ask(f);
+    case 'time':
+      if (!f.date || (value !== 'any' && !slotsFor(f.date).includes(value))) return ask(f);
+      f.time = value;
+      return advance(f, 'summary');
+    case 'change_treatment':
+      f.step = 'treatment';
+      f.backToSummary = true;
+      return ask(f);
+    case 'change_datetime':
+      f.step = 'date';
+      f.backToSummary = true;
+      return ask(f);
+    case 'switch_inclinic':
+      f.kind = 'book';
+      return advance(f, 'summary');
+    case 'start_again':
+      return start(session, f.kind);
+    case 'confirm':
+      return null; // handled by the caller, which ends the flow
+  }
+  return ask(f);
+}
+
+function start(session: string, kind: Kind): ChatResponse {
+  sessions.set(session, { kind, step: 'name' });
+  return reply([INTRO[kind]], null, { mode: 'text', placeholder: 'Your full name' });
+}
+
+// ---------- entry ----------
 
 export function handle(req: ChatRequest): ChatResponse {
-  if (req.event === 'button' && req.payload.action === 'go' && req.client_id === 'CL01') {
-    const node = NODES[req.payload.value ?? ''];
-    if (node) return node;
+  const client = req.client_id;
+  const flow = sessions.get(req.session_id) ?? null;
+  const { action = '', value = '' } = req.payload;
+
+  if (req.event === 'start' || req.event === 'restart') {
+    sessions.set(req.session_id, null);
+    return menu(client, GREETING[client] ?? 'Hi, how can I help you today?');
   }
-  if (req.event === 'button' && req.payload.action === 'menu') {
-    return {
-      messages: [{ type: 'text', text: 'How can I help you today?' }],
-      ui: MENU[req.client_id] ?? null,
-      input: TYPE,
-    };
+  if (client !== 'CL01') return reply([NO_ANSWER]);
+
+  if (req.event === 'button') {
+    // Main menu and every main card stop the current flow.
+    if (action === 'menu') {
+      sessions.set(req.session_id, null);
+      return menu(client, 'How can I help you today?');
+    }
+    if (action === 'go') {
+      sessions.set(req.session_id, null);
+      return NODES[value] ?? reply([NO_ANSWER]);
+    }
+    if (action === 'start' && (value === 'book' || value === 'online')) return start(req.session_id, value);
+    if (flow) {
+      if (action === 'confirm' && flow.step === 'summary') {
+        sessions.set(req.session_id, null);
+        return confirmed(flow);
+      }
+      const res = bookingButton(req.session_id, flow, action, value);
+      if (res) return res;
+    }
+    return menu(client, 'How can I help you today?');
   }
-  if (req.event === 'text' || req.event === 'button') {
-    return {
-      messages: [{ type: 'text', text: NO_ANSWER }],
-      input: { mode: 'text', placeholder: 'Type your question' },
-    };
-  }
-  const greeting = GREETING[req.client_id] ?? 'Hi, how can I help you today?';
-  return {
-    messages: [{ type: 'text', text: greeting }],
-    ui: MENU[req.client_id] ?? null,
-    input: { mode: 'text', placeholder: 'Type your question' },
-  };
+
+  // Typed text.
+  if (flow) return typed(flow, req.payload.text ?? '', req.payload.cc);
+  return reply([NO_ANSWER]);
 }

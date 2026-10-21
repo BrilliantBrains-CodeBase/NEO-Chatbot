@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../icons';
 import t from '../i18n/en.json';
 
@@ -21,6 +21,9 @@ interface Props {
 export function Panel({ botName, onClose, onRestart, composer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
+  // Mobile: the sheet goes full height when the patient starts typing and stays so until the chat is
+  // closed. Shrinking it again on blur would move the buttons mid-tap and the tap would miss.
+  const [full, setFull] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -48,7 +51,13 @@ export function Panel({ botName, onClose, onRestart, composer, children }: Props
   return (
     <>
       <div class="nb-backdrop" onClick={onClose} />
-      <div class="nb-panel" role="dialog" aria-label={`${botName} chat`} ref={panel}>
+      <div
+        class={full ? 'nb-panel full' : 'nb-panel'}
+        role="dialog"
+        aria-label={`${botName} chat`}
+        ref={panel}
+        onFocusIn={(e) => (e.target as HTMLElement).classList.contains('nb-in') && setFull(true)}
+      >
         <div class="nb-head" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <span class="nb-grip" />
           <div class="nb-ava" aria-hidden="true">
