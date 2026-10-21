@@ -2,12 +2,14 @@
 
 Website chatbots and a shared clinic CRM for the NEO Group clinics, built by **Brilliant Brains**.
 
-| Clinic | Website | Chatbot |
-|---|---|---|
-| Neo Fertility | neofertility.co.in | Navya AI |
-| Neo Follicle | neofollicletransplant.com | Arya AI |
-| Derma Solutions | dermasolutions.co.in | Diya AI |
-| Clinic 4 | Placeholder | Added later by config |
+| Clinic ID | Clinic | Website | Chatbot |
+|---|---|---|---|
+| CL01 | Neo Follicle | neofollicletransplant.com | Arya AI |
+| CL02 | Neo Fertility | neofertility.co.in | Navya AI |
+| CL03 | Derma Solutions | dermasolutions.co.in | Diya AI |
+| CL04 | Clinic 4 | Placeholder | Added later by config |
+
+One database and one server serve all clinics. Every lead and every knowledge base entry is stored with its clinic ID, and the widget sends the same ID as `client_id`.
 
 Patients use the chatbot to book (in-clinic or online), cancel, reschedule, request a callback, explore treatments and reach the clinic. Every conversation becomes a lead in **NEO CRM**, where clinic staff approve bookings, manage doctor availability and track patients.
 
@@ -32,12 +34,12 @@ External: Gemini / Groq (LLM fallback only), Interakt (WhatsApp),
 
 ### Answering pipeline (LLM is the last resort)
 
-1. **Active flow**: the message answers the current booking step.
+1. **Active flow**: the message answers the current booking step. If the patient types a question instead, it goes through the steps below, then the bot asks the same booking step again and keeps everything entered so far.
 2. **Emergency check**: emergency words open the Emergency flow.
 3. **Intent router**: typed text triggers the same flows as buttons (keywords, typo tolerance, entities).
 4. **Exact cache**: the same question answered before.
 5. **FAQ match**: semantic match to clinic-approved FAQs, answer shown word for word, or "Did you mean?".
-6. **Medical guard**: no medical advice; the question is saved and a callback is offered.
+6. **Medical guard**: no healthcare or medicine question is answered, not even general treatment information. The question is saved as a lead and the bot says the team will contact them.
 7. **LLM fallback**: Gemini or Groq answers only from retrieved FAQs, strict JSON, validated.
 8. **Handoff**: anything unclear becomes a callback lead.
 
@@ -169,11 +171,11 @@ Each clinic website loads only its own file. That file is the small loader (laun
 
 ## Widget and backend contract
 
-The widget sends every patient action as JSON to `POST /v1/chat/message`:
+All traffic between the widget and the backend is JSON, in both directions (`Content-Type: application/json`). The widget sends every patient action to `POST /v1/chat/message`:
 
 ```json
 {
-  "client_id": "derma-solutions",
+  "client_id": "CL03",
   "session_id": "s_8f2a91c4",
   "visitor_id": "v_31bd77e0",
   "event": "button",
@@ -213,10 +215,12 @@ Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by de
 ## Booking rules
 
 - **Time slots are 15 minutes** inside clinic hours. Clinic staff can change the slot length later in NEO CRM.
+- **Booking window is 2 weeks**: a new booking or a new reschedule date can be today up to 14 days ahead. Staff can change this later in NEO CRM.
 - Past dates and the clinic's closed days are disabled in the date picker. Past times are hidden for today.
+- **Last slot starts 30 minutes before closing**: Neo Fertility 9:30 AM to 6:00 PM, Neo Follicle 10:00 AM to 6:30 PM, Derma Solutions 10:00 AM to 7:30 PM. After the last slot, the calendar starts from tomorrow.
 - **Phone number**: the country code is changeable. India (+91) needs 10 digits starting with 6 to 9; other countries need 6 to 12 digits.
 - **Cancel and reschedule, no OTP**: the patient gives name and contact number (or email). The backend checks these against existing bookings. If they match, the request is linked to that booking. If they do not match, the request is still sent to clinic staff, marked "No matching booking", for manual approval. In both cases the patient sees the same confirmation message and staff confirm by phone.
-- **Booked date picker** (cancel and reschedule, "Which date is your appointment booked for?"): allows both previous and future dates, from 2 months back. Closed days stay disabled.
+- **Booked date picker** (cancel and reschedule, "Which date is your appointment booked for?"): allows both previous and future dates, from 2 months back up to 2 weeks ahead. Closed days stay disabled.
 - Every booking, cancel, reschedule and callback becomes a lead in NEO CRM.
 
 ## Widget layout (from the approved mockups)
@@ -255,7 +259,8 @@ Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by de
 
 - [Widget behaviour spec](frontend.md): exact bot wording, buttons and inputs for every flow on all 3 clinics
 - [Widget build steps](WIDGET-STEPS.md): step-by-step checklist for the chatbot widgets
-- [RAG and lead storage](docs/RAG-AND-LEADS.md) (to be written in the backend phase, file not in the repo yet): answer pipeline, knowledge base (FAQs and treatment pages), chunking, retrieval, prompt template, injection defence, grounded answer check, caching, and how every lead is stored in Supabase
+- [Backend design](docs/RAG-AND-LEADS.md): answer pipeline (LangGraph), knowledge base, slots, leads, CRM roles and tasks, integrations, database tables. Where it differs from this README, the design file wins
+- Chatbot guides (PDF) for each clinic in [docs/](docs/)
 - Migrations: `001_core.sql` (core schema, constraints, RLS), `002_kb_pages_and_lead_fields.sql` (treatment page knowledge, lead consent and tracking)
 
 ## Targets

@@ -49,7 +49,7 @@ Each block is drawn by `renderer.tsx` from `ui.type` (R).
 - [ ] 4.3 `chips`: pill buttons with Back / Main menu ghost links under them (M)
 - [ ] 4.4 `phone`: country code select. India must be 10 digits starting 6–9, other countries 6–12 digits. Code is changeable (D, M)
 - [ ] 4.5 `email`: email validation, error "Please enter a valid email address." (F)
-- [ ] 4.6 `month_calendar`: past days disabled, clinic closed days disabled, today outlined (F, M)
+- [ ] 4.6 `month_calendar`: past days disabled, clinic closed days disabled, today outlined, only the next 2 weeks bookable (F, M, D)
 - [ ] 4.7 `time_grid`: **15-minute slots** (D) inside clinic hours, past times hidden today, "Any time", "More times" (F, M)
 - [ ] 4.8 `summary`: confirmation card plus consent line (F)
 - [ ] 4.9 `link_buttons`: Call, WhatsApp, Maps, website links (M)
