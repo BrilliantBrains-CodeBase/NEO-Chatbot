@@ -5,7 +5,7 @@ import baseCss from './styles/base.css?inline';
 import { injectStyles } from './shadow';
 import { getHandle, type WidgetHandle } from './registry';
 import { ApiError, createApi, type Api } from './api';
-import { getVisitorId, getSession } from './session';
+import { getVisitorId, getSession, resetSession } from './session';
 import type { ChatEvent, ChatRequest } from './types';
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
@@ -26,6 +26,8 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   const started = useRef(false);
   // The last request, so "Try again" can send it once more.
   const last = useRef<{ event: ChatEvent; payload: ChatRequest['payload'] } | null>(null);
+  // Bumped by restart, so a reply still on its way for the old conversation is dropped.
+  const generation = useRef(0);
   const close = useCallback(() => handle.setOpen(false), [handle]);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   const send = useCallback(
     async (event: ChatEvent, payload: ChatRequest['payload'] = {}) => {
       last.current = { event, payload };
+      const gen = generation.current;
       setBusy(true);
       try {
         const res = await api.send({
@@ -51,14 +54,16 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
           payload,
           context: { page_url: location.href, device: isMobile() ? 'mobile' : 'desktop', lang: 'en' },
         });
+        if (gen !== generation.current) return;
         res.messages.forEach((m) => add('bot', m.text));
       } catch (err) {
+        if (gen !== generation.current) return;
         // The API client has already retried server and network errors.
         console.warn('[neo-widget]', err);
         const offline = err instanceof ApiError && err.kind === 'offline';
         add('bot', offline ? t.error_offline : t.error_generic, true);
       } finally {
-        setBusy(false);
+        if (gen === generation.current) setBusy(false);
       }
     },
     [api, face.clinicId],
@@ -69,6 +74,14 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
     setEntries((list) => list.filter((e) => !e.error));
     void send(last.current.event, last.current.payload);
   }, [send]);
+
+  // Header restart: a new session and a fresh conversation.
+  const restart = useCallback(() => {
+    generation.current++;
+    resetSession(face.clinicId);
+    setEntries([]);
+    void send('restart');
+  }, [face.clinicId, send]);
 
   // The first open of this page view starts (or resumes) the conversation.
   useEffect(() => {
@@ -81,7 +94,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   // The widget stays mounted while closed, so the conversation is kept when the patient reopens it.
   if (!open) return null;
   return (
-    <Panel botName={face.botName} onClose={close}>
+    <Panel botName={face.botName} onClose={close} onRestart={restart}>
       <Messages entries={entries} busy={busy} onRetry={retry} />
     </Panel>
   );

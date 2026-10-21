@@ -10,12 +10,13 @@ const MOBILE_QUERY = '(max-width: 640px)';
 interface Props {
   botName: string;
   onClose: () => void;
+  onRestart: () => void;
   children?: ComponentChildren;
 }
 
 // Desktop: floating panel. Mobile (640 px and below): bottom sheet with backdrop, closed by X,
 // tapping the backdrop, swiping the header down, or Escape.
-export function Panel({ botName, onClose, children }: Props) {
+export function Panel({ botName, onClose, onRestart, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
 
@@ -55,6 +56,15 @@ export function Panel({ botName, onClose, children }: Props) {
             <b>{botName}</b>
             <span>{t.subtitle}</span>
           </div>
+          <button
+            type="button"
+            class="nb-x"
+            aria-label={t.restart_chat}
+            title={t.restart_chat}
+            onClick={onRestart}
+          >
+            <Icon name="restart" />
+          </button>
           <button type="button" class="nb-x" aria-label={t.close_chat} onClick={onClose}>
             <Icon name="close" />
           </button>
