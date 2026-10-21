@@ -6,7 +6,7 @@ import { injectStyles } from './shadow';
 import { getHandle, type WidgetHandle } from './registry';
 import { ApiError, createApi, type Api } from './api';
 import { getVisitorId, getSession, resetSession } from './session';
-import type { ChatEvent, ChatRequest, InputMode } from './types';
+import type { ChatEvent, ChatRequest, ChatResponse, Choice, InputMode } from './types';
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
 import { Composer } from './components/Composer';
@@ -40,8 +40,16 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
     };
   }, [handle]);
 
-  const add = (from: Entry['from'], text: string, error?: boolean) =>
+  const add = (from: 'bot' | 'me', text: string, error?: boolean) =>
     setEntries((list) => [...list, { id: nextId.current++, from, text, error }]);
+
+  // A reply's block goes into the conversation too. The main menu sits above the greeting (approved mockups);
+  // every other block sits under the text it belongs to.
+  const addReply = (res: ChatResponse) => {
+    const texts: Entry[] = res.messages.map((m) => ({ id: nextId.current++, from: 'bot', text: m.text }));
+    const ui: Entry[] = res.ui ? [{ id: nextId.current++, from: 'ui', block: res.ui }] : [];
+    setEntries((list) => [...list, ...(res.ui?.type === 'menu' ? [...ui, ...texts] : [...texts, ...ui])]);
+  };
 
   const send = useCallback(
     async (event: ChatEvent, payload: ChatRequest['payload'] = {}) => {
@@ -58,7 +66,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
           context: { page_url: location.href, device: isMobile() ? 'mobile' : 'desktop', lang: 'en' },
         });
         if (gen !== generation.current) return;
-        res.messages.forEach((m) => add('bot', m.text));
+        addReply(res);
         setPlaceholder(res.input.placeholder || t.placeholder);
         setMode(res.input.mode);
       } catch (err) {
@@ -76,7 +84,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
 
   const retry = useCallback(() => {
     if (!last.current) return;
-    setEntries((list) => list.filter((e) => !e.error));
+    setEntries((list) => list.filter((e) => e.from === 'ui' || !e.error));
     void send(last.current.event, last.current.payload);
   }, [send]);
 
@@ -87,6 +95,16 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
       void send('text', cc ? { text, cc } : { text });
     },
     [send],
+  );
+
+  // A tapped button: its label shows as the patient's bubble, then the choice is sent.
+  const choose = useCallback(
+    (choice: Choice) => {
+      if (busy) return;
+      add('me', choice.label);
+      void send('button', { action: choice.action, value: choice.value });
+    },
+    [busy, send],
   );
 
   // Header restart: a new session and a fresh conversation.
@@ -116,7 +134,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
       onRestart={restart}
       composer={<Composer mode={mode} placeholder={placeholder} busy={busy} onSend={type} />}
     >
-      <Messages entries={entries} busy={busy} onRetry={retry} />
+      <Messages entries={entries} busy={busy} onRetry={retry} onChoose={choose} />
     </Panel>
   );
 }

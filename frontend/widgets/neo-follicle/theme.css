@@ -4,4 +4,8 @@
   --rose-d: #2a56ae;
   --blush: #8fb0ee;
   --tint: #eef3fc;
+  /* Menu cards alternate blue and soft gold (Arya guide, design specification). */
+  --tile-a: linear-gradient(135deg, #f1f5fd, #dce7fa);
+  --tile-b: linear-gradient(135deg, #fff6e3, #ffe8bb);
+  --tile-b-icon: #9a6200;
 }

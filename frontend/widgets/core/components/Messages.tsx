@@ -1,23 +1,23 @@
 import { useEffect, useRef } from 'preact/hooks';
 import { Rich } from '../rich';
+import type { UiBlock } from '../types';
+import { Block, type OnChoose } from './Blocks';
 import t from '../i18n/en.json';
 
-export interface Entry {
-  id: number;
-  from: 'bot' | 'me';
-  text: string;
-  // A request failed; the bubble offers "Try again".
-  error?: boolean;
-}
+export type Entry =
+  // error: a request failed; the bubble offers "Try again".
+  | { id: number; from: 'bot' | 'me'; text: string; error?: boolean }
+  | { id: number; from: 'ui'; block: UiBlock };
 
 interface Props {
   entries: Entry[];
   busy: boolean;
   onRetry: () => void;
+  onChoose: OnChoose;
 }
 
-// The conversation: bot and patient bubbles, typing dots while waiting, kept scrolled to the newest message.
-export function Messages({ entries, busy, onRetry }: Props) {
+// The conversation: bubbles, blocks (menu, buttons, pickers), typing dots, kept scrolled to the newest item.
+export function Messages({ entries, busy, onRetry, onChoose }: Props) {
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,17 +28,21 @@ export function Messages({ entries, busy, onRetry }: Props) {
 
   return (
     <>
-      {entries.map((e) => (
-        <div key={e.id} class={`nb-msg ${e.from}`}>
-          {/* Patient text is shown as typed; only bot text may contain **bold**. */}
-          {e.from === 'bot' ? <Rich text={e.text} /> : e.text}
-          {e.error && (
-            <button type="button" class="nb-retry" onClick={onRetry} disabled={busy}>
-              {t.try_again}
-            </button>
-          )}
-        </div>
-      ))}
+      {entries.map((e) =>
+        e.from === 'ui' ? (
+          <Block key={e.id} block={e.block} onChoose={onChoose} />
+        ) : (
+          <div key={e.id} class={`nb-msg ${e.from}`}>
+            {/* Patient text is shown as typed; only bot text may contain **bold**. */}
+            {e.from === 'bot' ? <Rich text={e.text} /> : e.text}
+            {e.error && (
+              <button type="button" class="nb-retry" onClick={onRetry} disabled={busy}>
+                {t.try_again}
+              </button>
+            )}
+          </div>
+        ),
+      )}
       {busy && (
         <div class="nb-msg bot nb-typing" aria-hidden="true">
           <span />

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { settled } from './helpers';
 
 // Piece 2: panel layout (header, footer, closing). Runs on desktop and mobile projects.
 test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   // The full widget loads on first open; wait for it and for the opening animation to finish.
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel).toBeVisible();
-  await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  await settled(panel);
 });
 
 test('header shows avatar, bot name and subtitle; footer shows disclaimer and link', async ({ page }) => {

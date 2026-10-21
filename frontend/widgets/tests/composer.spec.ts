@@ -41,6 +41,12 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
   expect(sent[1].payload).toEqual({ text: 'What is the cost?' });
 });
 
+test('4a: input text is 16px on mobile (no iPhone zoom) and 14px on desktop', async ({ page }, info) => {
+  const panel = await open(page);
+  const input = panel.getByRole('textbox', { name: 'Type your question' });
+  await expect(input).toHaveCSS('font-size', info.project.name === 'mobile' ? '16px' : '14px');
+});
+
 test('4a: placeholder follows the backend reply', async ({ page }) => {
   const panel = await open(page, (req) => ({
     ...handle(req),

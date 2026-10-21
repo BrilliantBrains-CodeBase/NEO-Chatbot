@@ -19,9 +19,8 @@
 .nb *::after {
   box-sizing: border-box;
 }
-.nb button,
-.nb input,
-.nb select {
+/* :where() keeps this reset at the lowest priority, so each component's own font size, weight and colour win. */
+.nb :where(button, input, select) {
   font: inherit;
   color: inherit;
 }
@@ -367,4 +366,136 @@
   border-radius: 9px;
   background: var(--surface);
   font-size: 13px;
+}
+
+/* Main menu. cards3 (Arya): 3 columns, cards alternate two fills, Emergency across the full row. */
+.nb-menu.cards3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.nb-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 64px;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--tile-a, var(--tint));
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    transform 0.12s,
+    filter 0.12s;
+}
+.nb-tile:nth-child(even) {
+  background: var(--tile-b, var(--tint));
+}
+.nb-tile:hover {
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+}
+.nb-tile .ic {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--rose-d);
+  display: grid;
+  place-items: center;
+}
+.nb-tile:nth-child(even) .ic {
+  color: var(--tile-b-icon, var(--rose-d));
+}
+.nb-tile .ic svg {
+  width: 14px;
+  height: 14px;
+}
+.nb-tile.wa .ic {
+  color: var(--wa);
+}
+.nb-tile.sos .ic {
+  color: #c62828;
+}
+.nb-tile.sos {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  min-height: 40px;
+  gap: 8px;
+}
+
+/* Sub buttons: pills (mockup). Solid when selected or primary; WhatsApp has a green border. */
+.nb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.nb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--rose);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--rose-d);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+.nb-chip:hover {
+  background: var(--tint);
+}
+.nb-chip.sel {
+  background: var(--rose);
+  color: #fff;
+}
+.nb-chip.wa {
+  border-color: var(--wa);
+  color: #16723d;
+}
+.nb-chip.wa:hover {
+  background: #eaf7ef;
+}
+.nb-nav {
+  flex-basis: 100%;
+  display: flex;
+  gap: 14px;
+  margin-top: 2px;
+}
+.nb-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nb-ghost:hover {
+  color: var(--rose-d);
+}
+.nb-ghost svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 640px) {
+  .nb-chip {
+    min-height: 44px;
+  }
 }
