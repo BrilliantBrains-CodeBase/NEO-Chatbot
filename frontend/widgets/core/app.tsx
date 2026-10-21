@@ -10,6 +10,7 @@ import type { ChatEvent, ChatRequest, ChatResponse, Choice, InputMode } from './
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
 import { Composer } from './components/Composer';
+import { loadHistory, saveHistory } from './history';
 import t from './i18n/en.json';
 
 export interface Face {
@@ -21,11 +22,13 @@ const isMobile = () => matchMedia('(max-width: 640px)').matches;
 
 function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: Api }) {
   const [open, setOpen] = useState(handle.isOpen);
-  const [entries, setEntries] = useState<Entry[]>([]);
+  // The chat from the last 3 days on this device, if any (reload, another page of the site).
+  const [entries, setEntries] = useState<Entry[]>(() => loadHistory(face.clinicId));
   const [busy, setBusy] = useState(false);
   const [placeholder, setPlaceholder] = useState(t.placeholder);
   const [mode, setMode] = useState<InputMode>('text');
-  const nextId = useRef(0);
+  const nextId = useRef(entries.reduce((max, e) => Math.max(max, e.id + 1), 0));
+  const restored = useRef(true);
   const started = useRef(false);
   // The last request, so "Try again" can send it once more.
   const last = useRef<{ event: ChatEvent; payload: ChatRequest['payload'] } | null>(null);
@@ -117,13 +120,24 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
     void send('restart');
   }, [face.clinicId, send]);
 
-  // The first open of this page view starts (or resumes) the conversation.
+  // Keep the chat on this device. Skipped for the restored chat itself, so loading a page does not
+  // extend the 3 days; only a new message does.
+  useEffect(() => {
+    if (restored.current) {
+      restored.current = false;
+      return;
+    }
+    saveHistory(face.clinicId, entries);
+  }, [entries, face.clinicId]);
+
+  // The first open of this page view starts the conversation. A chat restored within the same session
+  // carries on as it was; after the session has expired the bot greets again under the old messages.
   useEffect(() => {
     if (open && !started.current) {
       started.current = true;
-      void send('start');
+      if (!entries.length || getSession(face.clinicId).isNew) void send('start');
     }
-  }, [open, send]);
+  }, [open, send, entries.length, face.clinicId]);
 
   // The widget stays mounted while closed, so the conversation is kept when the patient reopens it.
   if (!open) return null;

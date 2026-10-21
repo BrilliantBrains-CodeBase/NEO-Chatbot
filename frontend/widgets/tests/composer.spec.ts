@@ -47,7 +47,7 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
 test('4a: input text is 16px on mobile (no iPhone zoom) and 14px on desktop', async ({ page }, info) => {
   const panel = await open(page);
   const input = panel.getByRole('textbox', { name: 'Type your question' });
-  await expect(input).toHaveCSS('font-size', info.project.name === 'mobile' ? '16px' : '14px');
+  await expect(input).toHaveCSS('font-size', info.project.name === 'desktop' ? '14px' : '16px');
 });
 
 test('4a: placeholder follows the backend reply', async ({ page }) => {
@@ -91,7 +91,8 @@ test('4b: phone mode shows the country code (IN +91 default), sends it with the 
   await phone.fill('501234567');
   await phone.press('Enter');
   await expect(panel.locator('.nb-msg.me').last()).toHaveText('+971 501234567');
-  expect(sent[sent.length - 1].payload).toEqual({ text: '501234567', cc: '+971' });
+  // The bubble shows before the request arrives, so wait for it.
+  await expect.poll(() => sent[sent.length - 1].payload).toEqual({ text: '501234567', cc: '+971' });
 
   // Email step: the selector is gone and the email keyboard is used.
   const email = panel.locator('input[type="email"]');
@@ -100,5 +101,30 @@ test('4b: phone mode shows the country code (IN +91 default), sends it with the 
   await expect(cc).toBeHidden();
   await email.fill('priya@example.com');
   await email.press('Enter');
-  expect(sent[sent.length - 1].payload).toEqual({ text: 'priya@example.com' });
+  // The bubble shows before the request arrives, so wait for it.
+  await expect.poll(() => sent[sent.length - 1].payload).toEqual({ text: 'priya@example.com' });
+});
+
+test('4a: Enter while the bot is still typing is held and sent when it finishes', async ({ page }) => {
+  // A slow reply to the first message, so the second Enter happens while the bot is typing.
+  let first = true;
+  const panel = await open(page, (req) => handle(req));
+  await page.unrouteAll();
+  await page.route('**/v1/chat/message', async (route) => {
+    const req = route.request().postDataJSON() as ChatRequest;
+    sent.push(req);
+    if (first) {
+      first = false;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    await route.fulfill({ json: handle(req) });
+  });
+  const input = panel.locator('.nb-in');
+  await input.fill('Do you have parking?');
+  await input.press('Enter');
+  await expect(panel.locator('.nb-typing')).toBeVisible();
+  await input.fill('Priya Sharma');
+  await input.press('Enter'); // bot still typing
+  await expect(panel.locator('.nb-msg.me')).toHaveText(['Do you have parking?', 'Priya Sharma']);
+  await expect(panel.locator('.nb-msg.bot').last()).toHaveText('Thanks, Priya. What is your contact number?');
 });

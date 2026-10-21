@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { Icon } from '../icons';
 import { COUNTRIES } from '../countries';
 import type { InputMode } from '../types';
@@ -24,14 +24,30 @@ const FIELD: Record<InputMode, { type: string; inputMode: string; autocomplete: 
 export function Composer({ mode, placeholder, busy, onSend }: Props) {
   const [text, setText] = useState('');
   const [country, setCountry] = useState(0);
+  // Enter pressed while the bot is still typing: held and sent as soon as it has finished,
+  // instead of being silently ignored.
+  const [queued, setQueued] = useState(false);
   const field = FIELD[mode];
+
+  const send = () => {
+    const value = text.trim();
+    if (!value) return;
+    onSend(value, mode === 'phone' ? COUNTRIES[country][1] : undefined);
+    setText('');
+  };
+
+  useEffect(() => {
+    if (!busy && queued) {
+      setQueued(false);
+      send();
+    }
+  }, [busy, queued]);
 
   const submit = (e: Event) => {
     e.preventDefault();
-    const value = text.trim();
-    if (!value || busy) return;
-    onSend(value, mode === 'phone' ? COUNTRIES[country][1] : undefined);
-    setText('');
+    if (!text.trim()) return;
+    if (busy) setQueued(true);
+    else send();
   };
 
   return (
@@ -63,7 +79,13 @@ export function Composer({ mode, placeholder, busy, onSend }: Props) {
         maxLength={mode === 'phone' ? 20 : 500}
         onInput={(e) => setText(e.currentTarget.value)}
       />
-      <button type="submit" class="nb-send" aria-label={t.send} disabled={busy || !text.trim()}>
+      <button
+        type="submit"
+        class="nb-send"
+        aria-label={t.send} // Not disabled while the bot is typing: a disabled submit button stops Enter from submitting the form.
+        disabled={!text.trim()}
+        aria-busy={busy}
+      >
         <Icon name="send" />
       </button>
     </form>

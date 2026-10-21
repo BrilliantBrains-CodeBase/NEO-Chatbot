@@ -31,7 +31,7 @@ test('Book Consultation shows 4 pills and Main menu; a tapped pill turns solid a
   ]);
   await settled(panel);
   const height = (await chips.first().boundingBox())!.height;
-  expect(Math.round(height)).toBeGreaterThanOrEqual(info.project.name === 'mobile' ? 44 : 40);
+  expect(Math.round(height)).toBeGreaterThanOrEqual(info.project.name === 'desktop' ? 40 : 44);
   await expect(panel.locator('.nb-chips .nb-ghost')).toHaveText(['Main menu']);
 
   const online = chips.nth(1);

@@ -57,6 +57,8 @@ test('typed question with no answer: says so, takes name, number and email', asy
 test('international number in a callback keeps its country code', async ({ page }) => {
   const panel = await open(page);
   await panel.getByRole('button', { name: 'Call Back', exact: true }).click();
+  // Wait for the question: Enter is ignored while the bot is still typing.
+  await expect(bot(panel)).toHaveText('Sure, I can arrange a callback. May I know your full name?');
   await say(panel, 'Omar Khan', 'Thanks, Omar. What is your contact number?');
   await panel.getByRole('combobox', { name: 'Country code' }).selectOption({ label: 'AE +971' });
   await say(panel, '501234567', 'What would you like to discuss on the call?');

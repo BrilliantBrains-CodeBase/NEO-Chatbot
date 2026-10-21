@@ -275,7 +275,7 @@ Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by de
 
 ## Security and privacy
 
-- The widget holds no API keys and stores only `visitor_id` and `session_id`.
+- The widget holds no API keys. On the patient's device it stores `visitor_id`, `session_id` and the visible chat of the last 3 days (dropped 3 days after the last message, cleared by Restart), so the chat survives a reload or a move to another page of the site.
 - The backend checks each request origin against the clinic's allowed domains, and rate limits visitors.
 - Row Level Security limits CRM users to their own clinics and roles.
 - Patient data stays in India-region hosting; consent is collected in every flow (DPDP Act 2023).

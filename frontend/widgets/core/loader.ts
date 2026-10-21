@@ -82,6 +82,8 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
         root.classList.toggle('is-open', open);
         launcher.setAttribute('aria-expanded', String(open));
         launcher.setAttribute('aria-label', open ? close_chat : open_chat);
+        // Closing removes the panel, so give keyboard focus back to the launcher instead of losing it.
+        if (!open) launcher.focus();
         if (open && !seen()) {
           root.classList.add('seen');
           seen(true);
