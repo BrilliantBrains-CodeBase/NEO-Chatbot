@@ -15,5 +15,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["core", "neo-fertility", "neo-follicle", "derma-solutions", "playground", "tests", "playwright.config.ts"]
+  "include": ["core", "mock", "neo-fertility", "neo-follicle", "derma-solutions", "playground", "tests", "playwright.config.ts"]
 }

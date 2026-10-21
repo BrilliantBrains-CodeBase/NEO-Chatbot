@@ -59,7 +59,9 @@ export function Panel({ botName, onClose, children }: Props) {
             <Icon name="close" />
           </button>
         </div>
-        <div class="nb-body">{children}</div>
+        <div class="nb-body" aria-live="polite">
+          {children}
+        </div>
         <div class="nb-legal">
           {t.footer_disclaimer}
           <br />
