@@ -572,3 +572,28 @@
   background: var(--rose);
   color: #fff;
 }
+
+/* Time slots: 4 per row; Any time and More times span 2 columns; More times has a dashed border. */
+.nb-times {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.nb-times .nb-chip {
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 2px;
+  border-width: 1px;
+  font-size: 12px;
+}
+.nb-times .wide {
+  grid-column: span 2;
+}
+.nb-chip.more {
+  border-style: dashed;
+}
+@media (max-width: 640px) {
+  .nb-times .nb-chip {
+    min-height: 40px;
+  }
+}

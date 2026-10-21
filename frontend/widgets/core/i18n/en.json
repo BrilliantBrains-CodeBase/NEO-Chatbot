@@ -16,5 +16,7 @@
   "error_generic": "Something went wrong. Please try again.",
   "try_again": "Try again",
   "prev_month": "Previous month",
-  "next_month": "Next month"
+  "next_month": "Next month",
+  "any_time": "Any time",
+  "more_times": "More times"
 }
