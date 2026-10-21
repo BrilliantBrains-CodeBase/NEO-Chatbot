@@ -58,8 +58,8 @@ function bookable(ymd: string): boolean {
 
 // ---------- conversation state ----------
 
-type Kind = 'book' | 'online';
-type Step = 'name' | 'phone' | 'email' | 'treatment' | 'reason' | 'date' | 'time' | 'summary';
+type Kind = 'book' | 'online' | 'cancel' | 'reschedule';
+type Step = 'name' | 'phone' | 'email' | 'treatment' | 'reason' | 'booked_date' | 'date' | 'time' | 'summary';
 
 interface Flow {
   kind: Kind;
@@ -71,6 +71,7 @@ interface Flow {
   email?: string;
   treatment?: string;
   reason?: string;
+  bookedDate?: string; // cancel and reschedule: the date of the existing booking
   date?: string; // YYYY-MM-DD
   time?: string; // HH:MM or "any"
 }
@@ -99,7 +100,33 @@ const reply = (texts: string[], ui: UiBlock | null = null, input = TYPE): ChatRe
 const INTRO: Record<Kind, string> = {
   book: "Sure, let's book your appointment. May I know your full name?",
   online: "Sure, let's book your online video consultation. May I know your full name?",
+  cancel: 'Sure, I can help you cancel your appointment. May I know your full name?',
+  reschedule: 'Sure, I can help you reschedule your appointment. May I know your full name?',
 };
+
+// Cancel and reschedule: the booked date can be up to 2 months back or up to the booking window ahead.
+function bookedDateRange() {
+  const { today } = ist();
+  return {
+    today,
+    min: addDays(today, -ARYA.bookedDateBackDays),
+    max: addDays(today, ARYA.bookingWindowDays),
+  };
+}
+
+function bookedDateCalendar(): UiBlock {
+  return {
+    type: 'month_calendar',
+    action: 'booked_date',
+    ...bookedDateRange(),
+    closed_weekdays: ARYA.closedWeekdays,
+  };
+}
+
+function validBookedDate(ymd: string): boolean {
+  const { min, max } = bookedDateRange();
+  return ymd >= min && ymd <= max && !ARYA.closedWeekdays.includes(weekday(ymd));
+}
 
 // The question for a step, with its input or picker. Also used to ask a step again.
 function ask(f: Flow, lead: string[] = []): ChatResponse {
@@ -129,16 +156,27 @@ function ask(f: Flow, lead: string[] = []): ChatResponse {
         mode: 'text',
         placeholder: 'Short reason',
       });
+    case 'booked_date':
+      return reply([...lead, 'Which date is your appointment booked for?'], bookedDateCalendar());
     case 'date':
-      return reply([...lead, 'Which date works for you?'], newDateCalendar('date'));
+      return reply(
+        [...lead, f.kind === 'reschedule' ? 'Which new date would you prefer?' : 'Which date works for you?'],
+        newDateCalendar('date'),
+      );
     case 'time':
-      return reply([...lead, 'What time would you prefer?'], {
-        type: 'time_grid',
-        action: 'time',
-        slots: slotsFor(f.date!),
-        first: 4,
-        any_time: true,
-      });
+      return reply(
+        [
+          ...lead,
+          f.kind === 'reschedule' ? 'And what new time would you prefer?' : 'What time would you prefer?',
+        ],
+        {
+          type: 'time_grid',
+          action: 'time',
+          slots: slotsFor(f.date!),
+          first: 4,
+          any_time: true,
+        },
+      );
     case 'summary':
       return summary(f, lead);
   }
@@ -171,19 +209,42 @@ function summary(f: Flow, lead: string[] = []): ChatResponse {
   return reply([...lead, text], { type: 'chips', options });
 }
 
+const DONE: UiBlock = {
+  type: 'chips',
+  options: [
+    { label: 'Main menu', action: 'menu' },
+    { label: 'Talk to us', action: 'go', value: 'talk' },
+  ],
+};
+
+// Cancel and reschedule end here. The real backend matches name and number to a booking; with or
+// without a match the request goes to the clinic team, and the patient sees the same message.
+function cancelled(f: Flow): ChatResponse {
+  return reply(
+    [
+      `Thanks, ${firstName(f.name!)}. Your request to cancel the appointment on **${fmtDate(f.bookedDate!)}** is received. Our team will contact you on ${f.phone} to confirm the cancellation.`,
+    ],
+    DONE,
+  );
+}
+
+function rescheduled(f: Flow): ChatResponse {
+  const to = f.time === 'any' ? `${fmtDate(f.date!)} (any time)` : whenText(f);
+  return reply(
+    [
+      `Thanks, ${firstName(f.name!)}. Your request to move your appointment from **${fmtDate(f.bookedDate!)}** to **${to}** is received. Our team will contact you on ${f.phone} to confirm the new slot.`,
+    ],
+    DONE,
+  );
+}
+
 function confirmed(f: Flow): ChatResponse {
   const when = f.time === 'any' ? `on ${fmtDate(f.date!)} (any time)` : `on ${whenText(f)}`;
   const text =
     f.kind === 'online'
       ? `Your online consultation request for **${treatmentText(f)}** ${when} is received. You will get the Google Meet link on WhatsApp and email once the clinic confirms.`
       : `Your appointment request for **${treatmentText(f)}** ${when} is received.`;
-  return reply([text], {
-    type: 'chips',
-    options: [
-      { label: 'Main menu', action: 'menu' },
-      { label: 'Talk to us', action: 'go', value: 'talk' },
-    ],
-  });
+  return reply([text], DONE);
 }
 
 const menu = (client: string, text: string) => reply([text], client === 'CL01' ? MENU : null);
@@ -214,7 +275,7 @@ function typed(f: Flow, text: string, cc?: string): ChatResponse {
           placeholder: 'Mobile number',
         });
       f.phone = phone;
-      return advance(f, 'email');
+      return advance(f, f.kind === 'cancel' || f.kind === 'reschedule' ? 'booked_date' : 'email');
     }
     case 'email':
       if (!validEmail(value))
@@ -253,8 +314,18 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
   switch (action) {
     case 'treatment':
       return ARYA.treatments.includes(value) ? pickTreatment(f, value) : ask(f);
+    case 'booked_date':
+      if (f.kind !== 'cancel' && f.kind !== 'reschedule') return ask(f);
+      if (!validBookedDate(value)) return ask(f);
+      f.bookedDate = value;
+      if (f.kind === 'cancel') {
+        sessions.set(session, null);
+        return cancelled(f);
+      }
+      if (f.step === 'booked_date') f.step = 'date';
+      return ask(f);
     case 'date':
-      if (!bookable(value)) return ask(f);
+      if (f.step === 'booked_date' || !bookable(value)) return ask(f);
       f.date = value;
       f.time = undefined;
       f.step = 'time';
@@ -262,6 +333,10 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
     case 'time':
       if (!f.date || (value !== 'any' && !slotsFor(f.date).includes(value))) return ask(f);
       f.time = value;
+      if (f.kind === 'reschedule') {
+        sessions.set(session, null);
+        return rescheduled(f);
+      }
       return advance(f, 'summary');
     case 'change_treatment':
       f.step = 'treatment';
@@ -310,7 +385,11 @@ export function handle(req: ChatRequest): ChatResponse {
       sessions.set(req.session_id, null);
       return NODES[value] ?? reply([NO_ANSWER]);
     }
-    if (action === 'start' && (value === 'book' || value === 'online')) return start(req.session_id, value);
+    if (
+      action === 'start' &&
+      (value === 'book' || value === 'online' || value === 'cancel' || value === 'reschedule')
+    )
+      return start(req.session_id, value);
     if (flow) {
       if (action === 'confirm' && flow.step === 'summary') {
         sessions.set(req.session_id, null);
