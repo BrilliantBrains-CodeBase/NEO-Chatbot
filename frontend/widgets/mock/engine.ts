@@ -3,7 +3,8 @@
 // Arya (CL01) has the full flows; Navya and Diya only greet until their faces are built.
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
-import { ARYA, BOOKING_OPTION, MENU, NODES, TYPE, treatmentCard } from './arya';
+import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
+import { route } from './router';
 
 const GREETING: Record<string, string> = {
   CL01: ARYA.greeting,
@@ -13,6 +14,8 @@ const GREETING: Record<string, string> = {
 
 const NO_ANSWER =
   "I don't have a confirmed answer for that yet. Share your number and our team will call you back with the right information.";
+// A question typed in the middle of a flow that has no answer: noted for the team, then the step continues.
+const NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team.";
 const CONSENT = 'By confirming, you agree to be contacted by phone, WhatsApp or email.';
 
 // The clock can be set by tests, so date and slot rules are checked at a fixed time.
@@ -81,6 +84,7 @@ interface Flow {
   phone?: string; // "+91 9876543210"
   email?: string;
   treatment?: string;
+  questions?: string[]; // typed mid-flow without an answer; the real backend saves them on the lead
   reason?: string; // Other: what they are looking for. Callback: the topic. Question: what they typed.
   bookedDate?: string; // cancel and reschedule: the date of the existing booking
   date?: string; // YYYY-MM-DD
@@ -290,6 +294,41 @@ function advance(f: Flow, next: Step): ChatResponse {
   return ask(f);
 }
 
+// Typed text with no flow open: rules decide; nothing matched (or medical) becomes a lead.
+function answer(session: string, text: string): ChatResponse {
+  const r = route(text);
+  switch (r.to) {
+    case 'emergency':
+      return NODES.emergency;
+    case 'start':
+      return start(session, r.kind);
+    case 'node':
+      return NODES[r.key];
+    case 'card':
+      return treatmentCard(r.treatment)!;
+    case 'lead':
+      return start(session, 'question', text, [NO_ANSWER]);
+  }
+}
+
+// A question typed in the middle of a flow: answered briefly (or noted), then the same step is asked
+// again with everything entered so far kept. An emergency, or asking for another flow, takes over.
+function midFlow(session: string, f: Flow, text: string): ChatResponse {
+  const r = route(text);
+  if (r.to === 'emergency') {
+    sessions.set(session, null);
+    return NODES.emergency;
+  }
+  if (r.to === 'start' && r.kind !== f.kind) return start(session, r.kind);
+  if (r.to === 'node' && BRIEF[r.key]) return ask(f, [BRIEF[r.key]]);
+  if (r.to === 'card') return ask(f, [`**${r.treatment}**\n${TREATMENT_INFO[r.treatment].text}`]);
+  if (r.to === 'node' && r.key === 'book') return ask(f);
+  (f.questions ??= []).push(text);
+  return ask(f, [NOTED]);
+}
+
+const INPUT_STEPS: Step[] = ['name', 'phone', 'email', 'reason', 'cb_reason'];
+
 // Typed text while a step is open.
 function typed(session: string, f: Flow, text: string, cc?: string): ChatResponse {
   const finish = (res: ChatResponse) => {
@@ -297,6 +336,10 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
     return res;
   };
   const value = text.trim();
+  // At a typing step the text is the answer, unless it is an emergency or clearly a question.
+  if (INPUT_STEPS.includes(f.step) && (value.includes('?') || route(value).to === 'emergency')) {
+    return midFlow(session, f, value);
+  }
   switch (f.step) {
     case 'name':
       if (!validName(value))
@@ -340,10 +383,10 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
       f.reason = value;
       return finish(calledBack(f));
     default: {
-      // A treatment typed by name is accepted; anything else asks the same step again (questions: piece 8d).
+      // A treatment typed by name is accepted; anything else at a picker step is a question.
       const match = ARYA.treatments.find((t) => t.toLowerCase() === value.toLowerCase());
       if (f.step === 'treatment' && match) return pickTreatment(f, match);
-      return ask(f);
+      return midFlow(session, f, value);
     }
   }
 }
@@ -471,7 +514,5 @@ export function handle(req: ChatRequest): ChatResponse {
   // Typed text.
   const text = (req.payload.text ?? '').trim();
   if (flow) return typed(req.session_id, flow, text, req.payload.cc);
-  // No answer for it: take a lead, with the question as the reason. (Answers from rules and the
-  // knowledge base come in piece 8d; medical questions always end here.)
-  return start(req.session_id, 'question', text, [NO_ANSWER]);
+  return answer(req.session_id, text);
 }

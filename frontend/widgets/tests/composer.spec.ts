@@ -32,16 +32,16 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
   await input.fill('   ');
   await expect(send).toBeDisabled(); // spaces only
 
-  await input.fill('  What is the cost?  ');
+  await input.fill('  Do you have parking?  ');
   await input.press('Enter');
-  await expect(panel.locator('.nb-msg.me')).toHaveText(['What is the cost?']);
+  await expect(panel.locator('.nb-msg.me')).toHaveText(['Do you have parking?']);
   await expect(input).toHaveValue('');
   // No answer for it: the bot says so, then starts taking a lead (piece 8c).
   await expect(panel.locator('.nb-msg.bot:not(.nb-typing)').nth(-2)).toContainText(
     "I don't have a confirmed answer for that yet.",
   );
   expect(sent[1].event).toBe('text');
-  expect(sent[1].payload).toEqual({ text: 'What is the cost?' });
+  expect(sent[1].payload).toEqual({ text: 'Do you have parking?' });
 });
 
 test('4a: input text is 16px on mobile (no iPhone zoom) and 14px on desktop', async ({ page }, info) => {

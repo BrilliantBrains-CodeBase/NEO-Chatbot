@@ -145,7 +145,39 @@ export const TREATMENT_INFO: Record<string, { text: string; path: string; list: 
   },
 };
 
+// Short forms patients type, mapped to a treatment card. Keys are regular expressions (whole words).
+export const TREATMENT_ALIASES: Record<string, string> = {
+  dhi: 'Direct Hair Transplant (DHI / FUE)',
+  fue: 'Direct Hair Transplant (DHI / FUE)',
+  prp: 'PRP Treatment',
+  gfc: 'GFC Treatment',
+  qr678: 'QR678 Treatment',
+  'exosomes?': 'Exosome Therapy',
+  dutexome: 'Dutexome Treatment',
+  'stem cells?': 'Stem Cell Therapy',
+  'laser therapy': 'Laser Hair Therapy',
+  smp: 'Scalp Micropigmentation',
+  micropigmentation: 'Scalp Micropigmentation',
+  alopecia: 'Alopecia Treatment',
+  dandruff: 'Dandruff Treatment',
+  beard: 'Beard Transplant',
+  moustache: 'Beard Transplant',
+  'eyebrows?': 'Eyebrow Restoration',
+  'failed transplant': 'Failed Hair Transplant Repair',
+  unshaven: 'Unshaven Hair Transplant',
+  'body hair': 'Body Hair Transplant',
+  'female hair': 'Female Hair Transplant',
+  'hair transplant': 'Hair Transplant for Men',
+};
+
 // "Book for <treatment>" preselects the matching booking option; treatments without one ask as usual.
+// Short answers given in the middle of a booking, before the same step is asked again.
+export const BRIEF: Record<string, string> = {
+  cost: 'Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. The final count is confirmed after a scalp evaluation.',
+  clinic:
+    'We are at 1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037. Open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed.',
+};
+
 export const BOOKING_OPTION: Record<string, string> = {
   'Unshaven Hair Transplant': 'Unshaven & Body Hair Transplant',
   'Body Hair Transplant': 'Unshaven & Body Hair Transplant',
