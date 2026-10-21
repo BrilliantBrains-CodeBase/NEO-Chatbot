@@ -59,7 +59,7 @@
 ### Git
 - [x] Branch `dev`: docs commit (done 15 Oct 2026)
 - [x] Branch `feat/widgets`: Step 1 and Step 2 commits (done 15 Oct 2026)
-- [ ] Not pushed to GitHub yet
+- [x] Pushed to GitHub: `feat/widgets` and `frontend` branches (done 21 Oct 2026)
 
 ---
 
