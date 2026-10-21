@@ -11,12 +11,14 @@ interface Props {
   botName: string;
   onClose: () => void;
   onRestart: () => void;
+  // The typing bar, shown between the messages and the footer text.
+  composer?: ComponentChildren;
   children?: ComponentChildren;
 }
 
 // Desktop: floating panel. Mobile (640 px and below): bottom sheet with backdrop, closed by X,
 // tapping the backdrop, swiping the header down, or Escape.
-export function Panel({ botName, onClose, onRestart, children }: Props) {
+export function Panel({ botName, onClose, onRestart, composer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
 
@@ -72,6 +74,7 @@ export function Panel({ botName, onClose, onRestart, children }: Props) {
         <div class="nb-body" aria-live="polite">
           {children}
         </div>
+        {composer}
         <div class="nb-legal">
           {t.footer_disclaimer}
           <br />

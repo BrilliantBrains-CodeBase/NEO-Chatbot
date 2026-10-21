@@ -6,9 +6,10 @@ import { injectStyles } from './shadow';
 import { getHandle, type WidgetHandle } from './registry';
 import { ApiError, createApi, type Api } from './api';
 import { getVisitorId, getSession, resetSession } from './session';
-import type { ChatEvent, ChatRequest } from './types';
+import type { ChatEvent, ChatRequest, InputMode } from './types';
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
+import { Composer } from './components/Composer';
 import t from './i18n/en.json';
 
 export interface Face {
@@ -22,6 +23,8 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   const [open, setOpen] = useState(handle.isOpen);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [busy, setBusy] = useState(false);
+  const [placeholder, setPlaceholder] = useState(t.placeholder);
+  const [mode, setMode] = useState<InputMode>('text');
   const nextId = useRef(0);
   const started = useRef(false);
   // The last request, so "Try again" can send it once more.
@@ -56,6 +59,8 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
         });
         if (gen !== generation.current) return;
         res.messages.forEach((m) => add('bot', m.text));
+        setPlaceholder(res.input.placeholder || t.placeholder);
+        setMode(res.input.mode);
       } catch (err) {
         if (gen !== generation.current) return;
         // The API client has already retried server and network errors.
@@ -75,11 +80,22 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
     void send(last.current.event, last.current.payload);
   }, [send]);
 
+  // Typed text: shown as the patient's bubble, then sent. A phone number carries its country code.
+  const type = useCallback(
+    (text: string, cc?: string) => {
+      add('me', cc ? `${cc} ${text}` : text);
+      void send('text', cc ? { text, cc } : { text });
+    },
+    [send],
+  );
+
   // Header restart: a new session and a fresh conversation.
   const restart = useCallback(() => {
     generation.current++;
     resetSession(face.clinicId);
     setEntries([]);
+    setPlaceholder(t.placeholder);
+    setMode('text');
     void send('restart');
   }, [face.clinicId, send]);
 
@@ -94,7 +110,12 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   // The widget stays mounted while closed, so the conversation is kept when the patient reopens it.
   if (!open) return null;
   return (
-    <Panel botName={face.botName} onClose={close} onRestart={restart}>
+    <Panel
+      botName={face.botName}
+      onClose={close}
+      onRestart={restart}
+      composer={<Composer mode={mode} placeholder={placeholder} busy={busy} onSend={type} />}
+    >
       <Messages entries={entries} busy={busy} onRetry={retry} />
     </Panel>
   );

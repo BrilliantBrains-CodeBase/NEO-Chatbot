@@ -9,7 +9,16 @@ const GREETING: Record<string, string> = {
   CL03: "Hi, I'm Diya, Derma Solutions' AI assistant. How can I help you today?",
 };
 
+const NO_ANSWER =
+  "I don't have a confirmed answer for that yet. Share your number and our team will call you back with the right information.";
+
 export function handle(req: ChatRequest): ChatResponse {
+  if (req.event === 'text') {
+    return {
+      messages: [{ type: 'text', text: NO_ANSWER }],
+      input: { mode: 'text', placeholder: 'Type your question' },
+    };
+  }
   const greeting = GREETING[req.client_id] ?? 'Hi, how can I help you today?';
   return {
     messages: [{ type: 'text', text: greeting }],
