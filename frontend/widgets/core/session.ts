@@ -4,7 +4,8 @@ const VISITOR_KEY = 'neo_vid';
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 
 function randomId(prefix: string) {
-  const bytes = new Uint8Array(4);
+  // 16 bytes (128 bits), so ids stay unique across many visitors. randomUUID needs HTTPS, this does not.
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return prefix + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }

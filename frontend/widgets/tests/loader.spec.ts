@@ -26,11 +26,15 @@ for (const c of CLINICS) {
     expect(appRequests).toEqual([expect.stringContaining(`/${c.id}.app.js`)]);
     await expect(launcher).toHaveAttribute('aria-expanded', 'true');
 
-    // Desktop: launcher toggles the panel closed again. Mobile hides the launcher while open (closed via header in Step 3).
+    // Desktop: launcher toggles the panel closed again. Mobile hides the launcher while open, so close from the panel.
     if (await launcher.isVisible()) {
       await launcher.click();
-      await expect(panel).toBeHidden();
+    } else {
+      await panel.getByRole('button', { name: 'Close chat' }).click();
     }
+    await expect(panel).toBeHidden();
+    await expect(launcher).toBeVisible();
+    await expect(launcher).toHaveAttribute('aria-expanded', 'false');
   });
 }
 
@@ -39,7 +43,7 @@ test('visitor and session ids are stored, no personal data', async ({ page }) =>
   await page.locator('#neo-widget-neo-fertility .nb-launch').click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const stored = await page.evaluate(() => ({ ...localStorage }));
-  expect(stored.neo_vid).toMatch(/^v_[0-9a-f]{8}$/);
-  expect(JSON.parse(stored['neo_sid_neo-fertility']).id).toMatch(/^s_[0-9a-f]{8}$/);
+  expect(stored.neo_vid).toMatch(/^v_[0-9a-f]{32}$/);
+  expect(JSON.parse(stored['neo_sid_neo-fertility']).id).toMatch(/^s_[0-9a-f]{32}$/);
   expect(Object.keys(stored).sort()).toEqual(['neo_sid_neo-fertility', 'neo_vid']);
 });

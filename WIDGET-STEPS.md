@@ -18,7 +18,7 @@ Tick each box when the step is done.
 - [x] 1.1 Create `frontend/widgets/` with Preact, TypeScript and Vite (R)
 - [x] 1.2 Folder layout: `core/`, `neo-fertility/`, `neo-follicle/`, `derma-solutions/`, `playground/`, `tests/` (R)
 - [x] 1.3 Vite library build with 3 entries: `dist/neo-fertility.js`, `dist/neo-follicle.js` and `dist/derma-solutions.js` (R)
-- [x] 1.4 Size check in `vite.config.ts`: the build fails if any bundle is over 40 KB compressed (R)
+- [x] 1.4 Size check in `scripts/size.mjs` (run by `npm run build`): the build fails if a loader is over 5 KB or a full widget is over 40 KB compressed (R)
 - [x] 1.5 Add a `.gitignore` (node_modules, dist) plus ESLint and Prettier
 - [x] 1.6 Add `npm run dev`, `build`, `test` and `size` scripts (R)
 
@@ -33,7 +33,7 @@ Tick each box when the step is done.
 
 ## Step 3: Layout and container
 
-- [ ] 3.1 **Launcher**: 60 px circle with the honey unread dot. On desktop it also shows a "Chat with us" label after 8 seconds. Never auto-open the panel (M)
+- [x] 3.1 **Launcher**: 60 px circle with the honey unread dot. On desktop it also shows a "Chat with us" label after 8 seconds. Never auto-open the panel (M). Built early, in Step 2 (`core/loader.ts`, `styles/launcher.css`)
 - [ ] 3.2 **Desktop panel**: 380 × 580, 20 px radius, bottom-right 24 px (M)
 - [ ] 3.3 **Mobile sheet**: 88% height with a backdrop, grip bar and full screen option. Launcher sits above the site's sticky bar. Inputs use 16 px text so iPhone doesn't zoom (M)
 - [ ] 3.4 **Header**: avatar, bot name, "Instant Reply Assistant", restart button, close button (F)

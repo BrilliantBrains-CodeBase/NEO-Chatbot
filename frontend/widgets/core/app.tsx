@@ -27,7 +27,10 @@ function Widget({ handle, face }: { handle: WidgetHandle; face: Face }) {
   // Step 2 placeholder panel. Step 3 replaces it with the header, message list, typing bar and footer.
   return (
     <div role="dialog" aria-label={`${face.botName} chat`} class="nb-panel-placeholder">
-      <b>{face.botName}</b> <span>{t.subtitle}</span>
+      <b>{face.botName}</b> <span>{t.subtitle}</span>{' '}
+      <button type="button" aria-label={t.close_chat} onClick={() => handle.setOpen(false)}>
+        ×
+      </button>
     </div>
   );
 }
