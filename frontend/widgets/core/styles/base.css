@@ -280,3 +280,25 @@
     transform: translateY(-2px);
   }
 }
+
+/* "Try again" under an error message */
+.nb-retry {
+  display: block;
+  margin-top: 8px;
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 1.5px solid var(--rose);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--rose-d);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nb-retry:hover {
+  background: var(--tint);
+}
+.nb-retry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

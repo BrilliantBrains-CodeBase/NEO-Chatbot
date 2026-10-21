@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import baseCss from './styles/base.css?inline';
 import { injectStyles } from './shadow';
 import { getHandle, type WidgetHandle } from './registry';
-import { createApi, type Api } from './api';
+import { ApiError, createApi, type Api } from './api';
 import { getVisitorId, getSession } from './session';
 import type { ChatEvent, ChatRequest } from './types';
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
+import t from './i18n/en.json';
 
 export interface Face {
   clinicId: string;
@@ -23,6 +24,8 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   const [busy, setBusy] = useState(false);
   const nextId = useRef(0);
   const started = useRef(false);
+  // The last request, so "Try again" can send it once more.
+  const last = useRef<{ event: ChatEvent; payload: ChatRequest['payload'] } | null>(null);
   const close = useCallback(() => handle.setOpen(false), [handle]);
 
   useEffect(() => {
@@ -32,11 +35,12 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
     };
   }, [handle]);
 
-  const add = (from: Entry['from'], text: string) =>
-    setEntries((list) => [...list, { id: nextId.current++, from, text }]);
+  const add = (from: Entry['from'], text: string, error?: boolean) =>
+    setEntries((list) => [...list, { id: nextId.current++, from, text, error }]);
 
   const send = useCallback(
     async (event: ChatEvent, payload: ChatRequest['payload'] = {}) => {
+      last.current = { event, payload };
       setBusy(true);
       try {
         const res = await api.send({
@@ -49,14 +53,22 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
         });
         res.messages.forEach((m) => add('bot', m.text));
       } catch (err) {
-        // Shown to the patient in piece 3b.
+        // The API client has already retried server and network errors.
         console.warn('[neo-widget]', err);
+        const offline = err instanceof ApiError && err.kind === 'offline';
+        add('bot', offline ? t.error_offline : t.error_generic, true);
       } finally {
         setBusy(false);
       }
     },
     [api, face.clinicId],
   );
+
+  const retry = useCallback(() => {
+    if (!last.current) return;
+    setEntries((list) => list.filter((e) => !e.error));
+    void send(last.current.event, last.current.payload);
+  }, [send]);
 
   // The first open of this page view starts (or resumes) the conversation.
   useEffect(() => {
@@ -70,7 +82,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   if (!open) return null;
   return (
     <Panel botName={face.botName} onClose={close}>
-      <Messages entries={entries} busy={busy} />
+      <Messages entries={entries} busy={busy} onRetry={retry} />
     </Panel>
   );
 }
