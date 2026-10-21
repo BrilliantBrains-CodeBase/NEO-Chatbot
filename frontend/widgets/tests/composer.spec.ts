@@ -23,7 +23,9 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
   page,
 }) => {
   const panel = await open(page);
-  const input = panel.getByRole('textbox', { name: 'Type your question' });
+  // Found by class: its label follows the placeholder, which changes after the reply.
+  const input = panel.locator('.nb-in');
+  await expect(input).toHaveAccessibleName('Type your question');
   const send = panel.getByRole('button', { name: 'Send' });
 
   await expect(send).toBeDisabled();
@@ -34,7 +36,8 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
   await input.press('Enter');
   await expect(panel.locator('.nb-msg.me')).toHaveText(['What is the cost?']);
   await expect(input).toHaveValue('');
-  await expect(panel.locator('.nb-msg.bot:not(.nb-typing)').last()).toContainText(
+  // No answer for it: the bot says so, then starts taking a lead (piece 8c).
+  await expect(panel.locator('.nb-msg.bot:not(.nb-typing)').nth(-2)).toContainText(
     "I don't have a confirmed answer for that yet.",
   );
   expect(sent[1].event).toBe('text');

@@ -58,8 +58,19 @@ function bookable(ymd: string): boolean {
 
 // ---------- conversation state ----------
 
-type Kind = 'book' | 'online' | 'cancel' | 'reschedule';
-type Step = 'name' | 'phone' | 'email' | 'treatment' | 'reason' | 'booked_date' | 'date' | 'time' | 'summary';
+// question: a typed question the bot cannot answer becomes a lead (name, number, email; the question is the reason).
+type Kind = 'book' | 'online' | 'cancel' | 'reschedule' | 'callback' | 'question';
+type Step =
+  | 'name'
+  | 'phone'
+  | 'email'
+  | 'treatment'
+  | 'reason'
+  | 'cb_reason'
+  | 'booked_date'
+  | 'date'
+  | 'time'
+  | 'summary';
 
 interface Flow {
   kind: Kind;
@@ -70,7 +81,7 @@ interface Flow {
   phone?: string; // "+91 9876543210"
   email?: string;
   treatment?: string;
-  reason?: string;
+  reason?: string; // Other: what they are looking for. Callback: the topic. Question: what they typed.
   bookedDate?: string; // cancel and reschedule: the date of the existing booking
   date?: string; // YYYY-MM-DD
   time?: string; // HH:MM or "any"
@@ -102,6 +113,8 @@ const INTRO: Record<Kind, string> = {
   online: "Sure, let's book your online video consultation. May I know your full name?",
   cancel: 'Sure, I can help you cancel your appointment. May I know your full name?',
   reschedule: 'Sure, I can help you reschedule your appointment. May I know your full name?',
+  callback: 'Sure, I can arrange a callback. May I know your full name?',
+  question: 'May I know your full name?',
 };
 
 // Cancel and reschedule: the booked date can be up to 2 months back or up to the booking window ahead.
@@ -155,6 +168,11 @@ function ask(f: Flow, lead: string[] = []): ChatResponse {
       return reply([...lead, 'Please tell us briefly what you are looking for.'], null, {
         mode: 'text',
         placeholder: 'Short reason',
+      });
+    case 'cb_reason':
+      return reply([...lead, 'What would you like to discuss on the call?'], null, {
+        mode: 'text',
+        placeholder: 'Reason for the call',
       });
     case 'booked_date':
       return reply([...lead, 'Which date is your appointment booked for?'], bookedDateCalendar());
@@ -228,6 +246,20 @@ function cancelled(f: Flow): ChatResponse {
   );
 }
 
+// Callback and typed-question leads end here; the real backend saves the lead to the CRM.
+function calledBack(f: Flow): ChatResponse {
+  return reply(
+    [
+      `Thanks, ${firstName(f.name!)}. Our team will call you on ${f.phone} about **${f.reason}** during clinic hours.`,
+    ],
+    DONE,
+  );
+}
+
+function leadTaken(f: Flow): ChatResponse {
+  return reply([`Thanks, ${firstName(f.name!)}. Our team will contact you on ${f.phone}.`], DONE);
+}
+
 function rescheduled(f: Flow): ChatResponse {
   const to = f.time === 'any' ? `${fmtDate(f.date!)} (any time)` : whenText(f);
   return reply(
@@ -259,7 +291,11 @@ function advance(f: Flow, next: Step): ChatResponse {
 }
 
 // Typed text while a step is open.
-function typed(f: Flow, text: string, cc?: string): ChatResponse {
+function typed(session: string, f: Flow, text: string, cc?: string): ChatResponse {
+  const finish = (res: ChatResponse) => {
+    sessions.set(session, null);
+    return res;
+  };
   const value = text.trim();
   switch (f.step) {
     case 'name':
@@ -275,7 +311,10 @@ function typed(f: Flow, text: string, cc?: string): ChatResponse {
           placeholder: 'Mobile number',
         });
       f.phone = phone;
-      return advance(f, f.kind === 'cancel' || f.kind === 'reschedule' ? 'booked_date' : 'email');
+      if (f.kind === 'cancel' || f.kind === 'reschedule') return advance(f, 'booked_date');
+      // A callback opened with a topic already has its reason.
+      if (f.kind === 'callback') return f.reason ? finish(calledBack(f)) : advance(f, 'cb_reason');
+      return advance(f, 'email');
     }
     case 'email':
       if (!validEmail(value))
@@ -284,12 +323,21 @@ function typed(f: Flow, text: string, cc?: string): ChatResponse {
           placeholder: 'name@example.com',
         });
       f.email = value.toLowerCase();
+      if (f.kind === 'question') return finish(leadTaken(f));
       return advance(f, 'treatment');
     case 'reason':
       if (value.length < 3)
         return reply(['Please add a few more words.'], null, { mode: 'text', placeholder: 'Short reason' });
       f.reason = value;
       return advance(f, 'date');
+    case 'cb_reason':
+      if (value.length < 3)
+        return reply(['Please add a few more words.'], null, {
+          mode: 'text',
+          placeholder: 'Reason for the call',
+        });
+      f.reason = value;
+      return finish(calledBack(f));
     default: {
       // A treatment typed by name is accepted; anything else asks the same step again (questions: piece 8d).
       const match = ARYA.treatments.find((t) => t.toLowerCase() === value.toLowerCase());
@@ -357,9 +405,9 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
   return ask(f);
 }
 
-function start(session: string, kind: Kind): ChatResponse {
-  sessions.set(session, { kind, step: 'name' });
-  return reply([INTRO[kind]], null, { mode: 'text', placeholder: 'Your full name' });
+function start(session: string, kind: Kind, reason?: string, lead: string[] = []): ChatResponse {
+  sessions.set(session, { kind, step: 'name', reason });
+  return reply([...lead, INTRO[kind]], null, { mode: 'text', placeholder: 'Your full name' });
 }
 
 // ---------- entry ----------
@@ -390,6 +438,9 @@ export function handle(req: ChatRequest): ChatResponse {
       (value === 'book' || value === 'online' || value === 'cancel' || value === 'reschedule')
     )
       return start(req.session_id, value);
+    if (action === 'start' && value === 'callback') return start(req.session_id, 'callback');
+    // A callback button with its topic, e.g. "Plan my treatment": the topic is the reason.
+    if (action === 'callback') return start(req.session_id, 'callback', value || undefined);
     if (flow) {
       if (action === 'confirm' && flow.step === 'summary') {
         sessions.set(req.session_id, null);
@@ -402,6 +453,9 @@ export function handle(req: ChatRequest): ChatResponse {
   }
 
   // Typed text.
-  if (flow) return typed(flow, req.payload.text ?? '', req.payload.cc);
-  return reply([NO_ANSWER]);
+  const text = (req.payload.text ?? '').trim();
+  if (flow) return typed(req.session_id, flow, text, req.payload.cc);
+  // No answer for it: take a lead, with the question as the reason. (Answers from rules and the
+  // knowledge base come in piece 8d; medical questions always end here.)
+  return start(req.session_id, 'question', text, [NO_ANSWER]);
 }
