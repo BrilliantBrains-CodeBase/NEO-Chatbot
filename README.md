@@ -285,10 +285,11 @@ Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by de
 
 ```bash
 # backend
-cd backend && python -m venv .venv && source .venv/bin/activate   # Windows PowerShell: .venv\Scripts\activate
-pip install -e ".[dev]"
-cp .env.example .env            # Supabase, Redis, Gemini, Groq, Interakt keys
-uvicorn app.main:app --reload
+cd backend                                    # needs uv (docs.astral.sh/uv)
+uv sync --extra dev                           # Python 3.12 and all libraries
+cp .env.example .env                          # then set DATABASE_URL and SUPABASE_URL (cloud project)
+uv run uvicorn app.main:app --reload          # http://localhost:8000/v1/health/ready and /docs
+uv run pytest                                 # tests
 
 # chatbot widgets
 cd frontend/widgets && npm install
@@ -298,8 +299,8 @@ npm run build                                 # dist/neo-fertility.js, neo-folli
 # crm
 cd frontend/crm && npm install && npm run dev # localhost:3000
 
-# database
-cd backend && supabase db push                # applies backend/supabase/migrations
+# database (cloud project; asks for the database password)
+cd backend && supabase link --project-ref <project-ref> && supabase db push
 ```
 
 ## Conventions

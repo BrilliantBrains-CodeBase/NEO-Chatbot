@@ -11,19 +11,20 @@ How the one Supabase database is set up, structured, protected and kept healthy.
 | Projects | **One** Supabase project for live data |
 | Region | **Mumbai (ap-south-1)**: patient data stays in India (DPDP Act 2023) and sits next to the Linode Mumbai server |
 | Plan | **Free** while building, **Pro before go-live** (Free pauses after 7 idle days and has no backups) |
-| Development and tests | **Local Supabase** (`supabase start`, runs in Docker on the developer's machine). Tests never touch the live project |
-| Schema changes | Only through numbered migration files, tried locally first, then `supabase db push` |
+| Development and tests | The **same cloud project**, using the hidden test clinic **CL99** only. Tests create their rows under CL99 and delete them afterwards; CL99 is excluded from every report and from the CRM clinic switcher |
+| Redis | **Phase 2.** Until then: chat session state in `chat_sessions.state` (jsonb), slot holds in a `slot_holds` table (`expires_at`, unique per doctor and start time), rate limits in memory per server process |
+| Schema changes | Only through numbered migration files, applied with `supabase link` then `supabase db push`. Take a backup first |
 | Extensions | `vector` (pgvector), `pg_trgm` (fuzzy name search), `btree_gist` (no double booking), `pg_cron` (scheduled clean-up), `pgcrypto` (UUIDs) |
 
-Because there is only one project, the live database must never hold test data. Every automated test runs against the local database, and manual checks on live use a clearly named test clinic (`CL99`, hidden from reports) that can be deleted.
+Because there is only one project, test data lives only under clinic `CL99`. The test setup refuses to run unless every row it writes uses `CL99`, and removes those rows when it finishes.
 
 ## 2. Who connects, and how
 
 | Client | Connects with | Can do |
 |---|---|---|
 | Widgets | Never connect to Supabase. They talk only to the backend | Nothing directly |
-| Backend (FastAPI, workers) | Postgres connection through the Supavisor pooler (transaction mode, port 6543), as a dedicated `app_backend` role | Read and write all app tables. The key lives only in the server's `.env` |
-| NEO CRM | Supabase Auth (email and password) for sign-in and Realtime for live alerts; data reads and writes through the backend CRM API with the user's token | Only what Row Level Security allows for that user |
+| Backend (FastAPI, workers) | Postgres **connection string** through the Supavisor pooler (transaction mode, port 6543), as a dedicated `app_backend` role | Read and write all app tables. The connection string lives only in `backend/.env` |
+| NEO CRM | **Publishable key** (`sb_publishable_...`) with Supabase Auth (email and password) for sign-in and Realtime for live alerts; data reads and writes through the backend CRM API with the user's token | Only what Row Level Security allows for that user |
 | Admin (BB) | Supabase dashboard, migrations | Everything; actions in the app are audited |
 
 - The `anon` role gets **no** access to any app table.
@@ -174,7 +175,7 @@ Every policy has a test: each role signs in to the local database and tries to r
 |---|---|
 | Free plan (now) | Supabase has none, so a Linode cron job runs `pg_dump` every night. It encrypts the file, stores it off the server (Linode Object Storage, Mumbai) and keeps 14 days |
 | Pro plan (go-live) | Supabase daily backups (7 days) **plus** the same nightly dump. Point-in-time recovery is an optional add-on |
-| Restore test | Once a month, restore the latest dump into the local database and run the test suite on it |
+| Restore test | Once a month, restore the latest dump into a temporary Postgres and check the row counts |
 
 Before any migration on live: take a fresh dump first.
 
