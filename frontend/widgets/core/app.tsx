@@ -154,9 +154,14 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
 }
 
 // Dev playground only: the mock backend answers unless ?api=<url> points at a real backend.
-// import.meta.env.DEV is false in the production build, so the mock is never bundled.
+// Preview build (npm run build:preview): the mock is bundled so the widget can be tried on a real page
+// with no backend; nothing is saved. Both flags are false in the production build, so the mock is never
+// bundled there.
 function devFetch(): typeof fetch | undefined {
-  if (import.meta.env.DEV && !new URLSearchParams(location.search).has('api')) {
+  const mock = import.meta.env.DEV
+    ? !new URLSearchParams(location.search).has('api')
+    : import.meta.env.VITE_PREVIEW === '1';
+  if (mock) {
     const mock = import('../mock/fetch');
     return (input, init) => mock.then((m) => m.mockFetch(input, init));
   }

@@ -5,7 +5,12 @@ import { resolve, extname, normalize } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const dirs = [resolve(root, 'dist'), resolve(root, 'tests', 'fixtures')];
-const types = { '.js': 'text/javascript', '.html': 'text/html', '.css': 'text/css', '.json': 'application/json' };
+const types = {
+  '.js': 'text/javascript',
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.json': 'application/json',
+};
 const port = Number(process.env.PORT || 4173);
 
 createServer(async (req, res) => {

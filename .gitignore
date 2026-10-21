@@ -1,6 +1,7 @@
 # dependencies and builds
 node_modules/
 dist/
+dist-preview/
 .next/
 out/
 

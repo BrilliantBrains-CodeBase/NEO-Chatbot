@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build.mjs",
+    "build:preview": "node scripts/build.mjs --preview",
     "size": "node scripts/size.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
