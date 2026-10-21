@@ -499,3 +499,76 @@
     min-height: 44px;
   }
 }
+
+/* Month calendar (mockup): past, closed and out-of-window days greyed, today outlined, picked day solid. */
+.nb-cal {
+  width: 100%;
+  max-width: 280px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.nb-cal-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.nb-cal-h b {
+  font-size: 13.5px;
+}
+.nb-cal-h button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--rose-d);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.nb-cal-h button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.nb-cal-h svg {
+  width: 15px;
+  height: 15px;
+}
+.nb-cal-g {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  text-align: center;
+}
+.nb-cal-g span {
+  padding: 2px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mute);
+}
+.nb-cal-g button {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.nb-cal-g button:hover:not(:disabled) {
+  background: var(--tint);
+}
+.nb-cal-g button:disabled {
+  color: #cdbfc4;
+  cursor: default;
+}
+.nb-cal-g button.today {
+  box-shadow: inset 0 0 0 1.5px var(--blush);
+}
+.nb-cal-g button.sel {
+  background: var(--rose);
+  color: #fff;
+}

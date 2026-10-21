@@ -14,5 +14,7 @@
   "footer_brand": "Brilliant Brains",
   "error_offline": "You seem to be offline. Please check your connection and try again.",
   "error_generic": "Something went wrong. Please try again.",
-  "try_again": "Try again"
+  "try_again": "Try again",
+  "prev_month": "Previous month",
+  "next_month": "Next month"
 }

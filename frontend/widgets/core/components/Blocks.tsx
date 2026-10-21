@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import type { ChipsBlock, Choice, MenuBlock, UiBlock } from '../types';
 import { Icon } from '../icons';
 import t from '../i18n/en.json';
+import { Calendar } from './Calendar';
 
 export type OnChoose = (choice: Choice) => void;
 
@@ -107,6 +108,8 @@ export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose 
       return <Menu block={block} onChoose={onChoose} />;
     case 'chips':
       return <Chips block={block} onChoose={onChoose} />;
+    case 'month_calendar':
+      return <Calendar block={block} onChoose={onChoose} />;
     default:
       return null; // added in the next pieces
   }
