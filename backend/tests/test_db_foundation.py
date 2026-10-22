@@ -80,6 +80,7 @@ async def test_signed_in_users_run_only_the_who_am_i_helpers(db: asyncpg.Connect
     )
     assert [r["proname"] for r in funcs] == [
         "can_manage",
+        "delete_patient_data",  # managers only, checked inside (0011)
         "is_bb_admin",
         "is_staff",
         "my_doctor_ids",
