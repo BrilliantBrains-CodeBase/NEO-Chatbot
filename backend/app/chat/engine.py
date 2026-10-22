@@ -23,6 +23,7 @@ class Turn:
     reply: ChatResponse
     answered_by: str
     state: State = field(default_factory=dict)
+    completed: dict[str, Any] | None = None  # a flow the patient just finished: the service saves it
 
 
 def _response(raw: dict[str, Any]) -> ChatResponse:
@@ -88,7 +89,7 @@ def respond(req: ChatRequest, state: State, slots: dict[str, list[str]] | None =
         if action == "callback":
             return _flow(*flows.start("callback", reason=value or None))
         if flow and action not in ("menu", "go", "treat"):
-            return _flow(*flows.button(flow, cfg, action, value))
+            return _step(flow, flows.button(flow, cfg, action, value))
         # Earlier buttons stay usable (approved mockups), so a tap is checked against the clinic's
         # content, not only the latest buttons: anything that is not a real answer gets the menu again.
         if action == "go" and value in c["nodes"]:
@@ -125,7 +126,7 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any]) -> Turn:
         cfg = c["config"]
         exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
         if (flow["step"] in INPUT_STEPS and "?" not in text) or exact:
-            return _flow(*flows.typed(flow, cfg, text, req.payload.cc))
+            return _step(flow, flows.typed(flow, cfg, text, req.payload.cc))
         return _mid_flow(flow, c, text, kind, target)
     return _answer(c, text, kind, target)
 
@@ -188,3 +189,24 @@ def _answer(c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
 
 def _flow(flow: flows.Flow | None, reply: ChatResponse, answered_by: str = "flow") -> Turn:
     return Turn(reply, answered_by, {"flow": flow} if flow else {})
+
+
+def _step(flow: flows.Flow, result: tuple[flows.Flow | None, ChatResponse]) -> Turn:
+    """A step of the open flow. A flow only ends by being finished, so no flow left means: save it."""
+    turn = _flow(*result)
+    if result[0] is None:
+        turn.completed = flow
+    return turn
+
+
+SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose another time."
+
+
+def slot_taken(req: ChatRequest, flow: flows.Flow, slots: dict[str, list[str]] | None) -> Turn:
+    """The chosen time went to another patient while this one was confirming: pick again, fresh slots."""
+    c = content(req.client_id)
+    assert c is not None  # a flow only runs for a clinic with content
+    cfg = {**c["config"], "slots_by_day": slots or {}}
+    day_left = flow["date"] in cfg["slots_by_day"]
+    again = {**flow, "time": None, "step": "time" if day_left else "date"}
+    return _flow(again, flows.ask(again, cfg, [SLOT_TAKEN]))

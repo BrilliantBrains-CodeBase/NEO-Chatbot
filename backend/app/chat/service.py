@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import asyncpg
 
-from app.chat import engine, flows, store
+from app.chat import engine, flows, leads, store
 from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -19,6 +19,13 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         state = await store.open_session(conn, req)
         said = store.patient_text(req, state)
         turn = engine.respond(req, state, await _slots(conn, req, state))
+        if turn.completed:
+            try:
+                async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
+                    await leads.save_completed(conn, req, turn.completed)
+            except leads.SlotTaken:
+                again = {"flow": turn.completed}
+                turn = engine.slot_taken(req, turn.completed, await _slots(conn, req, again))
         # Recent buttons (newest first, at most 60) so the transcript can show the label of any tap.
         new = engine.shown_choices(turn.reply.ui)
         keep = [c for c in state.get("shown", []) if c not in new]
