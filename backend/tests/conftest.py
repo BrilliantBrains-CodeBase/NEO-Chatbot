@@ -8,9 +8,13 @@ import pytest
 
 from app.core.config import get_settings
 
-# A rejected row: a rule (constraint) error, or a data error raised while a generated column is
-# computed (e.g. an inverted time range). Either way the row does not get in.
-Rejected = (asyncpg.exceptions.IntegrityConstraintViolationError, asyncpg.exceptions.DataError)
+# A rejected action: a rule (constraint) error, a data error raised while a generated column is
+# computed (e.g. an inverted time range), or a permission error (access rules). Either way it does not happen.
+Rejected = (
+    asyncpg.exceptions.IntegrityConstraintViolationError,
+    asyncpg.exceptions.DataError,
+    asyncpg.exceptions.InsufficientPrivilegeError,
+)
 
 
 @pytest.fixture

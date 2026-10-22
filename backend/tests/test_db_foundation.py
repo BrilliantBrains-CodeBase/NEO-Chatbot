@@ -32,9 +32,9 @@ async def db() -> AsyncIterator[asyncpg.Connection]:
 # ---------- security baseline: these check every object in app, so they also guard future migrations
 
 
-async def test_public_roles_cannot_use_the_app_schema(db: asyncpg.Connection) -> None:
-    for role in PUBLIC_ROLES:
-        assert await db.fetchval("select has_schema_privilege($1, 'app', 'usage')", role) is False
+async def test_anon_cannot_use_the_app_schema(db: asyncpg.Connection) -> None:
+    # anon is the publishable key without sign-in: no access to app at all.
+    assert await db.fetchval("select has_schema_privilege('anon', 'app', 'usage')") is False
 
 
 async def test_every_app_table_has_row_level_security(db: asyncpg.Connection) -> None:
@@ -45,19 +45,55 @@ async def test_every_app_table_has_row_level_security(db: asyncpg.Connection) ->
     assert [r["relname"] for r in missing] == []
 
 
-async def test_no_app_table_or_function_is_granted_to_public_roles(db: asyncpg.Connection) -> None:
+async def test_nothing_in_app_is_granted_to_anon_or_public(db: asyncpg.Connection) -> None:
     tables = await db.fetch(
-        """select table_name, grantee, privilege_type from information_schema.role_table_grants
-           where table_schema = 'app' and grantee in ('anon', 'authenticated', 'PUBLIC')"""
+        """select c.relname, r.rolname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           cross join (values ('anon'), ('public')) r(rolname)
+           where n.nspname = 'app' and c.relkind in ('r', 'p', 'S')
+             and has_any_column_privilege(r.rolname, c.oid, 'select, insert, update, references')"""
     )
     assert [tuple(r) for r in tables] == []
     funcs = await db.fetch(
-        """select p.proname, r.rolname from pg_proc p
-           join pg_namespace n on n.oid = p.pronamespace
-           cross join (select rolname from pg_roles where rolname in ('anon', 'authenticated')) r
-           where n.nspname = 'app' and has_function_privilege(r.rolname, p.oid, 'execute')"""
+        """select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app' and has_function_privilege('anon', p.oid, 'execute')"""
     )
-    assert [tuple(r) for r in funcs] == []
+    assert [r["proname"] for r in funcs] == []
+
+
+async def test_every_table_signed_in_users_can_touch_has_a_policy(db: asyncpg.Connection) -> None:
+    # A grant without a row rule would expose every row: each such table needs RLS and a policy.
+    unguarded = await db.fetch(
+        """select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'app' and c.relkind in ('r', 'p')
+             and has_any_column_privilege('authenticated', c.oid, 'select, insert, update, references')
+             and (not c.relrowsecurity or not exists (
+                   select 1 from pg_policy pol where pol.polrelid = c.oid))"""
+    )
+    assert [r["relname"] for r in unguarded] == []
+
+
+async def test_signed_in_users_run_only_the_who_am_i_helpers(db: asyncpg.Connection) -> None:
+    funcs = await db.fetch(
+        """select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app' and has_function_privilege('authenticated', p.oid, 'execute')
+           order by 1"""
+    )
+    assert [r["proname"] for r in funcs] == [
+        "can_manage",
+        "is_bb_admin",
+        "is_staff",
+        "my_doctor_ids",
+        "my_role",
+    ]
+
+
+async def test_bookkeeping_table_is_closed_to_signed_in_users(db: asyncpg.Connection) -> None:
+    assert (
+        await db.fetchval(
+            "select has_any_column_privilege('authenticated', 'app.schema_migrations', 'select')"
+        )
+        is False
+    )
 
 
 async def test_new_tables_get_no_rights_by_default(db: asyncpg.Connection) -> None:
