@@ -81,6 +81,9 @@ def weekday(d: str) -> int:
 
 
 def slots_for(cfg: dict[str, Any], d: str) -> list[str]:
+    if "slots_by_day" in cfg:  # real free slots from the database (loaded by the service)
+        return list(cfg["slots_by_day"].get(d, []))
+    # Without the database (pure tests): every slot inside clinic hours.
     if weekday(d) in cfg["closedWeekdays"]:
         return []
     today, minutes = ist_now()

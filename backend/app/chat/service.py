@@ -1,8 +1,14 @@
 """One chat turn: load the session, work out the reply, save everything, in one transaction."""
 
-from app.chat import engine, store
+from datetime import timedelta
+
+import asyncpg
+
+from app.chat import engine, flows, store
+from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
+from app.chat.slots import Mode, free_slots_range
 from app.core.db import get_pool
 
 
@@ -12,7 +18,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
         said = store.patient_text(req, state)
-        turn = engine.respond(req, state)
+        turn = engine.respond(req, state, await _slots(conn, req, state))
         # Recent buttons (newest first, at most 60) so the transcript can show the label of any tap.
         new = engine.shown_choices(turn.reply.ui)
         keep = [c for c in state.get("shown", []) if c not in new]
@@ -22,3 +28,17 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
             conn, req, said, [m.text for m in turn.reply.messages], turn.answered_by, turn.state
         )
     return turn.reply
+
+
+async def _slots(
+    conn: asyncpg.Connection, req: ChatRequest, state: store.State
+) -> dict[str, list[str]] | None:
+    """Free slots for the booking window, loaded only while a booking or reschedule is open."""
+    flow = state.get("flow")
+    c = content(req.client_id)
+    if not flow or c is None or flow.get("kind") not in ("book", "online", "reschedule"):
+        return None
+    today, now = flows.ist_now()
+    last = today + timedelta(days=c["config"]["bookingWindowDays"])
+    mode: Mode = "online" if flow["kind"] == "online" else "in_clinic"
+    return await free_slots_range(conn, req.client_id, today, last, mode, today, now)

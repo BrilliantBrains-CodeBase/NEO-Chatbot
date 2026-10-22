@@ -64,10 +64,13 @@ def treatment_card(c: dict[str, Any], name: str) -> ChatResponse | None:
     )
 
 
-def respond(req: ChatRequest, state: State) -> Turn:
+def respond(req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None) -> Turn:
+    """slots: free slots per day from the database; the service loads them while a booking is open."""
     c = content(req.client_id)
     if c is None:  # a clinic without content yet: greet, never fail
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
+    if slots is not None:
+        c = {**c, "config": {**c["config"], "slots_by_day": slots}}
     menu = ChatResponse(messages=[BotMessage(text=c["greeting"])], ui=c["menu"])
 
     if req.event in ("start", "restart"):
@@ -116,7 +119,8 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any]) -> Turn:
     if isinstance(tap, Turn):
         return tap
     if tap:
-        return respond(req.model_copy(update={"event": "button", "payload": Payload(**tap)}), state)
+        tap_req = req.model_copy(update={"event": "button", "payload": Payload(**tap)})
+        return respond(tap_req, state, c["config"].get("slots_by_day"))
     if flow:
         cfg = c["config"]
         exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
