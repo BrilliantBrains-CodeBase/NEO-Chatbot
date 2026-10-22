@@ -26,6 +26,10 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
             except leads.SlotTaken:
                 again = {"flow": turn.completed}
                 turn = engine.slot_taken(req, turn.completed, await _slots(conn, req, again))
+        f = turn.state.get("flow")
+        if f and f["step"] == "summary" and f["kind"] in ("book", "online") and f.get("time") != "any":
+            if not await leads.hold_slot(conn, req, f):
+                turn = engine.slot_taken(req, f, await _slots(conn, req, turn.state))
         # Recent buttons (newest first, at most 60) so the transcript can show the label of any tap.
         new = engine.shown_choices(turn.reply.ui)
         keep = [c for c in state.get("shown", []) if c not in new]
@@ -48,4 +52,4 @@ async def _slots(
     today, now = flows.ist_now()
     last = today + timedelta(days=c["config"]["bookingWindowDays"])
     mode: Mode = "online" if flow["kind"] == "online" else "in_clinic"
-    return await free_slots_range(conn, req.client_id, today, last, mode, today, now)
+    return await free_slots_range(conn, req.client_id, today, last, mode, today, now, req.session_id)

@@ -8,8 +8,9 @@ import asyncpg
 import pytest
 
 from app.chat import engine, leads, store
+from app.chat.slots import free_slots_range
 from app.core.config import get_settings
-from tests.test_chat_slots import MON, booked, doctor
+from tests.test_chat_slots import FAR, MON, booked, doctor
 from tests.test_chat_store import SID, req
 from tests.test_db_access import person
 
@@ -135,3 +136,31 @@ def test_a_taken_slot_asks_for_the_time_again() -> None:
     assert turn.reply.messages[0].text == engine.SLOT_TAKEN
     assert turn.state["flow"]["step"] == "time" and turn.state["flow"]["time"] is None
     assert engine.slot_taken(req(clinic="CL01"), f, {}).state["flow"]["step"] == "date"
+
+
+OTHER = "s_" + "a" * 32
+
+
+async def test_a_held_time_is_hidden_from_others_and_kept_for_its_patient(tx: asyncpg.Connection) -> None:
+    await doctor(tx, "10:00", "12:00")
+    f = flow() | {"step": "summary"}
+    assert await leads.hold_slot(tx, req(), f)
+    day = MON.isoformat()
+    mine = await free_slots_range(tx, "CL99", MON, MON, "in_clinic", FAR, 0, SID)
+    others = await free_slots_range(tx, "CL99", MON, MON, "in_clinic", FAR, 0, OTHER)
+    assert "10:15" in mine[day] and "10:15" not in others[day]
+    other = req().model_copy(update={"session_id": OTHER})
+    assert not await leads.hold_slot(tx, other, f)  # the only doctor is held
+    with pytest.raises(leads.SlotTaken):
+        await leads.save_completed(tx, other, f | {"phone": "+91 9800000002"})
+    await save(tx, f)  # the patient who holds it can book it, and the hold is released
+    assert await tx.fetchval("select count(*) from app.slot_holds where session_id = $1", SID) == 0
+
+
+async def test_an_expired_hold_frees_the_time(tx: asyncpg.Connection) -> None:
+    await doctor(tx, "10:00", "12:00")
+    assert await leads.hold_slot(tx, req(), flow())
+    await tx.execute("update app.slot_holds set created_at = now() - interval '1 hour', "
+                     "expires_at = now() - interval '1 minute'")  # fmt: skip
+    other = req().model_copy(update={"session_id": OTHER})
+    assert await leads.hold_slot(tx, other, flow())

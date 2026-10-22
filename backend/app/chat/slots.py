@@ -55,6 +55,15 @@ where not exists (
       '[)'
     )
 )
+and not exists (  -- held for another patient who is checking the summary
+  select 1 from app.slot_holds h
+  where h.doctor_id = s.doctor_id and h.expires_at > now() and h.session_id <> $5
+    and h.slot && tstzrange(
+      (s.day + s.t) at time zone c.timezone,
+      (s.day + s.t + make_interval(mins => c.slot_minutes)) at time zone c.timezone,
+      '[)'
+    )
+)
 group by s.day
 """
 
@@ -67,11 +76,12 @@ async def free_slots_range(
     mode: Mode,
     today: date,
     now_minutes: int,
+    session_id: str = "",
 ) -> dict[str, list[str]]:
     """Free HH:MM slot starts per day (YYYY-MM-DD). Days without a free slot are left out; for today,
-    past times are removed."""
+    past times are removed. The session's own hold does not hide its time."""
     out: dict[str, list[str]] = {}
-    for r in await conn.fetch(FREE_SLOTS, clinic_id, first, last, mode):
+    for r in await conn.fetch(FREE_SLOTS, clinic_id, first, last, mode, session_id):
         slots = list(r["slots"])
         if r["day"] == today:
             slots = [s for s in slots if int(s[:2]) * 60 + int(s[3:]) > now_minutes]

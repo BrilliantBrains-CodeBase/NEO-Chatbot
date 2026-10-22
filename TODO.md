@@ -5,7 +5,6 @@
 - [ ] **Error messages**: the two in `frontend/widgets/core/i18n/en.json` are not in the mockups, so they were written during the build. Please confirm or change them:
   - "You seem to be offline. Please check your connection and try again."
   - "Something went wrong. Please try again."
-- [ ] **Config address**: the widget uses `/v1/widget/config/{clinic}`, since the README doesn't give an exact path. The backend will need to use the same one.
 - [ ] **Arya texts not in frontend.md or the mockups** (written during the build; same pattern for Navya and Diya). Please confirm or change them:
   - After choosing "Other": "Please tell us briefly what you are looking for."
   - Reason too short: "Please add a few more words."
@@ -16,6 +15,7 @@
   - Address asked mid-booking: "We are at 1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037. Open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
   - Typed date that cannot be booked: "That date is not available. Please choose another date."
   - Typed time that cannot be booked: "That time is not available. Please choose one of the times shown."
+  - Time taken by another patient while confirming: "Sorry, that time was just booked by someone else. Please choose another time."
 
 ---
 
@@ -92,10 +92,10 @@ Each piece was checked (typecheck, lint, build, Playwright on desktop and mobile
 
 ## Next (plan agreed 22 Oct 2026; details in docs/RAG-AND-LEADS.md section 16)
 
-Done so far: database D1 to D6 (11 migrations), chat backend B1 to B4 (API front door, sessions, Arya menus and flows, typing = tapping and rules), widget preview on Vercel.
+Done so far: database D1 to D6 (13 migrations), chat backend B1 to B6 (API front door, sessions, Arya menus and flows, typing = tapping and rules), widget preview on Vercel.
 
-- [ ] B5: real slots from doctor availability, leave and existing appointments; short hold while the patient confirms
-- [ ] B6: save leads (CL01-00001), requests, appointments, tasks, timeline, noted questions; queue the "request received" email
+- [x] B5: real slots from doctor availability, leave, holidays and existing appointments; 5-minute hold while the patient checks the summary
+- [x] B6: save leads (CL01-00001), requests, appointments, tasks, timeline, noted questions; queue the "request received" email
 - [ ] B7: widget switched from the mock to the real backend; backend deployed on Vercel (Mumbai, bom1)
 - [ ] R1 to R4: knowledge base and RAG: rag_traces table, PDF chunking and import, hybrid search (Postgres full-text + pgvector), LLM (Groq then Gemini) with grounding checks; embedding model measured on Vercel. Needs the clinic PDFs and the Groq key
 - [ ] Email through Gmail SMTP (app password as a Vercel secret): request received, appointment confirmed

@@ -4,9 +4,10 @@ Runs inside the chat turn's transaction, so either everything is saved or nothin
 """
 
 import json
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import asyncpg
 
@@ -14,6 +15,8 @@ from app.chat import understand
 from app.chat.schemas import ChatRequest
 
 Flow = dict[str, Any]
+
+HOLD_MINUTES = 5  # how long a time is kept for a patient checking the booking summary
 
 
 class SlotTaken(Exception):
@@ -103,7 +106,9 @@ async def _lead(
     return new_id, True
 
 
-async def _book(conn: asyncpg.Connection, f: Flow, clinic: asyncpg.Record, lead: UUID, request: UUID) -> UUID:
+async def _book(
+    conn: asyncpg.Connection, f: Flow, clinic: asyncpg.Record, lead: UUID, request: UUID, session_id: str
+) -> UUID:
     """A pending appointment. With an exact time, a free doctor is chosen and the database's double-booking
     rule makes the final check; "Any time" keeps the day only and staff choose the slot."""
     mode = "online" if f["kind"] == "online" else "in_clinic"
@@ -115,31 +120,75 @@ async def _book(conn: asyncpg.Connection, f: Flow, clinic: asyncpg.Record, lead:
             clinic["id"], lead, request, mode, day,
         )  # fmt: skip
         return appt
-    start = time.fromisoformat(f["time"])
-    doctors = await conn.fetch(
-        """select distinct da.doctor_id from app.doctor_availability da
-           join app.doctors d on d.id = da.doctor_id and d.active
-           where da.clinic_id = $1 and da.mode = $2 and da.weekday = $3
-             and da.start_time <= $4 and da.end_time >= $4 + make_interval(mins => $5)
-             and not exists (select 1 from app.doctor_leave l
-                             where l.doctor_id = da.doctor_id and $6 between l.from_date and l.to_date)""",
-        clinic["id"], mode, (day.weekday() + 1) % 7, start, clinic["slot_minutes"], day,
-    )  # fmt: skip
-    for d in doctors:
+    first, last = _bounds(f, clinic)
+    for doc in await _free_doctors(conn, clinic, mode, first, last, session_id):
         try:
             async with conn.transaction():  # a savepoint: a taken slot does not undo the rest
                 taken: UUID = await conn.fetchval(
                     """insert into app.appointments (clinic_id, lead_id, request_id, doctor_id, type, slot)
-                       values ($1, $2, $3, $4, $5, tstzrange(($6::date + $7::time) at time zone $8,
-                               ($6::date + $7::time + make_interval(mins => $9)) at time zone $8, '[)'))
-                       returning id""",
-                    clinic["id"], lead, request, d["doctor_id"], mode, day, start, clinic["timezone"],
-                    clinic["slot_minutes"],
+                       values ($1, $2, $3, $4, $5, tstzrange($6, $7, '[)')) returning id""",
+                    clinic["id"], lead, request, doc, mode, first, last,
                 )  # fmt: skip
                 return taken
         except asyncpg.exceptions.ExclusionViolationError:
             continue
     raise SlotTaken
+
+
+def _bounds(f: Flow, clinic: asyncpg.Record) -> tuple[datetime, datetime]:
+    """The chosen slot in real time, from the clinic's local date and time."""
+    local = datetime.combine(date.fromisoformat(f["date"]), time.fromisoformat(f["time"]))
+    first = local.replace(tzinfo=ZoneInfo(clinic["timezone"]))
+    return first, first + timedelta(minutes=clinic["slot_minutes"])
+
+
+async def _free_doctors(
+    conn: asyncpg.Connection, clinic: asyncpg.Record, mode: str, first: datetime, last: datetime, session: str
+) -> list[UUID]:
+    """Doctors working then, not on leave, not booked and not held for another patient; this patient's
+    own held doctor first. Holding and booking on the same day wait for each other (lock)."""
+    day = first.date()
+    await conn.execute("select pg_advisory_xact_lock(hashtext($1 || $2))", clinic["id"], day.isoformat())
+    rows = await conn.fetch(
+        """select distinct da.doctor_id,
+             exists (select 1 from app.slot_holds h where h.doctor_id = da.doctor_id and h.session_id = $7
+                     and h.expires_at > now() and h.slot && tstzrange($5, $6, '[)')) as mine
+           from app.doctor_availability da
+           join app.doctors d on d.id = da.doctor_id and d.active
+           where da.clinic_id = $1 and da.mode = $2 and da.weekday = $3
+             and da.start_time <= $4 and da.end_time >= $4 + ($6 - $5)
+             and not exists (select 1 from app.doctor_leave l
+                             where l.doctor_id = da.doctor_id and $8 between l.from_date and l.to_date)
+             and not exists (select 1 from app.appointments a where a.doctor_id = da.doctor_id
+                             and a.status in ('pending', 'confirmed') and a.slot && tstzrange($5, $6, '[)'))
+             and not exists (select 1 from app.slot_holds h where h.doctor_id = da.doctor_id
+                             and h.session_id <> $7 and h.expires_at > now()
+                             and h.slot && tstzrange($5, $6, '[)'))
+           order by mine desc""",
+        clinic["id"], mode, (day.weekday() + 1) % 7, first.time(), first, last, session, day,
+    )  # fmt: skip
+    return [r["doctor_id"] for r in rows]
+
+
+async def hold_slot(conn: asyncpg.Connection, req: ChatRequest, f: Flow) -> bool:
+    """Holds the chosen time for this patient while they check the summary. False when no doctor is
+    free at that time any more."""
+    clinic = await _clinic(conn, req.client_id)
+    first, last = _bounds(f, clinic)
+    mode = "online" if f["kind"] == "online" else "in_clinic"
+    doctors = await _free_doctors(conn, clinic, mode, first, last, req.session_id)
+    await conn.execute(
+        "delete from app.slot_holds where session_id = $1 or expires_at < now() - interval '1 hour'",
+        req.session_id,
+    )
+    if not doctors:
+        return False
+    await conn.execute(
+        """insert into app.slot_holds (clinic_id, doctor_id, session_id, slot, expires_at)
+           values ($1, $2, $3, tstzrange($4, $5, '[)'), now() + make_interval(mins => $6))""",
+        req.client_id, doctors[0], req.session_id, first, last, HOLD_MINUTES,
+    )  # fmt: skip
+    return True
 
 
 async def save_completed(conn: asyncpg.Connection, req: ChatRequest, f: Flow) -> str:
@@ -169,7 +218,9 @@ async def save_completed(conn: asyncpg.Connection, req: ChatRequest, f: Flow) ->
         req.client_id, lead, kind, json.dumps({k: v for k, v in data.items() if v}), match, matched,
         f.get("reason") if kind == "question" else None, req.session_id,
     )  # fmt: skip
-    appointment = await _book(conn, f, clinic, lead, request) if kind in ("book", "online") else None
+    appointment = (
+        await _book(conn, f, clinic, lead, request, req.session_id) if kind in ("book", "online") else None
+    )
 
     owner = await conn.fetchval("select assigned_to from app.leads where id = $1", lead)
     await conn.execute(
@@ -214,5 +265,6 @@ async def save_completed(conn: asyncpg.Connection, req: ChatRequest, f: Flow) ->
         "update app.chat_sessions set lead_id = $2 where id = $1 and clinic_id = $3",
         req.session_id, lead, req.client_id,
     )  # fmt: skip
+    await conn.execute("delete from app.slot_holds where session_id = $1", req.session_id)
     code: str = await conn.fetchval("select lead_code from app.leads where id = $1", lead)
     return code
