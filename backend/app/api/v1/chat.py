@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from app.chat import guard
-from app.chat.schemas import BotMessage, ChatRequest, ChatResponse
+from app.chat import guard, service, store
+from app.chat.schemas import ChatRequest, ChatResponse
 
 router = APIRouter(tags=["chat"])
 
@@ -22,6 +22,7 @@ async def message(req: ChatRequest, request: Request) -> ChatResponse:
     if not guard.origin_allowed(clinic, request.headers.get("origin")):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This website may not use this chat")
 
-    # B1: a greeting only. Sessions, flows and leads come in the next steps.
-    name = clinic.bot_name.removesuffix(" AI")
-    return ChatResponse(messages=[BotMessage(text=f"Hi, I'm {name}. How can I help you today?")])
+    try:
+        return await service.handle(req, clinic)
+    except store.SessionMismatch:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This chat session belongs to someone else") from None

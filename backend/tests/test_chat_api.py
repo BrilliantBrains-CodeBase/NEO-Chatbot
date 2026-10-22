@@ -9,12 +9,14 @@ from typing import Any
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.chat import guard
+from app.chat import guard, service, store
+from app.chat.schemas import BotMessage, ChatRequest, ChatResponse
 from app.core.config import get_settings
 from app.main import create_app
 
 SITE = "https://neofollicletransplant.com"
 ARYA = guard.Clinic("CL01", "Arya AI", (SITE,))
+TAKEN = "s_" + "9" * 32
 
 
 def body(**over: Any) -> dict[str, Any]:
@@ -35,7 +37,14 @@ async def api(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsyncClient]:
     async def fake_clinic(clinic_id: str) -> guard.Clinic | None:
         return ARYA if clinic_id == "CL01" else None
 
+    async def fake_handle(req: ChatRequest, clinic: guard.Clinic) -> ChatResponse:
+        # The front door only: no database. Saving is tested on CL99 in test_chat_store.py.
+        if req.session_id == TAKEN:
+            raise store.SessionMismatch
+        return ChatResponse(messages=[BotMessage(text=f"Hi from {clinic.bot_name}")])
+
     monkeypatch.setattr(guard, "get_clinic", fake_clinic)
+    monkeypatch.setattr(service, "handle", fake_handle)
     monkeypatch.setattr(guard, "limiter", guard.RateLimiter())
     get_settings.cache_clear()
     async with AsyncClient(transport=ASGITransport(app=create_app()), base_url="http://test") as c:
@@ -52,7 +61,11 @@ async def test_clinic_website_gets_a_json_reply(api: AsyncClient) -> None:
     r = await post(api)
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/json"
-    assert r.json()["messages"] == [{"type": "text", "text": "Hi, I'm Arya. How can I help you today?"}]
+    assert r.json()["messages"] == [{"type": "text", "text": "Hi from Arya AI"}]
+
+
+async def test_someone_elses_session_is_refused(api: AsyncClient) -> None:
+    assert (await post(api, session_id=TAKEN)).status_code == 403
 
 
 async def test_www_form_of_the_site_is_the_same_site(api: AsyncClient) -> None:
