@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health
+from app.api.v1 import chat, health
 from app.core.cache import close_redis
 from app.core.config import get_settings
 from app.core.db import close_pool
@@ -38,6 +38,7 @@ def create_app() -> FastAPI:
         max_age=600,
     )
     app.include_router(health.router, prefix="/v1")
+    app.include_router(chat.router, prefix="/v1")
     return app
 
 
