@@ -234,7 +234,7 @@ Input modes: `text`, `phone` (country code selector inside the bar, IN +91 by de
 
 ---
 
-## Project plan (6 weeks, one developer)
+## Project plan
 
 | Week | Work |
 |---|---|
