@@ -292,3 +292,14 @@ Migrations are numbered SQL files in `backend/supabase/migrations`, the only way
 - Groq and Gemini keys, Interakt account, Linode server, chat.brilliantbrains.ai DNS.
 - Google Sheets layout for ads leads.
 - Final confirmation of the two error messages in `core/i18n/en.json`.
+
+---
+
+## 16. Decisions of 22 Oct 2026 (these override earlier sections)
+
+- **Every answer is traced.** A new table `rag_traces` keeps, per bot answer: each step (input and injection checks, emergency and medical rules, keyword rules, cache, keyword search, semantic search, merge, LLM, grounding check, result), the table it read, chunk ids and scores, time per step, model and tokens, and the final decision. The CRM shows it under **Bot quality**, where managers mark an answer correct or wrong and add a better answer (it enters the knowledge base after approval).
+- **Vector search is pgvector (HNSW) in Supabase, not FAISS.** FAISS would be rebuilt on every serverless cold start and cannot be shared between instances; pgvector does the same nearest-neighbour search, filtered by clinic, in one place. At about 3,000 chunks this is ample.
+- **Latency budgets:** rules under 150 ms, knowledge-base answers under 400 ms, LLM answers under 3 s. Over budget: the patient gets the lead flow instead of waiting.
+- **Embedding model:** to be chosen for Vercel. Measure `bge-small-en-v1.5` (quantized, fastembed) for bundle size and cold start; fallback Supabase `gte-small`. Both give 384 numbers, so `kb_chunks` stays as it is. The model name is stored per chunk; changing models means re-embedding.
+- **Emails** through Gmail SMTP (free; app password kept as a Vercel secret): "request received" when the patient confirms in the chat, "appointment confirmed" when staff confirm in the CRM. Sent through the outbox with retries.
+- **Memory:** short-term is the conversation (3 days). Long-term is the lead record only: name, contact, treatment interest, past bookings and a short summary of earlier questions. The bot personalises only after the patient confirms their number.

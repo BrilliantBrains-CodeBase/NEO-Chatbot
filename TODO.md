@@ -90,11 +90,15 @@ Each piece was checked (typecheck, lint, build, Playwright on desktop and mobile
 
 ---
 
-## Next
+## Next (plan agreed 22 Oct 2026; details in docs/RAG-AND-LEADS.md section 16)
 
-- [ ] Piece 9b: iPhone-size and keyboard-only tests for Arya
-- [ ] Piece 9c: restore the conversation after a page reload (WIDGET-STEPS 5.12)
-- [ ] Push the Arya commits to GitHub (`feat/widgets` and `frontend`)
-- [ ] Backend: database migrations, then the real `/v1/chat/message` for Arya (replaces the mock)
-- [ ] Navya and Diya faces
-- [ ] Optional: add `.gitattributes` to stop the "LF will be replaced by CRLF" warnings
+Done so far: database D1 to D6 (11 migrations), chat backend B1 to B4 (API front door, sessions, Arya menus and flows, typing = tapping and rules), widget preview on Vercel.
+
+- [ ] B5: real slots from doctor availability, leave and existing appointments; short hold while the patient confirms
+- [ ] B6: save leads (CL01-00001), requests, appointments, tasks, timeline, noted questions; queue the "request received" email
+- [ ] B7: widget switched from the mock to the real backend; backend deployed on Vercel (Mumbai, bom1)
+- [ ] R1 to R4: knowledge base and RAG: rag_traces table, PDF chunking and import, hybrid search (Postgres full-text + pgvector), LLM (Groq then Gemini) with grounding checks; embedding model measured on Vercel. Needs the clinic PDFs and the Groq key
+- [ ] Email through Gmail SMTP (app password as a Vercel secret): request received, appointment confirmed
+- [ ] NEO CRM: sign-in, Leads, Inbox, Appointments, Tasks first; then Bot quality (RAG traces), Dashboard, Reports, Team, Settings
+- [ ] Navya (CL02) and Diya (CL03)
+- [ ] GitHub secret DATABASE_URL so CI runs the database tests
