@@ -8,7 +8,7 @@ How the one Supabase database is set up, structured, protected and kept healthy.
 
 | Item | Decision |
 |---|---|
-| Projects | **One** Supabase project for live data (created in Mumbai on 21 Oct 2026; the earlier Singapore project is to be deleted) |
+| Projects | **One** Supabase project for live data (Mumbai, ap-south-1, ref ajpvmevhehqvaqmryabp, created 21 Oct 2026; the earlier Singapore project was deleted on 22 Oct 2026) |
 | Region | **Mumbai (ap-south-1)**: patient data stays in India (DPDP Act 2023) and sits next to the Linode Mumbai server |
 | Plan | **Free** while building, **Pro before go-live** (Free pauses after 7 idle days and has no backups) |
 | Development and tests | The **same cloud project**, using the hidden test clinic **CL99** only. Tests create their rows under CL99 and delete them afterwards; CL99 is excluded from every report and from the CRM clinic switcher |
