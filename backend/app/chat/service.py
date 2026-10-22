@@ -7,7 +7,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import engine, flows, kb, leads, store, understand
+from app.chat import embed, engine, flows, kb, leads, store, understand
 from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -85,6 +85,12 @@ async def _kb(conn: asyncpg.Connection, req: ChatRequest, steps: list[Step]) -> 
     hit = await kb.search(conn, req.client_id, text)
     result = hit.question if hit else "no match"
     steps.append({"step": "kb_regular", "result": result, "score": hit.score if hit else None, "ms": _ms(t)})
+    if hit:
+        return hit
+    t = time.perf_counter()
+    hit, score = await kb.semantic(conn, req.client_id, text)
+    result = hit.question if hit else ("model loading" if score is None and not embed.ready() else "no match")
+    steps.append({"step": "kb_semantic", "result": result, "score": score, "ms": _ms(t)})
     return hit
 
 

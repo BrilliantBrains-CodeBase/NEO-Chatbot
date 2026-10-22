@@ -5,7 +5,7 @@ import json
 import asyncpg
 import pytest
 
-from app.chat import engine, kb, service, store
+from app.chat import embed, engine, kb, service, store
 from app.chat.kb import _Row, best, words
 from app.core.config import get_settings
 from tests.test_chat_store import SID, req
@@ -104,3 +104,28 @@ async def test_every_question_is_traced_step_by_step(tx: asyncpg.Connection) -> 
     await tx.execute("delete from app.chat_sessions where id = $1", SID)  # 3-day cleanup or privacy delete
     assert await tx.fetchval("select count(*) from app.rag_traces where session_id = $1", SID) == 0
     kb._cache.clear()
+
+
+@pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
+async def test_semantic_matching_by_meaning(tx: asyncpg.Connection) -> None:
+    await embed.warm()
+    kb._cache.clear()
+    kb._filled.clear()
+    qa = await tx.fetchval(
+        """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
+           values ('CL99', 'Where is the clinic located?', 'address\nlocation\nhow to reach\ndirections',
+                   'Marathahalli.', 'approved', now())
+           returning id"""
+    )
+    hit, score = await kb.semantic(tx, "CL99", "how do I reach your clinic")
+    assert hit is not None and hit.answer == "Marathahalli." and score is not None and score >= 83
+    assert await tx.fetchval("select embedding is not null from app.kb_qa where id = $1", qa)
+    miss, low = await kb.semantic(tx, "CL99", "who won the cricket match")
+    assert miss is None and low is not None and low < 83  # the near miss is still reported for the trace
+    steps: list[service.Step] = []
+    await service._kb(tx, req("text", text="who won the cricket match"), steps)  # no word match
+    assert [s["step"] for s in steps] == ["emergency_medical", "kb_regular", "kb_semantic"]
+    await tx.execute("update app.kb_qa set variants = 'map' where id = $1", qa)  # staff edit
+    assert await tx.fetchval("select embedding is null from app.kb_qa where id = $1", qa)
+    kb._cache.clear()
+    kb._filled.clear()

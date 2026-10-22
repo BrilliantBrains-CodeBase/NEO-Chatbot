@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import asyncpg
 from rapidfuzz import fuzz
 
+from app.chat import embed
+
 CACHE_S = 60  # approved rows change rarely; a minute keeps CRM edits quick to show
 MIN_SCORE = 86  # below this, no answer (a wrong answer is worse than a call back)
 
@@ -96,3 +98,49 @@ def best(rows: list[_Row], text: str) -> Answer | None:
 
 async def search(conn: asyncpg.Connection, clinic_id: str, text: str) -> Answer | None:
     return best(await _rows(conn, clinic_id), text)
+
+
+# --- Semantic matching (meaning, not words): only when regular matching found nothing -------------------
+
+SEMANTIC_MIN = 0.83  # measured on CL01: right answers scored 0.83 to 0.93, unrelated questions up to 0.79
+_filled: dict[str, float] = {}
+
+
+async def _fill(conn: asyncpg.Connection, clinic_id: str) -> None:
+    """Meaning numbers for approved Q/A that have none yet (new or edited), at most once a minute."""
+    now = time.monotonic()
+    if now - _filled.get(clinic_id, -CACHE_S) < CACHE_S:
+        return
+    for r in await conn.fetch(
+        "select id, question, variants from app.kb_qa "
+        "where clinic_id = $1 and status = 'approved' and embedding is null",
+        clinic_id,
+    ):
+        v = await embed.meaning([r["question"], *[x for x in r["variants"].splitlines() if x.strip()]])
+        await conn.execute(
+            "update app.kb_qa set embedding = $2::extensions.vector where id = $1", r["id"], embed.as_pg(v)
+        )
+    _filled[clinic_id] = now
+
+
+async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple[Answer | None, float | None]:
+    """The closest approved question by meaning, if close enough; also the best score, for the trace.
+    (None, None) while the model is still loading."""
+    if not embed.ready():
+        return None, None
+    await _fill(conn, clinic_id)
+    q = embed.as_pg(await embed.vector(text))
+    row = await conn.fetchrow(
+        """select id, question, answer, 1 - (embedding operator(extensions.<=>) $2::extensions.vector) as sim
+           from app.kb_qa where clinic_id = $1 and status = 'approved' and embedding is not null
+           order by embedding operator(extensions.<=>) $2::extensions.vector limit 1""",
+        clinic_id,
+        q,
+    )
+    if row is None:
+        return None, None
+    score = round(float(row["sim"]) * 100, 1)
+    hit = (
+        Answer(str(row["id"]), row["question"], row["answer"], score) if row["sim"] >= SEMANTIC_MIN else None
+    )
+    return hit, score
