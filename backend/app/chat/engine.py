@@ -6,9 +6,9 @@ Booking steps, typed text and leads follow in the next steps.
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.chat import flows
+from app.chat import flows, understand
 from app.chat.content import content
-from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
+from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Payload
 from app.chat.store import State
 
 NO_ANSWER = (
@@ -96,11 +96,90 @@ def respond(req: ChatRequest, state: State) -> Turn:
                 return Turn(card, "flow", {})
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)], ui=c["menu"]), "menu", {})
 
-    text = req.payload.text or ""
+    return _text(req, state, c)
+
+
+NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
+NOT_AVAILABLE_DATE = "That date is not available. Please choose another date."
+NOT_AVAILABLE_TIME = "That time is not available. Please choose one of the times shown."
+INPUT_STEPS = {"name", "phone", "email", "reason", "cb_reason"}
+
+
+def _text(req: ChatRequest, state: State, c: dict[str, Any]) -> Turn:
+    """Typed text: emergency first, then anything that stands for a tap, then the open step or the rules."""
+    text = (req.payload.text or "").strip()
+    flow = state.get("flow")
+    kind, target = understand.route(text, c)
+    if kind == "emergency":  # always first, and never mistaken for a tap
+        return Turn(_response(c["nodes"]["emergency"]), "rule", {})
+    tap = _typed_tap(state, c, flow, text)
+    if isinstance(tap, Turn):
+        return tap
+    if tap:
+        return respond(req.model_copy(update={"event": "button", "payload": Payload(**tap)}), state)
     if flow:
-        return _flow(*flows.typed(flow, c["config"], text, req.payload.cc))
-    # No answer known (rules and the knowledge base come in B4): take a lead, the question is the reason.
-    return _flow(*flows.start("question", reason=text, lead=[NO_ANSWER]), answered_by="lead")
+        cfg = c["config"]
+        exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
+        if (flow["step"] in INPUT_STEPS and "?" not in text) or exact:
+            return _flow(*flows.typed(flow, cfg, text, req.payload.cc))
+        return _mid_flow(flow, c, text, kind, target)
+    return _answer(c, text, kind, target)
+
+
+def _typed_tap(
+    state: State, c: dict[str, Any], flow: flows.Flow | None, text: str
+) -> dict[str, Any] | Turn | None:
+    """The tap that typed text stands for; a reply when it names a date or time that cannot be booked."""
+    if understand.is_menu(text):
+        return {"action": "menu"}
+    cfg = c["config"]
+    if flow and flow["step"] in ("date", "booked_date"):
+        day = understand.parse_date(text, flows.ist_now()[0])
+        if day:
+            ok = flows.bookable(cfg, day) if flow["step"] == "date" else flows.valid_booked_date(cfg, day)
+            if ok:
+                return {"action": flow["step"], "value": day}
+            return Turn(flows.ask(flow, cfg, [NOT_AVAILABLE_DATE]), "flow", {"flow": flow})
+    if flow and flow["step"] == "time" and flow.get("date"):
+        time = understand.parse_time(text)
+        if time:
+            if time == "any" or time in flows.slots_for(cfg, flow["date"]):
+                return {"action": "time", "value": time}
+            return Turn(flows.ask(flow, cfg, [NOT_AVAILABLE_TIME]), "flow", {"flow": flow})
+    if flow and flow["step"] == "summary" and understand.is_yes(text):
+        return {"action": "confirm"}
+    # Only the buttons of the latest reply (never older ones: a typed name must not tap an old button).
+    option = understand.match_option(text, state.get("last_shown", []))
+    return {"action": option["action"], "value": option.get("value")} if option else None
+
+
+def _mid_flow(flow: flows.Flow, c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
+    """A question in the middle of a flow: a short answer (or noted for the team), then the same step."""
+    cfg = c["config"]
+    if kind == "start" and target != flow["kind"]:
+        return _flow(*flows.start(target))
+    if kind == "node" and target in c["brief"]:
+        return _flow(flow, flows.ask(flow, cfg, [c["brief"][target]]))
+    if kind == "card":
+        card_text = f"**{target}**\n{c['treatments'][target]['text']}"
+        return _flow(flow, flows.ask(flow, cfg, [card_text]))
+    if kind == "node" and target == "book":
+        return _flow(flow, flows.ask(flow, cfg))
+    flow.setdefault("questions", []).append(text[:500])  # saved for the team with the lead (B6)
+    return _flow(flow, flows.ask(flow, cfg, [NOTED]))
+
+
+def _answer(c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
+    """Typed text with no flow open: the keyword rules. Medical, or nothing known, becomes a lead."""
+    if kind == "start":
+        return _flow(*flows.start(target))
+    if kind == "node" and target in c["nodes"]:
+        return Turn(_response(c["nodes"][target]), "rule", {})
+    if kind == "card":
+        card = treatment_card(c, target)
+        if card:
+            return Turn(card, "rule", {})
+    return _flow(*flows.start("question", reason=text[:500], lead=[NO_ANSWER]), answered_by="lead")
 
 
 def _flow(flow: flows.Flow | None, reply: ChatResponse, answered_by: str = "flow") -> Turn:

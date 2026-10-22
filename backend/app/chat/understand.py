@@ -1,0 +1,178 @@
+"""Understanding typed text: dates, times, yes, main menu, button labels (with typos), and the keyword
+rules (emergency first, medical never answered). Same rules as the approved mock
+(frontend/widgets/mock/typing.ts and router.ts). Knowledge base search and the LLM come later.
+"""
+
+import re
+from datetime import date, timedelta
+from typing import Any
+
+from rapidfuzz.distance import Levenshtein
+
+
+def norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def is_menu(text: str) -> bool:
+    return bool(re.fullmatch(r"main menu|menu|home|start over|go to menu", norm(text)))
+
+
+def is_yes(text: str) -> bool:
+    return bool(
+        re.fullmatch(
+            r"yes|y|yeah|yep|ok|okay|confirm|confirmed|confirm it|book it|go ahead|sure|done|correct",
+            norm(text),
+        )
+    )
+
+
+MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+
+
+def _ymd(y: int, m: int, d: int) -> str | None:
+    try:
+        return date(y, m, d).isoformat()
+    except ValueError:
+        return None
+
+
+def _with_year(m: int, d: int, today: date) -> str | None:
+    """A date without a year: this year's, or next year's when that is closer (e.g. "2 Jan" in December)."""
+    this, nxt = _ymd(today.year, m, d), _ymd(today.year + 1, m, d)
+    if not this or not nxt:
+        return None
+    return this if this >= (today - timedelta(days=180)).isoformat() else nxt
+
+
+def _month(word: str) -> int:
+    return MONTHS.index(word[:3]) + 1 if word[:3] in MONTHS else 0
+
+
+def parse_date(text: str, today: date) -> str | None:
+    """today, tomorrow, friday, 28 oct, oct 28, 28/10, 28-10-2026, 2026-10-28. Day first (India)."""
+    t = norm(text)
+    if t == "today":
+        return today.isoformat()
+    if t in ("tomorrow", "tmrw", "tmr"):
+        return (today + timedelta(days=1)).isoformat()
+    if t == "day after tomorrow":
+        return (today + timedelta(days=2)).isoformat()
+    if m := re.fullmatch(r"(?:next |this |on )?(sun|mon|tue|wed|thu|fri|sat)[a-z]*", t):
+        target, now = DAYS.index(m[1]), (today.weekday() + 1) % 7
+        return (today + timedelta(days=(target - now) % 7)).isoformat()
+    if m := re.fullmatch(r"(\d{4}) (\d{1,2}) (\d{1,2})", t):
+        return _ymd(int(m[1]), int(m[2]), int(m[3]))
+    if m := re.fullmatch(r"(\d{1,2}) (\d{1,2})(?: (\d{2}|\d{4}))?", t):
+        if not m[3]:
+            return _with_year(int(m[2]), int(m[1]), today)
+        year = 2000 + int(m[3]) if len(m[3]) == 2 else int(m[3])
+        return _ymd(year, int(m[2]), int(m[1]))
+    if (m := re.fullmatch(r"(\d{1,2})(?:st|nd|rd|th)?(?: of)? ([a-z]{3,9})(?: (\d{4}))?", t)) and _month(
+        m[2]
+    ):
+        return (
+            _ymd(int(m[3]), _month(m[2]), int(m[1])) if m[3] else _with_year(_month(m[2]), int(m[1]), today)
+        )
+    if (m := re.fullmatch(r"([a-z]{3,9}) (\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?", t)) and _month(m[1]):
+        return (
+            _ymd(int(m[3]), _month(m[1]), int(m[2])) if m[3] else _with_year(_month(m[1]), int(m[2]), today)
+        )
+    return None
+
+
+def parse_time(text: str) -> str | None:
+    """10:30, 10.30 am, 2 pm, 14:15, noon, any time. Without am/pm, 1 to 8 means afternoon or evening."""
+    raw = text.lower().strip()
+    if re.fullmatch(r"any ?time|anytime|any", raw):
+        return "any"
+    if raw == "noon":
+        return "12:00"
+    m = re.fullmatch(r"(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?", raw)
+    if not m:
+        return None
+    h, mins, ampm = int(m[1]), int(m[2] or 0), (m[3] or "").replace(".", "")
+    if h > 23 or mins > 59 or (ampm and not 1 <= h <= 12):
+        return None
+    if ampm == "pm" and h < 12:
+        h += 12
+    if ampm == "am" and h == 12:
+        h = 0
+    if not ampm and 1 <= h <= 8:
+        h += 12
+    return f"{h:02d}:{mins:02d}"
+
+
+def match_option(text: str, options: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The button meant: same label, a small typo (about 1 in 6 letters), or a part of the label (4+ letters)
+    that fits only one button. Links are never matched."""
+    t = norm(text)
+    usable = [o for o in options if o.get("action")]
+    if len(t) < 2 or not usable:
+        return None
+    for o in usable:
+        if norm(o["label"]) == t:
+            return o
+    close = [o for o in usable if Levenshtein.distance(norm(o["label"]), t) <= max(1, len(t) // 6)]
+    if len(close) == 1:
+        return close[0]
+    if len(t) >= 4:
+        part = [o for o in usable if t in norm(o["label"])]
+        if len(part) == 1:
+            return part[0]
+    return None
+
+
+# ---------- keyword rules (priority order) ----------
+
+EMERGENCY = re.compile(
+    r"\b(emergency|bleed(ing)?|faint(ed|ing)?|unconscious|can'?t breathe|breathing (problem|difficulty)|chest pain|"
+    r"allergic|anaphyla\w*|severe (swelling|pain)|high fever)\b"
+)
+# Healthcare and medicine questions are never answered (client decision): they always become a lead.
+MEDICAL = re.compile(
+    r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitable for me|right for me|"
+    r"is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|"
+    r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b"
+)
+INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
+    (re.compile(r"\b(online|video ?call|from home|google meet|virtual)\b"), ("start", "online")),
+    (re.compile(r"\bcancel"), ("start", "cancel")),
+    (
+        re.compile(r"\b(reschedul\w*|postpone|change (my )?(appointment|booking|date|slot))\b"),
+        ("start", "reschedule"),
+    ),
+    (re.compile(r"\b(call ?back|callback)\b"), ("start", "callback")),
+    (re.compile(r"\b(cost|price|fees?|charges?|package|emi|how much|rates?)\b"), ("node", "cost")),
+    (re.compile(r"\b(book\w*|appointment|consult\w*|slots?)\b"), ("node", "book")),
+    (re.compile(r"\b(results?|before and after|before after|gallery|photos?)\b"), ("node", "results")),
+    (
+        re.compile(r"\b(timings?|hours|open|address|location|where|directions?|map|landmark)\b"),
+        ("node", "clinic"),
+    ),
+    (re.compile(r"\b(call|whatsapp|contact|number|phone|talk)\b"), ("node", "talk")),
+    (re.compile(r"\b(doctors?|dr|sandeep|surgeons?)\b"), ("node", "about")),
+    (re.compile(r"\b(international|abroad|overseas|travel|fly|nri)\b"), ("node", "intl")),
+]
+
+
+def route(raw: str, c: dict[str, Any]) -> tuple[str, str]:
+    """("emergency", ""), ("lead", ""), ("start", kind), ("node", key) or ("card", treatment)."""
+    text = " ".join(raw.lower().split())
+    if EMERGENCY.search(text):
+        return "emergency", ""
+    if MEDICAL.search(text):
+        return "lead", ""
+    for pattern, target in INTENTS:
+        if pattern.search(text):
+            return target
+    for name in c["treatments"]:
+        if name.lower() in text:
+            return "card", name
+    for alias, name in c["aliases"].items():
+        if re.search(rf"\b{alias}\b", text):
+            return "card", name
+    if re.search(r"\b(treatments?|explore|options|procedures?)\b", text):
+        return "node", "treat"
+    return "lead", ""

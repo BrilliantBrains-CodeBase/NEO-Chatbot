@@ -17,6 +17,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         new = engine.shown_choices(turn.reply.ui)
         keep = [c for c in state.get("shown", []) if c not in new]
         turn.state["shown"] = (new + keep)[:60]
+        turn.state["last_shown"] = new  # typed text is matched against these only
         await store.save_turn(
             conn, req, said, [m.text for m in turn.reply.messages], turn.answered_by, turn.state
         )

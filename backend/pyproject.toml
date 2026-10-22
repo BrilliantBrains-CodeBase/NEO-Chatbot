@@ -71,3 +71,6 @@ ignore_missing_imports = true
 # The bot's approved sentences stay on one line, so they are easy to compare with frontend.md.
 "app/chat/flows.py" = ["E501"]
 "tests/test_chat_flows.py" = ["E501"]
+"tests/test_chat_typed.py" = ["E501"]
+# Keyword and date patterns stay on one line each, so they are easy to compare with the mock.
+"app/chat/understand.py" = ["E501"]
