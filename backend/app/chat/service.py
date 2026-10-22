@@ -1,6 +1,9 @@
 """One chat turn: load the session, work out the reply, save everything, in one transaction."""
 
+import json
+import time
 from datetime import timedelta
+from typing import Any
 
 import asyncpg
 
@@ -18,7 +21,10 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
         said = store.patient_text(req, state)
-        turn = engine.respond(req, state, await _slots(conn, req, state), await _kb(conn, req))
+        started = time.perf_counter()
+        steps: list[Step] = []
+        hit = await _kb(conn, req, steps)
+        turn = engine.respond(req, state, await _slots(conn, req, state), hit.answer if hit else None)
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
@@ -38,6 +44,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         await store.save_turn(
             conn, req, said, [m.text for m in turn.reply.messages], turn.answered_by, turn.state
         )
+        await _trace(conn, req, turn, hit, steps, started)
     return turn.reply
 
 
@@ -55,16 +62,52 @@ async def _slots(
     return await free_slots_range(conn, req.client_id, today, last, mode, today, now, req.session_id)
 
 
-async def _kb(conn: asyncpg.Connection, req: ChatRequest) -> str | None:
-    """The approved knowledge base answer for typed text. Never for emergencies or medical questions,
-    which the engine sends to the doctor and the team."""
+Step = dict[str, Any]
+
+
+def _ms(since: float) -> int:
+    return round((time.perf_counter() - since) * 1000)
+
+
+async def _kb(conn: asyncpg.Connection, req: ChatRequest, steps: list[Step]) -> kb.Answer | None:
+    """The approved knowledge base match for typed text, with each check noted in steps. Never for
+    emergencies or medical questions, which the engine sends to the doctor and the team."""
     text = " ".join((req.payload.text or "").lower().split())
-    if (
-        req.event != "text"
-        or not text
-        or understand.EMERGENCY.search(text)
-        or understand.MEDICAL.search(text)
-    ):
+    if req.event != "text" or not text:
         return None
+    t = time.perf_counter()
+    for name, pattern in (("emergency", understand.EMERGENCY), ("medical", understand.MEDICAL)):
+        if pattern.search(text):
+            steps.append({"step": name, "result": "matched", "ms": _ms(t)})
+            return None
+    steps.append({"step": "emergency_medical", "result": "no match", "ms": _ms(t)})
+    t = time.perf_counter()
     hit = await kb.search(conn, req.client_id, text)
-    return hit.answer if hit else None
+    result = hit.question if hit else "no match"
+    steps.append({"step": "kb_regular", "result": result, "score": hit.score if hit else None, "ms": _ms(t)})
+    return hit
+
+
+async def _trace(
+    conn: asyncpg.Connection, req: ChatRequest, turn: engine.Turn, hit: kb.Answer | None, steps: list[Step],
+    started: float,
+) -> None:  # fmt: skip
+    """One row per typed question for the CRM "Bot quality" screen. Typed answers to a form step (a name,
+    a date) are not questions and are not traced."""
+    if not steps or turn.answered_by == "flow":
+        return
+    first = steps[0]["step"]
+    answered = (
+        first
+        if first in ("emergency", "medical")
+        else {"menu": "rule", "error": "lead"}.get(turn.answered_by, turn.answered_by)
+    )
+    if answered not in ("emergency", "medical"):
+        steps.insert(1, {"step": "rules", "result": "matched" if answered == "rule" else "no match"})
+    used = hit if answered == "kb" else None
+    await conn.execute(
+        """insert into app.rag_traces (clinic_id, session_id, question, answered_by, kb_qa_id, kb_score,
+             steps, total_ms) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)""",
+        req.client_id, req.session_id, (req.payload.text or "")[:500], answered, used.id if used else None,
+        used.score if used else None, json.dumps(steps), _ms(started),
+    )  # fmt: skip

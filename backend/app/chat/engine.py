@@ -169,16 +169,16 @@ def _mid_flow(
     if kind == "start" and target != flow["kind"]:
         return _flow(*flows.start(target))
     if kind == "node" and target in c["brief"]:
-        return _flow(flow, flows.ask(flow, cfg, [c["brief"][target]]))
+        return _flow(flow, flows.ask(flow, cfg, [c["brief"][target]]), answered_by="rule")
     if kind == "card":
         card_text = f"**{target}**\n{c['treatments'][target]['text']}"
-        return _flow(flow, flows.ask(flow, cfg, [card_text]))
+        return _flow(flow, flows.ask(flow, cfg, [card_text]), answered_by="rule")
     if kind == "node" and target == "book":
         return _flow(flow, flows.ask(flow, cfg))
     if kb_answer:  # answered from the approved knowledge base, then the same step again
         return _flow(flow, flows.ask(flow, cfg, [kb_answer]), answered_by="kb")
     flow.setdefault("questions", []).append(text[:500])  # saved for the team with the lead (B6)
-    return _flow(flow, flows.ask(flow, cfg, [NOTED]))
+    return _flow(flow, flows.ask(flow, cfg, [NOTED]), answered_by="lead")
 
 
 def _answer(c: dict[str, Any], text: str, kind: str, target: str, kb_answer: str | None = None) -> Turn:

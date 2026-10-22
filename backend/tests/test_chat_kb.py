@@ -1,12 +1,14 @@
 """Knowledge base answers, regular matching (R2a)."""
 
+import json
+
 import asyncpg
 import pytest
 
-from app.chat import engine, kb, service
+from app.chat import engine, kb, service, store
 from app.chat.kb import _Row, best, words
 from app.core.config import get_settings
-from tests.test_chat_store import req
+from tests.test_chat_store import SID, req
 
 ROWS = [
     _Row(str(i), q, a, tuple(words(x) for x in [q, *v]))
@@ -68,5 +70,37 @@ async def test_only_approved_rows_answer_and_medical_never_asks_the_kb(tx: async
     )
     assert (await kb.search(tx, "CL99", "parking available?")).answer == "Yes, free parking."  # type: ignore[union-attr]
     assert await kb.search(tx, "CL99", "lift") is None
-    assert await service._kb(tx, req("text", text="is parking painful")) is None  # medical word: never the KB
+    assert (
+        await service._kb(tx, req("text", text="is parking painful"), []) is None
+    )  # medical word: never the KB
+    kb._cache.clear()
+
+
+async def _ask(db: asyncpg.Connection, text: str, state: dict[str, object] | None = None) -> None:
+    r = req("text", clinic="CL01", text=text)
+    await store.open_session(db, r)
+    steps: list[service.Step] = []
+    hit = await service._kb(db, r, steps)
+    turn = engine.respond(r, state or {}, None, hit.answer if hit else None)
+    await service._trace(db, r, turn, hit, steps, 0.0)
+
+
+@pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
+async def test_every_question_is_traced_step_by_step(tx: asyncpg.Connection) -> None:
+    kb._cache.clear()
+    for text in ("do you provide visa assistance", "is it painful", "book an appointment", "hello there"):
+        await _ask(tx, text)
+    await _ask(tx, "Asha Rao", {"flow": {"kind": "book", "step": "name"}})  # a form answer: not traced
+    rows = await tx.fetch(
+        "select answered_by, kb_qa_id is not null as kb, steps from app.rag_traces "
+        "where session_id = $1 order by id",
+        SID,
+    )
+    assert [(r["answered_by"], r["kb"]) for r in rows] == [
+        ("kb", True), ("medical", False), ("rule", False), ("lead", False)
+    ]  # fmt: skip
+    first = [s["step"] for s in json.loads(rows[0]["steps"])]
+    assert first == ["emergency_medical", "rules", "kb_regular"]
+    await tx.execute("delete from app.chat_sessions where id = $1", SID)  # 3-day cleanup or privacy delete
+    assert await tx.fetchval("select count(*) from app.rag_traces where session_id = $1", SID) == 0
     kb._cache.clear()
