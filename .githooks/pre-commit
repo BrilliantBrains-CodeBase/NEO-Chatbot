@@ -1,0 +1,32 @@
+#!/bin/sh
+# Fast checks before every commit, only for the parts that changed. The full test suites run on
+# GitHub Actions (.github/workflows/ci.yml). Turn this hook on once per clone:
+#   git config core.hooksPath .githooks
+set -e
+
+root=$(git rev-parse --show-toplevel)
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# Never commit secrets: no .env file, no database connection string with a password in it.
+if echo "$staged" | grep -qE '(^|/)\.env$'; then
+  echo "pre-commit: refusing to commit a .env file (it holds passwords)." >&2
+  exit 1
+fi
+if git diff --cached -U0 | grep -E '^\+' | grep -qE 'postgres(ql)?://[^:/ ]+:[^@ \[]+@'; then
+  echo "pre-commit: refusing to commit a database connection string with a password in it." >&2
+  exit 1
+fi
+
+if echo "$staged" | grep -q '^backend/'; then
+  echo "pre-commit: backend lint, format, types"
+  (cd "$root/backend" && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests scripts)
+fi
+
+if echo "$staged" | grep -q '^frontend/widgets/'; then
+  echo "pre-commit: widget types, lint, format, build and size"
+  (cd "$root/frontend/widgets" \
+    && npm run -s typecheck \
+    && npm run -s lint \
+    && npx prettier --check core mock tests neo-follicle neo-fertility derma-solutions \
+    && npm run -s build > /dev/null)
+fi

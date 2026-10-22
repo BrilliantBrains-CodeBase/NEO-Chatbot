@@ -1,0 +1,58 @@
+# Every push and pull request: all checks and the full test suites.
+# Backend database tests need the repository secret DATABASE_URL (Settings -> Secrets and variables ->
+# Actions). They run inside transactions that are rolled back, on the test clinics CL98/CL99 only.
+# Without the secret they are skipped and the rest still runs.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  widgets:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/widgets
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/widgets/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx prettier --check core mock tests neo-follicle neo-fertility derma-solutions
+      - run: npm run build # fails if a file is over its size limit
+      - run: npx playwright install --with-deps msedge
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: frontend/widgets/test-results
+          retention-days: 7
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra dev --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy app tests scripts
+      # Read only: fails if an applied migration file was edited afterwards.
+      - if: env.DATABASE_URL != ''
+        run: uv run python -m scripts.migrate
+      - run: uv run pytest -q

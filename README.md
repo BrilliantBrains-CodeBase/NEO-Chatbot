@@ -305,6 +305,7 @@ cd backend && supabase link --project-ref <project-ref> && supabase db push
 
 ## Conventions
 
+- Once per clone, turn on the commit checks: `git config core.hooksPath .githooks` (lint, format, types, build, and no secrets in commits). Full tests run on GitHub Actions; add the repository secret `DATABASE_URL` for the database tests
 - Branches: `main` (live), `dev`, feature branches `feat/...`
 - Database changes only through numbered migrations in `backend/supabase/migrations`
 - Shared widget code goes in `frontend/widgets/core`; clinic-only code stays in that clinic's folder
