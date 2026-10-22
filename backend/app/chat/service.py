@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import asyncpg
 
-from app.chat import engine, flows, leads, store
+from app.chat import engine, flows, kb, leads, store, understand
 from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -18,7 +18,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
         said = store.patient_text(req, state)
-        turn = engine.respond(req, state, await _slots(conn, req, state))
+        turn = engine.respond(req, state, await _slots(conn, req, state), await _kb(conn, req))
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
@@ -53,3 +53,18 @@ async def _slots(
     last = today + timedelta(days=c["config"]["bookingWindowDays"])
     mode: Mode = "online" if flow["kind"] == "online" else "in_clinic"
     return await free_slots_range(conn, req.client_id, today, last, mode, today, now, req.session_id)
+
+
+async def _kb(conn: asyncpg.Connection, req: ChatRequest) -> str | None:
+    """The approved knowledge base answer for typed text. Never for emergencies or medical questions,
+    which the engine sends to the doctor and the team."""
+    text = " ".join((req.payload.text or "").lower().split())
+    if (
+        req.event != "text"
+        or not text
+        or understand.EMERGENCY.search(text)
+        or understand.MEDICAL.search(text)
+    ):
+        return None
+    hit = await kb.search(conn, req.client_id, text)
+    return hit.answer if hit else None

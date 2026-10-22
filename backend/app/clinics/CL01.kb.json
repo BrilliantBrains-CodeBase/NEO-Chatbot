@@ -1,0 +1,711 @@
+{
+ "_about": "DRAFT knowledge base for Neo Follicle (CL01), layers 1 (facts) and 2 (Q/A). English only. Sources: G = 'Neo Follicle Transplant - Chatbot Flows, Services & Knowledge Base.pdf' (section), W = 'Neo_Follicle_Website_Content.pdf' (page number in its contents list). Nothing here is live until approved. Dr. Sandeep's details are draft facts (category doctor); doctors added in the CRM come from app.doctors.",
+ "facts": [
+  {
+   "key": "clinic_name",
+   "category": "clinic_info",
+   "value": "Neo Follicle Hair Transplant Clinic, Marathahalli, Bengaluru. A doctor-led (dermatologist-led) hair transplant and hair loss clinic.",
+   "source": "G Step 1; W 1"
+  },
+  {
+   "key": "address",
+   "category": "clinic_info",
+   "value": "1st floor, Scorpio House, Near Marathahalli Bridge, Munnekolala, Opposite Purvankara Apt, Marathahalli Bridge Service Road, Bengaluru, Karnataka 560037.",
+   "source": "G Step 1; W 1, 2"
+  },
+  {
+   "key": "landmark",
+   "category": "clinic_info",
+   "value": "Off the Marathahalli Bridge service road, minutes from the Outer Ring Road.",
+   "source": "W 2"
+  },
+  {
+   "key": "map_link",
+   "category": "clinic_info",
+   "value": "https://maps.app.goo.gl/jKaWhcfQuKZXRvE48",
+   "source": "W 1, 2"
+  },
+  {
+   "key": "timings",
+   "category": "clinic_info",
+   "value": "Monday, and Wednesday to Sunday, 10:00 AM to 7:00 PM. Closed on Tuesday.",
+   "source": "G Step 1; W 2 (client confirmed 22 Oct 2026; homepage FAQ '10 am to 8 pm, all days' is wrong)"
+  },
+  {
+   "key": "phone",
+   "category": "clinic_info",
+   "value": "+91 97312 07940",
+   "source": "G Step 1; W 1, 2"
+  },
+  {
+   "key": "whatsapp",
+   "category": "clinic_info",
+   "value": "+91 97312 07940 (https://wa.me/919731207940)",
+   "source": "G Step 1; W 2"
+  },
+  {
+   "key": "email",
+   "category": "clinic_info",
+   "value": "info@neofollicletransplant.com",
+   "source": "G Step 1; W 1, 2"
+  },
+  {
+   "key": "website",
+   "category": "clinic_info",
+   "value": "https://neofollicletransplant.com",
+   "source": "G Step 1"
+  },
+  {
+   "key": "languages_spoken",
+   "category": "clinic_info",
+   "value": "Our team and doctor speak English, Hindi, Hinglish and Kannada.",
+   "source": "Client 22 Oct 2026 (G Step 8 listed English, Hindi, Kannada)"
+  },
+  {
+   "key": "areas_served",
+   "category": "clinic_info",
+   "value": "Marathahalli, Whitefield, Bellandur, Brookefield, Sarjapur Road, HSR Layout, Koramangala and nearby areas of Bangalore.",
+   "source": "G KB 10; W 1"
+  },
+  {
+   "key": "stats",
+   "category": "clinic_info",
+   "value": "20+ years of experience, 10,000+ hair transplants performed, 6,000,000+ follicles transplanted, 500+ international patients, 100,000+ PRP sessions completed.",
+   "source": "G KB 2; W 1, 8"
+  },
+  {
+   "key": "celebrity_clients",
+   "category": "clinic_info",
+   "value": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra (radio jockey) have chosen Neo Follicle for hair restoration. Every patient gets the same doctor-led, private approach.",
+   "source": "G KB 3; W 1, 5"
+  },
+  {
+   "key": "philosophy",
+   "category": "clinic_info",
+   "value": "Hair loss is often a medical problem before a cosmetic one. The doctor finds the cause first and then recommends a transplant, a non-surgical treatment, or a combination. The aim is an honest plan and a result that still looks natural in ten years.",
+   "source": "G KB 4; W 1, 8"
+  },
+  {
+   "key": "why_visit",
+   "category": "clinic_info",
+   "value": "Doctor-led consultations (you are assessed by the doctor, not a counsellor), personalised treatment planning, transplant and non-surgical options under one roof, and a convenient Marathahalli location.",
+   "source": "W 2"
+  },
+  {
+   "key": "process",
+   "category": "treatment",
+   "value": "1. Consultation and scalp evaluation. 2. AI-driven TricoScan imaging of hair density. 3. Diagnosis and treatment plan (cause, transplant or treatment, graft count, expected result). 4. Hairline design. 5. Graft extraction and implantation. 6. Recovery and follow-up.",
+   "source": "G KB 5; W 1"
+  },
+  {
+   "key": "consultation_includes",
+   "category": "treatment",
+   "value": "Scalp examination, donor area assessment, hair density evaluation and long-term planning. The treatment plan and cost are discussed after this.",
+   "source": "W 4"
+  },
+  {
+   "key": "techniques",
+   "category": "treatment",
+   "value": "FUE, DHI and NFT implanter hair transplants for the hairline, crown, beard, eyebrows and corrective cases; Unshaven U-FUE with no visible shaving; body hair transplant when scalp donor hair is limited. The technique is chosen at consultation.",
+   "source": "G KB 6; W 1, 9"
+  },
+  {
+   "key": "cost_transplant",
+   "category": "cost",
+   "value": "Hair transplant pricing is graft-based: Rs 60 to Rs 100 per graft. A 2,000-graft procedure is roughly Rs 1,20,000 to Rs 2,00,000. The final cost is shared after your scalp evaluation.",
+   "source": "G KB 7, FAQ 1; W 1"
+  },
+  {
+   "key": "emi",
+   "category": "cost",
+   "value": "EMI options are available, with no hidden charges.",
+   "source": "G KB 7; W 1"
+  },
+  {
+   "key": "cost_factors",
+   "category": "cost",
+   "value": "Transplant cost depends on the number of grafts, baldness grade, donor quality, procedure type, doctor expertise and clinic standards.",
+   "source": "W 4"
+  },
+  {
+   "key": "cost_non_surgical",
+   "category": "cost",
+   "value": "There is no published price for PRP, GFC, QR678, exosome, Dutexome or stem cell therapy. The cost depends on the number of sessions and your hair loss stage, and is agreed at consultation before treatment starts.",
+   "source": "W 20-25"
+  },
+  {
+   "key": "ai_hair_assessment",
+   "category": "other",
+   "value": "Free AI Hair Assessment: upload photos of your hairline, crown and donor area, and get a report by email. Takes about 3 minutes, no payment needed. https://neofollicletransplant.com/hair-assessment/",
+   "source": "G 4.2; W 3"
+  },
+  {
+   "key": "cost_calculator",
+   "category": "cost",
+   "value": "AI cost calculator: https://neofollicletransplant.com/ai-hair-transplant-cost-calculator/",
+   "source": "W 4"
+  },
+  {
+   "key": "brochure",
+   "category": "other",
+   "value": "NFT brochure: fill the form at https://neofollicletransplant.com/nft-brochure/ and the download link is emailed to you.",
+   "source": "W 7"
+  },
+  {
+   "key": "international",
+   "category": "treatment",
+   "value": "500+ international patients from the USA, UK, Europe, Australia and the Gulf. Planning starts with a virtual consultation; scalp assessment, graft count and donor mapping are confirmed on video. The procedure fits inside one trip, and follow-ups continue by WhatsApp, email or video call after you return home.",
+   "source": "G KB 8; W 18"
+  },
+  {
+   "key": "international_support",
+   "category": "treatment",
+   "value": "Medical invitation letter for your visa, help with flights, airport pickup and transport, and help finding accommodation near the clinic.",
+   "source": "W 18"
+  },
+  {
+   "key": "international_stay",
+   "category": "treatment",
+   "value": "Usually 3 to 5 days in Bangalore: one day for consultation, one for the procedure, and one or two for recovery and review. Your doctor confirms this for your plan.",
+   "source": "W 18 (page gives two answers; this one is specific)"
+  },
+  {
+   "key": "international_package",
+   "category": "cost",
+   "value": "A quoted plan can include the consultation, procedure, follow-up reviews, post-care kit, medicines and optional travel support. It is agreed after your scalp assessment.",
+   "source": "W 18"
+  },
+  {
+   "key": "facilities",
+   "category": "clinic_info",
+   "value": "Reception and patient help centre, waiting lounges for patients and companions, private consultation rooms, and procedure rooms for all techniques offered.",
+   "source": "W 18"
+  },
+  {
+   "key": "media",
+   "category": "clinic_info",
+   "value": "Dr. Sandeep Mahapatra has been featured in News18, Femina, Business Standard, ANI (Neo Follicle crosses 10,000 hair transplants) and other national and regional publications. https://neofollicletransplant.com/media-coverage/",
+   "source": "W 6"
+  },
+  {
+   "key": "photos_policy",
+   "category": "policy",
+   "value": "Please share photos only on our clinic WhatsApp, +91 97312 07940. Photos cannot be uploaded in this chat.",
+   "source": "G Step 6"
+  },
+  {
+   "key": "social",
+   "category": "other",
+   "value": "Instagram: instagram.com/neo_follicle_hair_transplant · Facebook: facebook.com/NeoFollicleHairTransplantClinic · YouTube: youtube.com/channel/UCpUTXf985LPC2UdBXCfgrXQ · LinkedIn: linkedin.com/company/neo-follicle-hairtransplant",
+   "source": "G KB 11"
+  },
+  {
+   "key": "disclaimer",
+   "category": "policy",
+   "value": "I share clinic information only. Suitability is confirmed at your scalp evaluation with the doctor. Results vary from case to case.",
+   "source": "G Step 1, KB 12; W 2"
+  },
+  {
+   "key": "doctor_sandeep_profile",
+   "category": "doctor",
+   "value": "Dr. Sandeep Mahapatra, MBBS, MD (Dermatology, Venereology and Leprosy), Gold Medalist. Founder and Director of Neo Follicle Hair Transplant Clinic, Marathahalli, Bangalore. Senior Consultant Dermatologist, Cosmetic Expert and Hair Transplant Surgeon, and Certified DHI Specialist (DHI Global, Greece). 20+ years in dermatology and hair transplant surgery, with 10,000+ hair transplants. Every case is diagnosed, designed and performed under his guidance.",
+   "source": "G KB 1; W 1, 8"
+  },
+  {
+   "key": "doctor_sandeep_education",
+   "category": "doctor",
+   "value": "MBBS from MGM Medical College & Hospital, Jamshedpur (Honours, and Gold Medalist in two subjects). MD in Dermatology, Venereology & Leprosy from Rajendra Institute of Medical Sciences, Ranchi (Gold Medalist). Certified DHI Specialist, DHI Global, Greece. Basic and Advanced Botox and Dermal Fillers Certification, Allergan.",
+   "source": "W 8"
+  },
+  {
+   "key": "doctor_sandeep_memberships",
+   "category": "doctor",
+   "value": "International Society of Hair Restoration Surgery (ISHRS, Gold Member), Indian Association of Hair Restoration Surgeons (IAHRS), Association of Cutaneous Surgeons of India (ACSI), Indian Association of Dermatologists, Venereologists and Leprologists (IADVL), and International Society of Dermatology (ISD).",
+   "source": "G KB 1; W 1, 8"
+  },
+  {
+   "key": "doctor_sandeep_expertise",
+   "category": "doctor",
+   "value": "Hair transplant, female hair transplant, beard transplant, eyebrow restoration, PRP, GFC, QR678, exosome therapy and failed hair transplant repair. His approach: dermatology-led diagnosis, natural hairline aesthetics, long-term planning and donor area preservation.",
+   "source": "W 8"
+  },
+  {
+   "key": "doctor_sandeep_conferences",
+   "category": "doctor",
+   "value": "Faculty and speaker at HAIRCON 2025 (Kashmir) and 2019 (Indore); DERMACON Jaipur 2025, Mangalore 2021 and 2017, Coimbatore 2016; ISHRS 32nd World Congress, Denver, October 2024; World Congress on Aesthetic Dermatology, Bangkok 2018 and Shanghai 2019; EADV Congress, Milan 2019 and Geneva 2017; DASIL World Congress; CUTICON Karnataka 2021; IADVL Torrent Dermatosurgery Workshop, Mysuru 2018; World Congress of Cosmetic Dermatology 2017; First South Zone ACS(I) Live Dermatosurgery Workshop, Bengaluru 2016.",
+   "source": "W 8"
+  },
+  {
+   "key": "doctor_sandeep_publications",
+   "category": "doctor",
+   "value": "Study on the Efficacy of Platelet-Rich Fibrin Matrix in Hair Follicular Unit Transplantation in Androgenetic Alopecia Patients (JCAD Online, 2024); Hair Transplantation Update: Complications and Best Practices (WCD Congress, Singapore, 2023); Follicular Unit Extraction: Advances and Challenges (EADV, Berlin, 2023); Transection Rates in FUE Method: A Comparative Study (ACSICON, Kerala, 2014); and other papers and a book chapter.",
+   "source": "W 8"
+  },
+  {
+   "key": "doctor_sandeep_media",
+   "category": "doctor",
+   "value": "Featured in News18, Femina, Business Standard, ANI, The Tribune, ThePrint, OnlyMyHealth, TheHealthSite and other publications, with 25 press placements.",
+   "source": "W 6"
+  }
+ ],
+ "qa": [
+  {
+   "q": "How much does a hair transplant cost?",
+   "v": "hair transplant price\ncost per graft\nkitne ka hai\ntransplant ka kharcha\nfees for hair transplant",
+   "a": "Hair transplant pricing is graft-based, Rs 60 to Rs 100 per graft. A 2,000-graft procedure is roughly Rs 1,20,000 to Rs 2,00,000. The final cost is shared after your scalp evaluation, with EMI options and no hidden charges.",
+   "cat": "cost",
+   "t": "Hair Transplant",
+   "source": "G FAQ 1; W 1"
+  },
+  {
+   "q": "Do you offer EMI?",
+   "v": "emi available\ninstallments\npay monthly",
+   "a": "Yes, EMI options are available, with no hidden charges.",
+   "cat": "cost",
+   "t": null,
+   "source": "G KB 7"
+  },
+  {
+   "q": "Why isn't there one fixed price?",
+   "v": "fixed package price\npackage cost",
+   "a": "Every patient needs a different number of grafts, so cost depends on your graft count, baldness grade, donor quality and procedure type. The final cost is shared after your scalp evaluation.",
+   "cat": "cost",
+   "t": "Hair Transplant",
+   "source": "W 4"
+  },
+  {
+   "q": "What does PRP, GFC or QR678 cost?",
+   "v": "prp price\ngfc cost\nqr678 cost\nexosome cost\nstem cell therapy cost",
+   "a": "There is no published price for non-surgical treatments. The cost depends on the number of sessions and your hair loss stage, and it is agreed at consultation before treatment starts.",
+   "cat": "cost",
+   "t": null,
+   "source": "W 20-25"
+  },
+  {
+   "q": "Who performs the hair transplant?",
+   "v": "who is the doctor\nwhich surgeon\ndoctor name",
+   "a": "Every case is led by Dr. Sandeep Mahapatra, senior dermatologist and hair transplant surgeon, with 20+ years of experience and 10,000+ transplants.",
+   "cat": "doctor",
+   "t": null,
+   "source": "G FAQ 3; W 1"
+  },
+  {
+   "q": "Does every hair loss patient need a transplant?",
+   "v": "do i need surgery\nis transplant necessary",
+   "a": "No. Early thinning, active hair fall, dandruff-related fall and alopecia often respond to non-surgical treatment such as GFC, PRP or QR678. A transplant is advised only when follicles are permanently lost. The doctor decides this at your consultation.",
+   "cat": "treatment",
+   "t": null,
+   "source": "G FAQ 4; W 1"
+  },
+  {
+   "q": "Can women get a hair transplant?",
+   "v": "female hair transplant\nhair transplant for ladies",
+   "a": "Yes. Female hair transplant is offered after the cause of thinning is diagnosed, with careful hairline and density planning.",
+   "cat": "treatment",
+   "t": "Hair Transplant for Women",
+   "source": "G FAQ 6; W 1, 12"
+  },
+  {
+   "q": "Do you offer beard and eyebrow transplants?",
+   "v": "beard transplant\neyebrow transplant\nmoustache transplant",
+   "a": "Yes, for patchy beards, thin moustaches, and thin, over-plucked or scarred eyebrows.",
+   "cat": "treatment",
+   "t": "Beard Transplant",
+   "source": "G FAQ 7; W 1"
+  },
+  {
+   "q": "Where is the clinic located?",
+   "v": "address\nlocation\nclinic kahan hai\nhow to reach\ndirections",
+   "a": "We are at 1st floor, Scorpio House, Near Marathahalli Bridge, Munnekolala, Opposite Purvankara Apt, Marathahalli Bridge Service Road, Bengaluru 560037. Map: https://maps.app.goo.gl/jKaWhcfQuKZXRvE48",
+   "cat": "clinic_info",
+   "t": null,
+   "source": "G FAQ 8; W 2"
+  },
+  {
+   "q": "What are the clinic timings?",
+   "v": "opening hours\nwhen are you open\nclinic timing\nis the clinic open on sunday\ntuesday open",
+   "a": "Monday, and Wednesday to Sunday, 10:00 AM to 7:00 PM. Closed on Tuesday.",
+   "cat": "clinic_info",
+   "t": null,
+   "source": "G FAQ 9; W 2"
+  },
+  {
+   "q": "Are the results permanent and natural?",
+   "v": "is transplant permanent\nwill it look natural\nresults last",
+   "a": "Transplanted follicles come from permanent donor zones and continue to grow for life. Results are designed to blend with your natural hair, with new growth appearing gradually over 3 to 12 months. Results vary by case.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "G FAQ 10; W 1"
+  },
+  {
+   "q": "When will I see results after a hair transplant?",
+   "v": "how long for results\nresult timeline\nwhen will hair grow",
+   "a": "Healing starts in the first week, temporary shedding is normal in weeks 2 to 4, new growth appears around months 3 to 4, density improves by months 6 to 8, and full results develop over 9 to 12 months. Results vary by case.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "W 9, 10"
+  },
+  {
+   "q": "Can I get a transplant without shaving my head?",
+   "v": "no shave transplant\nunshaven\nwithout shaving",
+   "a": "Yes, with Unshaven U-FUE, for suitable patients who want to keep their hairstyle. Suitability depends on your donor area and graft requirement, confirmed at consultation.",
+   "cat": "treatment",
+   "t": "Unshaven Hair Transplant (U-FUE)",
+   "source": "G FAQ 11; W 16"
+  },
+  {
+   "q": "What if I don't have enough donor hair?",
+   "v": "weak donor area\nlow donor hair\nbody hair transplant",
+   "a": "Body hair transplant may be an option when scalp donor hair is limited. It is considered only after the doctor evaluates your case.",
+   "cat": "treatment",
+   "t": "Body Hair Transplant",
+   "source": "G FAQ 12; W 15"
+  },
+  {
+   "q": "Can a failed transplant from another clinic be fixed?",
+   "v": "failed transplant repair\nbad transplant\ncorrection of previous transplant",
+   "a": "Yes. Repair covers unnatural hairlines, poor density, wrong growth direction and FUT scars. The previous work and your donor area are assessed first before a correction plan is made.",
+   "cat": "treatment",
+   "t": "Failed Hair Transplant Repair",
+   "source": "G FAQ 13; W 17"
+  },
+  {
+   "q": "I live abroad. How does it work?",
+   "v": "international patient\ncoming from abroad\nnri\nmedical tourism",
+   "a": "Planning starts with a virtual consultation before you travel. Scalp assessment, graft count and donor mapping are confirmed on video. The procedure fits inside one trip, and follow-ups continue by WhatsApp, email or video call after you return home.",
+   "cat": "treatment",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "G FAQ 14; W 18"
+  },
+  {
+   "q": "How many days do I need to stay in Bangalore?",
+   "v": "how long to stay\ndays in india",
+   "a": "Usually 3 to 5 days: one day for consultation, one for the procedure, and one or two days for recovery and review. Your doctor confirms this for your plan.",
+   "cat": "treatment",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "W 18"
+  },
+  {
+   "q": "Do you provide visa assistance?",
+   "v": "medical visa\ninvitation letter",
+   "a": "Yes, we can issue a medical invitation letter to support your visa application.",
+   "cat": "treatment",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "W 18"
+  },
+  {
+   "q": "Will someone help me during my stay?",
+   "v": "airport pickup\nhotel help\naccommodation",
+   "a": "Yes, our team helps with airport pickup, transport, hotel guidance and clinic coordination.",
+   "cat": "treatment",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "W 18"
+  },
+  {
+   "q": "What is included in the international package?",
+   "v": "package includes\nwhat is covered",
+   "a": "A quoted plan can include the consultation, procedure, follow-up reviews, post-care kit, medicines and optional travel support like hotel and transfers. It is agreed after your scalp assessment.",
+   "cat": "cost",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "W 18"
+  },
+  {
+   "q": "Can I consult before travelling?",
+   "v": "online consultation before travel\nvirtual consultation",
+   "a": "Yes, virtual consultations are available before you travel.",
+   "cat": "treatment",
+   "t": "Hair Transplant Medical Tourism",
+   "source": "W 18"
+  },
+  {
+   "q": "Which celebrities have had treatment here?",
+   "v": "celebrity\nfamous patients\nactors",
+   "a": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra have chosen Neo Follicle for hair restoration.",
+   "cat": "clinic_info",
+   "t": "Celebrity Hair Transplants",
+   "source": "G FAQ 15; W 1, 5"
+  },
+  {
+   "q": "Are celebrity treatments different?",
+   "v": "special treatment for celebrities",
+   "a": "No. Every patient gets the same personalised, doctor-led planning, with medical confidentiality.",
+   "cat": "clinic_info",
+   "t": "Celebrity Hair Transplants",
+   "source": "W 5"
+  },
+  {
+   "q": "What languages do your staff speak?",
+   "v": "do you speak hindi\nkannada speaking\nlanguage",
+   "a": "Our team and doctor speak English, Hindi, Hinglish and Kannada.",
+   "cat": "clinic_info",
+   "t": null,
+   "source": "Client 22 Oct 2026"
+  },
+  {
+   "q": "How many transplants have you done?",
+   "v": "experience\nhow experienced\nnumber of surgeries",
+   "a": "20+ years of experience, 10,000+ hair transplants, 6,000,000+ follicles transplanted, 500+ international patients and 100,000+ PRP sessions.",
+   "cat": "clinic_info",
+   "t": null,
+   "source": "G KB 2; W 1"
+  },
+  {
+   "q": "What happens at the consultation?",
+   "v": "consultation process\nfirst visit",
+   "a": "The doctor examines your hair loss pattern, donor area, scalp condition and medical history, with AI-assisted TricoScan imaging of hair density. You then learn the cause, whether you need a transplant or a treatment, and the plan and cost.",
+   "cat": "treatment",
+   "t": null,
+   "source": "G KB 5; W 1, 4"
+  },
+  {
+   "q": "What is the treatment process?",
+   "v": "steps of hair transplant\nprocedure steps",
+   "a": "1. Consultation and scalp evaluation. 2. AI-driven TricoScan. 3. Diagnosis and treatment plan. 4. Hairline design. 5. Graft extraction and implantation. 6. Recovery and follow-up.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "G KB 5; W 1"
+  },
+  {
+   "q": "Which hair transplant techniques do you use?",
+   "v": "fue or dhi\nnft technique\nwhat is dhi\ntechniques offered",
+   "a": "FUE, DHI and the clinic's NFT implanter method, plus Unshaven U-FUE and body hair transplant. Dr. Sandeep, a DHI Global (Greece)-certified specialist, recommends the technique for your case at consultation.",
+   "cat": "treatment",
+   "t": "Direct Hair Transplant (FUE, DHI, NFT)",
+   "source": "G KB 6; W 9"
+  },
+  {
+   "q": "What is FUE?",
+   "v": "fue meaning\nfollicular unit extraction",
+   "a": "FUE (Follicular Unit Extraction) removes hair roots one by one from the donor area, usually the back and sides of the scalp, and implants them into thinning areas. It leaves no long linear scar.",
+   "cat": "treatment",
+   "t": "Direct Hair Transplant (FUE, DHI, NFT)",
+   "source": "W 11"
+  },
+  {
+   "q": "Is it a same-day procedure?",
+   "v": "day care\ngo home same day\nhospital stay",
+   "a": "Yes. It is a day-care procedure and most patients go home the same day with aftercare instructions.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "G FAQ 2; W 9"
+  },
+  {
+   "q": "How long does the surgery take?",
+   "v": "surgery duration\nhow many hours",
+   "a": "A standard FUE procedure takes several hours, depending on the graft count. Larger sessions may take most of the day.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "W 11"
+  },
+  {
+   "q": "When can I go back to work?",
+   "v": "rest after transplant\noffice after surgery\ndowntime",
+   "a": "For desk work, many patients take 2 to 4 days; some prefer a week. Jobs with dust, sweating, helmets or heavy lifting may need more rest. The doctor will guide you.",
+   "cat": "treatment",
+   "t": "Hair Transplant",
+   "source": "W 11"
+  },
+  {
+   "q": "What is PRP?",
+   "v": "prp treatment\nplatelet rich plasma",
+   "a": "PRP (Platelet-Rich Plasma) is a non-surgical treatment that uses your own platelet-rich plasma to support weak follicles in early thinning and hair fall. Each session takes under an hour. Neo Follicle has completed 100,000+ PRP sessions.",
+   "cat": "treatment",
+   "t": "PRP Hair Loss Treatment",
+   "source": "G 3.3; W 20"
+  },
+  {
+   "q": "What is GFC?",
+   "v": "gfc treatment\ngrowth factor concentrate",
+   "a": "GFC (Growth Factor Concentrate) is prepared from your own blood, with growth factors concentrated, to strengthen roots and improve hair thickness. It is non-surgical with no downtime.",
+   "cat": "treatment",
+   "t": "Growth Factor Concentrate (GFC)",
+   "source": "G 3.3; W 21"
+  },
+  {
+   "q": "How many GFC sessions are needed?",
+   "v": "gfc sessions",
+   "a": "Most patients need 3 to 4 sessions, 3 to 4 weeks apart. Your doctor sets the exact plan at consultation.",
+   "cat": "treatment",
+   "t": "Growth Factor Concentrate (GFC)",
+   "source": "W 21"
+  },
+  {
+   "q": "What is QR678?",
+   "v": "qr678 treatment\nneo qr678",
+   "a": "QR678 is a non-surgical, peptide-based injectable treatment for hair fall and thinning, given over planned sessions. No blood draw is needed.",
+   "cat": "treatment",
+   "t": "Neo QR678 Treatment",
+   "source": "G 3.3; W 23"
+  },
+  {
+   "q": "How many QR678 sessions are needed?",
+   "v": "qr678 sessions",
+   "a": "Most patients need around 6 to 8 sessions, 2 to 3 weeks apart. Your doctor sets the exact plan at consultation.",
+   "cat": "treatment",
+   "t": "Neo QR678 Treatment",
+   "source": "W 23"
+  },
+  {
+   "q": "What is exosome therapy?",
+   "v": "exosome treatment\nexosomes for hair",
+   "a": "Exosome therapy is an advanced, non-surgical regenerative treatment for thinning hair. Exosomes come pre-formulated, so no blood draw is needed. It is planned under dermatologist supervision.",
+   "cat": "treatment",
+   "t": "Exosome Therapy",
+   "source": "G 3.3; W 22"
+  },
+  {
+   "q": "How many exosome sessions are needed?",
+   "v": "exosome sessions",
+   "a": "Most people need 1 to 3 sessions, 3 to 4 weeks apart. Your doctor sets the exact plan at consultation.",
+   "cat": "treatment",
+   "t": "Exosome Therapy",
+   "source": "W 22"
+  },
+  {
+   "q": "What is Dutexome?",
+   "v": "dutexome treatment",
+   "a": "Dutexome is a doctor-led microneedling treatment using the genuine Mesoestetic c.prof 231 Dutexome Solution, for selected patients with early to moderate thinning where follicles are still active. The session plan is set at consultation after a safety screening.",
+   "cat": "treatment",
+   "t": "Dutexome Hair Treatment",
+   "source": "G 3.3; W 24"
+  },
+  {
+   "q": "What is stem cell hair therapy?",
+   "v": "stem cell treatment for hair",
+   "a": "Neo-Follicle Stem Cell Therapy is a non-surgical regenerative treatment for hair fall and thinning, using your own biological material, with no cuts or stitches. Most patients need 3 to 6 sessions, 3 to 4 weeks apart. Suitability is confirmed at consultation.",
+   "cat": "treatment",
+   "t": "Neo-Follicle Stem Cell Therapy",
+   "source": "G 3.3; W 25"
+  },
+  {
+   "q": "What is low level laser therapy?",
+   "v": "lllt\nlaser hair therapy\nlaser cap",
+   "a": "Low Level Laser Therapy uses low-powered red light to support hair growth, with no needles and no downtime. It is a planned course of short sessions over several months.",
+   "cat": "treatment",
+   "t": "Low Level Laser Hair Therapy",
+   "source": "G 3.3; W 26"
+  },
+  {
+   "q": "What is scalp micropigmentation?",
+   "v": "smp\nscalp tattoo",
+   "a": "Scalp Micropigmentation (SMP) is a cosmetic treatment that places pigments to create the look of fuller hair or a closely shaved head. It does not regrow hair. Most people need 2 to 3 sessions, 7 to 14 days apart, and results typically last 4 to 6 years.",
+   "cat": "treatment",
+   "t": "Scalp Micropigmentation (SMP)",
+   "source": "G 3.3; W 27"
+  },
+  {
+   "q": "Do you treat alopecia?",
+   "v": "alopecia areata\nbald patches treatment",
+   "a": "Yes. Alopecia, including alopecia areata, is diagnosed and treated by the dermatologist. The form of alopecia is identified first before any treatment is recommended.",
+   "cat": "treatment",
+   "t": "Alopecia Treatment",
+   "source": "G 3.3; W 28"
+  },
+  {
+   "q": "Do you treat dandruff?",
+   "v": "dandruff treatment\nitchy scalp",
+   "a": "Yes. Dandruff and dandruff-related hair fall are treated with a dermatologist-supervised, scalp-first plan after finding the cause.",
+   "cat": "treatment",
+   "t": "Dandruff Solutions",
+   "source": "G 3.3; W 29"
+  },
+  {
+   "q": "Which hair conditions do you treat?",
+   "v": "conditions treated\nwhat problems do you treat",
+   "a": "Male pattern baldness, female pattern hair loss, alopecia areata, sudden hair fall, dandruff and scalp flaking, receding hairline, crown thinning, patchy beard, eyebrow thinning and failed transplant repair.",
+   "cat": "treatment",
+   "t": null,
+   "source": "W 30"
+  },
+  {
+   "q": "Is there a free hair assessment?",
+   "v": "ai hair analysis\nfree assessment\nonline hair test",
+   "a": "Yes, a free AI Hair Assessment: upload photos of your hairline, crown and donor area and get a report by email. It takes about 3 minutes and no payment is needed: https://neofollicletransplant.com/hair-assessment/",
+   "cat": "other",
+   "t": null,
+   "source": "G 4.2; W 3"
+  },
+  {
+   "q": "Can I get a cost estimate online?",
+   "v": "cost calculator\nonline estimate",
+   "a": "Yes, use the AI cost calculator: https://neofollicletransplant.com/ai-hair-transplant-cost-calculator/ The final cost is shared after your scalp evaluation.",
+   "cat": "cost",
+   "t": null,
+   "source": "G 4.2; W 4"
+  },
+  {
+   "q": "Can I send photos of my hair?",
+   "v": "share photos\nsend pictures\nupload photo",
+   "a": "Please share photos only on our clinic WhatsApp, +91 97312 07940. Photos cannot be uploaded in this chat.",
+   "cat": "policy",
+   "t": null,
+   "source": "G Step 6; W 18"
+  },
+  {
+   "q": "Can I download a brochure?",
+   "v": "brochure\nnft brochure",
+   "a": "Yes. Fill the form at https://neofollicletransplant.com/nft-brochure/ and the download link is emailed to you.",
+   "cat": "other",
+   "t": null,
+   "source": "W 7"
+  },
+  {
+   "q": "Is the doctor in the media?",
+   "v": "press coverage\nnews about doctor",
+   "a": "Dr. Sandeep Mahapatra has been featured in News18, Femina, Business Standard, ANI and other publications. https://neofollicletransplant.com/media-coverage/",
+   "cat": "doctor",
+   "t": null,
+   "source": "W 6"
+  },
+  {
+   "q": "Tell me about Dr. Sandeep Mahapatra",
+   "v": "about the doctor\ndoctor qualification\ndr sandeep\nwho is dr sandeep\ndoctor experience",
+   "a": "Dr. Sandeep Mahapatra, MBBS, MD (Dermatology, Venereology and Leprosy), Gold Medalist, is the Founder and Director of Neo Follicle. He is a Senior Consultant Dermatologist, Cosmetic Expert, Hair Transplant Surgeon and Certified DHI Specialist (DHI Global, Greece), with 20+ years of experience and 10,000+ hair transplants.",
+   "cat": "doctor",
+   "t": null,
+   "source": "G KB 1; W 1, 8"
+  },
+  {
+   "q": "Which associations is the doctor a member of?",
+   "v": "doctor memberships\nishrs member",
+   "a": "Dr. Sandeep is a member of ISHRS (Gold Member), IAHRS, ACSI, IADVL and ISD.",
+   "cat": "doctor",
+   "t": null,
+   "source": "G KB 1; W 1, 8"
+  },
+  {
+   "q": "Will I meet the doctor at consultation?",
+   "v": "is consultation with doctor\ncounsellor or doctor",
+   "a": "Yes. You are assessed by Dr. Sandeep Mahapatra himself, not handed to a counsellor.",
+   "cat": "doctor",
+   "t": null,
+   "source": "W 2"
+  }
+ ],
+ "not_answered_medical": {
+  "_note": "These are in the PDFs but are healthcare questions, so the bot does NOT answer them (client rule). It replies 'The doctor will guide you on this' and offers a call back; the question is saved for the team.",
+  "examples": [
+   "Is a hair transplant safe? Side effects? (G FAQ 2; W 1)",
+   "Is it painful? Does PRP/GFC/QR678/exosome/stem cell/SMP hurt? (W 12, 14, 20-27)",
+   "Am I a suitable candidate? How many grafts do I need? (G FAQ 5, Step 6; W 4, 9, 33)",
+   "Will it definitely work? Graft survival rate? (G Step 6; W 11)",
+   "Minoxidil, finasteride, dutasteride, medicines, dosage (G Step 6; W 24, 31)",
+   "Pregnancy or breastfeeding with Dutexome (W 24)",
+   "Causes: PCOS, thyroid, stress, hard water, dandruff causes, alopecia causes, is it curable (W 28, 29, 31, 32)",
+   "Which blood tests should I do? (W 32)",
+   "Is PRP better than GFC? Can GFC replace surgery? (W 21, 22)",
+   "Post-surgery problems (bleeding, infection, swelling): 'Please call the clinic now' + call button (G Step 6)"
+  ]
+ },
+ "flags_for_client": [
+  "Homepage FAQ says 10 am to 8 pm all days; confirmed timings are Mon, Wed-Sun 10-7, closed Tuesday. The website FAQ should be fixed.",
+  "QR678 FAQ claims 'FDA-approved in India' (India's regulator is CDSCO/DCGI). Not used in the bot.",
+  "Several FAQs say 'completely safe' / 'no side effects' (PRP, GFC, stem cell, exosome). Not used: safety questions go to the doctor.",
+  "FUT is listed only on the International Patients page; other pages say FUE, DHI and NFT. Bot says FUE, DHI and NFT. Is FUT offered?",
+  "International page answers 'How long should I stay?' two ways. Bot uses '3 to 5 days, doctor confirms'.",
+  "Guide says 2 doctors (second to be added); website lists only Dr. Sandeep. Bot reads doctors from the CRM.",
+  "Media page lists an oncology article ('Does cancer treatment differ by age?'). Not used.",
+  "Blog posts (How many grafts do I need, Why transplants fail, How to choose a clinic) and the brochure contents are not in the PDFs, so they are not in the KB.",
+  "Legal entity 'Neofollicle and Neofertility Clinic LLP' is never used (no other clinic is mentioned)."
+ ]
+}

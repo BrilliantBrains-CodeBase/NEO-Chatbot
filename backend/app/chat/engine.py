@@ -65,8 +65,11 @@ def treatment_card(c: dict[str, Any], name: str) -> ChatResponse | None:
     )
 
 
-def respond(req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None) -> Turn:
-    """slots: free slots per day from the database; the service loads them while a booking is open."""
+def respond(
+    req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None, kb_answer: str | None = None
+) -> Turn:
+    """slots: free slots per day from the database; the service loads them while a booking is open.
+    kb_answer: the approved knowledge base answer for typed text, if one matched (service)."""
     c = content(req.client_id)
     if c is None:  # a clinic without content yet: greet, never fail
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
@@ -100,7 +103,7 @@ def respond(req: ChatRequest, state: State, slots: dict[str, list[str]] | None =
                 return Turn(card, "flow", {})
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)], ui=c["menu"]), "menu", {})
 
-    return _text(req, state, c)
+    return _text(req, state, c, kb_answer)
 
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
@@ -109,7 +112,7 @@ NOT_AVAILABLE_TIME = "That time is not available. Please choose one of the times
 INPUT_STEPS = {"name", "phone", "email", "reason", "cb_reason"}
 
 
-def _text(req: ChatRequest, state: State, c: dict[str, Any]) -> Turn:
+def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | None = None) -> Turn:
     """Typed text: emergency first, then anything that stands for a tap, then the open step or the rules."""
     text = (req.payload.text or "").strip()
     flow = state.get("flow")
@@ -127,8 +130,8 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any]) -> Turn:
         exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
         if (flow["step"] in INPUT_STEPS and "?" not in text) or exact:
             return _step(flow, flows.typed(flow, cfg, text, req.payload.cc))
-        return _mid_flow(flow, c, text, kind, target)
-    return _answer(c, text, kind, target)
+        return _mid_flow(flow, c, text, kind, target, kb_answer)
+    return _answer(c, text, kind, target, kb_answer)
 
 
 def _typed_tap(
@@ -158,7 +161,9 @@ def _typed_tap(
     return {"action": option["action"], "value": option.get("value")} if option else None
 
 
-def _mid_flow(flow: flows.Flow, c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
+def _mid_flow(
+    flow: flows.Flow, c: dict[str, Any], text: str, kind: str, target: str, kb_answer: str | None = None
+) -> Turn:
     """A question in the middle of a flow: a short answer (or noted for the team), then the same step."""
     cfg = c["config"]
     if kind == "start" and target != flow["kind"]:
@@ -170,12 +175,15 @@ def _mid_flow(flow: flows.Flow, c: dict[str, Any], text: str, kind: str, target:
         return _flow(flow, flows.ask(flow, cfg, [card_text]))
     if kind == "node" and target == "book":
         return _flow(flow, flows.ask(flow, cfg))
+    if kb_answer:  # answered from the approved knowledge base, then the same step again
+        return _flow(flow, flows.ask(flow, cfg, [kb_answer]), answered_by="kb")
     flow.setdefault("questions", []).append(text[:500])  # saved for the team with the lead (B6)
     return _flow(flow, flows.ask(flow, cfg, [NOTED]))
 
 
-def _answer(c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
-    """Typed text with no flow open: the keyword rules. Medical, or nothing known, becomes a lead."""
+def _answer(c: dict[str, Any], text: str, kind: str, target: str, kb_answer: str | None = None) -> Turn:
+    """Typed text with no flow open: the keyword rules, then the approved knowledge base. Medical, or
+    nothing known, becomes a lead."""
     if kind == "start":
         return _flow(*flows.start(target))
     if kind == "node" and target in c["nodes"]:
@@ -184,6 +192,8 @@ def _answer(c: dict[str, Any], text: str, kind: str, target: str) -> Turn:
         card = treatment_card(c, target)
         if card:
             return Turn(card, "rule", {})
+    if kb_answer:
+        return Turn(ChatResponse(messages=[BotMessage(text=kb_answer)], ui=c["menu"]), "kb", {})
     return _flow(*flows.start("question", reason=text[:500], lead=[NO_ANSWER]), answered_by="lead")
 
 

@@ -27,10 +27,12 @@ async def test_facts_and_qa_rules(tx: asyncpg.Connection) -> None:
         "values ('CL99', 'What does a hair transplant cost?', 'transplant kitne ka hai', 'Rs 60 to 100.')"
     )
     hits = await tx.fetchval(
-        "select count(*) from app.kb_qa where tsv @@ websearch_to_tsquery('english', 'costs')"
+        "select count(*) from app.kb_qa "
+        "where clinic_id = 'CL99' and tsv @@ websearch_to_tsquery('english', 'costs')"
     )
     hinglish = await tx.fetchval(
-        "select count(*) from app.kb_qa where tsv @@ plainto_tsquery('simple', 'kitne')"
+        "select count(*) from app.kb_qa "
+        "where clinic_id = 'CL99' and tsv @@ plainto_tsquery('simple', 'kitne')"
     )
     assert hits == 1 and hinglish == 1
 
