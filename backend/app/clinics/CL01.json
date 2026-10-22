@@ -1,0 +1,975 @@
+{
+  "greeting": "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?",
+  "config": {
+    "greeting": "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?",
+    "firstSlot": 600,
+    "lastSlot": 1110,
+    "slotMinutes": 15,
+    "closedWeekdays": [
+      2
+    ],
+    "bookingWindowDays": 14,
+    "bookedDateBackDays": 60,
+    "treatments": [
+      "Hair Transplant for Men",
+      "Female Hair Transplant",
+      "Beard Transplant",
+      "Eyebrow Restoration",
+      "Failed Hair Transplant Repair",
+      "Unshaven & Body Hair Transplant",
+      "Non-Surgical Treatment (GFC, PRP, QR678)",
+      "Not sure yet",
+      "Other"
+    ]
+  },
+  "menu": {
+    "type": "menu",
+    "layout": "cards3",
+    "items": [
+      {
+        "label": "Book Consultation",
+        "icon": "cal",
+        "action": "go",
+        "value": "book"
+      },
+      {
+        "label": "Explore Treatments",
+        "icon": "search",
+        "action": "go",
+        "value": "treat"
+      },
+      {
+        "label": "About Doctors",
+        "icon": "steth",
+        "action": "go",
+        "value": "about"
+      },
+      {
+        "label": "International Patients",
+        "icon": "globe",
+        "action": "go",
+        "value": "intl"
+      },
+      {
+        "label": "Call Back",
+        "icon": "phone",
+        "action": "start",
+        "value": "callback"
+      },
+      {
+        "label": "WhatsApp",
+        "icon": "chat",
+        "href": "https://wa.me/919731207940?text=Hi%2C%20I%20would%20like%20to%20know%20about%20hair%20treatment%20at%20Neo%20Follicle.",
+        "variant": "wa"
+      },
+      {
+        "label": "Emergency",
+        "icon": "sos",
+        "action": "go",
+        "value": "emergency",
+        "variant": "sos"
+      }
+    ]
+  },
+  "nodes": {
+    "book": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "What would you like to do?"
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Book appointment (in-clinic)",
+            "action": "start",
+            "value": "book"
+          },
+          {
+            "label": "Online consultation",
+            "action": "start",
+            "value": "online"
+          },
+          {
+            "label": "Cancel appointment",
+            "action": "start",
+            "value": "cancel"
+          },
+          {
+            "label": "Reschedule appointment",
+            "action": "start",
+            "value": "reschedule"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "about": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Which doctor would you like to know about?"
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Dr. Sandeep Mahapatra",
+            "action": "go",
+            "value": "doc_sandeep"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "doc_sandeep": {
+      "messages": [],
+      "ui": {
+        "type": "doctor_card",
+        "name": "Dr. Sandeep Mahapatra",
+        "title": "Founder and Director, Neo Follicle",
+        "quals": "MBBS, MD (Dermatology), ISHRS Gold Member, Certified DHI Specialist",
+        "stats": [
+          {
+            "value": "20+",
+            "label": "Years experience"
+          },
+          {
+            "value": "10,000+",
+            "label": "Transplants"
+          },
+          {
+            "value": "60 lakh+",
+            "label": "Follicles placed"
+          },
+          {
+            "value": "500+",
+            "label": "International patients"
+          },
+          {
+            "value": "1 lakh+",
+            "label": "PRP sessions"
+          },
+          {
+            "value": "Gold",
+            "label": "Medalist, MD"
+          }
+        ],
+        "options": [
+          {
+            "label": "Book with Dr. Sandeep",
+            "action": "start",
+            "value": "book",
+            "primary": true
+          },
+          {
+            "label": "Read full profile",
+            "href": "https://neofollicletransplant.com/dr-sandeep-mahapatra-hair-transplant-surgeon/"
+          },
+          {
+            "label": "Patient videos",
+            "href": "https://neofollicletransplant.com/video-gallery/"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "about"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "emergency": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "If you have heavy bleeding, severe swelling, fever or signs of infection, or a reaction after a procedure, get help now. For a medical emergency, call **108** or go to the nearest hospital. The clinic is open Wednesday to Monday, 10 AM to 7 PM."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Call 108",
+            "href": "tel:108",
+            "primary": true
+          },
+          {
+            "label": "Call +91 97312 07940",
+            "href": "tel:+919731207940"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "treat": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "What would you like to explore?"
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Hair Transplant",
+            "action": "go",
+            "value": "ht"
+          },
+          {
+            "label": "Hair Fall & Scalp Treatments",
+            "action": "go",
+            "value": "hf"
+          },
+          {
+            "label": "Beard Transplant",
+            "action": "treat",
+            "value": "Beard Transplant"
+          },
+          {
+            "label": "Eyebrow Restoration",
+            "action": "treat",
+            "value": "Eyebrow Restoration"
+          },
+          {
+            "label": "Not sure, help me choose",
+            "action": "go",
+            "value": "notsure"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "ht": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Pick a hair transplant option."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Direct Hair Transplant (DHI / FUE)",
+            "action": "treat",
+            "value": "Direct Hair Transplant (DHI / FUE)"
+          },
+          {
+            "label": "Hair Transplant for Men",
+            "action": "treat",
+            "value": "Hair Transplant for Men"
+          },
+          {
+            "label": "Female Hair Transplant",
+            "action": "treat",
+            "value": "Female Hair Transplant"
+          },
+          {
+            "label": "Failed Hair Transplant Repair",
+            "action": "treat",
+            "value": "Failed Hair Transplant Repair"
+          },
+          {
+            "label": "Unshaven Hair Transplant",
+            "action": "treat",
+            "value": "Unshaven Hair Transplant"
+          },
+          {
+            "label": "Body Hair Transplant",
+            "action": "treat",
+            "value": "Body Hair Transplant"
+          },
+          {
+            "label": "Not sure, help me choose",
+            "action": "go",
+            "value": "notsure"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "treat"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "hf": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Pick a treatment to learn more."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Stem Cell Therapy",
+            "action": "treat",
+            "value": "Stem Cell Therapy"
+          },
+          {
+            "label": "PRP Treatment",
+            "action": "treat",
+            "value": "PRP Treatment"
+          },
+          {
+            "label": "GFC Treatment",
+            "action": "treat",
+            "value": "GFC Treatment"
+          },
+          {
+            "label": "QR678 Treatment",
+            "action": "treat",
+            "value": "QR678 Treatment"
+          },
+          {
+            "label": "Exosome Therapy",
+            "action": "treat",
+            "value": "Exosome Therapy"
+          },
+          {
+            "label": "Dutexome Treatment",
+            "action": "treat",
+            "value": "Dutexome Treatment"
+          },
+          {
+            "label": "Laser Hair Therapy",
+            "action": "treat",
+            "value": "Laser Hair Therapy"
+          },
+          {
+            "label": "Scalp Micropigmentation",
+            "action": "treat",
+            "value": "Scalp Micropigmentation"
+          },
+          {
+            "label": "Alopecia Treatment",
+            "action": "treat",
+            "value": "Alopecia Treatment"
+          },
+          {
+            "label": "Dandruff Treatment",
+            "action": "treat",
+            "value": "Dandruff Treatment"
+          },
+          {
+            "label": "Not sure, help me choose",
+            "action": "go",
+            "value": "notsure"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "treat"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "notsure": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "No problem, most patients are not sure at first. The right treatment depends on the cause of your hair loss, which the doctor confirms after a scalp evaluation. You can get a quick estimate from your photos, or let our team guide you."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Book a consultation",
+            "action": "book_for",
+            "value": "Not sure yet",
+            "primary": true
+          },
+          {
+            "label": "Get a callback",
+            "action": "callback",
+            "value": "Help choosing a treatment"
+          },
+          {
+            "label": "WhatsApp us",
+            "href": "https://wa.me/919731207940?text=Hi%2C%20I%20would%20like%20to%20know%20about%20hair%20treatment%20at%20Neo%20Follicle.",
+            "variant": "wa"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "treat"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "intl": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Every international case is planned before you fly. Scalp assessment, graft count and donor mapping are confirmed on a video call first, and the procedure fits in one trip with follow-up after you return home."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Plan my treatment",
+            "action": "callback",
+            "value": "International patient"
+          },
+          {
+            "label": "Share photos on WhatsApp",
+            "href": "https://wa.me/919731207940?text=Hi%2C%20I%20would%20like%20to%20know%20about%20hair%20treatment%20at%20Neo%20Follicle.",
+            "variant": "wa"
+          },
+          {
+            "label": "Read more",
+            "href": "https://neofollicletransplant.com/hair-transplant-medical-tourism-in-bangalore/"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "talk": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Choose how you would like to reach us. We are open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Call +91 97312 07940",
+            "href": "tel:+919731207940"
+          },
+          {
+            "label": "WhatsApp us",
+            "href": "https://wa.me/919731207940?text=Hi%2C%20I%20would%20like%20to%20know%20about%20hair%20treatment%20at%20Neo%20Follicle.",
+            "variant": "wa"
+          },
+          {
+            "label": "Request a callback",
+            "action": "callback",
+            "value": "General enquiry"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "clinic": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "**Neo Follicle Hair Transplant Clinic**\n1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037.\nOpen Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Open in Google Maps",
+            "href": "https://maps.app.goo.gl/jKaWhcfQuKZXRvE48"
+          },
+          {
+            "label": "Call +91 97312 07940",
+            "href": "tel:+919731207940"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "results": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "See real results from Neo Follicle patients."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Hair transplant",
+            "href": "https://neofollicletransplant.com/image-gallery/#hair-transplant-results"
+          },
+          {
+            "label": "Beard",
+            "href": "https://neofollicletransplant.com/image-gallery/#beard-transplant-results"
+          },
+          {
+            "label": "Eyebrow",
+            "href": "https://neofollicletransplant.com/image-gallery/#eyebrow-transplant-results"
+          },
+          {
+            "label": "Female hair",
+            "href": "https://neofollicletransplant.com/image-gallery/#female-hair-restoration"
+          },
+          {
+            "label": "Failed transplant repair",
+            "href": "https://neofollicletransplant.com/image-gallery/#failed-hair-transplant-repair"
+          },
+          {
+            "label": "GFC and PRP",
+            "href": "https://neofollicletransplant.com/image-gallery/#gfc-prp-therapy-results"
+          },
+          {
+            "label": "Patient videos",
+            "href": "https://neofollicletransplant.com/video-gallery/"
+          },
+          {
+            "label": "Celebrity patients",
+            "href": "https://neofollicletransplant.com/celebrity-hair-transplant/"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. Which best describes your hair loss?"
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "main": true,
+        "options": [
+          {
+            "label": "Receding hairline",
+            "action": "go",
+            "value": "cost_receding"
+          },
+          {
+            "label": "Crown thinning",
+            "action": "go",
+            "value": "cost_crown"
+          },
+          {
+            "label": "Front and crown",
+            "action": "go",
+            "value": "cost_front_crown"
+          },
+          {
+            "label": "Advanced baldness",
+            "action": "go",
+            "value": "cost_advanced"
+          },
+          {
+            "label": "Beard or eyebrows",
+            "action": "go",
+            "value": "cost_beard"
+          },
+          {
+            "label": "Not sure",
+            "action": "go",
+            "value": "cost_unsure"
+          }
+        ]
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_receding": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Typical need: **1,000 to 1,800 grafts**.\nAt Rs 60 to Rs 100 per graft, that is about **Rs 60,000 to Rs 1,80,000**.\nEMI available, no hidden charges. The final count is confirmed after a scalp evaluation."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Get exact quote",
+            "action": "callback",
+            "value": "Hair transplant cost"
+          },
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Book consultation",
+            "action": "go",
+            "value": "book"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_crown": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Typical need: **1,200 to 2,000 grafts**.\nAt Rs 60 to Rs 100 per graft, that is about **Rs 72,000 to Rs 2,00,000**.\nEMI available, no hidden charges. The final count is confirmed after a scalp evaluation."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Get exact quote",
+            "action": "callback",
+            "value": "Hair transplant cost"
+          },
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Book consultation",
+            "action": "go",
+            "value": "book"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_front_crown": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Typical need: **2,000 to 3,000 grafts**.\nAt Rs 60 to Rs 100 per graft, that is about **Rs 1,20,000 to Rs 3,00,000**.\nEMI available, no hidden charges. The final count is confirmed after a scalp evaluation."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Get exact quote",
+            "action": "callback",
+            "value": "Hair transplant cost"
+          },
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Book consultation",
+            "action": "go",
+            "value": "book"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_advanced": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Typical need: **3,000+ grafts**.\nAt Rs 60 to Rs 100 per graft, that is about **Rs 1,80,000 and above**.\nEMI available, no hidden charges. The final count is confirmed after a scalp evaluation."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Get exact quote",
+            "action": "callback",
+            "value": "Hair transplant cost"
+          },
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Book consultation",
+            "action": "go",
+            "value": "book"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_beard": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "Cost depends on the area and graft count. Share a photo or get a callback for an exact quote."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Get exact quote",
+            "action": "callback",
+            "value": "Beard or eyebrow cost"
+          },
+          {
+            "label": "WhatsApp us",
+            "href": "https://wa.me/919731207940?text=Hi%2C%20I%20would%20like%20to%20know%20about%20hair%20treatment%20at%20Neo%20Follicle.",
+            "variant": "wa"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    },
+    "cost_unsure": {
+      "messages": [
+        {
+          "type": "text",
+          "text": "The AI Hair Analysis gives an estimate from your photos, or the team can guide you on a call."
+        }
+      ],
+      "ui": {
+        "type": "chips",
+        "options": [
+          {
+            "label": "Try AI Hair Analysis",
+            "href": "https://neofollicletransplant.com/hair-assessment/"
+          },
+          {
+            "label": "Get a callback",
+            "action": "callback",
+            "value": "Cost guidance"
+          }
+        ],
+        "back": {
+          "label": "Back",
+          "action": "go",
+          "value": "cost"
+        },
+        "main": true
+      },
+      "input": {
+        "mode": "text",
+        "placeholder": "Type your question"
+      }
+    }
+  },
+  "treatments": {
+    "Direct Hair Transplant (DHI / FUE)": {
+      "text": "Follicles are extracted one by one and implanted directly, for a natural hairline and quicker healing.",
+      "path": "best-hair-transplant-in-bangalore/",
+      "list": "ht"
+    },
+    "Hair Transplant for Men": {
+      "text": "For a receding hairline, frontal baldness and crown thinning, planned around your baldness grade and donor strength.",
+      "path": "hair-transplant-for-men-in-bangalore/",
+      "list": "ht"
+    },
+    "Female Hair Transplant": {
+      "text": "For thinning, a widening parting and female pattern hair loss, planned only after the cause is diagnosed.",
+      "path": "female-hair-transplant-in-bangalore/",
+      "list": "ht"
+    },
+    "Failed Hair Transplant Repair": {
+      "text": "Corrects unnatural hairlines, low density, wrong growth direction and scars from an earlier transplant.",
+      "path": "failed-hair-transplant-repair-in-bangalore/",
+      "list": "ht"
+    },
+    "Unshaven Hair Transplant": {
+      "text": "A discreet transplant without shaving your head, so it stays unnoticeable.",
+      "path": "unshaven-hair-transplant/",
+      "list": "ht"
+    },
+    "Body Hair Transplant": {
+      "text": "Hair from the body, such as the chest or beard, is moved to the scalp when scalp donor hair is limited.",
+      "path": "body-hair-transplant/",
+      "list": "ht"
+    },
+    "Stem Cell Therapy": {
+      "text": "Regenerative therapy to strengthen weak follicles and improve hair density.",
+      "path": "stem-cell-therapy-for-hair-loss-in-bangalore/",
+      "list": "hf"
+    },
+    "PRP Treatment": {
+      "text": "Platelet rich plasma from your own blood is injected into the scalp to strengthen roots and reduce hair fall.",
+      "path": "best-prp-hair-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "GFC Treatment": {
+      "text": "Concentrated growth factors from your own blood to boost thinning hair.",
+      "path": "gfc-hair-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "QR678 Treatment": {
+      "text": "A non-surgical scalp injection treatment for hair fall and thinning.",
+      "path": "qr678-hair-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "Exosome Therapy": {
+      "text": "Advanced cell-based therapy to support healthier, fuller hair growth.",
+      "path": "exosome-hair-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "Dutexome Treatment": {
+      "text": "A targeted scalp therapy for pattern hair loss.",
+      "path": "dutexome-hair-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "Laser Hair Therapy": {
+      "text": "Painless low level laser light to stimulate follicles and support regrowth.",
+      "path": "low-level-laser-therapy/",
+      "list": "hf"
+    },
+    "Scalp Micropigmentation": {
+      "text": "Fine pigment dots that create the look of fuller hair or a closely shaved head.",
+      "path": "scalp-micropigmentation-in-bangalore/",
+      "list": "hf"
+    },
+    "Alopecia Treatment": {
+      "text": "Diagnosis and treatment for patchy hair loss such as alopecia areata.",
+      "path": "alopecia-areata-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "Dandruff Treatment": {
+      "text": "Treats dandruff and scalp conditions that can trigger hair fall.",
+      "path": "dandruff-treatment-in-bangalore/",
+      "list": "hf"
+    },
+    "Beard Transplant": {
+      "text": "Fills a patchy beard, moustache, goatee and sideburns, matching natural growth direction.",
+      "path": "beard-transplant-in-bangalore/",
+      "list": "treat"
+    },
+    "Eyebrow Restoration": {
+      "text": "Rebuilds thin, over-plucked or scarred brows with single hair precision and a natural angle.",
+      "path": "eyebrow-restoration-in-bangalore/",
+      "list": "treat"
+    }
+  },
+  "booking_option": {
+    "Unshaven Hair Transplant": "Unshaven & Body Hair Transplant",
+    "Body Hair Transplant": "Unshaven & Body Hair Transplant",
+    "PRP Treatment": "Non-Surgical Treatment (GFC, PRP, QR678)",
+    "GFC Treatment": "Non-Surgical Treatment (GFC, PRP, QR678)",
+    "QR678 Treatment": "Non-Surgical Treatment (GFC, PRP, QR678)"
+  },
+  "aliases": {
+    "dhi": "Direct Hair Transplant (DHI / FUE)",
+    "fue": "Direct Hair Transplant (DHI / FUE)",
+    "prp": "PRP Treatment",
+    "gfc": "GFC Treatment",
+    "qr678": "QR678 Treatment",
+    "exosomes?": "Exosome Therapy",
+    "dutexome": "Dutexome Treatment",
+    "stem cells?": "Stem Cell Therapy",
+    "laser therapy": "Laser Hair Therapy",
+    "smp": "Scalp Micropigmentation",
+    "micropigmentation": "Scalp Micropigmentation",
+    "alopecia": "Alopecia Treatment",
+    "dandruff": "Dandruff Treatment",
+    "beard": "Beard Transplant",
+    "moustache": "Beard Transplant",
+    "eyebrows?": "Eyebrow Restoration",
+    "failed transplant": "Failed Hair Transplant Repair",
+    "unshaven": "Unshaven Hair Transplant",
+    "body hair": "Body Hair Transplant",
+    "female hair": "Female Hair Transplant",
+    "hair transplant": "Hair Transplant for Men"
+  },
+  "brief": {
+    "cost": "Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. The final count is confirmed after a scalp evaluation.",
+    "clinic": "We are at 1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037. Open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
+  },
+  "site": "https://neofollicletransplant.com/"
+}
