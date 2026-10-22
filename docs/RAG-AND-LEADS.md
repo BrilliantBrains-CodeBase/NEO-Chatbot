@@ -249,7 +249,7 @@ All tables have `id`, `clinic_id` (except `clinics` and `users`), `created_at`, 
 | appointments | Doctor, start, end, type, status (section 6), linked lead and request |
 | patients | Created at Visited, linked leads |
 | tasks | Lead, type, due time, assigned to, status, attempt number, outcome |
-| chat_sessions, chat_messages | Transcript linked to the lead, kept as short memory: deleted after 21 days. The lead keeps the request and the patient's question |
+| chat_sessions, chat_messages | Transcript linked to the lead, kept as short memory: deleted after 3 days. The lead keeps the request and the patient's question |
 | kb_documents, kb_chunks, kb_versions | Knowledge base (section 4) |
 | unanswered_questions | Every question that went to a lead, for review and KB improvement |
 | outbox | Outgoing WhatsApp, email and calendar jobs |

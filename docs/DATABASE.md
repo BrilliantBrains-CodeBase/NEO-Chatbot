@@ -74,7 +74,7 @@ All leads from all clinics are kept **in one place, the `leads` table**. Each le
 | Table | Key columns |
 |---|---|
 | `chat_sessions` | `id` (the widget's `session_id`), `clinic_id`, `visitor_id`, `lead_id`, `started_at`, `last_at`, `device`, `page_url` |
-| `chat_messages` | `session_id`, `clinic_id`, `role` (`patient`, `bot`), `text`, `event`, `ui_type`, `answered_by` (`flow`, `rule`, `kb`, `llm`, `lead`), `created_at`. **Deleted after 21 days** |
+| `chat_messages` | `session_id`, `clinic_id`, `role` (`patient`, `bot`), `text`, `event`, `ui_type`, `answered_by` (`flow`, `rule`, `kb`, `llm`, `lead`), `created_at`. **Deleted after 3 days** |
 | `kb_documents` | `clinic_id`, `file_name`, `storage_path`, `version`, `status` (`draft`, `approved`, `retired`), `approved_by`, `approved_at` |
 | `kb_chunks` | `clinic_id`, `document_id`, `title`, `text`, `category`, `page`, `embedding` vector(384), `tsv` tsvector (generated from title and text), `status` |
 | `unanswered_questions` | `clinic_id`, `question_text`, `lang`, `reason` (`medical`, `no_match`, `llm_rejected`), `lead_id`, `reviewed` |
@@ -116,7 +116,7 @@ These hold even if the application has a bug.
 | appointments | `(clinic_id, status, lower(slot))` | Pending queue, Missed job |
 | tasks | `(clinic_id, assigned_to, status, due_at)` | Task list and overdue check |
 | requests | `(clinic_id, type, status, created_at desc)` | Inbox tabs |
-| chat_messages | `(session_id, created_at)` and `(created_at)` | Transcript view and the 21-day clean-up |
+| chat_messages | `(session_id, created_at)` and `(created_at)` | Transcript view and the 3-day clean-up |
 | kb_chunks | HNSW on `embedding vector_cosine_ops`, GIN on `tsv`, btree `(clinic_id, status)` | Hybrid search |
 | outbox | `(status, next_try_at)` | Worker queue |
 
@@ -148,7 +148,7 @@ Every policy has a test: each role signs in to the local database and tries to r
 
 | Job | Where | Schedule |
 |---|---|---|
-| Delete `chat_messages` older than 21 days, then empty `chat_sessions` | `pg_cron` | Daily 03:00 IST |
+| Delete `chat_messages` older than 3 days, then empty `chat_sessions` | `pg_cron` | Daily 03:00 IST |
 | Mark `pending` appointments whose slot has started as `missed` | `pg_cron` | Every 15 minutes |
 | Escalate pending bookings older than 2 working hours | Backend worker (needs clinic hours logic) | Every 5 minutes |
 | Create retry call tasks, close leads after 3 failed tries | Backend worker | On call outcome, plus every 15 minutes |
@@ -160,7 +160,7 @@ Every policy has a test: each role signs in to the local database and tries to r
 | Data | Kept |
 |---|---|
 | Leads, requests, appointments, patients, tasks, lead timeline | Kept (no automatic deletion) |
-| Chat transcripts | **21 days**, then deleted. The lead keeps the request and the patient's question |
+| Chat transcripts | **3 days** (client decision, 22 Oct 2026), then deleted. The lead keeps the request and the patient's question |
 | Unanswered questions | 90 days (for improving the knowledge base), with name and phone removed |
 | Audit log | Kept |
 | Outbox | Sent items removed after 30 days |
@@ -203,7 +203,7 @@ backend/supabase/seed.sql    CL01 to CL03 settings and doctors only. No fake pat
 |---|---|
 | Knowledge base | About 3,000 chunks × (384-number vector + text) ≈ 10 MB |
 | Leads and appointments | About 2 KB a row; 50,000 leads ≈ 100 MB |
-| Chats | Only 21 days kept ≈ under 50 MB |
+| Chats | Only 3 days kept ≈ under 10 MB |
 | Total | Well under the 500 MB Free limit; Pro gives 8 GB |
 
 ## 13. Still to confirm
