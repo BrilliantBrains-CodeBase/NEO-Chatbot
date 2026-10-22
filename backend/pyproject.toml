@@ -66,3 +66,8 @@ plugins = ["pydantic.mypy"]
 # Libraries without type hints.
 module = ["asyncpg", "asyncpg.*", "pgvector.*", "arq.*", "fastembed.*", "sklearn.*", "dateparser.*"]
 ignore_missing_imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# The bot's approved sentences stay on one line, so they are easy to compare with frontend.md.
+"app/chat/flows.py" = ["E501"]
+"tests/test_chat_flows.py" = ["E501"]

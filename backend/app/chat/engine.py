@@ -6,6 +6,7 @@ Booking steps, typed text and leads follow in the next steps.
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.chat import flows
 from app.chat.content import content
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
 from app.chat.store import State
@@ -72,8 +73,19 @@ def respond(req: ChatRequest, state: State) -> Turn:
     if req.event in ("start", "restart"):
         return Turn(menu, "menu", {})
 
+    flow = state.get("flow")
     if req.event == "button":
-        action, value = req.payload.action, req.payload.value
+        action, value = req.payload.action or "", req.payload.value
+        cfg = c["config"]
+        if action == "start" and value in ("book", "online", "cancel", "reschedule", "callback"):
+            return _flow(*flows.start(value))
+        if action == "book_for" and value:
+            option = value if value in cfg["treatments"] else c["booking_option"].get(value)
+            return _flow(*flows.start("book", treatment=option))
+        if action == "callback":
+            return _flow(*flows.start("callback", reason=value or None))
+        if flow and action not in ("menu", "go", "treat"):
+            return _flow(*flows.button(flow, cfg, action, value))
         # Earlier buttons stay usable (approved mockups), so a tap is checked against the clinic's
         # content, not only the latest buttons: anything that is not a real answer gets the menu again.
         if action == "go" and value in c["nodes"]:
@@ -84,5 +96,12 @@ def respond(req: ChatRequest, state: State) -> Turn:
                 return Turn(card, "flow", {})
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)], ui=c["menu"]), "menu", {})
 
-    # Typed text: rules, flows and leads come in the next steps.
-    return Turn(ChatResponse(messages=[BotMessage(text=NO_ANSWER)]), "lead", {})
+    text = req.payload.text or ""
+    if flow:
+        return _flow(*flows.typed(flow, c["config"], text, req.payload.cc))
+    # No answer known (rules and the knowledge base come in B4): take a lead, the question is the reason.
+    return _flow(*flows.start("question", reason=text, lead=[NO_ANSWER]), answered_by="lead")
+
+
+def _flow(flow: flows.Flow | None, reply: ChatResponse, answered_by: str = "flow") -> Turn:
+    return Turn(reply, answered_by, {"flow": flow} if flow else {})
