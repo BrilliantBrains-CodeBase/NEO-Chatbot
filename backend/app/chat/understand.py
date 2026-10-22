@@ -136,6 +136,18 @@ MEDICAL = re.compile(
     r"is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|"
     r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b"
 )
+# Saying no to a form question ("no", "skip", "not now"): the whole message, so "no 98..." is not caught.
+REFUSAL = re.compile(
+    r"^(no|nope|nah|na|no thanks|no thank you|not now|later|skip|cancel|stop|leave it|not interested|"
+    r"(i )?(don'?t|do not) want( to)?( share| give)?( it)?|nahi|nahin|nai|rehne do|mat)[.! ]*$"
+)
+# Questions about the bot itself.
+IDENTITY = re.compile(
+    r"\b(who are you|what are you|who is this|who am i (talking|chatting) (to|with)|"
+    r"are you an? (bot|robot|human|real person|person|ai)|are you (a )?(bot|robot|human|real|ai)|"
+    r"what'?s your name|what is your name|your name)\b"
+)
+
 INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
     (re.compile(r"\b(online|video ?call|from home|google meet|virtual)\b"), ("start", "online")),
     (re.compile(r"\bcancel"), ("start", "cancel")),

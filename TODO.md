@@ -16,6 +16,7 @@
   - Typed date that cannot be booked: "That date is not available. Please choose another date."
   - Typed time that cannot be booked: "That time is not available. Please choose one of the times shown."
   - Time taken by another patient while confirming: "Sorry, that time was just booked by someone else. Please choose another time."
+  - Patient says "no" / "skip" to a form question: "No problem. How else can I help you?"
 
 ---
 

@@ -136,3 +136,24 @@ test('emergency in the middle of a booking takes over', async ({ page }) => {
   await type(panel, 'I fainted');
   await expect(bot(panel)).toContainText('call 108 or go to the nearest hospital');
 });
+
+// The screenshot case: "Who are you?" is answered, and "no" at the name step stops the form.
+test.describe('identity and refusal', () => {
+  const say = (session: string, text: string) =>
+    handle({
+      client_id: 'CL01',
+      session_id: session,
+      visitor_id: 'v_' + 'a'.repeat(32),
+      event: 'text',
+      payload: { text },
+      context: { page_url: 'https://example.com', device: 'desktop', lang: 'en' },
+    } as ChatRequest);
+  test('who are you gets the greeting, no stops the form', () => {
+    const s = 's_' + 'e'.repeat(32);
+    expect(say(s, 'Who are you ?').messages[0].text).toContain("I'm Arya");
+    say(s, 'Do you have parking?'); // unknown: the bot asks for a name
+    const stopped = say(s, 'no');
+    expect(stopped.messages[0].text).toBe('No problem. How else can I help you?');
+    expect(say(s, 'Asha Rao').messages[0].text).not.toContain('Thanks, Asha'); // the form is gone
+  });
+});

@@ -53,3 +53,11 @@ export function route(raw: string): Route {
   if (/\b(treatments?|explore|options|procedures?)\b/.test(text)) return { to: 'node', key: 'treat' };
   return { to: 'lead' };
 }
+
+// Saying no to a form question ("no", "skip", "not now"): the whole message, so "no 98..." is not caught.
+export const REFUSAL =
+  /^(no|nope|nah|na|no thanks|no thank you|not now|later|skip|cancel|stop|leave it|not interested|(i )?(don'?t|do not) want( to)?( share| give)?( it)?|nahi|nahin|nai|rehne do|mat)[.! ]*$/;
+
+// Questions about the bot itself.
+export const IDENTITY =
+  /\b(who are you|what are you|who is this|who am i (talking|chatting) (to|with)|are you an? (bot|robot|human|real person|person|ai)|are you (a )?(bot|robot|human|real|ai)|what'?s your name|what is your name|your name)\b/;

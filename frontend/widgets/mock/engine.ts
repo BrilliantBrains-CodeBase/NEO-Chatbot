@@ -4,7 +4,7 @@
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
 import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
-import { route } from './router';
+import { IDENTITY, REFUSAL, route } from './router';
 import { isMenu, isYes, matchOption, parseDate, parseTime } from './typing';
 
 const GREETING: Record<string, string> = {
@@ -567,6 +567,15 @@ function respond(req: ChatRequest): ChatResponse {
 
   // Typed text. First: does it stand for a tap (a button on screen, a date, a time, yes, menu)?
   const text = (req.payload.text ?? '').trim();
+  const low = text.toLowerCase().replace(/\s+/g, ' ');
+  if (route(text).to !== 'emergency') {
+    // "no" to a form question ends the form; nothing is saved.
+    if (flow && INPUT_STEPS.includes(flow.step) && REFUSAL.test(low)) {
+      sessions.set(req.session_id, null);
+      return menu(client, 'No problem. How else can I help you?');
+    }
+    if (IDENTITY.test(low)) return flow ? ask(flow, [ARYA.greeting]) : menu(client, ARYA.greeting);
+  }
   const tap = typedTap(req.session_id, flow, text);
   if (tap && 'messages' in tap) return tap;
   if (tap) return respond({ ...req, event: 'button', payload: tap });

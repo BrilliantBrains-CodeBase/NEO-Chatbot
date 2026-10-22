@@ -9,6 +9,7 @@ import pytest
 from app.chat import engine, flows, understand
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
+from tests.test_chat_store import req as store_req
 
 TODAY = date(2026, 10, 21)
 
@@ -130,3 +131,28 @@ def test_main_menu_typed_anywhere_and_medical_without_a_flow() -> None:
     assert reply.startswith("I don't have a confirmed answer for that yet.") and reply.endswith(
         "May I know your full name?"
     )
+
+
+@pytest.mark.parametrize("text", ["no", "No thanks", "skip", "not now", "nahi", "I don't want to share"])
+def test_no_at_a_form_step_stops_the_form_and_saves_nothing(text: str) -> None:
+    turn = engine.respond(_r(text), {"flow": {"kind": "question", "step": "name", "reason": "x"}})
+    assert (
+        turn.reply.messages[0].text == engine.STOPPED and "flow" not in turn.state and turn.completed is None
+    )
+
+
+def test_a_real_answer_or_no_inside_a_number_is_not_a_refusal() -> None:
+    name = engine.respond(_r("Asha Rao"), {"flow": {"kind": "question", "step": "name"}})
+    assert name.state["flow"]["step"] == "phone"
+    phone = engine.respond(_r("no 98765"), {"flow": {"kind": "question", "step": "phone", "name": "A B"}})
+    assert phone.state["flow"]["step"] == "phone"
+
+
+@pytest.mark.parametrize("text", ["Who are you ?", "are you a bot", "what is your name", "Are you human?"])
+def test_questions_about_the_bot_get_the_greeting(text: str) -> None:
+    turn = engine.respond(_r(text), {})
+    assert "I'm Arya" in turn.reply.messages[0].text and turn.answered_by == "rule"
+
+
+def _r(text: str) -> ChatRequest:
+    return store_req("text", clinic="CL01", text=text)

@@ -107,6 +107,7 @@ def respond(
 
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
+STOPPED = "No problem. How else can I help you?"
 NOT_AVAILABLE_DATE = "That date is not available. Please choose another date."
 NOT_AVAILABLE_TIME = "That time is not available. Please choose one of the times shown."
 INPUT_STEPS = {"name", "phone", "email", "reason", "cb_reason"}
@@ -119,6 +120,14 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | No
     kind, target = understand.route(text, c)
     if kind == "emergency":  # always first, and never mistaken for a tap
         return Turn(_response(c["nodes"]["emergency"]), "rule", {})
+    low = " ".join(text.lower().split())
+    if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
+        # "no" to a form question ends the form; nothing is saved.
+        return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
+    if understand.IDENTITY.search(low):
+        if flow:
+            return _flow(flow, flows.ask(flow, c["config"], [c["greeting"]]), answered_by="rule")
+        return Turn(ChatResponse(messages=[BotMessage(text=c["greeting"])], ui=c["menu"]), "rule", {})
     tap = _typed_tap(state, c, flow, text)
     if isinstance(tap, Turn):
         return tap
