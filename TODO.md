@@ -14,6 +14,8 @@
   - Question typed mid-booking with no answer (or medical): "I don't have a confirmed answer for that yet. I have noted your question for our team."
   - Cost asked mid-booking: "Hair transplant cost is graft based, Rs 60 to Rs 100 per graft. The final count is confirmed after a scalp evaluation."
   - Address asked mid-booking: "We are at 1st floor, Scorpio House, near Marathahalli Bridge, Munnekolala, Bengaluru 560037. Open Wednesday to Monday, 10 AM to 7 PM. Tuesday closed."
+  - Typed date that cannot be booked: "That date is not available. Please choose another date."
+  - Typed time that cannot be booked: "That time is not available. Please choose one of the times shown."
 
 ---
 

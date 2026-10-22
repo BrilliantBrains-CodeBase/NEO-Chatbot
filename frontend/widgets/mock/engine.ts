@@ -5,6 +5,7 @@ import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
 import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
 import { route } from './router';
+import { isMenu, isYes, matchOption, parseDate, parseTime } from './typing';
 
 const GREETING: Record<string, string> = {
   CL01: ARYA.greeting,
@@ -460,9 +461,62 @@ function start(
   return reply([...lead, INTRO[kind]], null, { mode: 'text', placeholder: 'Your full name' });
 }
 
+// ---------- typed text that means a tap ----------
+
+// The buttons on screen after the last reply, per session, so typed text can stand for a tap.
+const shown = new Map<string, Choice[]>();
+
+function choicesOf(res: ChatResponse): Choice[] {
+  const ui = res.ui;
+  if (!ui || (ui.type !== 'menu' && ui.type !== 'chips' && ui.type !== 'doctor_card')) return [];
+  if (ui.type === 'menu') return ui.items;
+  return [
+    ...ui.options,
+    ...(ui.back ? [{ ...ui.back, label: 'Back' }] : []),
+    ...(ui.main ? [{ label: 'Main menu', action: 'menu' }] : []),
+  ];
+}
+
+const NOT_AVAILABLE_DATE = 'That date is not available. Please choose another date.';
+const NOT_AVAILABLE_TIME = 'That time is not available. Please choose one of the times shown.';
+
+// A tap the typed text stands for, a reply when it names a date or time that cannot be booked, or
+// null to handle it as text. Emergencies always go the normal way, so they are never mistaken for a tap.
+function typedTap(
+  session: string,
+  f: Flow | null,
+  text: string,
+): ChatRequest['payload'] | ChatResponse | null {
+  if (route(text).to === 'emergency') return null;
+  if (isMenu(text)) return { action: 'menu' };
+  if (f && (f.step === 'date' || f.step === 'booked_date')) {
+    const day = parseDate(text, ist().today);
+    if (day) {
+      const ok = f.step === 'date' ? bookable(day) : validBookedDate(day);
+      return ok ? { action: f.step, value: day } : ask(f, [NOT_AVAILABLE_DATE]);
+    }
+  }
+  if (f && f.step === 'time' && f.date) {
+    const time = parseTime(text);
+    if (time) {
+      const ok = time === 'any' || slotsFor(f.date).includes(time);
+      return ok ? { action: 'time', value: time } : ask(f, [NOT_AVAILABLE_TIME]);
+    }
+  }
+  if (f && f.step === 'summary' && isYes(text)) return { action: 'confirm' };
+  const option = matchOption(text, shown.get(session) ?? []);
+  return option ? { action: option.action, value: option.value } : null;
+}
+
 // ---------- entry ----------
 
 export function handle(req: ChatRequest): ChatResponse {
+  const res = respond(req);
+  shown.set(req.session_id, choicesOf(res));
+  return res;
+}
+
+function respond(req: ChatRequest): ChatResponse {
   const client = req.client_id;
   const flow = sessions.get(req.session_id) ?? null;
   const { action = '', value = '' } = req.payload;
@@ -511,8 +565,11 @@ export function handle(req: ChatRequest): ChatResponse {
     return menu(client, 'How can I help you today?');
   }
 
-  // Typed text.
+  // Typed text. First: does it stand for a tap (a button on screen, a date, a time, yes, menu)?
   const text = (req.payload.text ?? '').trim();
+  const tap = typedTap(req.session_id, flow, text);
+  if (tap && 'messages' in tap) return tap;
+  if (tap) return respond({ ...req, event: 'button', payload: tap });
   if (flow) return typed(req.session_id, flow, text, req.payload.cc);
   return answer(req.session_id, text);
 }
