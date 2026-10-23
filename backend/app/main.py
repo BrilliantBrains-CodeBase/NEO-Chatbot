@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import chat, health
-from app.chat import embed
+from app.chat import kb
 from app.core.cache import close_redis
 from app.core.config import get_settings
 from app.core.db import close_pool
@@ -15,8 +15,9 @@ from app.core.db import close_pool
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Database and Redis connect on first use, so the API starts even while they are still booting.
-    # The embedding model loads in the background; semantic matching starts once it is ready.
-    warming = asyncio.create_task(embed.warm())
+    # The embedding model loads and the KB meanings are filled in the background; semantic matching
+    # starts once they are ready.
+    warming = asyncio.create_task(kb.warm())
     yield
     warming.cancel()
     await close_pool()

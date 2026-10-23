@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     interakt_api_key: str = ""
 
     embed_model: str = "BAAI/bge-small-en-v1.5"
+    # Where the model files are kept (about 130 MB). Empty: backend/.models. Not a temp folder, which the
+    # system may clear and force a new download.
+    embed_cache_dir: str = ""
 
     @property
     def origins(self) -> list[str]:

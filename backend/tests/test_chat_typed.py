@@ -156,3 +156,21 @@ def test_questions_about_the_bot_get_the_greeting(text: str) -> None:
 
 def _r(text: str) -> ChatRequest:
     return store_req("text", clinic="CL01", text=text)
+
+
+def test_tapping_a_date_or_time_that_became_unavailable_says_why() -> None:
+    cfg = content("CL01")["config"] | {"slots_by_day": {"2026-10-28": ["11:00"]}}  # type: ignore[index]
+    f = {
+        "kind": "book",
+        "step": "date",
+        "name": "A B",
+        "phone": "+91 9876543210",
+        "email": "a@b.co",
+        "treatment": "PRP Treatment",
+    }
+    _, full = flows.button(dict(f), cfg, "date", "2026-10-29")  # fully booked since the calendar was shown
+    assert full.messages[0].text == flows.NOT_AVAILABLE_DATE
+    _, taken = flows.button(f | {"step": "time", "date": "2026-10-28"}, cfg, "time", "10:00")  # just taken
+    assert taken.messages[0].text == flows.NOT_AVAILABLE_TIME
+    nxt, ok = flows.button(f | {"step": "time", "date": "2026-10-28"}, cfg, "time", "11:00")
+    assert nxt is not None and nxt["time"] == "11:00"

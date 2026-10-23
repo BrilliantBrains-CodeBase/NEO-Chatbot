@@ -11,6 +11,8 @@ playwright-report/
 
 # python
 .venv/
+# downloaded AI model files (fetched again automatically when missing)
+.models/
 __pycache__/
 *.pyc
 

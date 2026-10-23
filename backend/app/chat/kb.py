@@ -3,6 +3,7 @@ questions and their other wordings, with typo-tolerant word matching. Only a con
 answered; anything else goes on to the lead. Semantic matching is added on top later.
 """
 
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -11,7 +12,9 @@ import asyncpg
 from rapidfuzz import fuzz
 
 from app.chat import embed
+from app.core.db import get_pool
 
+log = logging.getLogger(__name__)
 CACHE_S = 60  # approved rows change rarely; a minute keeps CRM edits quick to show
 MIN_SCORE = 86  # below this, no answer (a wrong answer is worse than a call back)
 
@@ -144,3 +147,20 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
         Answer(str(row["id"]), row["question"], row["answer"], score) if row["sim"] >= SEMANTIC_MIN else None
     )
     return hit, score
+
+
+async def warm() -> None:
+    """At startup: load the model, then fill the meaning of every approved Q/A that has none, so no patient
+    waits for it. A failure only leaves semantic matching off; the chat keeps working."""
+    await embed.warm()
+    if not embed.ready():
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            for clinic_id in await conn.fetch(
+                "select distinct clinic_id from app.kb_qa where status = 'approved' and embedding is null"
+            ):
+                await _fill(conn, clinic_id[0])
+    except Exception:
+        log.exception("could not fill knowledge base meanings at startup; they are filled on first use")

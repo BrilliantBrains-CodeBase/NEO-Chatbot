@@ -58,10 +58,14 @@ def test_in_clinic_booking_with_the_invalid_inputs() -> None:
     assert c.tap("treatment", "Hair Transplant for Men") == "Which date works for you?"
     cal = c.last.ui or {}
     assert (cal["min"], cal["max"], cal["closed_weekdays"]) == ("2026-10-21", "2026-11-04", [2])
-    assert c.tap("date", "2026-10-27") == "Which date works for you?"  # a Tuesday: asked again
+    assert c.tap("date", "2026-10-27") == (  # a Tuesday: asked again, saying why
+        "That date is not available. Please choose another date. | Which date works for you?"
+    )
     assert c.tap("date", "2026-10-23") == "What time would you prefer?"
     assert (c.last.ui or {})["slots"][:2] == ["10:00", "10:15"]
-    assert c.tap("time", "20:00") == "What time would you prefer?"  # not a slot: asked again
+    assert c.tap("time", "20:00") == (  # not a slot: asked again, saying why
+        "That time is not available. Please choose one of the times shown. | What time would you prefer?"
+    )
     summary = c.tap("time", "10:30")
     assert "Hair Transplant for Men" in summary and "23 Oct 2026 at 10:30 AM" in summary
     assert c.tap("confirm") == (

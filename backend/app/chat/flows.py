@@ -18,6 +18,8 @@ clock: Callable[[], datetime] = lambda: datetime.now(UTC)  # noqa: E731
 IST = timedelta(hours=5, minutes=30)
 CONSENT = "By confirming, you agree to be contacted by phone, WhatsApp or email."
 NAME_INPUT = Input(mode="text", placeholder="Your full name")
+NOT_AVAILABLE_DATE = "That date is not available. Please choose another date."
+NOT_AVAILABLE_TIME = "That time is not available. Please choose one of the times shown."
 PHONE_INPUT = Input(mode="phone", placeholder="Mobile number")
 EMAIL_INPUT = Input(mode="email", placeholder="name@example.com")
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -356,13 +358,17 @@ def button(f: Flow, cfg: dict[str, Any], action: str, value: str | None) -> tupl
             f["step"] = "date"
         return f, ask(f, cfg)
     if action == "date":
-        if f["step"] == "booked_date" or not is_date(value) or not bookable(cfg, value or ""):
+        if f["step"] == "booked_date" or not is_date(value):
             return f, ask(f, cfg)
+        if not bookable(cfg, value or ""):  # e.g. fully booked since the calendar was shown
+            return f, ask(f, cfg, [NOT_AVAILABLE_DATE])
         f["date"], f["time"], f["step"] = value, None, "time"
         return f, ask(f, cfg)
     if action == "time":
-        if not f.get("date") or (value != "any" and value not in slots_for(cfg, f["date"])):
+        if not f.get("date"):
             return f, ask(f, cfg)
+        if value != "any" and value not in slots_for(cfg, f["date"]):  # just taken by someone else
+            return f, ask(f, cfg, [NOT_AVAILABLE_TIME])
         f["time"] = value
         if f["kind"] == "reschedule":
             return None, ended(f)

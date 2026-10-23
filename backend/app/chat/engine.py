@@ -108,8 +108,8 @@ def respond(
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
 STOPPED = "No problem. How else can I help you?"
-NOT_AVAILABLE_DATE = "That date is not available. Please choose another date."
-NOT_AVAILABLE_TIME = "That time is not available. Please choose one of the times shown."
+NOT_AVAILABLE_DATE = flows.NOT_AVAILABLE_DATE
+NOT_AVAILABLE_TIME = flows.NOT_AVAILABLE_TIME
 INPUT_STEPS = {"name", "phone", "email", "reason", "cb_reason"}
 
 

@@ -418,13 +418,15 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
       if (f.step === 'booked_date') f.step = 'date';
       return ask(f);
     case 'date':
-      if (f.step === 'booked_date' || !bookable(value)) return ask(f);
+      if (f.step === 'booked_date') return ask(f);
+      if (!bookable(value)) return ask(f, [NOT_AVAILABLE_DATE]); // e.g. fully booked since it was shown
       f.date = value;
       f.time = undefined;
       f.step = 'time';
       return ask(f);
     case 'time':
-      if (!f.date || (value !== 'any' && !slotsFor(f.date).includes(value))) return ask(f);
+      if (!f.date) return ask(f);
+      if (value !== 'any' && !slotsFor(f.date).includes(value)) return ask(f, [NOT_AVAILABLE_TIME]); // just taken
       f.time = value;
       if (f.kind === 'reschedule') {
         sessions.set(session, null);

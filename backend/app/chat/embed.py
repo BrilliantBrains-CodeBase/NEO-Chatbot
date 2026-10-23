@@ -6,6 +6,7 @@ matching is simply skipped (regular matching and the lead still work).
 import asyncio
 import logging
 import threading
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -24,7 +25,9 @@ def _load() -> Any:
         if _model is None:
             from fastembed import TextEmbedding  # heavy import, only when first needed
 
-            _model = TextEmbedding(get_settings().embed_model)
+            settings = get_settings()
+            cache = settings.embed_cache_dir or str(Path(__file__).resolve().parents[2] / ".models")
+            _model = TextEmbedding(settings.embed_model, cache_dir=cache)
     return _model
 
 
