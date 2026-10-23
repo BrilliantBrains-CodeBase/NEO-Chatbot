@@ -221,7 +221,10 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
         ),
         ("start", "reschedule"),
     ),
-    (re.compile(r"\b(call ?back|callback|call me back)\b"), ("start", "callback")),
+    (
+        re.compile(r"\b(call ?back|callback|call me back|exact (quote|price|cost)|get a quote|quotation)\b"),
+        ("start", "callback"),
+    ),
     (
         re.compile(
             r"\b(cost|price|fees?|charges?|package|emi|how much|rates?|kharcha|lagega|"
@@ -231,13 +234,20 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
     ),
     # A clear wish to book starts the in-clinic booking at once ("I want to book an appointment"); the word
     # "consultation" alone may be a question about it ("what is included in the consultation").
-    (re.compile(r"\b(book\w*|appointment|slots?)\b"), ("start", "book")),
+    (
+        re.compile(
+            r"\b(book\w*|appointment|slots?|"
+            r"(want|like|need|can i|could i|may i) (to )?(come in|come to the clinic|visit|get checked|"
+            r"see the doctor|meet the doctor))\b"
+        ),
+        ("start", "book"),
+    ),
     (re.compile(r"\bconsult\w*\b"), ("node", "book")),
     # Photos to be checked or sent are not the results gallery.
     (
         re.compile(
             r"^(?!.*\b(check|assess\w*|analy\w*|send|share|upload|privacy|private)\b)"
-            r".*\b(results?|before and after|before after|gallery|photos?)\b"
+            r".*\b(results?|before and after|before after|gallery|photos?|videos?)\b"
         ),
         ("node", "results"),
     ),
@@ -259,6 +269,26 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
     (re.compile(r"\b(doctors?|dr|sandeep|surgeons?)\b"), ("node", "about")),
     (re.compile(r"\b(international|abroad|overseas|travel|fly|nri)\b"), ("node", "intl")),
 ]
+
+
+def not_offered(text: str, c: dict[str, Any]) -> bool:
+    """Whether the message asks for a service this clinic does not offer (its own "not_offered" list: a hair
+    clinic does not do laser hair removal or botox). Never a lookalike answer for these."""
+    terms = c.get("not_offered", [])
+    return bool(terms) and re.search(rf"\b({'|'.join(terms)})\b", text.lower()) is not None
+
+
+# The cost options of the cost menu, when the patient names their pattern with the cost question ("bald patch
+# at the crown, price?"). Checked in this order: "front and crown" before "crown".
+COST_OPTIONS: list[tuple[str, re.Pattern[str]]] = [
+    ("cost_beard", re.compile(r"\b(beard|eyebrows?|moustache|mustache)\b")),
+    ("cost_front_crown", re.compile(
+        r"\b(front|hairline)\b.*\b(crown|top|back of (my |the )?head)\b|\b(crown|top)\b.*\bfront\b|\bboth\b"
+    )),
+    ("cost_crown", re.compile(r"\b(crown|vertex|top of (my |the )?head|bald (spot|patch) (on|at) (the )?(top|crown))\b")),
+    ("cost_receding", re.compile(r"\b(receding|hairline|temples?|forehead)\b")),
+    ("cost_advanced", re.compile(r"\b(completely bald|fully bald|very (little|less) hair|no hair|advanced|full head)\b")),
+]  # fmt: skip
 
 
 # Long action words patients often misspell ("reschudle", "apointment"). Only words of 7+ letters, so short
@@ -290,6 +320,10 @@ def route(raw: str, c: dict[str, Any]) -> tuple[str, str]:
         return "lead", ""
     for pattern, target in INTENTS:
         if pattern.search(text):
+            if target == ("node", "cost"):  # cost for a named pattern opens that cost option
+                exact = next((key for key, p in COST_OPTIONS if p.search(text) and key in c["nodes"]), None)
+                if exact:
+                    return "node", exact
             return target
     for name in c["treatments"]:
         if name.lower() in text:

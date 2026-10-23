@@ -16,6 +16,9 @@ NO_ANSWER = (
     "I don't have a confirmed answer for that yet. Would you like our team to call you back with the right "
     "information?"
 )
+# A service the clinic does not offer (its "not_offered" list). Never names another clinic.
+NOT_OFFERED_SHORT = "We focus on hair and scalp treatments, so this isn't something we offer here."
+NOT_OFFERED = NOT_OFFERED_SHORT + " Would you like our team to call you back?"
 OFFER_UI = {
     "type": "chips",
     "options": [
@@ -126,15 +129,28 @@ def respond(
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
 ACTIONS = {"book", "talk", "treat"}  # rule targets that do something (or list buttons), not just inform
 QUESTION_START = re.compile(r"(what|which|how|why|does|do|is|are|can)\b")
+# Words that only repeat what a treatment is ("fue hair transplant", "prp treatment please").
+NAME_ONLY = set(
+    "hair transplant transplants treatment treatments therapy for about the a an info details please pls "
+    "me".split()
+)
 BOOK_WORDS = re.compile(r"\b(book\w*|appointment|slots?|schedule)\b")
 
 
-def _acts(kind: str, target: str, text: str) -> bool:
+def _acts(kind: str, target: str, text: str, c: dict[str, Any]) -> bool:
     """A rule that does something (book, talk to us, the treatment list) goes before an approved answer. But a
     question about the consultation ("what is included in the consultation") is not a wish to book."""
+    low = text.lower().strip()
+    if kind == "node" and target.startswith("cost_"):  # the exact cost option the patient named
+        return True
+    if kind == "card":  # only naming a treatment ("fue hair transplant") is a tap on its card
+        named = context.treatment_in(low, c)
+        if named is None or QUESTION_START.match(low):
+            return False
+        # Anything else asked ("qr678 sessions", "steps of hair transplant") is for the approved answer.
+        return not set(re.findall(r"[a-z0-9]+", low.replace(named[1], " "))) - NAME_ONLY
     if kind != "node" or target not in ACTIONS:
         return False
-    low = text.lower().strip()
     return not (target == "book" and QUESTION_START.match(low) and not BOOK_WORDS.search(low))
 
 
@@ -159,6 +175,11 @@ def _text(
     if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
         # "no" to a form question ends the form; nothing is saved.
         return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
+    if understand.not_offered(text, c) and not (flow and flow["step"] in INPUT_STEPS):
+        if flow:  # a booking stays open: say so, then the same step
+            return _flow(flow, flows.ask(flow, c["config"], [NOT_OFFERED_SHORT]), answered_by="lead")
+        offer = ChatResponse(messages=[BotMessage(text=NOT_OFFERED)], ui=OFFER_UI)
+        return Turn(offer, "lead", {"pending_q": text})
     if flow and flow["step"] in ("name", "phone", "email") and kind == "start" and target != flow["kind"]:
         # Another request while a form is open ("reschedule my appointment" while cancelling): switch to it.
         # One word switches only when it is a clear action ("reschedule"); "Online" alone may be a name.
@@ -245,7 +266,7 @@ def wants_intent(req: ChatRequest, state: State, question: str, answered: bool =
         return False
     if understand.IDENTITY.search(low) or understand.small_talk(low) or understand.is_menu(text):
         return False
-    if context.is_vague(text):
+    if context.is_vague(text) or understand.not_offered(text, c):
         return False
     rule = understand.route(question, c)
     return rule in intents.GENERAL or (rule == ("lead", "") and not answered)
@@ -362,7 +383,7 @@ def _mid_flow(
     cfg = c["config"]
     if kind == "start" and target != flow["kind"]:
         return _flow(*_start(c, target, text))
-    if kb_answer and not _acts(kind, target, text):  # the exact approved answer first
+    if kb_answer and not _acts(kind, target, text, c):  # the exact approved answer first
         return _flow(flow, flows.ask(flow, cfg, [kb_answer]), answered_by="kb")
     if kind == "node" and target in c["brief"]:
         return _flow(flow, flows.ask(flow, cfg, [c["brief"][target]]), answered_by="rule")
@@ -387,7 +408,7 @@ def _answer(
         return _flow(*_start(c, target, text))
     # Actions (book, talk to us) stay first; for information, an approved Q/A that matches the question is
     # more exact than a general rule ("prp cost" is not the transplant price).
-    if kb_answer and not _acts(kind, target, text):
+    if kb_answer and not _acts(kind, target, text, c):
         return Turn(ChatResponse(messages=[BotMessage(text=kb_answer)], ui=AFTER_ANSWER), "kb", {})
     if kind == "node" and target in c["nodes"]:
         return Turn(_response(c["nodes"][target]), "rule", {})

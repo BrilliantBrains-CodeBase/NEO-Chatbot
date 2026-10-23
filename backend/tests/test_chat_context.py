@@ -8,6 +8,7 @@ import pytest
 from app.chat import context, engine, store, understand
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
+from tests.test_chat_store import req as store_req
 
 
 def _content() -> dict[str, Any]:
@@ -263,3 +264,33 @@ def test_only_4_or_more_after_another_list_is_not_the_treatments() -> None:
     c.type("international patients")
     assert not c.type("only 4 or more?").startswith("We offer")
     assert Chat().type("all treatments cost").startswith("Hair transplant cost")  # cost, not the list
+
+
+@pytest.mark.parametrize(
+    "text", ["laser hair removal", "do you do botox", "acne treatment", "teeth cleaning"]
+)
+def test_a_service_the_clinic_does_not_offer_gets_a_clear_reply(text: str) -> None:
+    c = Chat()
+    assert c.type(text) == engine.NOT_OFFERED and c.state["pending_q"] == text
+    assert "Fertility" not in engine.NOT_OFFERED and "Derma" not in engine.NOT_OFFERED  # never another clinic
+
+
+@pytest.mark.parametrize(
+    ("text", "node"),
+    [("bald patch at the crown, price?", "cost_crown"),
+     ("i have very little hair left, cost?", "cost_advanced"),
+     ("my hairline has moved back, what will it cost", "cost_receding"),
+     ("front and crown both are thin, cost?", "cost_front_crown"), ("beard transplant cost", "cost_beard"),
+     ("how much does a hair transplant cost", "cost")],
+)  # fmt: skip
+def test_cost_for_a_named_pattern_opens_that_cost_option(text: str, node: str) -> None:
+    assert understand.route(text, C) == ("node", node)
+
+
+def test_naming_a_treatment_opens_its_card_but_a_question_gets_the_answer() -> None:
+    def respond(text: str) -> engine.Turn:
+        return engine.respond(store_req("text", clinic="CL01", text=text), {}, None, "Approved answer.")
+
+    assert respond("fue hair transplant").reply.messages[0].text.startswith("**Direct Hair Transplant")
+    assert respond("qr678 sessions needed").answered_by == "kb"
+    assert respond("what is fue").answered_by == "kb"

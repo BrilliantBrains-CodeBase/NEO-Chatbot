@@ -136,6 +136,24 @@
     "t_beard_transplant": ["patchy beard", "beard transplant", "fuller beard", "moustache transplant"],
     "t_eyebrow_restoration": ["thin eyebrows", "eyebrow transplant", "fuller eyebrows", "eyebrow hair restoration"]
   },
+  "qa_variants": {
+    "Who performs the hair transplant?": [
+      "who will do the surgery", "who operates on patients", "who does the procedure",
+      "which doctor will operate on me", "surgeon name"
+    ],
+    "When can I go back to work?": [
+      "back to office", "join office", "resume work", "when can i rejoin work", "office kab ja sakte",
+      "how many days off work"
+    ],
+    "Will someone help me during my stay?": [
+      "hotel nearby", "accommodation", "where can i stay", "help with hotel booking", "stay near the clinic"
+    ],
+    "I live abroad. How does it work?": [
+      "coming from abroad for transplant", "coming from another country", "coming from dubai", "coming from oman",
+      "coming from saudi", "coming from qatar", "coming from kuwait", "coming from bahrain", "coming from the usa",
+      "coming from the uk", "travelling from outside india"
+    ]
+  },
   "fact_variants": {
     "social": ["instagram", "insta", "insta id", "facebook", "fb page", "youtube", "social media", "follow you"],
     "facilities": ["waiting area", "waiting room", "lounge", "amenities", "seating for family"],

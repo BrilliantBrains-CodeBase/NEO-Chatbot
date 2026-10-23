@@ -1,6 +1,6 @@
 """T4: saves a clinic's REVIEWED example phrases and fact wordings (app/clinics/<CLxx>.intents.json) as
 APPROVED, so the bot uses them. Run it only after the person responsible has approved the file. Safe to run
-again: phrases already there are kept, fact wordings are added to what staff already have (never removed).
+again: phrases already there are kept, Q/A and fact wordings are added to what staff have (never removed).
 
     uv run python -m scripts.load_intents CL01            # shows what would change
     uv run python -m scripts.load_intents CL01 --apply    # saves it
@@ -50,6 +50,21 @@ async def save(conn: asyncpg.Connection, clinic: str) -> None:
             have[key] = intent
             added += 1
     print(f"{clinic}: {added} phrases approved, {kept} already there")
+    for question, more in data.get("qa_variants", {}).items():
+        row = await conn.fetchrow(
+            "select variants from app.kb_qa where clinic_id = $1 and question = $2 and status = 'approved'",
+            clinic, question,
+        )  # fmt: skip
+        if row is None:
+            raise SystemExit(f"no approved question {question!r} in {clinic}")
+        old = [v for v in row["variants"].splitlines() if v.strip()]
+        new = [v for v in more if norm(v) not in {norm(o) for o in old}]
+        if new:  # its meaning is worked out again by the backend (0016 clears it on change)
+            await conn.execute(
+                "update app.kb_qa set variants = $3 where clinic_id = $1 and question = $2",
+                clinic, question, "\n".join([*old, *new]),
+            )  # fmt: skip
+            print(f"  Q/A {question!r}: + {', '.join(new)}")
     for key, more in data["fact_variants"].items():
         row = await conn.fetchrow(
             "select variants from app.kb_facts where clinic_id = $1 and key = $2 and status = 'approved'",

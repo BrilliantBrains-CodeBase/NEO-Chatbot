@@ -96,6 +96,10 @@ async def _kb(
     if context.is_vague(typed):  # "tell me more": the engine reads the chat, nothing to search
         steps.append({"step": "context", "result": "follow-up to the last reply"})
         return None
+    c = content(req.client_id)
+    if c is not None and understand.not_offered(typed, c):  # never a lookalike answer ("laser hair removal")
+        steps.append({"step": "not_offered", "result": "matched"})
+        return None
     # With the topic filled in first; then the patient's own words ("is there emi" is not about the topic).
     asks = [text]
     if text != typed:
