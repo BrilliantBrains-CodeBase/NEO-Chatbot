@@ -107,6 +107,7 @@ def respond(
 
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
+ACTIONS = {"book", "talk"}  # rule targets that do something, not just inform
 STOPPED = "No problem. How else can I help you?"
 NOT_AVAILABLE_DATE = flows.NOT_AVAILABLE_DATE
 NOT_AVAILABLE_TIME = flows.NOT_AVAILABLE_TIME
@@ -177,6 +178,8 @@ def _mid_flow(
     cfg = c["config"]
     if kind == "start" and target != flow["kind"]:
         return _flow(*flows.start(target))
+    if kb_answer and not (kind == "node" and target in ACTIONS):  # the exact approved answer first
+        return _flow(flow, flows.ask(flow, cfg, [kb_answer]), answered_by="kb")
     if kind == "node" and target in c["brief"]:
         return _flow(flow, flows.ask(flow, cfg, [c["brief"][target]]), answered_by="rule")
     if kind == "card":
@@ -195,6 +198,10 @@ def _answer(c: dict[str, Any], text: str, kind: str, target: str, kb_answer: str
     nothing known, becomes a lead."""
     if kind == "start":
         return _flow(*flows.start(target))
+    # Actions (book, talk to us) stay first; for information, an approved Q/A that matches the question is
+    # more exact than a general rule ("prp cost" is not the transplant price).
+    if kb_answer and not (kind == "node" and target in ACTIONS):
+        return Turn(ChatResponse(messages=[BotMessage(text=kb_answer)], ui=c["menu"]), "kb", {})
     if kind == "node" and target in c["nodes"]:
         return Turn(_response(c["nodes"][target]), "rule", {})
     if kind == "card":

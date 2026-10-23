@@ -22,15 +22,15 @@ CASES: list[tuple[str, str, str]] = [
     ("thanks", "menu", ""), ("thank you so much", "menu", ""), ("ok", "menu", ""), ("bye", "menu", ""),
     ("who are you?", "rule", "Arya"), ("are you a real person", "rule", "Arya"),
     # timings
-    ("what are your timings", "rule", "7"), ("working hours?", "any", "7"), ("are you open on sunday", "any", "Sunday"),
+    ("what are your timings", "any", "7"), ("working hours?", "any", "7"), ("are you open on sunday", "any", "Sunday"),
     ("is the clinic open on tuesday", "any", "Tuesday"), ("clinic kab khulta hai", "any", "7"),
     ("what time do you close", "any", "7"),
     # location
-    ("where is the clinic", "rule", "Marathahalli"), ("address pls", "any", "Marathahalli"),
+    ("where is the clinic", "any", "Marathahalli"), ("address pls", "any", "Marathahalli"),
     ("how do i reach you", "any", "Marathahalli"), ("clinic kahan hai", "any", "Marathahalli"),
     ("google maps link", "any", "maps"), ("adress", "any", "Marathahalli"),
     # cost
-    ("how much does hair transplant cost", "rule", "graft"), ("price?", "any", "graft"),
+    ("how much does hair transplant cost", "any", "graft"), ("price?", "any", "graft"),
     ("hair transplant ka kitna kharcha hai", "any", "graft"), ("cost per graft", "any", "60"),
     ("is there emi", "any", "EMI"), ("can i pay in installments", "any", "EMI"), ("prp cost", "any", "consultation"),
     # doctor
@@ -39,7 +39,7 @@ CASES: list[tuple[str, str, str]] = [
     # treatments
     ("what is prp", "any", "PRP"), ("tell me about gfc", "any", "GFC"), ("what is qr678", "any", "QR678"),
     ("do you do beard transplant", "any", "beard"), ("eyebrow transplant", "any", "yebrow"),
-    ("can women get hair transplant", "any", "omen"), ("transplant without shaving", "any", "nshaven"),
+    ("can women get hair transplant", "any", "emale"), ("transplant without shaving", "any", "nshaven"),
     ("my previous transplant failed can you fix it", "any", "epair"), ("what treatments do you offer", "any", ""),
     ("how long does surgery take", "any", "hours"), ("when can i go back to office", "any", "days"),
     # international and photos
