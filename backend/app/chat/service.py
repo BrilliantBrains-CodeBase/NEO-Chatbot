@@ -7,7 +7,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import embed, engine, flows, kb, leads, store, understand
+from app.chat import context, embed, engine, flows, kb, leads, store, understand
 from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -21,9 +21,11 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
         said = store.patient_text(req, state)
+        req = context.as_text(req)  # a button that asks a question: as if typed
         started = time.perf_counter()
         steps: list[Step] = []
-        hit = await _kb(conn, req, steps)
+        question = engine.asked(req, state)
+        hit = await _kb(conn, req, steps, question)
         turn = engine.respond(req, state, await _slots(conn, req, state), hit.answer if hit else None)
         if turn.completed:
             try:
@@ -41,6 +43,10 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         keep = [c for c in state.get("shown", []) if c not in new]
         turn.state["shown"] = (new + keep)[:60]
         turn.state["last_shown"] = new  # typed text is matched against these only
+        c = content(req.client_id)
+        if c is not None:
+            bot = [m.text for m in turn.reply.messages]
+            context.remember(state, turn.state, req, said, bot, turn.reply.ui, turn.answered_by, question, c)
         await store.save_turn(
             conn, req, said, [m.text for m in turn.reply.messages], turn.answered_by, turn.state
         )
@@ -69,29 +75,50 @@ def _ms(since: float) -> int:
     return round((time.perf_counter() - since) * 1000)
 
 
-async def _kb(conn: asyncpg.Connection, req: ChatRequest, steps: list[Step]) -> kb.Answer | None:
+async def _kb(
+    conn: asyncpg.Connection, req: ChatRequest, steps: list[Step], question: str | None = None
+) -> kb.Answer | None:
     """The approved knowledge base match for typed text, with each check noted in steps. Never for
-    emergencies or medical questions, which the engine sends to the doctor and the team."""
-    text = " ".join((req.payload.text or "").lower().split())
+    emergencies or medical questions, which the engine sends to the doctor and the team.
+    question: the text as meant in this chat (a follow-up with its topic filled in, engine.asked)."""
+    typed = " ".join((req.payload.text or "").lower().split())
+    text = " ".join((question or typed).lower().split())
     if req.event != "text" or not text:
         return None
     t = time.perf_counter()
     for name, pattern in (("emergency", understand.EMERGENCY), ("medical", understand.MEDICAL)):
-        if pattern.search(text):
+        if pattern.search(typed) or pattern.search(text):
             steps.append({"step": name, "result": "matched", "ms": _ms(t)})
             return None
     steps.append({"step": "emergency_medical", "result": "no match", "ms": _ms(t)})
-    t = time.perf_counter()
-    hit = await kb.search(conn, req.client_id, text)
-    result = hit.question if hit else "no match"
-    steps.append({"step": "kb_regular", "result": result, "score": hit.score if hit else None, "ms": _ms(t)})
-    if hit:
-        return hit
-    t = time.perf_counter()
-    hit, score = await kb.semantic(conn, req.client_id, text)
-    result = hit.question if hit else ("model loading" if score is None and not embed.ready() else "no match")
-    steps.append({"step": "kb_semantic", "result": result, "score": score, "ms": _ms(t)})
-    return hit
+    if context.is_vague(typed):  # "tell me more": the engine reads the chat, nothing to search
+        steps.append({"step": "context", "result": "follow-up to the last reply"})
+        return None
+    # With the topic filled in first; then the patient's own words ("is there emi" is not about the topic).
+    asks = [text]
+    if text != typed:
+        steps.append({"step": "context", "result": text})
+        asks.append(typed)
+    # Approved Q/A first (written for patients), then the single facts; by words before by meaning.
+    for q in asks:
+        for name, find in (("kb_regular", kb.search), ("kb_fact_regular", kb.fact)):
+            t = time.perf_counter()
+            hit = await find(conn, req.client_id, q)
+            result = hit.question if hit else "no match"
+            steps.append({"step": name, "query": q, "result": result, "score": hit.score if hit else None,
+                          "ms": _ms(t)})  # fmt: skip
+            if hit:
+                return hit
+    for q in asks:
+        for name, near in (("kb_semantic", kb.semantic), ("kb_fact_semantic", kb.fact_semantic)):
+            t = time.perf_counter()
+            hit, score = await near(conn, req.client_id, q)
+            loading = score is None and not embed.ready()
+            result = hit.question if hit else ("model loading" if loading else "no match")
+            steps.append({"step": name, "query": q, "result": result, "score": score, "ms": _ms(t)})
+            if hit:
+                return hit
+    return None
 
 
 async def _trace(
@@ -111,9 +138,10 @@ async def _trace(
     if answered not in ("emergency", "medical"):
         steps.insert(1, {"step": "rules", "result": "matched" if answered == "rule" else "no match"})
     used = hit if answered == "kb" else None
+    qa = used if used and used.source == "qa" else None  # a fact is named in the steps
     await conn.execute(
         """insert into app.rag_traces (clinic_id, session_id, question, answered_by, kb_qa_id, kb_score,
              steps, total_ms) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)""",
-        req.client_id, req.session_id, (req.payload.text or "")[:500], answered, used.id if used else None,
+        req.client_id, req.session_id, (req.payload.text or "")[:500], answered, qa.id if qa else None,
         used.score if used else None, json.dumps(steps), _ms(started),
     )  # fmt: skip

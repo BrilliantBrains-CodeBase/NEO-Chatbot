@@ -131,10 +131,10 @@ def test_callback_with_topic_and_question_lead() -> None:
         "Thanks, Omar. Our team will call you on +971 501234567 about **International patient** during clinic hours."
     )
     q = Chat()
-    first = q.type("Do you have parking?")
-    assert first.startswith("I don't have a confirmed answer for that yet.") and first.endswith(
-        "May I know your full name?"
-    )
+    assert q.type("Do you have parking?") == engine.NO_ANSWER  # asked first: the form starts only on yes
+    assert q.state["pending_q"] == "Do you have parking?"
+    assert q.type("yes") == "May I know your full name?"
+    assert q.state["flow"]["reason"] == "Do you have parking?"
     q.type("Priya Sharma")
     q.type("9876543210")
     assert q.type("priya@example.com") == "Thanks, Priya. Our team will contact you on +91 9876543210."

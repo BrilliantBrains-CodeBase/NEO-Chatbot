@@ -255,6 +255,11 @@
 .nb-msg.bot b {
   color: var(--rose-d);
 }
+.nb-msg.bot .nb-link {
+  color: var(--rose-d);
+  text-decoration: underline;
+  word-break: break-all;
+}
 .nb-typing {
   display: flex;
   gap: 4px;

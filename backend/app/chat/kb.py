@@ -26,12 +26,20 @@ STOP = set(
 )
 
 
+# Words too general to stand alone: "which treatments are there" is not "Are celebrity treatments different?".
+GENERAL = set(
+    "treatment treatments procedure procedures option options service services hair clinic doctor "
+    "transplant information info details".split()
+)
+
+
 @dataclass(frozen=True)
 class Answer:
     id: str
-    question: str
+    question: str  # the approved question, or the fact's name ("clinic name")
     answer: str
     score: float
+    source: str = "qa"  # "qa" (app.kb_qa) or "fact" (app.kb_facts)
 
 
 @dataclass(frozen=True)
@@ -78,6 +86,8 @@ def best(rows: list[_Row], text: str) -> Answer | None:
         return None
     # One meaningful word ("emi", "visa") is enough only when it points to one or two questions.
     single = len(query.split()) == 1
+    if single and query in GENERAL:
+        return None
     if single:
         exact = [r for r in rows if query in r.keys]
         holders = exact or [r for r in rows if any(query in k.split() for k in r.keys)]
@@ -147,6 +157,73 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
         Answer(str(row["id"]), row["question"], row["answer"], score) if row["sim"] >= SEMANTIC_MIN else None
     )
     return hit, score
+
+
+# --- Facts (layer 1): approved single facts (clinic name, email, languages...), matched by their NAME ------
+# Measured on CL01: patient questions scored 0.78 to 1.00 against the right fact's name ("clinic name") and at
+# most 0.73 against any fact when no fact fits; against name + full text the two overlapped, so the name only.
+
+FACT_MIN = 0.76
+FACT_GAP = 0.05  # and clearly closer than the next fact
+_facts: dict[str, tuple[float, list[_Row]]] = {}
+_fact_vectors: dict[str, list[float]] = {}  # by fact name: the name decides the meaning, not the text
+
+
+def fact_text(key: str, value: str) -> str:
+    """A fact as the patient sees it. A bare value (an email, a link) gets its name in front."""
+    value = value.strip()
+    if " " in value:
+        return value
+    return f"{key.replace('_', ' ').capitalize()}: {value}"
+
+
+async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
+    now = time.monotonic()
+    hit = _facts.get(clinic_id)
+    if hit and now - hit[0] < CACHE_S:
+        return hit[1]
+    rows = [
+        _Row(str(r["id"]), r["key"].replace("_", " "), fact_text(r["key"], r["value"]), (words(r["key"]),))
+        for r in await conn.fetch(
+            "select id, key, value from app.kb_facts where clinic_id = $1 and status = 'approved'", clinic_id
+        )
+    ]
+    _facts[clinic_id] = (now, rows)
+    return rows
+
+
+async def fact(conn: asyncpg.Connection, clinic_id: str, text: str) -> Answer | None:
+    """The approved fact whose name the question uses ("clinic name", "email id"), if confident."""
+    hit = best(await _fact_rows(conn, clinic_id), text)
+    return Answer(hit.id, hit.question, hit.answer, hit.score, "fact") if hit else None
+
+
+async def fact_semantic(
+    conn: asyncpg.Connection, clinic_id: str, text: str
+) -> tuple[Answer | None, float | None]:
+    """The approved fact closest by meaning ("which languages do you speak" -> languages spoken), if close
+    enough and clearly ahead of the next one; also the best score, for the trace."""
+    if not embed.ready():
+        return None, None
+    rows = await _fact_rows(conn, clinic_id)
+    if not rows:
+        return None, None
+    for r in rows:
+        if r.question not in _fact_vectors:
+            _fact_vectors[r.question] = await embed.vector(r.question)
+    q = await embed.vector(text)
+    ranked = sorted(((_cos(q, _fact_vectors[r.question]), r) for r in rows), key=lambda x: -x[0])
+    top, row = ranked[0]
+    second = ranked[1][0] if len(ranked) > 1 else 0.0
+    score = round(top * 100, 1)
+    if top >= FACT_MIN and top - second >= FACT_GAP:
+        return Answer(row.id, row.question, row.answer, score, "fact"), score
+    return None, score
+
+
+def _cos(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    return dot / ((sum(x * x for x in a) ** 0.5) * (sum(y * y for y in b) ** 0.5) or 1.0)
 
 
 async def warm() -> None:

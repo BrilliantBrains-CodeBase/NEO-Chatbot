@@ -49,3 +49,30 @@ test('closing and reopening keeps the conversation and does not start again', as
   await expect(panel.locator('.nb-msg.bot:not(.nb-typing)')).toHaveCount(1);
   expect(sent).toHaveLength(1);
 });
+
+test('a web address in bot text is a link that opens in a new tab; text around it stays plain', async ({
+  page,
+}) => {
+  await page.unroute('**/v1/chat/message');
+  await page.route('**/v1/chat/message', (route) =>
+    route.fulfill({
+      json: {
+        messages: [
+          { type: 'text', text: '**Address**\nMap: https://maps.app.goo.gl/jKaWhcfQuKZXRvE48. See you!' },
+        ],
+        ui: { type: 'chips', options: [], main: true },
+        input: { mode: 'text', placeholder: 'Type your question' },
+      },
+    }),
+  );
+  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
+  const link = panel.locator('.nb-msg.bot a.nb-link');
+  await expect(link).toHaveText('https://maps.app.goo.gl/jKaWhcfQuKZXRvE48');
+  await expect(link).toHaveAttribute('href', 'https://maps.app.goo.gl/jKaWhcfQuKZXRvE48');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(panel.locator('.nb-msg.bot')).toContainText('. See you!');
+  await expect(panel.locator('.nb-menu')).toHaveCount(0); // under an answer: only the Main menu link
+  await expect(panel.getByRole('button', { name: 'Main menu' })).toBeVisible();
+});

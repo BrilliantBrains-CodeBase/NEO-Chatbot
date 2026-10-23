@@ -124,8 +124,37 @@ async def test_semantic_matching_by_meaning(tx: asyncpg.Connection) -> None:
     assert miss is None and low is not None and low < 83  # the near miss is still reported for the trace
     steps: list[service.Step] = []
     await service._kb(tx, req("text", text="who won the cricket match"), steps)  # no word match
-    assert [s["step"] for s in steps] == ["emergency_medical", "kb_regular", "kb_semantic"]
+    assert [s["step"] for s in steps] == [
+        "emergency_medical", "kb_regular", "kb_fact_regular", "kb_semantic", "kb_fact_semantic"
+    ]  # fmt: skip
     await tx.execute("update app.kb_qa set variants = 'map' where id = $1", qa)  # staff edit
     assert await tx.fetchval("select embedding is null from app.kb_qa where id = $1", qa)
     kb._cache.clear()
     kb._filled.clear()
+
+
+def test_a_bare_fact_value_gets_its_name() -> None:
+    assert kb.fact_text("email", "info@x.com") == "Email: info@x.com"
+    assert kb.fact_text("clinic_name", "Neo Follicle Clinic, Bengaluru.") == "Neo Follicle Clinic, Bengaluru."
+
+
+@pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
+async def test_facts_answer_by_their_name_only_when_approved(tx: asyncpg.Connection) -> None:
+    kb._facts.clear()
+    await tx.execute(
+        """insert into app.kb_facts (clinic_id, key, value, status, approved_at) values
+           ('CL99', 'clinic_name', 'Test Clinic, Bengaluru.', 'approved', now()),
+           ('CL99', 'email', 'hello@test.example', 'approved', now()),
+           ('CL99', 'wifi_password', 'Draft only.', 'draft', null)"""
+    )
+    name = await kb.fact(tx, "CL99", "clinic name")
+    assert name and name.answer == "Test Clinic, Bengaluru." and name.source == "fact"
+    email = await kb.fact(tx, "CL99", "email id")
+    assert email and email.answer == "Email: hello@test.example"
+    assert await kb.fact(tx, "CL99", "wifi password") is None  # a draft never answers
+    assert await kb.fact(tx, "CL99", "do you treat acne") is None
+    steps: list[service.Step] = []
+    hit = await service._kb(tx, req("text", text="what is the clinic name"), steps)
+    assert hit and hit.source == "fact"
+    assert [s["step"] for s in steps][-1] == "kb_fact_regular"
+    kb._facts.clear()

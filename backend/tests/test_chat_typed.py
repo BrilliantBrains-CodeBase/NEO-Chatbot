@@ -127,10 +127,7 @@ def test_main_menu_typed_anywhere_and_medical_without_a_flow() -> None:
     c.type("", "start")
     c.type("Book Consultation")
     assert c.type("main menu") == engine.MAIN_MENU_TEXT
-    reply = c.type("Is minoxidil safe for me?")
-    assert reply.startswith("I don't have a confirmed answer for that yet.") and reply.endswith(
-        "May I know your full name?"
-    )
+    assert c.type("Is minoxidil safe for me?") == engine.NO_ANSWER  # never answered; a call back offered
 
 
 @pytest.mark.parametrize("text", ["no", "No thanks", "skip", "not now", "nahi", "I don't want to share"])

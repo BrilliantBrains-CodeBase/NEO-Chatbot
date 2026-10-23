@@ -141,6 +141,13 @@ REFUSAL = re.compile(
     r"^(no|nope|nah|na|no thanks|no thank you|not now|later|skip|cancel|stop|leave it|not interested|"
     r"(i )?(don'?t|do not) want( to)?( share| give)?( it)?|nahi|nahin|nai|rehne do|mat)[.! ]*$"
 )
+# Words no name has: at the name step, "clinic location" is a question, not a patient called "Clinic".
+NOT_A_NAME = re.compile(
+    r"\b(clinic|location|address|where|what|when|why|how|which|timings?|hours|open|cost|price|fees?|charges?|"
+    r"emi|book\w*|appointment|consult\w*|treatments?|transplant|hair|prp|gfc|beard|eyebrows?|doctor|parking|"
+    r"results?|offer|available|tell|more|info|details?|help|menu|call|number|phone|whatsapp|need|want)\b"
+)
+
 # Small talk: the whole message only, so "hi, what does PRP cost?" is still a question.
 SMALL_TALK: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -168,7 +175,10 @@ def small_talk(text: str) -> str | None:
 IDENTITY = re.compile(
     r"\b(who are you|what are you|who is this|who am i (talking|chatting) (to|with)|"
     r"are you an? (bot|robot|human|real person|person|ai)|are you (a )?(bot|robot|human|real|ai)|"
-    r"what'?s your name|what is your name|your name)\b"
+    r"what'?s your name|what is your name|your name|"
+    r"(human|person|bot|robot|ai|machine|real)( or | ya |/)(human|person|bot|robot|ai|machine|real)|"
+    r"(is this|am i (talking|chatting|speaking) (to|with)) (an? )?(bot|robot|human|real person|person|ai|machine)|"
+    r"(real|actual) (person|human)|chatbot)\b"
 )
 
 INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
