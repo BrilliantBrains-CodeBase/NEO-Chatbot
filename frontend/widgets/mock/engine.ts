@@ -4,7 +4,7 @@
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
 import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
-import { IDENTITY, REFUSAL, route } from './router';
+import { IDENTITY, REFUSAL, route, smallTalk } from './router';
 import { isMenu, isYes, matchOption, parseDate, parseTime } from './typing';
 
 const GREETING: Record<string, string> = {
@@ -479,6 +479,8 @@ function choicesOf(res: ChatResponse): Choice[] {
   ];
 }
 
+const THANKS = "You're welcome! Is there anything else I can help you with?";
+const BYE = 'Thank you for chatting with us. Take care!';
 const NOT_AVAILABLE_DATE = 'That date is not available. Please choose another date.';
 const NOT_AVAILABLE_TIME = 'That time is not available. Please choose one of the times shown.';
 
@@ -581,6 +583,14 @@ function respond(req: ChatRequest): ChatResponse {
   const tap = typedTap(req.session_id, flow, text);
   if (tap && 'messages' in tap) return tap;
   if (tap) return respond({ ...req, event: 'button', payload: tap });
+  const chat = smallTalk(low);
+  if (chat && !(flow && INPUT_STEPS.includes(flow.step))) {
+    const said = { greeting: ARYA.greeting, thanks: THANKS, bye: BYE, ok: 'How can I help you today?' }[
+      chat
+    ]!;
+    if (flow) return ask(flow, chat === 'ok' ? [] : [said]); // a booking stays open: the same step again
+    return menu(client, said);
+  }
   if (flow) return typed(req.session_id, flow, text, req.payload.cc);
   return answer(req.session_id, text);
 }

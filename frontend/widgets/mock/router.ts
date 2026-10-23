@@ -61,3 +61,19 @@ export const REFUSAL =
 // Questions about the bot itself.
 export const IDENTITY =
   /\b(who are you|what are you|who is this|who am i (talking|chatting) (to|with)|are you an? (bot|robot|human|real person|person|ai)|are you (a )?(bot|robot|human|real|ai)|what'?s your name|what is your name|your name)\b/;
+
+// Small talk: the whole message only, so "hi, what does PRP cost?" is still a question.
+const SMALL_TALK: [string, RegExp][] = [
+  [
+    'greeting',
+    /^(hi+|hey+|hello+|helo|hlo|namaste|namaskar|good (morning|afternoon|evening))( there| arya)?[!. ]*$/,
+  ],
+  [
+    'thanks',
+    /^(thanks?|thank (you|u)|thx|ty|dhanyavad|shukriya|great thanks)( a lot| so much| very much)?[!. ]*$/,
+  ],
+  ['bye', /^(bye+|bye bye|good ?bye|see (you|ya)|take care|tata)[!. ]*$/],
+  ['ok', /^(ok+|okay|fine|cool|alright|got it|hmm+|sure|great|nice)[!. ]*$/],
+];
+
+export const smallTalk = (text: string) => SMALL_TALK.find(([, re]) => re.test(text))?.[0] ?? null;

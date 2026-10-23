@@ -315,7 +315,7 @@
   },
   {
    "q": "Where is the clinic located?",
-   "v": "address\nlocation\nclinic kahan hai\nhow to reach\ndirections",
+   "v": "address\nlocation\nclinic kahan hai\nhow to reach\ndirections\ngoogle maps link\nmap\nlocation link",
    "a": "We are at 1st floor, Scorpio House, Near Marathahalli Bridge, Munnekolala, Opposite Purvankara Apt, Marathahalli Bridge Service Road, Bengaluru 560037. Map: https://maps.app.goo.gl/jKaWhcfQuKZXRvE48",
    "cat": "clinic_info",
    "t": null,
@@ -323,7 +323,7 @@
   },
   {
    "q": "What are the clinic timings?",
-   "v": "opening hours\nwhen are you open\nclinic timing\nis the clinic open on sunday\ntuesday open",
+   "v": "opening hours\nwhen are you open\nclinic timing\nis the clinic open on sunday\ntuesday open\nwhat time do you close\nclosing time\nclinic kab khulta hai\nkab tak khula hai\nworking hours",
    "a": "Monday, and Wednesday to Sunday, 10:00 AM to 7:00 PM. Closed on Tuesday.",
    "cat": "clinic_info",
    "t": null,
@@ -371,7 +371,7 @@
   },
   {
    "q": "I live abroad. How does it work?",
-   "v": "international patient\ncoming from abroad\nnri\nmedical tourism",
+   "v": "international patient\ncoming from abroad\nnri\nmedical tourism\ni live in dubai\ni am from usa\ncoming from uk\nliving outside india",
    "a": "Planning starts with a virtual consultation before you travel. Scalp assessment, graft count and donor mapping are confirmed on video. The procedure fits inside one trip, and follow-ups continue by WhatsApp, email or video call after you return home.",
    "cat": "treatment",
    "t": "Hair Transplant Medical Tourism",

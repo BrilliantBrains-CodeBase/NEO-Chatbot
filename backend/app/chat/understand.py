@@ -141,6 +141,29 @@ REFUSAL = re.compile(
     r"^(no|nope|nah|na|no thanks|no thank you|not now|later|skip|cancel|stop|leave it|not interested|"
     r"(i )?(don'?t|do not) want( to)?( share| give)?( it)?|nahi|nahin|nai|rehne do|mat)[.! ]*$"
 )
+# Small talk: the whole message only, so "hi, what does PRP cost?" is still a question.
+SMALL_TALK: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "greeting",
+        re.compile(
+            r"^(hi+|hey+|hello+|helo|hlo|namaste|namaskar|good (morning|afternoon|evening))( there| arya)?[!. ]*$"
+        ),
+    ),
+    (
+        "thanks",
+        re.compile(
+            r"^(thanks?|thank (you|u)|thx|ty|dhanyavad|shukriya|great thanks)( a lot| so much| very much)?[!. ]*$"
+        ),
+    ),
+    ("bye", re.compile(r"^(bye+|bye bye|good ?bye|see (you|ya)|take care|tata)[!. ]*$")),
+    ("ok", re.compile(r"^(ok+|okay|fine|cool|alright|got it|hmm+|sure|great|nice)[!. ]*$")),
+]
+
+
+def small_talk(text: str) -> str | None:
+    return next((name for name, pattern in SMALL_TALK if pattern.match(text)), None)
+
+
 # Questions about the bot itself.
 IDENTITY = re.compile(
     r"\b(who are you|what are you|who is this|who am i (talking|chatting) (to|with)|"

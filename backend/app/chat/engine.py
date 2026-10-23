@@ -108,6 +108,8 @@ def respond(
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
 ACTIONS = {"book", "talk"}  # rule targets that do something, not just inform
+THANKS = "You're welcome! Is there anything else I can help you with?"
+BYE = "Thank you for chatting with us. Take care!"
 STOPPED = "No problem. How else can I help you?"
 NOT_AVAILABLE_DATE = flows.NOT_AVAILABLE_DATE
 NOT_AVAILABLE_TIME = flows.NOT_AVAILABLE_TIME
@@ -135,6 +137,14 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | No
     if tap:
         tap_req = req.model_copy(update={"event": "button", "payload": Payload(**tap)})
         return respond(tap_req, state, c["config"].get("slots_by_day"))
+    chat = understand.small_talk(low)
+    if chat and not (flow and flow["step"] in INPUT_STEPS):
+        said = {"greeting": c["greeting"], "thanks": THANKS, "bye": BYE, "ok": MAIN_MENU_TEXT}[chat]
+        if flow:  # a booking stays open: the same step again
+            return _flow(
+                flow, flows.ask(flow, c["config"], [] if chat == "ok" else [said]), answered_by="rule"
+            )
+        return Turn(ChatResponse(messages=[BotMessage(text=said)], ui=c["menu"]), "menu", {})
     if flow:
         cfg = c["config"]
         exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
