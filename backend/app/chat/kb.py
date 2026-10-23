@@ -231,21 +231,24 @@ async def fact_semantic(
     rows = await _fact_rows(conn, clinic_id)
     if not rows:
         return None, None
-    missing = sorted({w for r in rows for w in _fact_wordings[r.id] if w not in _fact_vectors})
-    if missing:
-        for w, v in zip(missing, await embed.vectors(missing), strict=True):
-            _fact_vectors[w] = [float(x) for x in v]
-    q = await embed.vector(text)
-    # A fact is as close as its closest wording.
-    ranked = sorted(
-        ((max(_cos(q, _fact_vectors[w]) for w in _fact_wordings[r.id]), r) for r in rows), key=lambda x: -x[0]
-    )
+    ranked = await _fact_scores(await embed.vector(text), rows)
     top, row = ranked[0]
     second = ranked[1][0] if len(ranked) > 1 else 0.0
     score = round(top * 100, 1)
     if top >= FACT_MIN and top - second >= FACT_GAP:
         return Answer(row.id, row.question, row.answer, score, "fact"), score
     return None, score
+
+
+async def _fact_scores(q: list[float], rows: list[_Row]) -> list[tuple[float, _Row]]:
+    """Every fact with how close it is to the question, closest first. A fact is as close as its closest
+    wording (its name or another wording)."""
+    missing = sorted({w for r in rows for w in _fact_wordings[r.id] if w not in _fact_vectors})
+    if missing:
+        for w, v in zip(missing, await embed.vectors(missing), strict=True):
+            _fact_vectors[w] = [float(x) for x in v]
+    scored = [(max(_cos(q, _fact_vectors[w]) for w in _fact_wordings[r.id]), r) for r in rows]
+    return sorted(scored, key=lambda x: -x[0])
 
 
 def _cos(a: list[float], b: list[float]) -> float:
