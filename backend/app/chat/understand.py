@@ -134,7 +134,17 @@ EMERGENCY = re.compile(
 MEDICAL = re.compile(
     r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitab\w*|candidate|eligib\w*|how many grafts|right for me|"
     r"is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|"
-    r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b"
+    r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure[ds]?|hurts?|hurting|risks?|"
+    # suitability: what this patient should have
+    r"should i (get|go for|take|do|use|try)|should i choose (?!you|your|neo|this clinic)|"
+    r"do i need (a |an )?(transplant|surgery|prp|gfc|qr678|exosomes?|treatment|grafts?)|"
+    r"(best|better|right) for me|which (one|treatment) (is|should)|"
+    r"which (shampoo|oil|serum|vitamins?|supplements?) should|"
+    # aftercare: what to do before or after the procedure
+    r"(alcohol|drink\w*|smok\w*|wash\w*|shampoo\w*|gym|exercise|workout|swim\w*|helmet|sleep\w*|diet|sex)\b.*\b"
+    r"(after|before) (the |my |a )?(surgery|transplant|procedure|prp|gfc|treatment|session)|"
+    r"(after|before) (the |my |a )?(surgery|transplant|procedure|prp|gfc|treatment|session)\b.*\b"
+    r"(alcohol|drink\w*|smok\w*|wash\w*|shampoo\w*|gym|exercise|workout|swim\w*|helmet|sleep\w*|diet|sex))\b"
 )
 # Saying no to a form question ("no", "skip", "not now"): the whole message, so "no 98..." is not caught.
 REFUSAL = re.compile(
@@ -182,21 +192,51 @@ IDENTITY = re.compile(
 )
 
 INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
-    (re.compile(r"\b(online|video ?call|from home|google meet|virtual)\b"), ("start", "online")),
+    # "online" alone is not a video consultation: "estimate online", "online hair test" are other things.
+    (
+        re.compile(
+            r"^(?!.*\b(estimates?|calculator|cost|price|assessment|analysis|test|brochure)\b)"
+            r".*\b(online|video ?call|from home|google meet|virtual)\b"
+        ),
+        ("start", "online"),
+    ),
     (re.compile(r"\bcancel"), ("start", "cancel")),
     (
         re.compile(r"\b(reschedul\w*|postpone|change (my )?(appointment|booking|date|slot))\b"),
         ("start", "reschedule"),
     ),
-    (re.compile(r"\b(call ?back|callback)\b"), ("start", "callback")),
-    (re.compile(r"\b(cost|price|fees?|charges?|package|emi|how much|rates?)\b"), ("node", "cost")),
-    (re.compile(r"\b(book\w*|appointment|consult\w*|slots?)\b"), ("node", "book")),
-    (re.compile(r"\b(results?|before and after|before after|gallery|photos?)\b"), ("node", "results")),
+    (re.compile(r"\b(call ?back|callback|call me back)\b"), ("start", "callback")),
     (
-        re.compile(r"\b(timings?|hours|open|address|location|where|directions?|map|landmark)\b"),
+        re.compile(
+            r"\b(cost|price|fees?|charges?|package|emi|how much|rates?|kharcha|lagega|"
+            r"kitna (hoga|paisa|lagta)|kitne (ka|ki|ke|paise|rupaye))\b"
+        ),
+        ("node", "cost"),
+    ),
+    (re.compile(r"\b(book\w*|appointment|consult\w*|slots?)\b"), ("node", "book")),
+    # Photos to be checked or sent are not the results gallery.
+    (
+        re.compile(
+            r"^(?!.*\b(check|assess\w*|analy\w*|send|share|upload|privacy|private)\b)"
+            r".*\b(results?|before and after|before after|gallery|photos?)\b"
+        ),
+        ("node", "results"),
+    ),
+    (
+        re.compile(
+            r"\b(timings?|hours|open|opening|closed?|address|adres+|location|where|directions?|map|landmark|"
+            r"kahan|floor|pin ?code|holiday|weekly off|working days|kitne baje|khul\w*|band (hota|hoti|rehta))\b"
+        ),
         ("node", "clinic"),
     ),
-    (re.compile(r"\b(call|whatsapp|contact|number|phone|talk)\b"), ("node", "talk")),
+    # "talk in kannada", "gst number" are not a wish to call: only contact words and asking to talk to us.
+    (
+        re.compile(
+            r"\b(call( me)?|whatsapp|contact|(phone|mobile|contact|clinic|your|whatsapp) (number|no)|phone|"
+            r"(talk|speak) (to|with) (someone|a human|a person|the team|your team|you|the doctor|doctor))\b"
+        ),
+        ("node", "talk"),
+    ),
     (re.compile(r"\b(doctors?|dr|sandeep|surgeons?)\b"), ("node", "about")),
     (re.compile(r"\b(international|abroad|overseas|travel|fly|nri)\b"), ("node", "intl")),
 ]
@@ -218,6 +258,6 @@ def route(raw: str, c: dict[str, Any]) -> tuple[str, str]:
     for alias, name in c["aliases"].items():
         if re.search(rf"\b{alias}\b", text):
             return "card", name
-    if re.search(r"\b(treatments?|explore|options|procedures?)\b", text):
+    if re.search(r"\b(treatments?|explore|options|services)\b", text):  # not "procedure": that is the surgery
         return "node", "treat"
     return "lead", ""

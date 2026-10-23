@@ -22,7 +22,7 @@ MIN_SCORE = 86  # below this, no answer (a wrong answer is worse than a call bac
 STOP = set(
     "a an the is are am was be do does did can could will would should i me my we you your our it its "
     "this that there here of in on at to for from with and or what how when where who which why "
-    "please tell about any have has get know want need hai ka ki ke ko kya hain mujhe aap se".split()
+    "please tell about any have has get know want hai ka ki ke ko kya hain mujhe aap se".split()
 )
 
 
@@ -30,6 +30,13 @@ STOP = set(
 GENERAL = set(
     "treatment treatments procedure procedures option options service services hair clinic doctor "
     "transplant information info details".split()
+)
+
+
+# Words that add nothing next to a one-word wording ("address pls", "prp kya hai batao").
+FILLER = set(
+    "pls plz please kya batao bataiye bolo details detail info information sir madam mam ji clinic "
+    "yours ok okay now available availability id link number".split()
 )
 
 
@@ -90,20 +97,30 @@ def best(rows: list[_Row], text: str) -> Answer | None:
         return None
     if single:
         exact = [r for r in rows if query in r.keys]
-        holders = exact or [r for r in rows if any(query in k.split() for k in r.keys)]
-        if len(holders) > 2:
-            return None  # too general ("transplant"): not a confident answer
-        if holders:
+        holders = [r for r in rows if any(query in k.split() for k in r.keys)]
+        # A word in several questions ("surgery", "process") is not a confident answer, even when one wording
+        # is only that word; one exact wording among at most two holders is ("emi").
+        if exact and len(holders) <= 2:
+            r = exact[0]
+            return Answer(r.id, r.question, r.answer, 90.0)
+        if not exact and len(holders) == 1:
             r = holders[0]
             return Answer(r.id, r.question, r.answer, 90.0)
         # not found as a word: still checked below for typos ("adress")
+    asked = set(query.split())
     top: tuple[float, float, _Row] | None = None
     for row in rows:
+        own = FILLER | {w for k in row.keys for w in k.split()}  # its own words also fit ("transplant kitne")
         for key in row.keys:
             # Whole wording against whole question, tolerant of word order and small typos. One being
             # inside the other also counts (a little lower). Ties go to the closer overall wording.
             close = max(fuzz.token_sort_ratio(query, key), fuzz.ratio(query, key))
-            score = close if single and len(query) < 6 else max(close, fuzz.token_set_ratio(query, key) - 4)
+            # A one-word wording inside a longer message counts only when the rest is filler or words of the
+            # same question: "address pls" is the address, "email address" or "does prp hurt" is not.
+            inside = len(key.split()) > 1 or asked - {key} <= own
+            within = fuzz.token_set_ratio(query, key) - 4 if inside else 0
+            # One word is never matched by being inside a longer wording ("surgery" is not "need surgery").
+            score = close if single else max(close, within)
             if score >= MIN_SCORE and (top is None or (score, close) > top[:2]):
                 top = (score, close, row)
     return Answer(top[2].id, top[2].question, top[2].answer, top[0]) if top else None

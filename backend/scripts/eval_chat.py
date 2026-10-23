@@ -3,6 +3,7 @@ Uses the real clinic content and APPROVED knowledge base (read only; nothing is 
 
     uv run python -m scripts.eval_chat            # failures only
     uv run python -m scripts.eval_chat --all      # every message and conversation
+    uv run python -m scripts.eval_chat --big      # the big set (scripts/eval_set_cl01.py)
 """
 
 import asyncio
@@ -15,6 +16,7 @@ from app.chat import context, embed, engine, service, store
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
 from app.core.config import get_settings
+from scripts.eval_set_cl01 import CASES as BIG
 
 # (message, expected layer, a word the reply must contain; "" = any)
 # layers: emergency, medical, rule, kb, lead, menu, start (a flow begins)
@@ -122,24 +124,29 @@ async def turn_of(
 
 
 def ok_for(want: str, word: str, layer: str, reply: str) -> bool:
-    return (want == "any" and layer not in ("lead", "medical", "emergency") or layer == want) and (
-        word.lower() in reply.lower()
-    )
+    answered = want == "any" and layer not in ("lead", "medical", "emergency")
+    never = want == "noanswer" and layer in ("lead", "medical")  # either way, it is not answered
+    return (answered or never or layer == want) and word.lower() in reply.lower()
 
 
 def line(ok: bool, text: str, want: str, layer: str, reply: str) -> str:
     return f"{'PASS' if ok else 'FAIL'}  {text!r:46} want {want:9} got {layer:9} {reply[:70]!r}"
 
 
-async def main(show_all: bool) -> None:
+async def main(show_all: bool, big: bool) -> None:
     await embed.warm()
     conn = await asyncpg.connect(get_settings().database_url, statement_cache_size=0)
+    cases = BIG if big else CASES
     passed = talks = 0
+    by_want: dict[str, list[int]] = {}
     try:
-        for text, want, word in CASES:
+        for text, want, word in cases:
             layer, reply, _ = await turn_of(conn, text, {})
             ok = ok_for(want, word, layer, reply)
             passed += ok
+            score = by_want.setdefault(want, [0, 0])
+            score[0] += ok
+            score[1] += 1
             if show_all or not ok:
                 print(line(ok, text, want, layer, reply))
         for talk in CONVERSATIONS:
@@ -156,8 +163,9 @@ async def main(show_all: bool) -> None:
                 print("\n".join(lines))
     finally:
         await conn.close()
-    print(f"\n{passed}/{len(CASES)} messages, {talks}/{len(CONVERSATIONS)} conversations passed")
+    print("\n" + ", ".join(f"{w} {ok}/{n}" for w, (ok, n) in sorted(by_want.items())))
+    print(f"{passed}/{len(cases)} messages, {talks}/{len(CONVERSATIONS)} conversations passed")
 
 
 if __name__ == "__main__":
-    asyncio.run(main("--all" in sys.argv))
+    asyncio.run(main("--all" in sys.argv, "--big" in sys.argv))
