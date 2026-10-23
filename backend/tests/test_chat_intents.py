@@ -25,7 +25,7 @@ def _text(text: str, intent: str | None, kb_answer: str | None = None) -> engine
 
 
 def test_a_topic_does_what_its_rule_does() -> None:
-    assert _text("kab aa sakta hoon", "book").reply.messages[0].text == "What would you like to do?"
+    assert _text("kab aa sakta hoon", "book").state["flow"]["kind"] == "book"  # booking starts at once
     assert "Arya" in _text("bot ho kya", "identity").reply.messages[0].text
     assert _text("thanks a ton yaar", "thanks").reply.messages[0].text == engine.THANKS
     callback = _text("ring me back", "callback")
@@ -74,3 +74,26 @@ async def test_only_approved_phrases_and_wordings_count(tx: asyncpg.Connection) 
     assert medical == [{"step": "medical", "result": "matched"}]  # and not even looked up
     intents._rows.clear()
     kb._facts.clear()
+
+
+def test_a_phrase_can_name_the_exact_button_under_a_general_rule() -> None:
+    assert intents.refines(("node", "cost"), "cost_receding")
+    assert intents.refines(("node", "treat"), "t_prp_treatment") and intents.refines(("node", "treat"), "hf")
+    assert intents.refines(("start", "book"), "reschedule")
+    assert not intents.refines(("node", "cost"), "t_prp_treatment")
+    assert not intents.refines(("node", "clinic"), "x")
+    receding = _text("my hairline is going back, cost?", "cost_receding", kb_answer="General cost answer.")
+    assert receding.answered_by == "rule" and "1,000 to 1,800" in receding.reply.messages[0].text
+    prp = _text("plasma treatment for hair", "t_prp_treatment")
+    assert prp.reply.messages[0].text.startswith("**PRP Treatment**")
+
+
+def test_treatment_topics_use_letters_only() -> None:
+    assert intents.treatment_topic("PRP Treatment") == "t_prp_treatment"
+    assert intents.treatment_topic("QR678 Treatment") == "t_qr_treatment"
+    assert len(intents.treatment_topic("Direct Hair Transplant (DHI / FUE)")) <= 30
+
+
+@pytest.mark.parametrize("text", ["why is my hair falling", "why am i going bald", "is my hair loss normal"])
+def test_cause_and_normal_questions_are_medical(text: str) -> None:
+    assert _text(text, "hf").answered_by == "lead"

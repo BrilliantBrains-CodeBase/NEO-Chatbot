@@ -88,7 +88,7 @@ async def _ask(db: asyncpg.Connection, text: str, state: dict[str, object] | Non
 @pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 async def test_every_question_is_traced_step_by_step(tx: asyncpg.Connection) -> None:
     kb._cache.clear()
-    for text in ("do you provide visa assistance", "is it painful", "book an appointment", "sell shampoo?"):
+    for text in ("do you provide visa assistance", "is it painful", "talk to someone", "sell shampoo?"):
         await _ask(tx, text)
     await _ask(tx, "Asha Rao", {"flow": {"kind": "book", "step": "name"}})  # a form answer: not traced
     rows = await tx.fetch(

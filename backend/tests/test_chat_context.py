@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from app.chat import context, engine, store
+from app.chat import context, engine, store, understand
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
 
@@ -196,3 +196,42 @@ def test_a_knowledge_base_answer_shows_only_the_main_menu_link() -> None:
     )  # fmt: skip
     turn = engine.respond(req, {}, None, "We are at 1st floor, Scorpio House. Map: https://maps.app.goo.gl/x")
     assert turn.answered_by == "kb" and turn.reply.ui == engine.AFTER_ANSWER
+
+
+@pytest.mark.parametrize(
+    ("first", "then", "kind"),
+    [("cancel my appointment", "reschudle my appointment", "reschedule"),
+     ("reschedule my appointment", "no, i want to cancle it", "cancel"),
+     ("call me back", "i want an online consultation", "online")],
+)  # fmt: skip
+def test_another_request_in_a_form_switches_to_it(first: str, then: str, kind: str) -> None:
+    c = Chat()
+    c.type(first)
+    c.type(then)
+    assert c.state["flow"]["kind"] == kind and c.state["flow"]["step"] == "name"
+
+
+def test_a_name_is_still_a_name_and_cancer_is_not_cancel() -> None:
+    c = Chat()
+    c.type("cancel my appointment")
+    c.type("Idress Khan")
+    assert c.state["flow"]["kind"] == "cancel" and c.state["flow"]["step"] == "phone"
+    assert understand.spelled("cancer treatment") == "cancer treatment"
+
+
+@pytest.mark.parametrize(
+    ("text", "treatment"),
+    [("I want to book an appointment", None), ("book appointment", None), ("i need a slot", None),
+     ("book for prp", "Non-Surgical Treatment (GFC, PRP, QR678)"),
+     ("book beard transplant", "Beard Transplant")],
+)  # fmt: skip
+def test_a_booking_request_starts_the_booking_at_once(text: str, treatment: str | None) -> None:
+    c = Chat()
+    assert c.type(text) == "Sure, let's book your appointment. May I know your full name?"
+    assert c.state["flow"]["kind"] == "book" and c.state["flow"]["treatment"] == treatment
+
+
+def test_a_question_about_the_consultation_is_not_a_booking() -> None:
+    c = Chat()
+    c.type("what is included in the consultation")
+    assert "flow" not in c.state

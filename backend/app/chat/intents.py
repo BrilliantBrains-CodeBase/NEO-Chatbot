@@ -20,10 +20,34 @@ WORDS_MIN = 92  # the phrase itself with a small typo ("r u a bto")
 # what should i do" (not to be answered) scored 0.827. Medical messages never reach this step.
 MEANING_MIN = 0.83
 MEANING_GAP = 0.03  # clearly closer to this topic than to any other
+OVERRIDE_MIN = 0.88  # a phrase replaces an approved KB answer with a more exact button only when this close
 
 # What each topic does in the chat (engine): a reply of its own, a menu topic, or a flow.
 SMALL_TALK = {"greeting", "thanks", "bye", "ok"}
-STARTS = {"online", "cancel", "reschedule", "callback"}
+STARTS = {"book", "online", "cancel", "reschedule", "callback"}  # these start their flow at once
+
+
+# Keyword rules that only know the general subject; a phrase may name the exact button under it.
+GENERAL = {("node", "cost"), ("node", "treat"), ("node", "book"), ("start", "book")}
+
+
+def refines(rule: tuple[str, str], topic: str) -> bool:
+    """Whether the topic is an exact button under this general rule (cost -> "cost_receding", treatments ->
+    "t_prp_treatment", booking -> "online")."""
+    if rule == ("node", "cost"):
+        return topic.startswith("cost_")
+    if rule == ("node", "treat"):
+        return topic in ("ht", "hf", "notsure") or topic.startswith("t_")
+    if rule in (("node", "book"), ("start", "book")):
+        return topic in ("online", "cancel", "reschedule")
+    return False
+
+
+def treatment_topic(name: str) -> str:
+    """The topic for a treatment card: "t_" and the name's letters ("PRP Treatment" -> "t_prp_treatment"),
+    at most 30 characters, letters and "_" only like every topic ("QR678 Treatment" -> "t_qr_treatment")."""
+    letters = "_".join("".join(ch if "a" <= ch <= "z" else " " for ch in name.lower()).split())
+    return ("t_" + letters)[:30].rstrip("_")
 
 
 @dataclass(frozen=True)

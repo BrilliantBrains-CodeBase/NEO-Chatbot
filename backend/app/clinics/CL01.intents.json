@@ -58,8 +58,83 @@
       "can you ring me", "please give me a call", "call me later", "mujhe call karo", "ring me back"
     ],
     "online": [
-      "can i consult from home", "virtual appointment", "video consultation possible"
-    ]
+      "can i consult from home", "virtual appointment", "video consultation possible",
+      "can i talk to the doctor on video", "consult without coming to the clinic", "remote consultation",
+      "zoom call with doctor", "i cannot travel can we talk online"
+    ],
+    "cancel": [
+      "i will not be able to come", "i can't make it to my appointment", "drop my booking",
+      "i don't want the appointment anymore", "remove my appointment", "call off my visit"
+    ],
+    "reschedule": [
+      "can i change the date", "move my appointment to another day", "i want a different time",
+      "shift my booking", "can we do it later", "i need another slot instead"
+    ],
+    "ht": [
+      "hair transplant options", "types of hair transplant", "what kind of transplants do you do",
+      "tell me about hair transplant", "transplant procedures", "surgical options for baldness",
+      "i want to know about transplants"
+    ],
+    "hf": [
+      "hair fall treatments", "my hair is falling", "treatment for hair loss without surgery",
+      "non surgical options", "scalp treatments", "thinning hair treatment", "hair loss solutions",
+      "losing a lot of hair"
+    ],
+    "notsure": [
+      "help me choose a treatment", "i don't know which treatment", "confused about which treatment",
+      "not sure what i need", "guide me to the right option", "help me decide"
+    ],
+    "doc_sandeep": [
+      "dr sandeep profile", "tell me about dr mahapatra", "who is sandeep mahapatra",
+      "sandeep sir details", "full profile of the doctor"
+    ],
+    "cost_receding": [
+      "my hairline is going back", "receding hairline cost", "price for front hairline",
+      "forehead hairline transplant cost", "my temples are bald how much", "hairline restoration price"
+    ],
+    "cost_crown": [
+      "crown thinning cost", "bald spot on top of my head price", "crown area transplant cost",
+      "thin crown how much", "vertex baldness cost"
+    ],
+    "cost_front_crown": [
+      "front and crown both", "hairline and crown cost", "front and top both thinning price",
+      "both front and back of head"
+    ],
+    "cost_advanced": [
+      "i am completely bald", "advanced baldness cost", "full head transplant price",
+      "very less hair left how much", "almost no hair on top"
+    ],
+    "cost_beard": [
+      "beard transplant price", "cost of eyebrow transplant", "beard or eyebrow cost",
+      "how much for a fuller beard", "eyebrow price"
+    ],
+    "cost_unsure": [
+      "i don't know my baldness pattern", "not sure about my hair loss stage",
+      "which pattern am i, what will it cost"
+    ],
+    "t_prp_treatment": ["platelet rich plasma", "blood injection for hair", "plasma therapy for hair"],
+    "t_gfc_treatment": ["growth factor concentrate", "growth factor treatment", "gfc therapy"],
+    "t_qr_treatment": ["qr 678", "peptide injection for hair", "qr678 therapy"],
+    "t_exosome_therapy": ["exosomes for hair", "exosome hair treatment", "regenerative exosome"],
+    "t_dutexome_treatment": ["dutexome microneedling", "dutasteride microneedling", "mesotherapy for hair"],
+    "t_stem_cell_therapy": ["stem cells for hair", "stem cell hair regrowth", "regenerative stem cell treatment"],
+    "t_laser_hair_therapy": ["low level laser", "red light therapy for hair", "laser for hair growth"],
+    "t_scalp_micropigmentation": ["scalp tattoo", "hair tattoo", "pigmentation for bald scalp", "smp treatment"],
+    "t_alopecia_treatment": ["patchy hair loss", "bald patches", "alopecia areata treatment", "spot baldness"],
+    "t_dandruff_treatment": ["flaky scalp", "dandruff problem", "scalp flakes treatment"],
+    "t_direct_hair_transplant_dhi_f": ["dhi transplant", "fue transplant", "direct hair implantation",
+      "follicular unit extraction"],
+    "t_hair_transplant_for_men": ["transplant for men", "male hair transplant", "hair transplant for guys",
+      "male pattern baldness transplant"],
+    "t_female_hair_transplant": ["transplant for women", "ladies hair transplant", "hair transplant for females",
+      "women hair thinning transplant"],
+    "t_failed_hair_transplant_repai": ["fix a bad transplant", "previous transplant failed", "revision transplant",
+      "correct my old transplant"],
+    "t_unshaven_hair_transplant": ["transplant without shaving head", "no shave transplant", "unshaven fue",
+      "keep my hair long during transplant"],
+    "t_body_hair_transplant": ["use chest hair", "beard hair to scalp", "body hair as donor"],
+    "t_beard_transplant": ["patchy beard", "beard transplant", "fuller beard", "moustache transplant"],
+    "t_eyebrow_restoration": ["thin eyebrows", "eyebrow transplant", "fuller eyebrows", "eyebrow hair restoration"]
   },
   "fact_variants": {
     "social": ["instagram", "insta", "insta id", "facebook", "fb page", "youtube", "social media", "follow you"],

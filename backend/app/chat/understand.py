@@ -7,7 +7,7 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
-from rapidfuzz.distance import Levenshtein
+from rapidfuzz.distance import OSA, Levenshtein
 
 
 def norm(s: str) -> str:
@@ -135,6 +135,8 @@ MEDICAL = re.compile(
     r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitab\w*|candidate|eligib\w*|how many grafts|right for me|"
     r"is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|"
     r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure[ds]?|hurts?|hurting|risks?|"
+    # the cause of this patient's problem, or whether it is normal: a diagnosis
+    r"why (is|are|am|do|does|did) (my|i)|is (my|this|it) [a-z ]{0,25}normal|"
     # suitability: what this patient should have
     r"should i (get|go for|take|do|use|try)|should i choose (?!you|your|neo|this clinic)|"
     r"do i need (a |an )?(transplant|surgery|prp|gfc|qr678|exosomes?|treatment|grafts?)|"
@@ -196,13 +198,15 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
     (
         re.compile(
             r"^(?!.*\b(estimates?|calculator|cost|price|assessment|analysis|test|brochure)\b)"
-            r".*\b(online|video ?call|from home|google meet|virtual)\b"
+            r".*\b(online|video( ?call| consult\w*)?|from home|google meet|virtual)\b"
         ),
         ("start", "online"),
     ),
     (re.compile(r"\bcancel"), ("start", "cancel")),
     (
-        re.compile(r"\b(reschedul\w*|postpone|change (my )?(appointment|booking|date|slot))\b"),
+        re.compile(
+            r"\b(reschedul\w*|postpone|(change|move|shift|push) (my |the )?(appointment|booking|date|slot|visit))\b"
+        ),
         ("start", "reschedule"),
     ),
     (re.compile(r"\b(call ?back|callback|call me back)\b"), ("start", "callback")),
@@ -213,7 +217,10 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
         ),
         ("node", "cost"),
     ),
-    (re.compile(r"\b(book\w*|appointment|consult\w*|slots?)\b"), ("node", "book")),
+    # A clear wish to book starts the in-clinic booking at once ("I want to book an appointment"); the word
+    # "consultation" alone may be a question about it ("what is included in the consultation").
+    (re.compile(r"\b(book\w*|appointment|slots?)\b"), ("start", "book")),
+    (re.compile(r"\bconsult\w*\b"), ("node", "book")),
     # Photos to be checked or sent are not the results gallery.
     (
         re.compile(
@@ -242,9 +249,29 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
 ]
 
 
+# Long action words patients often misspell ("reschudle", "apointment"). Only words of 7+ letters, so short
+# words are never changed ("cancer" must not become "cancel"); misspellings of "cancel" are listed instead.
+SPELLED = ["reschedule", "appointment", "consultation", "emergency", "treatment", "transplant", "location",
+           "callback", "postpone", "timings"]  # fmt: skip
+CANCEL_TYPOS = re.compile(r"\b(cancle|cansel|cancell|cancl|cencel|cancal)\b")
+
+
+def spelled(text: str) -> str:
+    """The text with misspelled action words written correctly (1 wrong letter in 7-8 letters, 2 in longer)."""
+    text = CANCEL_TYPOS.sub("cancel", text)
+    words = text.split(" ")
+    for i, w in enumerate(words):
+        if len(w) < 7 or w in SPELLED:
+            continue
+        near = [s for s in SPELLED if OSA.distance(w, s) <= (1 if len(w) < 9 else 2)]
+        if len(near) == 1:
+            words[i] = near[0]
+    return " ".join(words)
+
+
 def route(raw: str, c: dict[str, Any]) -> tuple[str, str]:
     """("emergency", ""), ("lead", ""), ("start", kind), ("node", key) or ("card", treatment)."""
-    text = " ".join(raw.lower().split())
+    text = spelled(" ".join(raw.lower().split()))
     if EMERGENCY.search(text):
         return "emergency", ""
     if MEDICAL.search(text):

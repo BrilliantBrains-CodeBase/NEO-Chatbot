@@ -19,6 +19,7 @@ from app.chat import context, embed, engine, intents, kb, service, store
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
 from app.core.config import get_settings
+from scripts.eval_set_buttons_cl01 import CASES as BUTTONS
 from scripts.eval_set_cl01 import CASES as BIG
 
 CLINICS = Path(__file__).resolve().parent.parent / "app" / "clinics"
@@ -117,7 +118,7 @@ async def turn_of(
     question = engine.asked(r, state)
     steps: list[service.Step] = []
     hit = await service._kb(conn, r, steps, question)
-    topic = None if hit else await service._intent(conn, r, state, question, steps)
+    topic = await service._intent(conn, r, state, question, steps, answered=hit is not None)
     turn = engine.respond(r, state, None, hit.answer if hit else None, topic)
     first = steps[0]["step"] if steps else ""
     layer = first if first in ("emergency", "medical") else turn.answered_by
@@ -157,12 +158,12 @@ async def use_draft(conn: asyncpg.Connection, clinic: str) -> None:
     kb._facts[clinic] = (float("inf"), extra)
 
 
-async def main(show_all: bool, big: bool, draft: bool) -> None:
+async def main(show_all: bool, big: bool, draft: bool, buttons: bool = False) -> None:
     await embed.warm()
     conn = await asyncpg.connect(get_settings().database_url, statement_cache_size=0)
     if draft:
         await use_draft(conn, "CL01")
-    cases = BIG if big else CASES
+    cases = BIG if big else BUTTONS if buttons else CASES
     passed = talks = 0
     by_want: dict[str, list[int]] = {}
     try:
@@ -194,4 +195,6 @@ async def main(show_all: bool, big: bool, draft: bool) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main("--all" in sys.argv, "--big" in sys.argv, "--draft" in sys.argv))
+    asyncio.run(
+        main("--all" in sys.argv, "--big" in sys.argv, "--draft" in sys.argv, "--buttons" in sys.argv)
+    )

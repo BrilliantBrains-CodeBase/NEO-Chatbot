@@ -26,7 +26,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         steps: list[Step] = []
         question = engine.asked(req, state)
         hit = await _kb(conn, req, steps, question)
-        topic = None if hit else await _intent(conn, req, state, question, steps)
+        topic = await _intent(conn, req, state, question, steps, answered=hit is not None)
         slots = await _slots(conn, req, state)
         turn = engine.respond(req, state, slots, hit.answer if hit else None, topic)
         if turn.completed:
@@ -124,16 +124,23 @@ async def _kb(
 
 
 async def _intent(
-    conn: asyncpg.Connection, req: ChatRequest, state: dict[str, Any], question: str, steps: list[Step]
+    conn: asyncpg.Connection,
+    req: ChatRequest,
+    state: dict[str, Any],
+    question: str,
+    steps: list[Step],
+    answered: bool = False,
 ) -> str | None:
     """The topic from the approved example phrases (T2), only for typed text nothing else understood and that
     is not an emergency or medical (those are never answered)."""
     if steps and steps[0]["step"] in ("emergency", "medical"):
         return None
-    if not engine.wants_intent(req, state, question):
+    if not engine.wants_intent(req, state, question, answered):
         return None
     t = time.perf_counter()
     hit, score = await intents.find(conn, req.client_id, question)
+    if hit and answered and hit.how == "meaning" and hit.score < intents.OVERRIDE_MIN * 100:
+        hit = None  # over an approved answer, only a very close phrase may name a more exact button
     steps.append(
         {"step": f"intent_{hit.how}" if hit else "intent", "result": hit.intent if hit else "no match",
          "example": hit.example if hit else None, "score": score, "ms": _ms(t)}

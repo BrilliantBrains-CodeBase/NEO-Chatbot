@@ -159,6 +159,11 @@ def _text(
     if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
         # "no" to a form question ends the form; nothing is saved.
         return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
+    if flow and flow["step"] in ("name", "phone", "email") and kind == "start" and target != flow["kind"]:
+        # Another request while a form is open ("reschedule my appointment" while cancelling): switch to it.
+        # One word switches only when it is a clear action ("reschedule"); "Online" alone may be a name.
+        if len(low.split()) > 1 or target in ("cancel", "reschedule"):
+            return _flow(*_start(c, target, text))
     if understand.IDENTITY.search(low) or intent == "identity":
         if flow:
             return _flow(flow, flows.ask(flow, c["config"], [c["greeting"]]), answered_by="rule")
@@ -196,12 +201,23 @@ def _text(
     question = context.resolve(text, state, c)
     if question != text:
         kind, target = understand.route(question, c)
-    if kind == "lead" and intent and not kb_answer and not understand.MEDICAL.search(question.lower()):
-        # No keyword rule fitted, but an approved example phrase did ("kab aa sakta hoon" -> book).
+    # No keyword rule fitted but an approved phrase did ("kab aa sakta hoon" -> book); or only a general
+    # rule fitted (cost) and a phrase names the exact button under it ("receding hairline cost").
+    nothing = kind == "lead" and not kb_answer
+    if (
+        intent
+        and (nothing or intents.refines((kind, target), intent))
+        and not understand.MEDICAL.search(question.lower())
+    ):
+        cards = {intents.treatment_topic(name): name for name in c["treatments"]}
         if intent in intents.STARTS:
             kind, target = "start", intent
         elif intent in c["nodes"]:
             kind, target = "node", intent
+        elif intent in cards:  # "t_prp_treatment" -> the PRP Treatment card
+            kind, target = "card", cards[intent]
+        if not nothing:
+            kb_answer = None  # the exact button the patient named, not a general approved answer
     # A follow-up about a detail of the topic is not answered by showing the topic's card again.
     follow_up = question != text and kind == "card" and target == state.get("topic")
     if flow:
@@ -209,9 +225,10 @@ def _text(
     return _answer(c, question, kind, target, kb_answer, follow_up)
 
 
-def wants_intent(req: ChatRequest, state: State, question: str) -> bool:
+def wants_intent(req: ChatRequest, state: State, question: str, answered: bool = False) -> bool:
     """Whether the service should look for the topic in the example phrases: typed text that no keyword rule,
-    small talk or follow-up already covers, and that is not a typed answer to a form step."""
+    small talk or follow-up already covers (or only a general rule, which a phrase may make exact), and that
+    is not a typed answer to a form step. answered: an approved KB answer was found."""
     c = content(req.client_id)
     text = (req.payload.text or "").strip()
     low = " ".join(text.lower().split())
@@ -222,7 +239,10 @@ def wants_intent(req: ChatRequest, state: State, question: str) -> bool:
         return False
     if understand.IDENTITY.search(low) or understand.small_talk(low) or understand.is_menu(text):
         return False
-    return not context.is_vague(text) and understand.route(question, c) == ("lead", "")
+    if context.is_vague(text):
+        return False
+    rule = understand.route(question, c)
+    return rule in intents.GENERAL or (rule == ("lead", "") and not answered)
 
 
 def asked(req: ChatRequest, state: State) -> str:
@@ -303,7 +323,7 @@ def _mid_flow(
     """A question in the middle of a flow: a short answer (or noted for the team), then the same step."""
     cfg = c["config"]
     if kind == "start" and target != flow["kind"]:
-        return _flow(*flows.start(target))
+        return _flow(*_start(c, target, text))
     if kb_answer and not _acts(kind, target, text):  # the exact approved answer first
         return _flow(flow, flows.ask(flow, cfg, [kb_answer]), answered_by="kb")
     if kind == "node" and target in c["brief"]:
@@ -326,7 +346,7 @@ def _answer(
     """Typed text with no flow open: the keyword rules, then the approved knowledge base. Medical, or
     nothing known: the offer of a call back (the form starts only on yes)."""
     if kind == "start":
-        return _flow(*flows.start(target))
+        return _flow(*_start(c, target, text))
     # Actions (book, talk to us) stay first; for information, an approved Q/A that matches the question is
     # more exact than a general rule ("prp cost" is not the transplant price).
     if kb_answer and not _acts(kind, target, text):
@@ -341,6 +361,15 @@ def _answer(
         return Turn(ChatResponse(messages=[BotMessage(text=kb_answer)], ui=AFTER_ANSWER), "kb", {})
     offer = ChatResponse(messages=[BotMessage(text=NO_ANSWER)], ui=OFFER_UI)
     return Turn(offer, "lead", {"pending_q": text[:500]})
+
+
+def _start(c: dict[str, Any], kind: str, text: str) -> tuple[flows.Flow, ChatResponse]:
+    """A flow started by typing. A booking naming a treatment ("book for PRP") starts with it filled in."""
+    named = context.treatment_in(text, c) if kind == "book" else None
+    if named:
+        option = named[0] if named[0] in c["config"]["treatments"] else c["booking_option"].get(named[0])
+        return flows.start("book", treatment=option)
+    return flows.start(kind)
 
 
 def _flow(flow: flows.Flow | None, reply: ChatResponse, answered_by: str = "flow") -> Turn:
