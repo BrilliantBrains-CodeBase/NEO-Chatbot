@@ -139,8 +139,12 @@ async def _intent(
         return None
     t = time.perf_counter()
     hit, score = await intents.find(conn, req.client_id, question)
-    if hit and answered and hit.how == "meaning" and hit.score < intents.OVERRIDE_MIN * 100:
-        hit = None  # over an approved answer, only a very close phrase may name a more exact button
+    c = content(req.client_id)
+    general = c is not None and understand.route(question, c) in intents.STRICT
+    if hit and (answered or general) and hit.how == "meaning" and hit.score < intents.OVERRIDE_MIN * 100:
+        # Over an approved answer or a general rule ("treatments"), only a very close phrase may name a more
+        # exact button: "i want to know treatments" is the treatment list, not "help me choose".
+        hit = None
     steps.append(
         {"step": f"intent_{hit.how}" if hit else "intent", "result": hit.intent if hit else "no match",
          "example": hit.example if hit else None, "score": score, "ms": _ms(t)}

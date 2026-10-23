@@ -181,6 +181,12 @@ def _text(
         if understand.REFUSAL.match(low):
             return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
     in_form = bool(flow and flow["step"] in INPUT_STEPS)
+    if not in_form and "treat" in c["nodes"]:
+        whole_list = understand.MORE_OF_LIST.search(low) and _about_treatments(state.get("last_ui"))
+        if understand.ALL_TREATMENTS.search(low) or whole_list:  # "more treatments", "only 4 or more?"
+            if flow:
+                return _flow(flow, flows.ask(flow, c["config"], [all_treatments(c).messages[0].text]), "rule")
+            return Turn(all_treatments(c), "rule", {})
     if context.is_vague(text) and not in_form:
         return _vague(state, c, flow)
     chat = understand.small_talk(low) or (intent if intent in intents.SMALL_TALK else None)
@@ -257,11 +263,43 @@ def asked(req: ChatRequest, state: State) -> str:
     return context.resolve(text, state, c)
 
 
+def _about_treatments(ui: dict[str, Any] | None) -> bool:
+    """Whether a reply's buttons were a list of treatments (the treatments menu or one of its groups)."""
+    return any(
+        o.get("action") == "treat" or (o.get("action") == "go" and o.get("value") in ("treat", "ht", "hf"))
+        for o in (ui or {}).get("options", [])
+    )
+
+
+def all_treatments(c: dict[str, Any]) -> ChatResponse:
+    """Every treatment the clinic offers, by group, built from its own treatment buttons (so it stays right
+    when the clinic changes them), with the treatment menu to tap a group."""
+    treat = c["nodes"]["treat"]
+    lines, alone, count = [], [], 0
+    for o in treat["ui"]["options"]:
+        node = c["nodes"].get(o.get("value", "")) if o.get("action") == "go" else None
+        group = (node or {}).get("ui", {}).get("options", [])
+        names = [x["value"] for x in group if x.get("action") == "treat"]
+        if names:
+            lines.append(f"**{o['label']}:** {', '.join(names)}")
+            count += len(names)
+        elif o.get("action") == "treat":
+            alone.append(o["value"])
+    if alone:
+        lines.append(f"**Also:** {', '.join(alone)}")
+        count += len(alone)
+    tail = "Tap a group or type a treatment to learn more."
+    text = f"We offer {count} treatments:\n" + "\n".join(lines) + "\n" + tail
+    return ChatResponse(messages=[BotMessage(text=text)], ui=treat.get("ui"))
+
+
 def _vague(state: State, c: dict[str, Any], flow: flows.Flow | None) -> Turn:
     """ "Tell me more", "something else": read from the bot's last reply what "more" is about."""
     if flow:  # a booking is open: its step again
         return _flow(flow, flows.ask(flow, c["config"]), answered_by="rule")
     last = state.get("last_ui")
+    if _about_treatments(last) and "treat" in c["nodes"]:  # more after a treatment list: all of them
+        return Turn(all_treatments(c), "rule", {})
     topic = state.get("topic_now")  # a treatment talked about in the last turn
     is_card = any(o.get("action") == "book_for" for o in (last or {}).get("options", []))
     choices = [o for o in shown_choices(last) if o["action"] != "menu"]

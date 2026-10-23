@@ -80,7 +80,10 @@ CASES: list[tuple[str, str, str]] = [
 # Conversations (C1): each message is read with the chat before it. "tap action value" is a button.
 # ("recovery?" is not in the approved KB yet, so the call back is right.)
 CONVERSATIONS: list[list[tuple[str, str, str]]] = [
-    [("which treatments are there", "rule", ""), ("I want more", "rule", "Which one")],
+    [("which treatments are there", "rule", ""), ("I want more", "rule", "18 treatments")],
+    [("what are the treatments", "rule", "explore"), ("only 4 or more ?", "rule", "18 treatments")],
+    [("I want to know treatments", "rule", "explore"), ("more treatments", "rule", "18 treatments")],
+    [("what are services you people provide", "rule", "explore"), ("is that all?", "rule", "18 treatments")],
     [("hi", "menu", ""), ("tell me more", "rule", "Which one")],
     [("tell me about beard transplant", "any", "eard"), ("tell me more", "rule", "Beard Transplant")],
     [("tap treat PRP Treatment", "any", "PRP"), ("how much does it cost", "any", ""), ("and for gfc?", "any", "")],

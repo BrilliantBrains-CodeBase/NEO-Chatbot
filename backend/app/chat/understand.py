@@ -160,6 +160,18 @@ NOT_A_NAME = re.compile(
     r"results?|offer|available|tell|more|info|details?|help|menu|call|number|phone|whatsapp|need|want)\b"
 )
 
+# Asking for every treatment ("more treatments", "all your services", "list of treatments"), not their cost.
+ALL_TREATMENTS = re.compile(
+    r"^(?!.*\b(cost|price|fees?|charges?)\b).*("
+    r"\b(all|more|other|full|complete|entire|rest of( the)?)\b[a-z ]{0,20}\b(treatments?|services|procedures)\b|"
+    r"\blist of (treatments?|services|procedures)\b|\bhow many (treatments?|services)\b)"
+)
+# Asking whether a list is complete ("only 4 or more?", "is that all?", "any others?"): about the last list.
+MORE_OF_LIST = re.compile(
+    r"^(only (\d+|these|this|that|four|five)|(is|are) (that|these|this) (all|it|the only)|that'?s all|"
+    r"any (more|others?)|(\d+|four|five) (only|or more))\b|\bor more\W*$"
+)
+
 # Small talk: the whole message only, so "hi, what does PRP cost?" is still a question.
 SMALL_TALK: list[tuple[str, re.Pattern[str]]] = [
     (

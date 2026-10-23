@@ -29,6 +29,9 @@ STARTS = {"book", "online", "cancel", "reschedule", "callback"}  # these start t
 
 # Keyword rules that only know the general subject; a phrase may name the exact button under it.
 GENERAL = {("node", "cost"), ("node", "treat"), ("node", "book"), ("start", "book")}
+# Of those, the ones whose own reply is usually what was meant ("i want to know treatments" is the list):
+# only a very close phrase (OVERRIDE_MIN) may replace it. Cost options are named clearly enough.
+STRICT = {("node", "treat"), ("node", "book"), ("start", "book")}
 
 
 def refines(rule: tuple[str, str], topic: str) -> bool:

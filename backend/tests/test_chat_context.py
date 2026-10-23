@@ -87,10 +87,18 @@ def test_resolve(text: str, state: dict[str, Any], want: str) -> None:
 
 def test_more_after_a_list_shows_that_list_again() -> None:
     c = Chat()
+    c.type("how much does it cost")  # a list of hair loss patterns
+    cost_ui = c.reply.ui
+    assert c.type("I want more") == engine.WHICH
+    assert c.reply.ui == cost_ui
+
+
+def test_more_after_the_treatment_list_shows_every_treatment() -> None:
+    c = Chat()
     c.type("which treatments are there")
     treat_ui = c.reply.ui
-    assert c.type("I want more") == engine.WHICH
-    assert c.reply.ui == treat_ui
+    assert c.type("I want more").startswith("We offer 18 treatments:")
+    assert c.reply.ui == treat_ui  # the same groups to tap
     assert c.type("Beard").startswith("**Beard Transplant**")  # its buttons still work by typing
 
 
@@ -235,3 +243,23 @@ def test_a_question_about_the_consultation_is_not_a_booking() -> None:
     c = Chat()
     c.type("what is included in the consultation")
     assert "flow" not in c.state
+
+
+@pytest.mark.parametrize(
+    ("first", "then"),
+    [("what are the treatments", "only 4 or more ?"), ("what are the treatments", "is that all?"),
+     ("which treatments are there", "more"), ("hi", "more treatments"), ("hi", "list of all your services")],
+)  # fmt: skip
+def test_asking_for_more_treatments_lists_every_one(first: str, then: str) -> None:
+    c = Chat()
+    c.type(first)
+    reply = c.type(then)
+    assert reply.startswith("We offer 18 treatments:")
+    assert "PRP Treatment" in reply and "Eyebrow Restoration" in reply
+
+
+def test_only_4_or_more_after_another_list_is_not_the_treatments() -> None:
+    c = Chat()
+    c.type("international patients")
+    assert not c.type("only 4 or more?").startswith("We offer")
+    assert Chat().type("all treatments cost").startswith("Hair transplant cost")  # cost, not the list
