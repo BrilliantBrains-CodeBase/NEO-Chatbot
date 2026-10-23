@@ -132,7 +132,7 @@ EMERGENCY = re.compile(
 )
 # Healthcare and medicine questions are never answered (client decision): they always become a lead.
 MEDICAL = re.compile(
-    r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitable for me|right for me|"
+    r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitab\w*|candidate|eligib\w*|how many grafts|right for me|"
     r"is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|"
     r"itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b"
 )

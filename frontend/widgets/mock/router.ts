@@ -14,7 +14,7 @@ const EMERGENCY =
 
 // Healthcare and medicine questions are never answered (client decision): they always become a lead.
 const MEDICAL =
-  /\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitable for me|right for me|is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b/;
+  /\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitab\w*|candidate|eligib\w*|how many grafts|right for me|is it normal|minoxidil|finasteride|biotin|steroids?|diabet\w*|blood pressure|thyroid|pregnan\w*|pain(ful)?|itch(y|ing)?|rash|infection|swelling|diagnos\w*|symptoms?|cure)\b/;
 
 const INTENTS: [RegExp, Route][] = [
   [/\b(online|video ?call|from home|google meet|virtual)\b/, { to: 'start', kind: 'online' }],

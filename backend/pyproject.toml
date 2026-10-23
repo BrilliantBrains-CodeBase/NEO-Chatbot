@@ -74,3 +74,5 @@ ignore_missing_imports = true
 "tests/test_chat_typed.py" = ["E501"]
 # Keyword and date patterns stay on one line each, so they are easy to compare with the mock.
 "app/chat/understand.py" = ["E501"]
+# The typed-message test set is a table, one row of cases per line.
+"scripts/eval_chat.py" = ["E501"]
