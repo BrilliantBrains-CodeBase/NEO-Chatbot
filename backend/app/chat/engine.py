@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.chat import context, flows, understand
+from app.chat import context, flows, intents, understand
 from app.chat.content import content
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Payload
 from app.chat.store import State
@@ -78,10 +78,12 @@ def treatment_card(c: dict[str, Any], name: str) -> ChatResponse | None:
 
 
 def respond(
-    req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None, kb_answer: str | None = None
-) -> Turn:
+    req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None, kb_answer: str | None = None,
+    intent: str | None = None,
+) -> Turn:  # fmt: skip
     """slots: free slots per day from the database; the service loads them while a booking is open.
-    kb_answer: the approved knowledge base answer for typed text, if one matched (service)."""
+    kb_answer: the approved knowledge base answer for typed text, if one matched (service).
+    intent: the topic of typed text from approved example phrases, when no rule or answer fitted (service)."""
     c = content(req.client_id)
     if c is None:  # a clinic without content yet: greet, never fail
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
@@ -118,7 +120,7 @@ def respond(
                 return Turn(card, "flow", {})
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)], ui=c["menu"]), "menu", {})
 
-    return _text(req, state, c, kb_answer)
+    return _text(req, state, c, kb_answer, intent)
 
 
 NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team."
@@ -144,7 +146,9 @@ NOT_AVAILABLE_TIME = flows.NOT_AVAILABLE_TIME
 INPUT_STEPS = {"name", "phone", "email", "reason", "cb_reason"}
 
 
-def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | None = None) -> Turn:
+def _text(
+    req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | None = None, intent: str | None = None
+) -> Turn:
     """Typed text: emergency first, then anything that stands for a tap, then the open step or the rules."""
     text = (req.payload.text or "").strip()
     flow = state.get("flow")
@@ -155,7 +159,7 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | No
     if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
         # "no" to a form question ends the form; nothing is saved.
         return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
-    if understand.IDENTITY.search(low):
+    if understand.IDENTITY.search(low) or intent == "identity":
         if flow:
             return _flow(flow, flows.ask(flow, c["config"], [c["greeting"]]), answered_by="rule")
         return Turn(ChatResponse(messages=[BotMessage(text=c["greeting"])], ui=c["menu"]), "rule", {})
@@ -174,7 +178,7 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | No
     in_form = bool(flow and flow["step"] in INPUT_STEPS)
     if context.is_vague(text) and not in_form:
         return _vague(state, c, flow)
-    chat = understand.small_talk(low)
+    chat = understand.small_talk(low) or (intent if intent in intents.SMALL_TALK else None)
     if chat and not (flow and flow["step"] in INPUT_STEPS):
         said = {"greeting": c["greeting"], "thanks": THANKS, "bye": BYE, "ok": MAIN_MENU_TEXT}[chat]
         if flow:  # a booking stays open: the same step again
@@ -192,11 +196,33 @@ def _text(req: ChatRequest, state: State, c: dict[str, Any], kb_answer: str | No
     question = context.resolve(text, state, c)
     if question != text:
         kind, target = understand.route(question, c)
+    if kind == "lead" and intent and not kb_answer and not understand.MEDICAL.search(question.lower()):
+        # No keyword rule fitted, but an approved example phrase did ("kab aa sakta hoon" -> book).
+        if intent in intents.STARTS:
+            kind, target = "start", intent
+        elif intent in c["nodes"]:
+            kind, target = "node", intent
     # A follow-up about a detail of the topic is not answered by showing the topic's card again.
     follow_up = question != text and kind == "card" and target == state.get("topic")
     if flow:
         return _mid_flow(flow, c, question, kind, target, kb_answer, follow_up)
     return _answer(c, question, kind, target, kb_answer, follow_up)
+
+
+def wants_intent(req: ChatRequest, state: State, question: str) -> bool:
+    """Whether the service should look for the topic in the example phrases: typed text that no keyword rule,
+    small talk or follow-up already covers, and that is not a typed answer to a form step."""
+    c = content(req.client_id)
+    text = (req.payload.text or "").strip()
+    low = " ".join(text.lower().split())
+    flow = state.get("flow")
+    if req.event != "text" or c is None or not low:
+        return False
+    if flow and flow["step"] in INPUT_STEPS and not understand.NOT_A_NAME.search(low):
+        return False
+    if understand.IDENTITY.search(low) or understand.small_talk(low) or understand.is_menu(text):
+        return False
+    return not context.is_vague(text) and understand.route(question, c) == ("lead", "")
 
 
 def asked(req: ChatRequest, state: State) -> str:

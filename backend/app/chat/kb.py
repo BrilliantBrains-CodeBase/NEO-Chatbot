@@ -176,14 +176,16 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
     return hit, score
 
 
-# --- Facts (layer 1): approved single facts (clinic name, email, languages...), matched by their NAME ------
+# --- Facts (layer 1): approved single facts (clinic name, email, languages...), matched by their NAME and
+# their other wordings (T3: "insta id" -> social), never by their text.
 # Measured on CL01: patient questions scored 0.78 to 1.00 against the right fact's name ("clinic name") and at
 # most 0.73 against any fact when no fact fits; against name + full text the two overlapped, so the name only.
 
 FACT_MIN = 0.76
 FACT_GAP = 0.05  # and clearly closer than the next fact
 _facts: dict[str, tuple[float, list[_Row]]] = {}
-_fact_vectors: dict[str, list[float]] = {}  # by fact name: the name decides the meaning, not the text
+_fact_wordings: dict[str, list[str]] = {}  # fact id -> its name and other wordings
+_fact_vectors: dict[str, list[float]] = {}  # by wording
 
 
 def fact_text(key: str, value: str) -> str:
@@ -199,12 +201,16 @@ async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
     hit = _facts.get(clinic_id)
     if hit and now - hit[0] < CACHE_S:
         return hit[1]
-    rows = [
-        _Row(str(r["id"]), r["key"].replace("_", " "), fact_text(r["key"], r["value"]), (words(r["key"]),))
-        for r in await conn.fetch(
-            "select id, key, value from app.kb_facts where clinic_id = $1 and status = 'approved'", clinic_id
-        )
-    ]
+    rows = []
+    for r in await conn.fetch(
+        "select id, key, value, variants from app.kb_facts where clinic_id = $1 and status = 'approved'",
+        clinic_id,
+    ):
+        name = r["key"].replace("_", " ")
+        said = [name, *[v.strip() for v in r["variants"].splitlines() if v.strip()]]
+        keys = tuple(k for k in (words(w) for w in said) if k)
+        rows.append(_Row(str(r["id"]), name, fact_text(r["key"], r["value"]), keys))
+        _fact_wordings[str(r["id"])] = said
     _facts[clinic_id] = (now, rows)
     return rows
 
@@ -225,11 +231,15 @@ async def fact_semantic(
     rows = await _fact_rows(conn, clinic_id)
     if not rows:
         return None, None
-    for r in rows:
-        if r.question not in _fact_vectors:
-            _fact_vectors[r.question] = await embed.vector(r.question)
+    missing = sorted({w for r in rows for w in _fact_wordings[r.id] if w not in _fact_vectors})
+    if missing:
+        for w, v in zip(missing, await embed.vectors(missing), strict=True):
+            _fact_vectors[w] = [float(x) for x in v]
     q = await embed.vector(text)
-    ranked = sorted(((_cos(q, _fact_vectors[r.question]), r) for r in rows), key=lambda x: -x[0])
+    # A fact is as close as its closest wording.
+    ranked = sorted(
+        ((max(_cos(q, _fact_vectors[w]) for w in _fact_wordings[r.id]), r) for r in rows), key=lambda x: -x[0]
+    )
     top, row = ranked[0]
     second = ranked[1][0] if len(ranked) > 1 else 0.0
     score = round(top * 100, 1)

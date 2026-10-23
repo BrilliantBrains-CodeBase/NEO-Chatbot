@@ -1,0 +1,80 @@
+{
+  "_about": "DRAFT for staff approval (T4). Example phrases per chat topic (app.intent_examples) and other wordings for facts (app.kb_facts.variants), Neo Follicle CL01. Worded differently from the test set on purpose. Nothing here is used until it is approved.",
+  "intents": {
+    "identity": [
+      "are you a robot", "is this a real person", "am i chatting with a computer", "is this a bot or a human",
+      "are you automated", "who is replying to me", "are you a person or ai", "kya aap insaan ho",
+      "aap robot ho kya", "is someone actually typing", "are you chatgpt", "bot ho kya"
+    ],
+    "greeting": [
+      "hello there", "hi good morning", "hey there", "hello ji", "hi team", "namaskara", "good afternoon arya",
+      "hi how are you"
+    ],
+    "thanks": [
+      "thanks for the help", "thank you very much", "thanks a ton", "thank you arya", "ok thank you", "thnx",
+      "shukriya ji", "that was helpful thanks"
+    ],
+    "bye": [
+      "goodbye", "see you later", "bye bye take care", "talk to you later", "ok bye", "good night arya",
+      "have a nice day", "that is all", "good night"
+    ],
+    "book": [
+      "i want to come to the clinic", "when can i visit", "can i get an appointment", "fix a meeting with the doctor",
+      "i want to see the doctor", "kab aa sakta hoon", "mujhe doctor se milna hai", "can i walk in",
+      "i want to come today", "is there a slot this week", "can i come on saturday", "visit karna hai"
+    ],
+    "talk": [
+      "i want to speak to a person", "connect me to your team", "can someone help me", "i need to talk to staff",
+      "give me your helpline", "kisi se baat karni hai", "customer support", "how do i reach your team",
+      "i want a human"
+    ],
+    "clinic": [
+      "when are you closed", "is the clinic open on holidays", "which days are you working",
+      "what are the working hours", "how far is it from marathahalli bridge", "where exactly is it",
+      "which building is it in", "late evening open", "clinic kab tak khula hai"
+    ],
+    "cost": [
+      "how expensive is it", "what will it cost me", "is it affordable", "budget for a transplant",
+      "kitne paise lagenge", "total charges", "expense for hair transplant"
+    ],
+    "about": [
+      "who is the surgeon", "is the doctor qualified", "is the doctor a skin specialist", "who treats the patients",
+      "tell me about your doctor", "doctor ke baare mein batao", "who operates on me", "who does the transplant"
+    ],
+    "intl": [
+      "i live outside india", "i am coming from another country", "i stay in the gulf",
+      "do you treat patients from other countries", "i am in canada", "videsh se aa raha hoon",
+      "flying in for the procedure", "overseas patient"
+    ],
+    "results": [
+      "show me before after pictures", "patient results", "success stories", "transformation photos",
+      "see your work"
+    ],
+    "treat": [
+      "what services do you have", "what can you do for hair loss",
+      "which procedures do you offer", "what all do you do"
+    ],
+    "callback": [
+      "can you ring me", "please give me a call", "call me later", "mujhe call karo", "ring me back"
+    ],
+    "online": [
+      "can i consult from home", "virtual appointment", "video consultation possible"
+    ]
+  },
+  "fact_variants": {
+    "social": ["instagram", "insta", "insta id", "facebook", "fb page", "youtube", "social media", "follow you"],
+    "facilities": ["waiting area", "waiting room", "lounge", "amenities", "seating for family"],
+    "languages_spoken": ["language", "speak kannada", "speak hindi", "hindi bolte", "kannada gottu", "which language"],
+    "celebrity_clients": ["celebrities", "famous patients", "film stars", "actors"],
+    "why_visit": ["why choose you", "why should i come to you", "what makes you different", "why neo follicle"],
+    "philosophy": ["dermatologist led", "doctor led", "your approach"],
+    "doctor_sandeep_education": ["dermatologist", "qualification", "degree", "md dermatology"],
+    "clinic_name": ["name of the clinic", "clinic called"],
+    "phone": ["contact number", "helpline", "customer care", "mobile number"],
+    "email": ["mail", "e mail"],
+    "website": ["site", "web page", "official website"],
+    "map_link": ["google maps", "map link", "location on map"],
+    "landmark": ["nearby landmark", "landmark near the clinic"],
+    "international_support": ["foreign patients", "patients from abroad", "other countries"]
+  }
+}

@@ -4,19 +4,24 @@ Uses the real clinic content and APPROVED knowledge base (read only; nothing is 
     uv run python -m scripts.eval_chat            # failures only
     uv run python -m scripts.eval_chat --all      # every message and conversation
     uv run python -m scripts.eval_chat --big      # the big set (scripts/eval_set_cl01.py)
+    uv run python -m scripts.eval_chat --big --draft   # with the DRAFT phrases of CL01.intents.json (memory only)
 """
 
 import asyncio
+import json
 import sys
+from pathlib import Path
 from typing import Any
 
 import asyncpg
 
-from app.chat import context, embed, engine, service, store
+from app.chat import context, embed, engine, intents, kb, service, store
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
 from app.core.config import get_settings
 from scripts.eval_set_cl01 import CASES as BIG
+
+CLINICS = Path(__file__).resolve().parent.parent / "app" / "clinics"
 
 # (message, expected layer, a word the reply must contain; "" = any)
 # layers: emergency, medical, rule, kb, lead, menu, start (a flow begins)
@@ -112,7 +117,8 @@ async def turn_of(
     question = engine.asked(r, state)
     steps: list[service.Step] = []
     hit = await service._kb(conn, r, steps, question)
-    turn = engine.respond(r, state, None, hit.answer if hit else None)
+    topic = None if hit else await service._intent(conn, r, state, question, steps)
+    turn = engine.respond(r, state, None, hit.answer if hit else None, topic)
     first = steps[0]["step"] if steps else ""
     layer = first if first in ("emergency", "medical") else turn.answered_by
     if turn.state.get("flow") and layer == "flow":
@@ -133,9 +139,29 @@ def line(ok: bool, text: str, want: str, layer: str, reply: str) -> str:
     return f"{'PASS' if ok else 'FAIL'}  {text!r:46} want {want:9} got {layer:9} {reply[:70]!r}"
 
 
-async def main(show_all: bool, big: bool) -> None:
+async def use_draft(conn: asyncpg.Connection, clinic: str) -> None:
+    """--draft: the DRAFT phrases and fact wordings of app/clinics/<clinic>.intents.json, in memory only (nothing
+    is saved), as if approved: to measure them before staff approve them."""
+    data = json.loads((CLINICS / f"{clinic}.intents.json").read_text(encoding="utf-8"))
+    rows = [(i, intents.norm(ex)) for i, exs in data["intents"].items() for ex in exs]
+    intents._rows[clinic] = (float("inf"), rows)
+    facts = await kb._fact_rows(conn, clinic)
+    names = {r.question.replace(" ", "_"): r for r in facts}
+    extra: list[kb._Row] = []
+    for r in facts:
+        more = data["fact_variants"].get(r.question.replace(" ", "_"), [])
+        kb._fact_wordings[r.id] = [*kb._fact_wordings[r.id], *more]
+        extra.append(kb._Row(r.id, r.question, r.answer, (*r.keys, *(kb.words(w) for w in more))))
+    unknown = set(data["fact_variants"]) - set(names)
+    assert not unknown, f"no approved fact named {unknown}"
+    kb._facts[clinic] = (float("inf"), extra)
+
+
+async def main(show_all: bool, big: bool, draft: bool) -> None:
     await embed.warm()
     conn = await asyncpg.connect(get_settings().database_url, statement_cache_size=0)
+    if draft:
+        await use_draft(conn, "CL01")
     cases = BIG if big else CASES
     passed = talks = 0
     by_want: dict[str, list[int]] = {}
@@ -168,4 +194,4 @@ async def main(show_all: bool, big: bool) -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main("--all" in sys.argv, "--big" in sys.argv))
+    asyncio.run(main("--all" in sys.argv, "--big" in sys.argv, "--draft" in sys.argv))

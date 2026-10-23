@@ -53,6 +53,11 @@ async def vector(text: str) -> list[float]:
     return [float(x) for x in (await asyncio.to_thread(_vectors, [text]))[0]]
 
 
+async def vectors(texts: list[str]) -> np.ndarray:
+    """Several texts at once (one row each), normalised."""
+    return await asyncio.to_thread(_vectors, texts)
+
+
 async def meaning(wordings: list[str]) -> list[float]:
     """One vector for a question and its other wordings: their average meaning, normalised."""
     mean = (await asyncio.to_thread(_vectors, wordings)).mean(axis=0)

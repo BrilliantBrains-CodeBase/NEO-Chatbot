@@ -7,7 +7,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import context, embed, engine, flows, kb, leads, store, understand
+from app.chat import context, embed, engine, flows, intents, kb, leads, store, understand
 from app.chat.content import content
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -26,7 +26,9 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         steps: list[Step] = []
         question = engine.asked(req, state)
         hit = await _kb(conn, req, steps, question)
-        turn = engine.respond(req, state, await _slots(conn, req, state), hit.answer if hit else None)
+        topic = None if hit else await _intent(conn, req, state, question, steps)
+        slots = await _slots(conn, req, state)
+        turn = engine.respond(req, state, slots, hit.answer if hit else None, topic)
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
@@ -119,6 +121,24 @@ async def _kb(
             if hit:
                 return hit
     return None
+
+
+async def _intent(
+    conn: asyncpg.Connection, req: ChatRequest, state: dict[str, Any], question: str, steps: list[Step]
+) -> str | None:
+    """The topic from the approved example phrases (T2), only for typed text nothing else understood and that
+    is not an emergency or medical (those are never answered)."""
+    if steps and steps[0]["step"] in ("emergency", "medical"):
+        return None
+    if not engine.wants_intent(req, state, question):
+        return None
+    t = time.perf_counter()
+    hit, score = await intents.find(conn, req.client_id, question)
+    steps.append(
+        {"step": f"intent_{hit.how}" if hit else "intent", "result": hit.intent if hit else "no match",
+         "example": hit.example if hit else None, "score": score, "ms": _ms(t)}
+    )  # fmt: skip
+    return hit.intent if hit else None
 
 
 async def _trace(

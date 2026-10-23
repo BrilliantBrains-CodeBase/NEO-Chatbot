@@ -47,3 +47,24 @@ async def test_only_managers_of_the_clinic_see_the_kb(tx: asyncpg.Connection) ->
         assert await tx.fetchval("select count(*) from app.kb_facts where clinic_id = 'CL99'") == 1
         async with rejected(tx):
             await tx.execute("delete from app.kb_facts")
+
+
+async def test_one_phrase_means_one_topic_and_facts_have_wordings(tx: asyncpg.Connection) -> None:
+    add = "insert into app.intent_examples (clinic_id, intent, example) values ('CL99', $1, $2)"
+    await tx.execute(add, "identity", "r u a bot")
+    async with rejected(tx):  # the same phrase for another topic: the bot could not know which
+        await tx.execute(add, "talk", "R u  a Bot ")
+    async with rejected(tx):
+        await tx.execute(add, "Bad Intent", "hello")
+    async with rejected(tx):
+        await tx.execute(
+            "insert into app.intent_examples (clinic_id, intent, example, status) "
+            "values ('CL99', 'greeting', 'hey', 'approved')"
+        )  # approved needs approved_at
+    await tx.execute("update app.intent_examples set status = 'retired' where example = 'r u a bot'")
+    await tx.execute(add, "talk", "r u a bot")  # retired: the phrase can be used again
+    await tx.execute(
+        "insert into app.kb_facts (clinic_id, key, value, variants) values ('CL99', 'social', 'x', $1)",
+        "insta id",
+    )
+    assert await tx.fetchval("select variants from app.kb_facts where clinic_id = 'CL99'") == "insta id"
