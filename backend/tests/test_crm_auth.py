@@ -106,3 +106,23 @@ async def test_dashboard_needs_access_to_the_clinic(
         pytest.skip("no staff member without access to some clinic")
     r = await api.get(f"/v1/crm/dashboard?clinic={row[1]}", headers=signed_in_as(monkeypatch, str(row[0])))
     assert r.status_code == 403
+
+
+@needs_db
+async def test_leads_list_and_one_lead(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    r = await api.get("/v1/crm/leads?clinic=CL01&limit=5", headers=headers)
+    assert r.status_code == 200
+    d = r.json()
+    assert [s["key"] for s in d["stages"]][0] == "new" and len(d["items"]) <= 5
+    assert d["total"] == sum(s["count"] for s in d["stages"])
+    assert (await api.get("/v1/crm/leads/NOPE-0", headers=headers)).status_code == 404
+    if d["items"]:
+        one = (await api.get(f"/v1/crm/leads/{d['items'][0]['code']}", headers=headers)).json()
+        assert one["code"] == d["items"][0]["code"] and isinstance(one["events"], list)

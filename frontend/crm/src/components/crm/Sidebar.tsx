@@ -17,8 +17,9 @@ export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigat
   const [expanded, setExpanded] = useState<Record<Group, boolean>>({ leads: true, inbox: false, doctors: false });
   const toggle = (g: Group) => setExpanded((e) => ({ ...e, [g]: !e[g] }));
 
-  // Counts show once the data has loaded.
-  const n = (x: number) => (crm.ready ? x : undefined);
+  // Sample counts are hidden: each menu count comes back when its screen reads live data.
+  const LIVE_COUNTS = false;
+  const n = (x: number) => (LIVE_COUNTS && crm.ready ? x : undefined);
   const stage = params.get("stage") ?? "new";
   const tab = params.get("tab") ?? "appt";
   const doc = params.get("doc") ?? "";

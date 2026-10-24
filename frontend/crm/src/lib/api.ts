@@ -68,3 +68,30 @@ export type Dashboard = {
   chat_answered_by: Count[];
   unanswered: number;
 };
+
+export type LeadRow = {
+  code: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  source: string;
+  campaign: string | null;
+  treatment: string | null;
+  doctor: string | null;
+  type: string | null;
+  stage: string;
+  assigned: string | null;
+  contacts: number;
+  last_contact_at: string;
+  created_at: string;
+};
+export type LeadList = { total: number; stages: Count[]; items: LeadRow[] };
+export type LeadDetail = LeadRow & {
+  stage_reason: string | null;
+  notes: string;
+  page_url: string | null;
+  device: string | null;
+  verified: boolean;
+  events: { kind: string; data: Record<string, unknown>; by: string | null; at: string }[];
+  chat: { role: string; text: string; at: string }[];
+};
