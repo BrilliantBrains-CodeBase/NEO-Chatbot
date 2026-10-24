@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NEO widget playground</title>
     <style>
-      body { font-family: system-ui, sans-serif; margin: 24px; }
-      nav a { margin-right: 12px; }
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 24px;
+      }
+      nav a {
+        margin-right: 12px;
+      }
     </style>
   </head>
   <body>
@@ -16,6 +21,21 @@
       <a href="?clinic=neo-follicle">Neo Follicle (Arya)</a>
       <a href="?clinic=derma-solutions">Derma Solutions (Diya)</a>
     </nav>
+    <p id="mode"></p>
+    <script>
+      // Which backend answers (same rule as core/app.tsx): the real local backend for clinics it has content
+      // for (Neo Follicle), or with &api=<url>; the mock with &mock, and for the clinics not built yet.
+      const q = new URLSearchParams(location.search);
+      const clinic = q.get('clinic') || 'neo-fertility';
+      const onBackend = ['neo-follicle'].includes(clinic);
+      const mock = q.has('mock') || (!q.has('api') && !onBackend);
+      document.getElementById('mode').innerHTML = mock
+        ? `Answers from: <b>mock</b> (no database)` +
+          (onBackend
+            ? `. <a href="?clinic=${clinic}">Use the real backend</a>`
+            : ': its backend is not built yet')
+        : `Answers from: <b>real backend</b> (${q.get('api') || 'http://127.0.0.1:8000'}). <a href="?clinic=${clinic}&mock">Use the mock</a>`;
+    </script>
     <script type="module">
       const faces = {
         'neo-fertility': () => import('../neo-fertility/main.ts'),

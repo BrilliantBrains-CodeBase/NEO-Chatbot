@@ -153,13 +153,18 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   );
 }
 
-// Dev playground only: the mock backend answers unless ?api=<url> points at a real backend.
+// Dev playground only: the local real backend (http://127.0.0.1:8000) answers, or ?api=<url>; ?mock uses the
+// mock backend instead (no database: no knowledge base, phrases or reviews).
 // Preview build (npm run build:preview): the mock is bundled so the widget can be tried on a real page
 // with no backend; nothing is saved. Both flags are false in the production build, so the mock is never
 // bundled there.
-function devFetch(): typeof fetch | undefined {
+const DEV_API = 'http://127.0.0.1:8000';
+// Clinics the real backend has content for; the others use the mock until theirs is built.
+const ON_BACKEND = ['CL01'];
+function devFetch(clinicId: string): typeof fetch | undefined {
+  const q = new URLSearchParams(location.search);
   const mock = import.meta.env.DEV
-    ? !new URLSearchParams(location.search).has('api')
+    ? q.has('mock') || (!q.has('api') && !ON_BACKEND.includes(clinicId))
     : import.meta.env.VITE_PREVIEW === '1';
   if (mock) {
     const mock = import('../mock/fetch');
@@ -175,7 +180,8 @@ export function mountApp(face: Face) {
     return;
   }
   injectStyles(handle.shadow, baseCss);
-  const apiBase = (import.meta.env.DEV && new URLSearchParams(location.search).get('api')) || handle.apiBase;
-  const api = createApi(apiBase, face.clinicId, { fetchImpl: devFetch() });
+  const params = new URLSearchParams(location.search);
+  const apiBase = import.meta.env.DEV ? params.get('api') || DEV_API : handle.apiBase;
+  const api = createApi(apiBase, face.clinicId, { fetchImpl: devFetch(face.clinicId) });
   render(<Widget handle={handle} face={face} api={api} />, handle.mountPoint);
 }

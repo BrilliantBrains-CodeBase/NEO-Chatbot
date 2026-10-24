@@ -445,3 +445,78 @@ export const NODES: Record<string, ChatResponse> = {
     [HAIR_ANALYSIS, { label: 'Get a callback', action: 'callback', value: 'Cost guidance' }],
   ),
 };
+
+// Google reviews (same data as backend/app/clinics/CL01.json "reviews", taken from the listing on 24 Oct 2026).
+export const REVIEWS = {
+  clinic: 'Neo Follicle',
+  rating: '4.8',
+  count: '1,040',
+  link: 'https://maps.app.goo.gl/jKaWhcfQuKZXRvE48',
+  videos: 'https://neofollicletransplant.com/video-gallery/#hair-transplant-testimonials',
+  items: [
+    {
+      name: 'Venkat A.',
+      topic: 'transplant',
+      text: 'I underwent a hair transplant at Neo Follicle Transplant Clinic just 3 days ago. The entire process was very professional and smooth. Dr. Sandeep and his team were highly skilled, clear in their communication, and made sure I felt comfortable throughout the procedure. Highly recommended.',
+    },
+    {
+      name: 'Satya R.',
+      topic: 'gfc',
+      text: 'I underwent GFC treatment here and saw excellent results in just four sessions. The team is professional, supportive, and maintains a friendly approach throughout the process. I would confidently recommend this clinic to anyone facing hair loss issues.',
+    },
+    {
+      name: 'Azhar K.',
+      topic: 'international',
+      text: 'I came a long way from Mauritius to get my hair transplant done at Neo Follicle Clinic. Everything went smoothly and special thanks to Mrs. Chandra for her kindness and great care. Really happy with the results',
+    },
+    {
+      name: 'Raghu R.',
+      topic: 'transplant',
+      text: 'After a year-long research, I found that Neo Hair Transplant met my criteria for undergoing a transplant. The team is highly professional and dedicated. It has been three months since my transplant, and I am quite happy with the results so far.',
+    },
+    {
+      name: 'Devaraj N.',
+      topic: 'gfc',
+      text: 'I had a very good experience with Dr. Yogita during my GFC hair treatment. She explained the entire procedure clearly, addressed all my concerns patiently, and made me feel comfortable throughout the treatment.',
+    },
+    {
+      name: 'Anand S.',
+      topic: 'international',
+      text: 'Neo have a great team, and I think a procedure that allows for quicker recovery. It’s been a good experience, I recommend. Will board my flight to US 5 days after the procedure.',
+    },
+    {
+      name: 'Sumit P.',
+      topic: 'transplant',
+      text: 'Had recently done my hair transplant and the results are commendable. Dr mahapatra and his team has done a great job. Highly recommended. Thank you.',
+    },
+    {
+      name: 'Saikrishna C.',
+      topic: 'gfc',
+      text: 'I recently visited Neo Follicle for GFC treatment and had a really good experience. The staff was professional, explained every step clearly, and made the sessions comfortable. I am already noticing improvements in hair quality and reduced hair fall.',
+    },
+    {
+      name: 'Udit K.',
+      topic: 'transplant',
+      text: 'Overall it was a positive experience. From the initial consultation to the procedure and post-op care, the team was professional. They explained the process clearly, set realistic expectations, and made sure I was comfortable throughout.',
+    },
+    {
+      name: 'Abhishek P.',
+      topic: 'transplant',
+      text: 'Had a good experience working with Dr Sandeep, Dr Sumedha and Ms Chandra. The overall process was made very smooth including post-procedure checkups. The staff was also very friendly and supportive at every step. I will recommend Neo Follicle Clinic.',
+    },
+    {
+      name: 'Faizan S.',
+      topic: 'transplant',
+      text: 'The result is amazing and the doctor and staff are very experienced and my hair transplant procedure was very smooth.',
+    },
+    {
+      name: 'Rupesh Y.',
+      topic: 'transplant',
+      text: 'I had a hair transplant done from here, few weeks ago, everything was great, everything was clearly said and the operation was also very smooth.',
+    },
+  ] as { name: string; topic: 'transplant' | 'gfc' | 'international'; text: string }[],
+};
+
+// The approved "celebrity clients" fact (the mock has no knowledge base; this one is asked for often).
+export const CELEBRITIES =
+  'Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra (radio jockey) have chosen Neo Follicle for hair restoration. Every patient gets the same doctor-led, private approach.';

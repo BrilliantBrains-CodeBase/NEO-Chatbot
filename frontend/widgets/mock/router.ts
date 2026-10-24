@@ -180,3 +180,15 @@ const SMALL_TALK: [string, RegExp][] = [
 ];
 
 export const smallTalk = (text: string) => SMALL_TALK.find(([, re]) => re.test(text))?.[0] ?? null;
+
+// Asking what patients think of the clinic; not the follow-up reviews after a procedure (as in the backend).
+export const REVIEWS =
+  /^(?!.*\b(follow[- ]?up reviews?|review (sessions?|visits?|appointments?)|medically reviewed)\b).*\b(reviews?|ratings?|rated|testimonials?|stars on google|google stars|feedback|what (do|are) (patients|people|customers) (say|saying)( about you)?|patient (experiences?|stories)|how good is (this|the|your) clinic|is (this|the|your) clinic (good|any good|reliable|trustworthy|worth it|the best|genuine))\b/;
+export const REVIEW_TOPICS: [string, RegExp][] = [
+  ['international', /\b(international|abroad|overseas|nri|foreign|outside india|other countr\w*)\b/],
+  ['gfc', /\b(gfc|prp|non[- ]?surgical|sessions?|hair ?fall treatment)\b/],
+  ['transplant', /\btransplant\w*\b/],
+];
+// The celebrity clients (in the backend this is an approved fact with its wordings).
+export const CELEBRITY =
+  /\b(celebrit\w*|famous (patients|people|clients)|film stars?|actors?|kannada actors|sri murali|rakshith|sharan)\b/;

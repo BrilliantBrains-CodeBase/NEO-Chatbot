@@ -179,3 +179,14 @@ test.describe('identity and refusal', () => {
     expect(say(s, 'Asha Rao').messages[0].text).not.toContain('Thanks, Asha'); // the form is gone
   });
 });
+
+test('reviews and celebrities are answered in the mock too', async ({ page }) => {
+  const panel = await open(page);
+  await type(panel, 'testimonials');
+  await expect(bots(panel).nth(-4)).toContainText('4.8 \u2605 from 1,040 Google reviews');
+  await expect(panel.getByRole('link', { name: 'Read all Google reviews' })).toBeVisible();
+  await type(panel, 'gfc reviews');
+  await expect(bots(panel).nth(-3)).toContainText('Satya R.');
+  await type(panel, 'which celebrities came to you');
+  await expect(bot(panel)).toContainText('Sri Murali');
+});

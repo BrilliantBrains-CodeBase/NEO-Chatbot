@@ -3,13 +3,27 @@
 // Arya (CL01) has the full flows; Navya and Diya only greet until their faces are built.
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
-import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
+import {
+  ARYA,
+  BOOKING_OPTION,
+  BRIEF,
+  CELEBRITIES,
+  MENU,
+  NODES,
+  REVIEWS as REVIEW_DATA,
+  TREATMENT_INFO,
+  TYPE,
+  treatmentCard,
+} from './arya';
 import {
   ALL_TREATMENTS,
   IDENTITY,
   MORE_OF_LIST,
   NOT_A_NAME,
   NOT_OFFERED,
+  CELEBRITY,
+  REVIEWS,
+  REVIEW_TOPICS,
   REFUSAL,
   route,
   smallTalk,
@@ -400,6 +414,26 @@ function allTreatments(): ChatResponse {
   return reply([text], NODES.treat.ui);
 }
 
+// The Google rating and three patient quotes that fit the question, with links to all reviews.
+function reviewsReply(low: string): ChatResponse {
+  const topic = REVIEW_TOPICS.find(([, p]) => p.test(low))?.[0];
+  const picked = REVIEW_DATA.items.filter((i) => i.topic === topic).slice(0, 3);
+  for (const kind of ['transplant', 'gfc', 'international']) {
+    const next = REVIEW_DATA.items.find((i) => i.topic === kind && !picked.includes(i));
+    if (next && picked.length < 3) picked.push(next);
+  }
+  const rating = `${REVIEW_DATA.clinic} is rated **${REVIEW_DATA.rating} ★ from ${REVIEW_DATA.count} Google reviews**. Here is what patients say:`;
+  return reply([rating, ...picked.map((i) => `“${i.text}” — ${i.name}`)], {
+    type: 'chips',
+    options: [
+      { label: 'Read all Google reviews', href: REVIEW_DATA.link },
+      { label: 'Watch patient videos', href: REVIEW_DATA.videos },
+      { label: 'Book a consultation', action: 'start', value: 'book', primary: true },
+    ],
+    main: true,
+  });
+}
+
 // "Tell me more" after a treatment: what about it.
 function topicMore(topic: string): ChatResponse {
   const site = buttonsOf(treatmentCard(topic)?.ui).find((o) => o.href);
@@ -707,6 +741,13 @@ function respond(req: ChatRequest): ChatResponse {
       sessions.set(req.session_id, null);
       return menu(client, 'No problem. How else can I help you?');
     }
+    const typing = !!flow && INPUT_STEPS.includes(flow.step);
+    // Google reviews: the rating and three quotes that fit the question (as in the backend).
+    if (REVIEWS.test(low) && !typing) {
+      const res = reviewsReply(low);
+      return flow ? ask(flow, [res.messages[0].text]) : res;
+    }
+    if (CELEBRITY.test(low) && !typing) return flow ? ask(flow, [CELEBRITIES]) : reply([CELEBRITIES]);
     // A service the clinic does not offer: a clear reply, never a lookalike answer.
     if (NOT_OFFERED.test(low) && !(flow && INPUT_STEPS.includes(flow.step))) {
       if (flow) return ask(flow, [NOT_OFFERED_SHORT]);
