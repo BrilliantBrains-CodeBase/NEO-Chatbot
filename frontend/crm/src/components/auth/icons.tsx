@@ -24,11 +24,3 @@ export function MailIcon() {
     </svg>
   );
 }
-
-export function HomeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 12l9-8 9 8M5 10v10h14V10" />
-    </svg>
-  );
-}

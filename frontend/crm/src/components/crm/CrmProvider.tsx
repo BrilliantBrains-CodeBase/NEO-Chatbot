@@ -1,0 +1,116 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
+import {
+  CLINICS,
+  sampleLeads,
+  sampleRequests,
+  type Clinic,
+  type Lead,
+  type Req,
+  type ReqKind,
+  type Stage,
+} from "@/lib/sample-data";
+
+type Modal = { title: string; body: ReactNode };
+
+type Crm = {
+  /** False until the data has loaded (counts are hidden until then). */
+  ready: boolean;
+  clinic: Clinic;
+  setClinic: (c: Clinic) => void;
+  leads: Lead[];
+  requests: Req[];
+  /** Leads in a stage ("lo" also counts Invalid, like the design's "Lost & Invalid"). */
+  stageCount: (s: Stage) => number;
+  /** Pending requests of a kind. */
+  pending: (k: ReqKind) => number;
+  /** Booking, online, cancel and reschedule requests waiting (the Inbox count). */
+  inboxCount: number;
+  toast: (message: string) => void;
+  toastText: string;
+  drawer: ReactNode | null;
+  openDrawer: (content: ReactNode) => void;
+  closeDrawer: () => void;
+  modal: Modal | null;
+  openModal: (m: Modal) => void;
+  closeModal: () => void;
+};
+
+const CrmContext = createContext<Crm | null>(null);
+
+// The time the CRM opened in the browser; null while the server pre-renders the frame.
+let openedAt: Date | null = null;
+const noSubscription = () => () => {};
+function useBrowserNow(): Date | null {
+  return useSyncExternalStore(
+    noSubscription,
+    () => (openedAt ??= new Date()),
+    () => null,
+  );
+}
+
+export function useCrm(): Crm {
+  const c = useContext(CrmContext);
+  if (!c) throw new Error("useCrm must be used inside CrmProvider");
+  return c;
+}
+
+export default function CrmProvider({ children }: { children: ReactNode }) {
+  const [clinic, setClinic] = useState<Clinic>(CLINICS[0]);
+  // Sample data per clinic (replaced by backend data screen by screen). Made in the browser only, after the
+  // frame shows: it depends on the current time, which the server must not use while pre-rendering.
+  const now = useBrowserNow();
+  const { leads, requests } = useMemo(() => {
+    if (!now) return { leads: [], requests: [] };
+    const l = sampleLeads(clinic, now);
+    return { leads: l, requests: sampleRequests(clinic, l, now) };
+  }, [clinic, now]);
+  const ready = now !== null;
+
+  const [toastText, setToastText] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const toast = useCallback((m: string) => {
+    setToastText(m);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setToastText(""), 1800);
+  }, []);
+
+  const [drawer, setDrawer] = useState<ReactNode | null>(null);
+  const [modal, setModal] = useState<Modal | null>(null);
+
+  const value = useMemo<Crm>(() => {
+    const stageCount = (s: Stage) =>
+      leads.filter((l) => l.st === s || (s === "lo" && l.st === "in")).length;
+    const pending = (k: ReqKind) => requests.filter((r) => r.kind === k && r.status === "pending").length;
+    return {
+      ready,
+      clinic,
+      setClinic,
+      leads,
+      requests,
+      stageCount,
+      pending,
+      inboxCount: (["appt", "online", "cancel", "resch"] as ReqKind[]).reduce((a, k) => a + pending(k), 0),
+      toast,
+      toastText,
+      drawer,
+      openDrawer: setDrawer,
+      closeDrawer: () => setDrawer(null),
+      modal,
+      openModal: setModal,
+      closeModal: () => setModal(null),
+    };
+  }, [ready, clinic, leads, requests, toast, toastText, drawer, modal]);
+
+  return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
+}

@@ -19,3 +19,10 @@ This Next.js version differs from older ones (for example, middleware is now `pr
 
 Built one step at a time, screens first with sample data, then connected:
 1. Sign-in pages (sign in, create an account, reset password). Sign-in is a demo stub; nothing is sent yet.
+2. CRM frame: sidebar (groups, expandable Leads / Inbox / Doctors, counts), top bar (clinic switcher, search,
+   bell, Add lead, profile menu), right-side panel, pop-up form, toast, mobile menu, and a placeholder page
+   per screen. Sample data (`src/lib/sample-data.ts`) is ported from the design's generator.
+
+Parts of a screen that depend on the current time go inside `<Live>` (`src/components/crm/Live.tsx`); a
+screen that reads the address (`?stage=`, `?doc=`) renders that part inside `<Suspense>`. Both keep every
+navigation instant, which this Next.js version checks in development.
