@@ -1,11 +1,11 @@
 """CRM API (JSON only). Every route needs a signed-in staff member (app.crm.auth.staff)."""
 
 import json
-from typing import Annotated
+from typing import Annotated, Literal
 
-from asyncpg import Record
+from asyncpg import Connection, Record
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.db import get_pool
 from app.crm.auth import ROLE_LABEL, Staff, staff
@@ -195,6 +195,7 @@ class LeadRow(BaseModel):
     type: str | None  # in_clinic | online
     stage: str
     assigned: str | None
+    assigned_id: str | None
     contacts: int
     last_contact_at: str
     created_at: str
@@ -230,7 +231,7 @@ class LeadDetail(LeadRow):
 
 
 LEAD_SELECT = """select l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
-    d.name doctor, l.appointment_type, l.stage, p.full_name assigned, l.contact_count,
+    d.name doctor, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to, l.contact_count,
     l.last_contact_at, l.created_at
   from app.leads l left join app.doctors d on d.id = l.doctor_id
   left join app.profiles p on p.id = l.assigned_to"""
@@ -241,6 +242,7 @@ def lead_row(r: Record) -> dict[str, object]:
         "code": r["lead_code"], "name": r["full_name"], "phone": r["phone_e164"], "email": r["email"],
         "source": r["source"], "campaign": r["campaign"], "treatment": r["treatment"], "doctor": r["doctor"],
         "type": r["appointment_type"], "stage": r["stage"], "assigned": r["assigned"],
+        "assigned_id": str(r["assigned_to"]) if r["assigned_to"] else None,
         "contacts": r["contact_count"], "last_contact_at": r["last_contact_at"].isoformat(),
         "created_at": r["created_at"].isoformat(),
     }  # fmt: skip
@@ -280,7 +282,7 @@ async def leads(
 
 
 @router.get("/leads/{code}", response_model=LeadDetail)
-async def lead(user: Annotated[Staff, Depends(staff)], code: str) -> LeadDetail:
+async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> LeadDetail:
     """One lead with its timeline and latest chat. The clinic comes from the lead itself."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -322,3 +324,129 @@ async def lead(user: Annotated[Staff, Depends(staff)], code: str) -> LeadDetail:
             "chat": [{"role": m[0], "text": m[1], "at": m[2].isoformat()} for m in chat],
         }
     )  # fmt: skip
+
+
+LOST = ["not_reachable", "not_interested", "price", "chose_another_clinic", "other"]
+INVALID = ["wrong_number", "spam", "duplicate", "test"]
+
+
+def can_edit(user: Staff, clinic: str) -> None:
+    """Changes to leads: BB Admin, clinic manager and front desk. Doctors only read."""
+    can_see(user, clinic)
+    if not user.bb_admin and user.roles.get(clinic) == "doctor":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctors can view leads but not change them.")
+
+
+class StaffOption(BaseModel):
+    id: str
+    name: str
+    role_label: str
+
+
+@router.get("/staff", response_model=list[StaffOption])
+async def staff_list(
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")]
+) -> list[StaffOption]:
+    """People a lead can be assigned to: active staff of the clinic, not doctors."""
+    can_see(user, clinic)
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """select p.id, p.full_name, u.role from app.user_clinics u join app.profiles p on p.id = u.user_id
+           where u.clinic_id = $1 and u.active and p.active and u.role <> 'doctor' order by p.full_name""",
+        clinic,
+    )
+    return [StaffOption(id=str(r[0]), name=r[1], role_label=ROLE_LABEL[r[2]]) for r in rows]
+
+
+class LeadChange(BaseModel):
+    stage: Literal["new", "follow_up", "booked", "visited", "lost", "invalid"] | None = None
+    stage_reason: str | None = None  # needed for lost and invalid, from LOST / INVALID
+    assigned_to: str | None = None  # a staff id, or "" to unassign
+
+
+class NoteIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class CallIn(BaseModel):
+    outcome: Literal["answered", "no_answer", "busy", "wrong_number"]
+    text: str = Field(default="", max_length=2000)
+
+
+async def _lead_for_edit(conn: Connection, user: Staff, code: str) -> Record:
+    r = await conn.fetchrow(
+        "select id, clinic_id, stage, assigned_to from app.leads where lead_code = $1 and deleted_at is null "
+        "for update",
+        code,
+    )
+    if r is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
+    can_edit(user, r["clinic_id"])
+    await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who did it
+    return r
+
+
+async def _event(conn: Connection, lead: Record, user: Staff, kind: str, data: dict[str, object]) -> None:
+    await conn.execute(
+        "insert into app.lead_events (clinic_id, lead_id, kind, data, actor)"
+        " values ($1, $2, $3, $4::jsonb, $5::uuid)",
+        lead["clinic_id"], lead["id"], kind, json.dumps(data), user.id,
+    )  # fmt: skip
+
+
+@router.patch("/leads/{code}", response_model=LeadDetail)
+async def change_lead(user: Annotated[Staff, Depends(staff)], code: str, body: LeadChange) -> LeadDetail:
+    """Change the stage (Lost and Invalid need a reason) or the owner. Each change goes on the timeline."""
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        lead = await _lead_for_edit(conn, user, code)
+        if body.stage and body.stage != lead["stage"]:
+            reasons = LOST if body.stage == "lost" else INVALID if body.stage == "invalid" else []
+            if reasons and body.stage_reason not in reasons:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose a reason for this stage.")
+            reason = body.stage_reason if reasons else None
+            await conn.execute(
+                "update app.leads set stage = $2, stage_reason = $3, updated_at = now() where id = $1",
+                lead["id"], body.stage, reason,
+            )  # fmt: skip
+            await _event(
+                conn, lead, user, "stage_change", {"from": lead["stage"], "to": body.stage, "reason": reason}
+            )
+        if body.assigned_to is not None:
+            to = body.assigned_to or None
+            if to and not await conn.fetchval(
+                """select 1 from app.user_clinics where user_id::text = $1 and clinic_id = $2 and active
+                   and role <> 'doctor'""",
+                to, lead["clinic_id"],
+            ):  # fmt: skip
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, "That person cannot take leads here."
+                )
+            if to != (str(lead["assigned_to"]) if lead["assigned_to"] else None):
+                await conn.execute(
+                    "update app.leads set assigned_to = $2::uuid, updated_at = now() where id = $1",
+                    lead["id"],
+                    to,
+                )
+                name = await conn.fetchval("select full_name from app.profiles where id::text = $1", to)
+                await _event(conn, lead, user, "assigned", {"to": name or "Unassigned"})
+    return await lead_detail(user, code)
+
+
+@router.post("/leads/{code}/notes", response_model=LeadDetail)
+async def add_note(user: Annotated[Staff, Depends(staff)], code: str, body: NoteIn) -> LeadDetail:
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        lead = await _lead_for_edit(conn, user, code)
+        await _event(conn, lead, user, "note", {"text": body.text.strip()})
+    return await lead_detail(user, code)
+
+
+@router.post("/leads/{code}/calls", response_model=LeadDetail)
+async def log_call(user: Annotated[Staff, Depends(staff)], code: str, body: CallIn) -> LeadDetail:
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        lead = await _lead_for_edit(conn, user, code)
+        await _event(conn, lead, user, "call", {"outcome": body.outcome, "text": body.text.strip()})
+        await conn.execute("update app.leads set last_contact_at = now() where id = $1", lead["id"])
+    return await lead_detail(user, code)

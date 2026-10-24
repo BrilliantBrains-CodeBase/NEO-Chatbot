@@ -126,3 +126,44 @@ async def test_leads_list_and_one_lead(api: AsyncClient, monkeypatch: pytest.Mon
     if d["items"]:
         one = (await api.get(f"/v1/crm/leads/{d['items'][0]['code']}", headers=headers)).json()
         assert one["code"] == d["items"][0]["code"] and isinstance(one["events"], list)
+
+
+@needs_db
+async def test_lead_stage_owner_note_and_call(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    lead = await pool.fetchrow(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Test Lead', '+919000000001', 'manual') returning id, lead_code"""
+    )
+    code = lead["lead_code"]
+    added = await pool.execute(  # the admin takes leads in the test clinic during this test only
+        """insert into app.user_clinics (user_id, clinic_id, role) values ($1, 'CL99', 'front_desk')
+           on conflict do nothing""",
+        admin,
+    )
+    try:
+        r = await api.patch(f"/v1/crm/leads/{code}", json={"stage": "lost"}, headers=headers)
+        assert r.status_code == 422  # Lost needs a reason
+        r = await api.patch(
+            f"/v1/crm/leads/{code}", json={"stage": "lost", "stage_reason": "price"}, headers=headers
+        )
+        assert r.status_code == 200 and r.json()["stage"] == "lost" and r.json()["stage_reason"] == "price"
+        r = await api.patch(f"/v1/crm/leads/{code}", json={"assigned_to": str(admin)}, headers=headers)
+        assert r.json()["assigned"]
+        await api.post(f"/v1/crm/leads/{code}/notes", json={"text": "Prefers evening"}, headers=headers)
+        r = await api.post(f"/v1/crm/leads/{code}/calls", json={"outcome": "no_answer"}, headers=headers)
+        kinds = [e["kind"] for e in r.json()["events"]]
+        assert kinds[:4] == ["call", "note", "assigned", "stage_change"]
+        assert r.json()["events"][3]["by"]  # who did it
+    finally:
+        await pool.execute("select app.delete_patient_data($1)", lead["id"])
+        if added.endswith("1"):
+            await pool.execute(
+                "delete from app.user_clinics where user_id = $1 and clinic_id = 'CL99'", admin
+            )

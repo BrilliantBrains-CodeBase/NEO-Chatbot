@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { CLINIC_CONTENT, REQUEST_TABS, STAGES } from "@/lib/sample-data";
+import { CLINIC_CONTENT, REQUEST_TABS } from "@/lib/sample-data";
 import { useCrm } from "./CrmProvider";
 import Icon, { type IconName } from "./Icon";
 
 type Group = "leads" | "inbox" | "doctors";
+
+// Stage links open that tab of the Leads screen (live counts are on its tabs).
+const LEAD_STAGES = [
+  ["new", "New"],
+  ["follow_up", "Follow Up"],
+  ["booked", "Booked"],
+  ["visited", "Visited"],
+  ["lost", "Lost"],
+  ["invalid", "Invalid"],
+] as const;
 
 export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
   const crm = useCrm();
@@ -20,7 +30,7 @@ export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigat
   // Sample counts are hidden: each menu count comes back when its screen reads live data.
   const LIVE_COUNTS = false;
   const n = (x: number) => (LIVE_COUNTS && crm.ready ? x : undefined);
-  const stage = params.get("stage") ?? "new";
+  const stage = params.get("stage") ?? "";
   const tab = params.get("tab") ?? "appt";
   const doc = params.get("doc") ?? "";
 
@@ -70,10 +80,7 @@ export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigat
           "Leads",
           undefined,
           <>
-            {STAGES.slice(0, 4).map((s) =>
-              subItem(`/leads?stage=${s.key}`, s.label, path === "/leads" && stage === s.key, n(crm.stageCount(s.key))),
-            )}
-            {subItem("/leads?stage=lo", "Lost & Invalid", path === "/leads" && stage === "lo", n(crm.stageCount("lo")))}
+            {LEAD_STAGES.map(([key, label]) => subItem(`/leads?stage=${key}`, label, path === "/leads" && stage === key))}
           </>,
         )}
         {group(

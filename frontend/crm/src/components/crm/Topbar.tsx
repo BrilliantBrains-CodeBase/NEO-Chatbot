@@ -55,7 +55,6 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       <span className="sp" />
       <button className="ib" aria-label="Notifications" onClick={() => router.push("/inbox")}>
         <Icon name="bell" />
-        {crm.ready && <b>{crm.inboxCount + crm.pending("cb")}</b>}
       </button>
       <button
         className="btn"

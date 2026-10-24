@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type LeadDetail, type LeadList } from "@/lib/api";
+import LeadActions from "./LeadActions";
 
 export const STAGE_LABEL: Record<string, [string, string]> = {
   new: ["New", "b-new"],
@@ -30,11 +32,16 @@ function useDebounced(value: string, ms = 300) {
 export default function LeadsView() {
   const { clinic, me } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  const [stage, setStage] = useState("");
+  // The stage tab lives in the address (?stage=booked), so the menu links open it.
+  const router = useRouter();
+  const asked = useSearchParams().get("stage") ?? "";
+  const stage = STAGE_LABEL[asked] ? asked : "";
+  const setStage = (s: string) => router.replace(s ? `/leads?stage=${s}` : "/leads");
+  const [version, setVersion] = useState(0); // bumped after a change, to load the list again
   const [source, setSource] = useState("");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
-  const key = `${clinicId}|${stage}|${source}|${q}`;
+  const key = `${clinicId}|${stage}|${source}|${q}|${version}`;
   const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
   const [open, setOpen] = useState<{ code: string; d?: LeadDetail; error?: string } | null>(null);
 
@@ -53,6 +60,11 @@ export default function LeadsView() {
       live = false;
     };
   }, [clinicId, stage, source, q, key]);
+
+  function changed(d: LeadDetail) {
+    setOpen({ code: d.code, d });
+    setVersion((v) => v + 1);
+  }
 
   function show(code: string) {
     setOpen({ code });
@@ -195,6 +207,7 @@ export default function LeadsView() {
                       </div>
                     ))}
                   </div>
+                  <LeadActions key={lead.code} lead={lead} clinicId={clinicId} onChange={changed} />
                   {lead.notes && (
                     <div className="sec">
                       <h4>NOTES</h4>
@@ -208,7 +221,8 @@ export default function LeadsView() {
                         {lead.events.map((e, i) => (
                           <div key={i}>
                             {EVENT[e.kind] ?? e.kind}
-                            {typeof e.data.text === "string" && `: ${e.data.text}`}
+                            {typeof e.data.outcome === "string" && `: ${e.data.outcome.replace("_", " ")}`}
+                            {typeof e.data.text === "string" && e.data.text && `: ${e.data.text}`}
                             {typeof e.data.to === "string" && ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
                             <small>
                               {when(e.at)}

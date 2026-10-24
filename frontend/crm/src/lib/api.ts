@@ -81,6 +81,7 @@ export type LeadRow = {
   type: string | null;
   stage: string;
   assigned: string | null;
+  assigned_id: string | null;
   contacts: number;
   last_contact_at: string;
   created_at: string;
@@ -95,3 +96,5 @@ export type LeadDetail = LeadRow & {
   events: { kind: string; data: Record<string, unknown>; by: string | null; at: string }[];
   chat: { role: string; text: string; at: string }[];
 };
+
+export type StaffOption = { id: string; name: string; role_label: string };
