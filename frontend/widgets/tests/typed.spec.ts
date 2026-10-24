@@ -15,7 +15,7 @@ test.describe('rules', () => {
     ['What is the price of a hair transplant?', { to: 'node', key: 'cost' }],
     ['What are your timings?', { to: 'node', key: 'clinic' }],
     ['Where is the clinic?', { to: 'node', key: 'clinic' }],
-    ['I want to book an appointment', { to: 'node', key: 'book' }],
+    ['I want to book an appointment', { to: 'start', kind: 'book' }],
     ['Can I do a video call from Dubai?', { to: 'start', kind: 'online' }],
     ['I need to cancel', { to: 'start', kind: 'cancel' }],
     ['Please postpone my visit', { to: 'start', kind: 'reschedule' }],
@@ -77,11 +77,33 @@ test('typed emergency words open Emergency', async ({ page }) => {
   await expect(bot(panel)).toContainText('call 108 or go to the nearest hospital');
 });
 
-test('medical question is never answered: it becomes a lead', async ({ page }) => {
+test('medical question is never answered: a call back is offered, the form starts on yes', async ({
+  page,
+}) => {
   const panel = await open(page);
   await type(panel, 'Is minoxidil safe for me?');
-  await expect(bots(panel).nth(-2)).toContainText("I don't have a confirmed answer for that yet.");
+  await expect(bot(panel)).toContainText("I don't have a confirmed answer for that yet.");
+  await panel.getByRole('button', { name: 'Yes, call me back' }).click();
   await expect(bot(panel)).toHaveText('May I know your full name?');
+});
+
+test('a service the clinic does not offer gets a clear reply', async ({ page }) => {
+  const panel = await open(page);
+  await type(panel, 'laser hair removal');
+  await expect(bot(panel)).toContainText('We focus on hair and scalp treatments');
+});
+
+test('more treatments lists every treatment; a booking request starts the booking', async ({ page }) => {
+  const panel = await open(page);
+  await type(panel, 'what are the treatments');
+  await type(panel, 'only 4 or more ?');
+  await expect(bot(panel)).toContainText('We offer 18 treatments:');
+  await type(panel, 'I want to book an appointment');
+  await expect(bot(panel)).toHaveText("Sure, let's book your appointment. May I know your full name?");
+  await type(panel, 'reschudle my appointment');
+  await expect(bot(panel)).toHaveText(
+    'Sure, I can help you reschedule your appointment. May I know your full name?',
+  );
 });
 
 test('mid-booking question at the date step: short answer, then the date is asked again', async ({

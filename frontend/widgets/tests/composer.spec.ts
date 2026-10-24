@@ -36,8 +36,8 @@ test('4a: typed text shows as a patient bubble, is sent as event text, and gets 
   await input.press('Enter');
   await expect(panel.locator('.nb-msg.me')).toHaveText(['Do you have parking?']);
   await expect(input).toHaveValue('');
-  // No answer for it: the bot says so, then starts taking a lead (piece 8c).
-  await expect(panel.locator('.nb-msg.bot:not(.nb-typing)').nth(-2)).toContainText(
+  // No answer for it: the bot says so and offers a call back (piece 8c).
+  await expect(panel.locator('.nb-msg.bot:not(.nb-typing)').last()).toContainText(
     "I don't have a confirmed answer for that yet.",
   );
   expect(sent[1].event).toBe('text');
@@ -123,8 +123,8 @@ test('4a: Enter while the bot is still typing is held and sent when it finishes'
   await input.fill('Do you have parking?');
   await input.press('Enter');
   await expect(panel.locator('.nb-typing')).toBeVisible();
-  await input.fill('Priya Sharma');
-  await input.press('Enter'); // bot still typing
-  await expect(panel.locator('.nb-msg.me')).toHaveText(['Do you have parking?', 'Priya Sharma']);
-  await expect(panel.locator('.nb-msg.bot').last()).toHaveText('Thanks, Priya. What is your contact number?');
+  await input.fill('yes');
+  await input.press('Enter'); // bot still typing: held, then sent as the answer to the call back offer
+  await expect(panel.locator('.nb-msg.me')).toHaveText(['Do you have parking?', 'yes']);
+  await expect(panel.locator('.nb-msg.bot').last()).toHaveText('May I know your full name?');
 });

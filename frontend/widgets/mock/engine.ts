@@ -4,7 +4,17 @@
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
 import { ARYA, BOOKING_OPTION, BRIEF, MENU, NODES, TREATMENT_INFO, TYPE, treatmentCard } from './arya';
-import { IDENTITY, REFUSAL, route, smallTalk } from './router';
+import {
+  ALL_TREATMENTS,
+  IDENTITY,
+  MORE_OF_LIST,
+  NOT_A_NAME,
+  NOT_OFFERED,
+  REFUSAL,
+  route,
+  smallTalk,
+  treatmentIn,
+} from './router';
 import { isMenu, isYes, matchOption, parseDate, parseTime } from './typing';
 
 const GREETING: Record<string, string> = {
@@ -13,8 +23,21 @@ const GREETING: Record<string, string> = {
   CL03: "Hi, I'm Diya, Derma Solutions' AI assistant. How can I help you today?",
 };
 
+// Nothing known: a call back is offered first; the form starts only on yes (same as the real backend).
 const NO_ANSWER =
-  "I don't have a confirmed answer for that yet. Share your number and our team will call you back with the right information.";
+  "I don't have a confirmed answer for that yet. Would you like our team to call you back with the right information?";
+const OFFER_UI: UiBlock = {
+  type: 'chips',
+  options: [
+    { label: 'Yes, call me back', action: 'ask_team', primary: true },
+    { label: 'No, thanks', action: 'menu' },
+  ],
+};
+// A service the clinic does not offer. Never names another clinic.
+const NOT_OFFERED_SHORT = "We focus on hair and scalp treatments, so this isn't something we offer here.";
+const NOT_OFFERED_TEXT = `${NOT_OFFERED_SHORT} Would you like our team to call you back?`;
+const WHICH = 'Sure. Which one would you like to know more about?';
+const STOPPED = 'No problem. How else can I help you?';
 // A question typed in the middle of a flow that has no answer: noted for the team, then the step continues.
 const NOTED = "I don't have a confirmed answer for that yet. I have noted your question for our team.";
 const CONSENT = 'By confirming, you agree to be contacted by phone, WhatsApp or email.';
@@ -93,6 +116,17 @@ interface Flow {
 }
 
 const sessions = new Map<string, Flow | null>();
+
+// What the bot remembers of the chat (C1): its last reply's buttons, the treatment talked about in the last
+// turn, and a question waiting for "would you like our team to call you back?".
+interface Memory {
+  lastUi: UiBlock | null;
+  topicNow: string | null;
+  pendingQ: string | null;
+}
+const memory = new Map<string, Memory>();
+// Set while one turn is worked out (handle is synchronous), then saved in memory.
+let turn: { topic: string | null; pending: string | null } = { topic: null, pending: null };
 
 // ---------- validation (same rules the real backend will use) ----------
 
@@ -295,21 +329,104 @@ function advance(f: Flow, next: Step): ChatResponse {
   return ask(f);
 }
 
-// Typed text with no flow open: rules decide; nothing matched (or medical) becomes a lead.
+// Typed text with no flow open: rules decide; nothing matched (or medical): a call back is offered.
 function answer(session: string, text: string): ChatResponse {
   const r = route(text);
   switch (r.to) {
     case 'emergency':
       return NODES.emergency;
     case 'start':
-      return start(session, r.kind);
+      return startTyped(session, r.kind, text);
     case 'node':
       return NODES[r.key];
     case 'card':
       return treatmentCard(r.treatment)!;
     case 'lead':
-      return start(session, 'question', text, [NO_ANSWER]);
+      turn.pending = text;
+      return reply([NO_ANSWER], OFFER_UI);
   }
+}
+
+// A flow started by typing. A booking that names a treatment ("book for PRP") starts with it filled in.
+function startTyped(session: string, kind: Kind, text: string): ChatResponse {
+  const named = kind === 'book' ? treatmentIn(text.toLowerCase()) : null;
+  if (named) {
+    const option = ARYA.treatments.includes(named.name) ? named.name : BOOKING_OPTION[named.name];
+    return start(session, 'book', undefined, [], option);
+  }
+  return start(session, kind);
+}
+
+// ---------- the chat so far (C1) ----------
+
+const VAGUE =
+  /^((i )?(want|need|would like)( to (know|see|hear))? more( (info|information|details?|about it))?|(tell|show|give) me more( (info|information|details?|about (it|this|that)))?|more( please| pls| info| information| details?)?|(any )?(more|other|another) (options?|ones?)|(something|anything) else|what else|others?|explain( (it|this|that|more))?|details?( please| pls)?|go on|continue|and( then)?|aur( batao| bataiye| bolo)?|aur kuch|detail (me|mein) batao|samjhao)$/;
+const isVague = (text: string) =>
+  VAGUE.test(
+    text
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/[?.! ]+$/, '')
+      .trim(),
+  );
+
+const buttonsOf = (ui: UiBlock | null | undefined): Choice[] =>
+  choicesOf({ messages: [], ui: ui ?? null, input: TYPE });
+
+// Whether a reply's buttons were a list of treatments (the treatments menu or one of its groups).
+const aboutTreatments = (ui: UiBlock | null | undefined) =>
+  buttonsOf(ui).some(
+    (o) => o.action === 'treat' || (o.action === 'go' && ['treat', 'ht', 'hf'].includes(o.value ?? '')),
+  );
+
+// Every treatment the clinic offers, by group, built from its own treatment buttons.
+function allTreatments(): ChatResponse {
+  const lines: string[] = [];
+  const alone: string[] = [];
+  let count = 0;
+  for (const o of buttonsOf(NODES.treat.ui)) {
+    const group = o.action === 'go' ? buttonsOf(NODES[o.value ?? '']?.ui) : [];
+    const names = group.filter((x) => x.action === 'treat').map((x) => x.value!);
+    if (names.length) {
+      lines.push(`**${o.label}:** ${names.join(', ')}`);
+      count += names.length;
+    } else if (o.action === 'treat') alone.push(o.value!);
+  }
+  if (alone.length) {
+    lines.push(`**Also:** ${alone.join(', ')}`);
+    count += alone.length;
+  }
+  const text = `We offer ${count} treatments:\n${lines.join('\n')}\nTap a group or type a treatment to learn more.`;
+  return reply([text], NODES.treat.ui);
+}
+
+// "Tell me more" after a treatment: what about it.
+function topicMore(topic: string): ChatResponse {
+  const site = buttonsOf(treatmentCard(topic)?.ui).find((o) => o.href);
+  return reply([`What would you like to know about **${topic}**?`], {
+    type: 'chips',
+    options: [
+      { label: 'Cost', action: 'ask', value: `cost of ${topic}` },
+      { label: `Book for ${topic}`, action: 'book_for', value: topic, primary: true },
+      { label: 'Ask our team', action: 'callback', value: `Question about ${topic}` },
+      ...(site ? [{ label: 'Read more on our website', href: site.href }] : []),
+    ],
+    main: true,
+  });
+}
+
+// "Tell me more", "something else": read from the bot's last reply what "more" is about.
+function vague(f: Flow | null, mem: Memory | undefined): ChatResponse {
+  if (f) return ask(f); // a booking is open: its step again
+  const last = mem?.lastUi ?? null;
+  if (aboutTreatments(last)) return allTreatments();
+  const topic = mem?.topicNow;
+  const isCard = buttonsOf(last).some((o) => o.action === 'book_for');
+  const choices = buttonsOf(last).filter((o) => o.action !== 'menu');
+  if (topic && TREATMENT_INFO[topic] && (isCard || !choices.length || last?.type === 'menu'))
+    return topicMore(topic);
+  if (choices.length) return reply([WHICH], last);
+  return menu('CL01', 'How can I help you today?');
 }
 
 // A question typed in the middle of a flow: answered briefly (or noted), then the same step is asked
@@ -320,7 +437,7 @@ function midFlow(session: string, f: Flow, text: string): ChatResponse {
     sessions.set(session, null);
     return NODES.emergency;
   }
-  if (r.to === 'start' && r.kind !== f.kind) return start(session, r.kind);
+  if (r.to === 'start' && r.kind !== f.kind) return startTyped(session, r.kind, text);
   if (r.to === 'node' && BRIEF[r.key]) return ask(f, [BRIEF[r.key]]);
   if (r.to === 'card') return ask(f, [`**${r.treatment}**\n${TREATMENT_INFO[r.treatment].text}`]);
   if (r.to === 'node' && r.key === 'book') return ask(f);
@@ -337,8 +454,10 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
     return res;
   };
   const value = text.trim();
-  // At a typing step the text is the answer, unless it is an emergency or clearly a question.
-  if (INPUT_STEPS.includes(f.step) && (value.includes('?') || route(value).to === 'emergency')) {
+  // At a typing step the text is the answer, unless it is an emergency or clearly a question. At the name step,
+  // words no name has ("clinic location") make it a question too.
+  const question = value.includes('?') || (f.step === 'name' && NOT_A_NAME.test(value.toLowerCase()));
+  if (INPUT_STEPS.includes(f.step) && (question || route(value).to === 'emergency')) {
     return midFlow(session, f, value);
   }
   switch (f.step) {
@@ -515,14 +634,17 @@ function typedTap(
 // ---------- entry ----------
 
 export function handle(req: ChatRequest): ChatResponse {
+  turn = { topic: null, pending: null };
   const res = respond(req);
   shown.set(req.session_id, choicesOf(res));
+  memory.set(req.session_id, { lastUi: res.ui ?? null, topicNow: turn.topic, pendingQ: turn.pending });
   return res;
 }
 
 function respond(req: ChatRequest): ChatResponse {
   const client = req.client_id;
   const flow = sessions.get(req.session_id) ?? null;
+  const mem = memory.get(req.session_id);
   const { action = '', value = '' } = req.payload;
 
   if (req.event === 'start' || req.event === 'restart') {
@@ -549,10 +671,17 @@ function respond(req: ChatRequest): ChatResponse {
     if (action === 'start' && value === 'callback') return start(req.session_id, 'callback');
     if (action === 'treat') {
       sessions.set(req.session_id, null);
+      turn.topic = value;
       return treatmentCard(value) ?? menu(client, 'How can I help you today?');
     }
+    // Yes to "would you like our team to call you back?": the form, with the question as the reason.
+    if (action === 'ask_team')
+      return start(req.session_id, 'question', mem?.pendingQ ?? 'Asked our team a question');
+    // A button that asks a question ("Cost" after a treatment): as if typed.
+    if (action === 'ask' && value) return respond({ ...req, event: 'text', payload: { text: value } });
     // Book for <treatment>: the matching booking option is preselected; without one the step is asked.
     if (action === 'book_for') {
+      turn.topic = value;
       const option = ARYA.treatments.includes(value) ? value : BOOKING_OPTION[value];
       return start(req.session_id, 'book', undefined, [], option);
     }
@@ -578,11 +707,36 @@ function respond(req: ChatRequest): ChatResponse {
       sessions.set(req.session_id, null);
       return menu(client, 'No problem. How else can I help you?');
     }
+    // A service the clinic does not offer: a clear reply, never a lookalike answer.
+    if (NOT_OFFERED.test(low) && !(flow && INPUT_STEPS.includes(flow.step))) {
+      if (flow) return ask(flow, [NOT_OFFERED_SHORT]);
+      turn.pending = text;
+      return reply([NOT_OFFERED_TEXT], OFFER_UI);
+    }
+    // Another request while a form is open ("reschedule my appointment" while cancelling): switch to it.
+    // One word switches only when it is a clear action; "Online" alone may be a name.
+    const r = route(text);
+    if (flow && ['name', 'phone', 'email'].includes(flow.step) && r.to === 'start' && r.kind !== flow.kind) {
+      if (low.split(' ').length > 1 || r.kind === 'cancel' || r.kind === 'reschedule')
+        return startTyped(req.session_id, r.kind, text);
+    }
     if (IDENTITY.test(low)) return flow ? ask(flow, [ARYA.greeting]) : menu(client, ARYA.greeting);
   }
   const tap = typedTap(req.session_id, flow, text);
   if (tap && 'messages' in tap) return tap;
   if (tap) return respond({ ...req, event: 'button', payload: tap });
+  turn.topic = treatmentIn(low)?.name ?? null;
+  if (mem?.pendingQ && !flow) {
+    // Typed answer to "would you like our team to call you back?".
+    if (isYes(text)) return respond({ ...req, event: 'button', payload: { action: 'ask_team' } });
+    if (REFUSAL.test(low)) return menu(client, STOPPED);
+  }
+  const inForm = !!flow && INPUT_STEPS.includes(flow.step);
+  if (!inForm && (ALL_TREATMENTS.test(low) || (MORE_OF_LIST.test(low) && aboutTreatments(mem?.lastUi)))) {
+    const all = allTreatments(); // "more treatments", "only 4 or more?"
+    return flow ? ask(flow, [all.messages[0].text]) : all;
+  }
+  if (!inForm && isVague(text)) return vague(flow, mem);
   const chat = smallTalk(low);
   if (chat && !(flow && INPUT_STEPS.includes(flow.step))) {
     const said = { greeting: ARYA.greeting, thanks: THANKS, bye: BYE, ok: 'How can I help you today?' }[

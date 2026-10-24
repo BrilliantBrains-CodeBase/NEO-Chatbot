@@ -41,13 +41,16 @@ test('Call Back: name, number, reason, confirmation', async ({ page }) => {
   await expect(panel.locator('.nb-in')).toHaveAttribute('placeholder', 'Type your question');
 });
 
-test('typed question with no answer: says so, takes name, number and email', async ({ page }) => {
+test('typed question with no answer: offers a call back, then takes name, number and email', async ({
+  page,
+}) => {
   const panel = await open(page);
   await panel.locator('.nb-in').fill('Do you have parking near the clinic?');
   await panel.locator('.nb-in').press('Enter');
-  await expect(bots(panel).nth(-2)).toHaveText(
-    "I don't have a confirmed answer for that yet. Share your number and our team will call you back with the right information.",
+  await expect(bot(panel)).toHaveText(
+    "I don't have a confirmed answer for that yet. Would you like our team to call you back with the right information?",
   );
+  await panel.getByRole('button', { name: 'Yes, call me back' }).click();
   await expect(bot(panel)).toHaveText('May I know your full name?');
   await say(panel, 'Priya Sharma', 'Thanks, Priya. What is your contact number?');
   await say(panel, '9876543210', 'What is your email address?');
