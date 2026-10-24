@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
+import SlotPicker, { type Pick } from "@/components/inbox/SlotPicker";
 import { api, ApiError, type Appointment, type Appointments } from "@/lib/api";
 
 const STATUS: Record<string, [string, string]> = {
@@ -17,7 +18,15 @@ const STATUS: Record<string, [string, string]> = {
 };
 // Colour of a block in the day grid, as in the design.
 const tone = (a: Appointment) =>
-  a.status === "visited" ? "vis" : ["no_show", "missed"].includes(a.status) ? "ns" : ["cancelled", "rejected", "rescheduled"].includes(a.status) ? "cx" : a.type === "online" ? "onl" : "";
+  a.status === "visited"
+    ? "vis"
+    : ["no_show", "missed"].includes(a.status)
+      ? "ns"
+      : ["cancelled", "rejected", "rescheduled"].includes(a.status)
+        ? "cx"
+        : a.type === "online"
+          ? "onl"
+          : "";
 
 const ymd = (d: Date) => d.toLocaleDateString("en-CA");
 const shift = (day: string, n: number) => {
@@ -26,54 +35,123 @@ const shift = (day: string, n: number) => {
   return ymd(d);
 };
 const longDay = (day: string) =>
-  new Date(day + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  new Date(day + "T00:00:00").toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 const clock = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 };
 // Rows of the day grid: every 15 minutes from 10:00 to 18:45, widened to fit any appointment outside.
 function rows(items: Appointment[]) {
-  const mins = items.filter((a) => a.time).map((a) => Number(a.time!.slice(0, 2)) * 60 + Number(a.time!.slice(3)));
+  const mins = items
+    .filter((a) => a.time)
+    .map((a) => Number(a.time!.slice(0, 2)) * 60 + Number(a.time!.slice(3)));
   const first = Math.min(600, ...mins);
   const last = Math.max(1125, ...mins);
   const out: string[] = [];
-  for (let m = first - (first % 15); m <= last; m += 15) out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  for (let m = first - (first % 15); m <= last; m += 15)
+    out.push(
+      `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`,
+    );
   return out;
 }
 
 // Today in the browser; "" while the server pre-renders (it must not use the current time).
 const noSubscription = () => () => {};
-const useToday = () => useSyncExternalStore(noSubscription, () => ymd(new Date()), () => "");
+const useToday = () =>
+  useSyncExternalStore(
+    noSubscription,
+    () => ymd(new Date()),
+    () => "",
+  );
 
 export default function AppointmentsView() {
-  const { clinic, me } = useCrm();
+  const { clinic, me, toast } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const today = useToday();
   const [chosen, setDay] = useState(""); // "" = today
   const day = chosen || today;
   const [view, setView] = useState<"doctor" | "list">("doctor");
   const [all, setAll] = useState(false); // also cancelled, rejected and moved ones
-  const key = `${clinicId}|${day}|${all}`;
-  const [data, setData] = useState<{ key: string; d?: Appointments; error?: string }>({ key: "" });
+  const [version, setVersion] = useState(0); // bumped after a change, to load the day again
+  const key = `${clinicId}|${day}|${all}|${version}`;
+  const role = me?.clinics.find((c) => c.id === clinicId)?.role;
+  // Actions in the panel.
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [reason, setReason] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [pick, setPick] = useState<Pick | null>(null);
+  const [data, setData] = useState<{
+    key: string;
+    d?: Appointments;
+    error?: string;
+  }>({ key: "" });
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!clinicId || !day) return;
     let live = true;
-    api<Appointments>(`/v1/crm/appointments?clinic=${clinicId}&from=${day}${all ? "&status=all" : ""}`).then(
+    api<Appointments>(
+      `/v1/crm/appointments?clinic=${clinicId}&from=${day}${all ? "&status=all" : ""}`,
+    ).then(
       (d) => live && setData({ key, d }),
-      (e) => live && setData({ key, error: e instanceof ApiError ? e.message : "Could not load appointments." }),
+      (e) =>
+        live &&
+        setData({
+          key,
+          error:
+            e instanceof ApiError ? e.message : "Could not load appointments.",
+        }),
     );
     return () => {
       live = false;
     };
   }, [clinicId, day, all, key]);
 
+  function show(id: string | null) {
+    setOpenId(id);
+    setError("");
+    setReason("");
+    setMoving(false);
+    setPick(null);
+  }
+
+  async function act(path: string, body: object, done: string) {
+    if (!openId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api<Appointment>(`/v1/crm/appointments/${openId}/${path}`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      toast(done);
+      show(null);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not save. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const d = data.key === key ? data.d : undefined;
   const items = d?.items ?? [];
   const open = items.find((a) => a.id === openId);
   // Columns: the clinic's doctors, plus "No doctor yet" when some appointment has none.
-  const columns = [...(d?.doctors ?? []), ...(items.some((a) => !a.doctor_id) ? [{ id: "", name: "No doctor yet" }] : [])];
+  const columns = [
+    ...(d?.doctors ?? []),
+    ...(items.some((a) => !a.doctor_id)
+      ? [{ id: "", name: "No doctor yet" }]
+      : []),
+  ];
   const anyTime = items.filter((a) => !a.time);
 
   return (
@@ -82,36 +160,75 @@ export default function AppointmentsView() {
         <div>
           <h1>Appointments</h1>
           <p>
-            {day ? longDay(day) : "…"} · {d ? `${items.length} appointment${items.length === 1 ? "" : "s"}` : "…"}
+            {day ? longDay(day) : "…"} ·{" "}
+            {d
+              ? `${items.length} appointment${items.length === 1 ? "" : "s"}`
+              : "…"}
           </p>
         </div>
         <div className="seg">
-          <button className={view === "doctor" ? "on" : ""} onClick={() => setView("doctor")}>
+          <button
+            className={view === "doctor" ? "on" : ""}
+            onClick={() => setView("doctor")}
+          >
             By doctor
           </button>
-          <button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>
+          <button
+            className={view === "list" ? "on" : ""}
+            onClick={() => setView("list")}
+          >
             List
           </button>
         </div>
       </div>
       <div className="tools">
-        <button className="pill" disabled={!day} onClick={() => setDay(shift(day, -1))} aria-label="Previous day">
+        <button
+          className="pill"
+          disabled={!day}
+          onClick={() => setDay(shift(day, -1))}
+          aria-label="Previous day"
+        >
           ‹
         </button>
-        <input className="sel" type="date" aria-label="Day" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} />
-        <button className="pill" disabled={!day} onClick={() => setDay(shift(day, 1))} aria-label="Next day">
+        <input
+          className="sel"
+          type="date"
+          aria-label="Day"
+          value={day}
+          onChange={(e) => e.target.value && setDay(e.target.value)}
+        />
+        <button
+          className="pill"
+          disabled={!day}
+          onClick={() => setDay(shift(day, 1))}
+          aria-label="Next day"
+        >
           ›
         </button>
-        <button className={`pill${day === today ? " on" : ""}`} onClick={() => setDay("")}>
+        <button
+          className={`pill${day === today ? " on" : ""}`}
+          onClick={() => setDay("")}
+        >
           Today
         </button>
-        <label className="sub2" style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
+        <label
+          className="sub2"
+          style={{ display: "flex", gap: 6, alignItems: "center" }}
+        >
+          <input
+            type="checkbox"
+            checked={all}
+            onChange={(e) => setAll(e.target.checked)}
+          />
           Show cancelled and moved
         </label>
       </div>
-      {data.key === key && data.error && <div className="warnbox">{data.error}</div>}
-      {!d && !(data.key === key && data.error) && <p className="sub2">Loading…</p>}
+      {data.key === key && data.error && (
+        <div className="warnbox">{data.error}</div>
+      )}
+      {!d && !(data.key === key && data.error) && (
+        <p className="sub2">Loading…</p>
+      )}
 
       {d && view === "doctor" && (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
@@ -133,7 +250,7 @@ export default function AppointmentsView() {
                       {anyTime
                         .filter((a) => (a.doctor_id ?? "") === c.id)
                         .map((a) => (
-                          <Block key={a.id} a={a} onOpen={setOpenId} />
+                          <Block key={a.id} a={a} onOpen={show} />
                         ))}
                     </td>
                   ))}
@@ -145,9 +262,11 @@ export default function AppointmentsView() {
                   {columns.map((c) => (
                     <td key={c.id || "none"}>
                       {items
-                        .filter((a) => a.time === t && (a.doctor_id ?? "") === c.id)
+                        .filter(
+                          (a) => a.time === t && (a.doctor_id ?? "") === c.id,
+                        )
                         .map((a) => (
-                          <Block key={a.id} a={a} onOpen={setOpenId} />
+                          <Block key={a.id} a={a} onOpen={show} />
                         ))}
                     </td>
                   ))}
@@ -178,7 +297,11 @@ export default function AppointmentsView() {
                 </tr>
               )}
               {items.map((a) => (
-                <tr key={a.id} onClick={() => setOpenId(a.id)} style={{ cursor: "pointer" }}>
+                <tr
+                  key={a.id}
+                  onClick={() => show(a.id)}
+                  style={{ cursor: "pointer" }}
+                >
                   <td>{a.time ? clock(a.time) : "Any time"}</td>
                   <td>
                     <div className="nm">{a.name}</div>
@@ -190,7 +313,9 @@ export default function AppointmentsView() {
                   <td>{a.doctor ?? "—"}</td>
                   <td>{a.type === "online" ? "Online" : "In-clinic"}</td>
                   <td>
-                    <span className={`badge ${STATUS[a.status]?.[1]}`}>{STATUS[a.status]?.[0] ?? a.status}</span>
+                    <span className={`badge ${STATUS[a.status]?.[1]}`}>
+                      {STATUS[a.status]?.[0] ?? a.status}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -199,7 +324,7 @@ export default function AppointmentsView() {
         </div>
       )}
 
-      <div className={`ov${open ? " on" : ""}`} onClick={() => setOpenId(null)} />
+      <div className={`ov${open ? " on" : ""}`} onClick={() => show(null)} />
       <aside className={`dr${open ? " on" : ""}`} aria-hidden={!open}>
         {open && (
           <>
@@ -210,10 +335,16 @@ export default function AppointmentsView() {
                   <Link className="lnk" href={`/leads?open=${open.lead_code}`}>
                     {open.lead_code}
                   </Link>
-                  <span className={`badge ${STATUS[open.status]?.[1]}`}>{STATUS[open.status]?.[0] ?? open.status}</span>
+                  <span className={`badge ${STATUS[open.status]?.[1]}`}>
+                    {STATUS[open.status]?.[0] ?? open.status}
+                  </span>
                 </p>
               </div>
-              <button className="x" onClick={() => setOpenId(null)} aria-label="Close">
+              <button
+                className="x"
+                onClick={() => show(null)}
+                aria-label="Close"
+              >
                 ✕
               </button>
             </div>
@@ -224,7 +355,12 @@ export default function AppointmentsView() {
                     ["Date", longDay(open.day)],
                     ["Time", open.time ? clock(open.time) : "Any time"],
                     ["Doctor", open.doctor],
-                    ["Type", open.type === "online" ? "Online (Google Meet)" : "In-clinic"],
+                    [
+                      "Type",
+                      open.type === "online"
+                        ? "Online (Google Meet)"
+                        : "In-clinic",
+                    ],
                     ["Treatment", open.treatment],
                     ["Phone", open.phone],
                     ["Email", open.email],
@@ -233,11 +369,23 @@ export default function AppointmentsView() {
                 )
                   .filter(([, v]) => v)
                   .map(([k, v]) => (
-                    <div key={k} style={k === "Meet link" || k === "Date" ? { gridColumn: "1 / -1" } : undefined}>
+                    <div
+                      key={k}
+                      style={
+                        k === "Meet link" || k === "Date"
+                          ? { gridColumn: "1 / -1" }
+                          : undefined
+                      }
+                    >
                       <span>{k}</span>
                       <b>
                         {k === "Meet link" ? (
-                          <a className="lnk" href={v!} target="_blank" rel="noreferrer">
+                          <a
+                            className="lnk"
+                            href={v!}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             {v}
                           </a>
                         ) : (
@@ -249,11 +397,138 @@ export default function AppointmentsView() {
               </div>
               {open.meet_link && (
                 <div className="row">
-                  <button className="pill" onClick={() => void navigator.clipboard.writeText(open.meet_link!)}>
+                  <button
+                    className="pill"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(open.meet_link!)
+                    }
+                  >
                     Copy Meet link
                   </button>
                 </div>
               )}
+              {error && <div className="warnbox">{error}</div>}
+              {!!role &&
+                role !== "doctor" &&
+                ["pending", "confirmed"].includes(open.status) && (
+                  <>
+                    <div className="sec">
+                      <h4>WHAT HAPPENED</h4>
+                      <div className="row">
+                        <button
+                          className="btn"
+                          disabled={busy}
+                          onClick={() =>
+                            act(
+                              "status",
+                              { status: "visited" },
+                              "Marked visited",
+                            )
+                          }
+                        >
+                          Visited
+                        </button>
+                        <button
+                          className="pill"
+                          disabled={busy}
+                          onClick={() =>
+                            act(
+                              "status",
+                              { status: "no_show" },
+                              "Marked no show",
+                            )
+                          }
+                        >
+                          No show
+                        </button>
+                      </div>
+                    </div>
+                    <div className="sec">
+                      <h4>CHANGE</h4>
+                      <button
+                        className="lnk"
+                        style={{
+                          border: 0,
+                          background: "none",
+                          padding: 0,
+                          marginBottom: 8,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          setMoving(!moving);
+                          setPick(null);
+                        }}
+                      >
+                        {moving
+                          ? "Keep this time"
+                          : "Change doctor, date or time"}
+                      </button>
+                      {moving && clinicId && (
+                        <>
+                          <SlotPicker
+                            key={open.id}
+                            clinicId={clinicId}
+                            mode={open.type}
+                            doctorId={open.doctor_id}
+                            value={pick}
+                            onChange={setPick}
+                          />
+                          {open.type === "online" && open.meet_link && (
+                            <p className="sub2" style={{ marginTop: 0 }}>
+                              Cal.com moves the consult too and emails the
+                              patient the new time.
+                            </p>
+                          )}
+                          <button
+                            className="btn"
+                            disabled={busy || !pick}
+                            onClick={() =>
+                              pick &&
+                              act(
+                                "move",
+                                {
+                                  date: pick.date,
+                                  time: pick.time,
+                                  doctor_id: pick.doctorId || null,
+                                  reason,
+                                },
+                                "Appointment moved",
+                              )
+                            }
+                          >
+                            Move appointment
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div className="sec">
+                      <h4>CANCEL</h4>
+                      <div className="row">
+                        <input
+                          className="f"
+                          style={{ flex: 1 }}
+                          placeholder="Reason (required to cancel; also kept for a move)"
+                          maxLength={500}
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                        />
+                        <button
+                          className="pill"
+                          disabled={busy || reason.trim().length < 3}
+                          onClick={() =>
+                            act(
+                              "status",
+                              { status: "cancelled", reason },
+                              "Appointment cancelled",
+                            )
+                          }
+                        >
+                          Cancel appointment
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
             </div>
           </>
         )}
@@ -262,9 +537,19 @@ export default function AppointmentsView() {
   );
 }
 
-function Block({ a, onOpen }: { a: Appointment; onOpen: (id: string) => void }) {
+function Block({
+  a,
+  onOpen,
+}: {
+  a: Appointment;
+  onOpen: (id: string) => void;
+}) {
   return (
-    <div className={`ap ${tone(a)}`} onClick={() => onOpen(a.id)} title={`${a.name} · ${a.treatment ?? ""}`}>
+    <div
+      className={`ap ${tone(a)}`}
+      onClick={() => onOpen(a.id)}
+      title={`${a.name} · ${a.treatment ?? ""}`}
+    >
       <b>{a.name}</b>
       <span>
         {a.type === "online" ? "Online" : "In-clinic"}

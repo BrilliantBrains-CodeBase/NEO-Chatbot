@@ -254,3 +254,80 @@ async def test_appointments_of_a_day(api: AsyncClient, monkeypatch: pytest.Monke
         assert long.status_code == 422
     finally:
         await pool.execute("select app.delete_patient_data($1)", lead)
+
+
+@needs_db
+async def test_appointment_move_visit_and_cancel(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.crm import calcom
+
+    calls: list[str] = []
+
+    async def cancel(uid, reason):  # type: ignore[no-untyped-def]
+        calls.append("cancel " + uid)
+
+    async def reschedule(uid, start, reason):  # type: ignore[no-untyped-def]
+        calls.append("move " + uid)
+        return calcom.Booking(uid="uid-moved", meet_link=None)
+
+    monkeypatch.setattr(calcom, "cancel", cancel)
+    monkeypatch.setattr(calcom, "reschedule", reschedule)
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    doctor = await pool.fetchval(
+        "insert into app.doctors (clinic_id, name, role_title) values ('CL99', 'Dr Move', 'MD') returning id"
+    )
+    await pool.execute(
+        """insert into app.doctor_availability (doctor_id, clinic_id, weekday, mode, start_time, end_time)
+           values ($1, 'CL99', 1, 'online', '10:00', '19:00')""",
+        doctor,
+    )
+    lead = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Move Test', '+919000000009', 'chatbot') returning id"""
+    )
+    try:
+        ids = []
+        for kind, start, uid in (
+            ("online", datetime.fromisoformat("2026-11-02T11:00+05:30"), "uid-1"),
+            ("in_clinic", datetime.fromisoformat("2026-11-03T11:00+05:30"), None),
+        ):
+            ids.append(
+                await pool.fetchval(
+                    """insert into app.appointments (clinic_id, lead_id, doctor_id, type, slot, status,
+                         confirmed_at, calendar_event_id)
+                       values ('CL99', $1, $2, $3, tstzrange($4::timestamptz,
+                         $4::timestamptz + interval '15 min', '[)'), 'confirmed', now(), $5) returning id""",
+                    lead,
+                    doctor,
+                    kind,
+                    start,
+                    uid,
+                )  # fmt: skip
+            )
+        online, inclinic = ids
+        r = await api.post(
+            f"/v1/crm/appointments/{online}/move",
+            json={"date": "2026-11-09", "time": "12:00"},
+            headers=headers,
+        )
+        assert r.status_code == 200, r.text
+        assert (r.json()["day"], r.json()["time"], r.json()["doctor"]) == ("2026-11-09", "12:00", "Dr Move")
+        assert calls == ["move uid-1"]
+        url = f"/v1/crm/appointments/{online}/status"
+        assert (await api.post(url, json={"status": "cancelled"}, headers=headers)).status_code == 422
+        r = await api.post(url, json={"status": "cancelled", "reason": "Patient travelling"}, headers=headers)
+        assert r.json()["status"] == "cancelled" and calls[-1] == "cancel uid-moved"
+        again = await api.post(url, json={"status": "visited"}, headers=headers)
+        assert again.status_code == 409  # already closed
+        r = await api.post(
+            f"/v1/crm/appointments/{inclinic}/status", json={"status": "visited"}, headers=headers
+        )
+        assert r.json()["status"] == "visited" and r.json()["stage"] == "visited"
+    finally:
+        await pool.execute("select app.delete_patient_data($1)", lead)
+        await pool.execute("delete from app.doctors where id = $1", doctor)

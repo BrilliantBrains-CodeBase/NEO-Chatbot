@@ -260,7 +260,9 @@ async def _move(
     last = first + timedelta(minutes=c["slot_minutes"])
     if first <= datetime.now(first.tzinfo):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That time has already passed.")
-    await conn.execute("update app.appointments set slot = null where id = $1", r["a_id"])  # free its own
+    await conn.execute(  # free its own time while choosing (the day keeps the row valid)
+        "update app.appointments set slot = null, preferred_date = $2 where id = $1", r["a_id"], day
+    )
     free = await free_doctors(conn, c, r["a_type"], first, last, "s_crm")
     if not free:
         raise HTTPException(status.HTTP_409_CONFLICT, "No doctor is free at that time. Choose another time.")
@@ -496,3 +498,113 @@ async def appointments(
             for r in rows
         ],
     )
+
+
+class StatusIn(BaseModel):
+    status: Literal["visited", "no_show", "cancelled"]
+    reason: str = Field(default="", max_length=500)  # needed to cancel
+
+
+class MoveIn(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    doctor_id: str | None = None
+    reason: str = Field(default="", max_length=500)
+
+
+async def _appt(conn: asyncpg.Connection, user: Staff, appt_id: str) -> asyncpg.Record:
+    try:
+        a = await conn.fetchrow(
+            """select a.id a_id, a.clinic_id, a.lead_id, a.type a_type, a.status, a.doctor_id a_doctor_id,
+                 a.calendar_event_id a_cal, a.meet_link a_meet,
+                 coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) a_day
+               from app.appointments a join app.clinics c on c.id = a.clinic_id
+               where a.id = $1::uuid for update of a""",
+            appt_id,
+        )
+    except asyncpg.DataError:
+        a = None
+    if a is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Appointment not found.")
+    can_edit(user, a["clinic_id"])
+    if a["status"] not in ("pending", "confirmed"):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This appointment is already closed.")
+    await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who did it
+    return a
+
+
+async def _one(conn: asyncpg.Connection, appt_id: Any) -> Appointment:
+    r = await conn.fetchrow(
+        """select a.id, lower(a.slot) start, d.id doctor_id, d.name doctor, a.type, a.status, a.meet_link,
+             l.lead_code, l.full_name, l.phone_e164, l.email, l.treatment, l.stage,
+             coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) as day,
+             to_char(lower(a.slot) at time zone c.timezone, 'HH24:MI') tm
+           from app.appointments a join app.leads l on l.id = a.lead_id
+           join app.clinics c on c.id = a.clinic_id left join app.doctors d on d.id = a.doctor_id
+           where a.id = $1""",
+        appt_id,
+    )
+    return Appointment(
+        id=str(r["id"]), start=r["start"].isoformat() if r["start"] else None, day=r["day"].isoformat(),
+        time=r["tm"], doctor=r["doctor"], doctor_id=str(r["doctor_id"]) if r["doctor_id"] else None,
+        type=r["type"], status=r["status"], meet_link=r["meet_link"], lead_code=r["lead_code"],
+        name=r["full_name"], phone=r["phone_e164"], email=r["email"], treatment=r["treatment"],
+        stage=r["stage"],
+    )  # fmt: skip
+
+
+@router.post("/appointments/{appt_id}/status", response_model=Appointment)
+async def appointment_status(
+    user: Annotated[Staff, Depends(staff)], appt_id: str, body: StatusIn
+) -> Appointment:
+    """Visited (the lead becomes Visited), No show, or Cancel with a reason (an online consult's Cal.com
+    booking is cancelled too). Each goes on the lead's timeline."""
+    if body.status == "cancelled" and len(body.reason.strip()) < 3:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a reason to cancel.")
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        a = await _appt(conn, user, appt_id)
+        await conn.execute(
+            """update app.appointments set status = $2, updated_at = now(),
+                 confirmed_at = case when $2 in ('visited', 'no_show') then coalesce(confirmed_at, now())
+                   else confirmed_at end
+               where id = $1""",
+            a["a_id"], body.status,
+        )  # fmt: skip
+        if body.status == "visited":
+            await conn.execute(
+                """update app.leads set stage = 'visited', stage_reason = null, updated_at = now()
+                   where id = $1""",
+                a["lead_id"],
+            )
+        lead = {"id": a["lead_id"], "clinic_id": a["clinic_id"]}
+        await _event(conn, lead, user, "appointment", {"status": body.status, "text": body.reason.strip()})
+        if body.status == "cancelled" and a["a_cal"]:
+            await _calcom(calcom.cancel(a["a_cal"], body.reason.strip()))
+        return await _one(conn, a["a_id"])
+
+
+@router.post("/appointments/{appt_id}/move", response_model=Appointment)
+async def move_appointment(user: Annotated[Staff, Depends(staff)], appt_id: str, body: MoveIn) -> Appointment:
+    """Moves a pending or confirmed appointment to a free time of a doctor (in-clinic and online share one
+    diary). An online consult's Cal.com booking moves too, and Cal.com emails the patient the new time."""
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        a = await _appt(conn, user, appt_id)
+        await _move(conn, a, body.date, body.time, body.doctor_id)
+        lead = {"id": a["lead_id"], "clinic_id": a["clinic_id"]}
+        await _event(
+            conn, lead, user, "appointment",
+            {"status": "moved", "to": f"{body.date} {body.time}", "text": body.reason.strip()},
+        )  # fmt: skip
+        if a["a_cal"]:
+            start = await conn.fetchval("select lower(slot) from app.appointments where id = $1", a["a_id"])
+            moved = await _calcom(
+                calcom.reschedule(a["a_cal"], start, body.reason.strip() or "Moved by the clinic")
+            )
+            await conn.execute(
+                """update app.appointments set meet_link = coalesce($2, meet_link), calendar_event_id = $3
+                   where id = $1""",
+                a["a_id"], moved.meet_link, moved.uid,
+            )  # fmt: skip
+        return await _one(conn, a["a_id"])
