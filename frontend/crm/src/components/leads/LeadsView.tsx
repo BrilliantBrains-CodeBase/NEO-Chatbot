@@ -17,6 +17,7 @@ export const STAGE_LABEL: Record<string, [string, string]> = {
 const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp" };
 const EVENT: Record<string, string> = { contact: "Contacted", stage_change: "Stage changed", assigned: "Assigned", call: "Call", note: "Note", request: "Request", appointment: "Appointment" };
 
+const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could not load leads.");
 
@@ -48,10 +49,13 @@ export default function LeadsView() {
   const setStage = (s: string) => go(s, openCode);
   const [version, setVersion] = useState(0); // bumped after a change, to load the list again
   const [source, setSource] = useState("");
+  // Leads created in this range (days, both included); empty = all time.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
   // A newly added lead is opened by its code: the list loads again to include it.
-  const key = `${clinicId}|${stage}|${source}|${q}|${version}|${openCode}`;
+  const key = `${clinicId}|${stage}|${source}|${q}|${from}|${to}|${version}|${openCode}`;
   const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
   const [detail, setDetail] = useState<{ code: string; d?: LeadDetail; error?: string }>({ code: "" });
 
@@ -62,6 +66,8 @@ export default function LeadsView() {
     if (stage) p.set("stage", stage);
     if (source) p.set("source", source);
     if (q) p.set("q", q);
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
     api<LeadList>(`/v1/crm/leads?${p}`).then(
       (d) => live && setList({ key, d }),
       (e) => live && setList({ key, error: errorText(e) }),
@@ -69,7 +75,26 @@ export default function LeadsView() {
     return () => {
       live = false;
     };
-  }, [clinicId, stage, source, q, key]);
+  }, [clinicId, stage, source, q, from, to, key]);
+
+  function range(days: number | null) {
+    if (days === null) {
+      setFrom("");
+      setTo("");
+      return;
+    }
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    setFrom(ymd(start));
+    setTo(ymd(end));
+  }
+  const preset = (days: number | null) => {
+    if (days === null) return !from && !to;
+    const start = new Date();
+    start.setDate(start.getDate() - (days - 1));
+    return from === ymd(start) && to === ymd(new Date());
+  };
 
   useEffect(() => {
     if (!openCode) return;
@@ -120,6 +145,21 @@ export default function LeadsView() {
         <label className="search">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, email or code" />
         </label>
+        <div className="pills" style={{ margin: 0 }} aria-label="Created">
+          {(
+            [
+              ["Today", 1],
+              ["All time", null],
+            ] as [string, number | null][]
+          ).map(([label, days]) => (
+            <button key={label} type="button" className={`pill${preset(days) ? " on" : ""}`} onClick={() => range(days)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input className="sel" type="date" aria-label="From" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        <span className="sub2">to</span>
+        <input className="sel" type="date" aria-label="To" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
         <select className="sel" value={source} onChange={(e) => setSource(e.target.value)} aria-label="Source">
           <option value="">All sources</option>
           {Object.entries(SOURCE).map(([k, v]) => (

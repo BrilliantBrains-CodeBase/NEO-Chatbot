@@ -123,6 +123,8 @@ async def test_leads_list_and_one_lead(api: AsyncClient, monkeypatch: pytest.Mon
     assert [s["key"] for s in d["stages"]][0] == "new" and len(d["items"]) <= 5
     assert d["total"] == sum(s["count"] for s in d["stages"])
     assert (await api.get("/v1/crm/leads/NOPE-0", headers=headers)).status_code == 404
+    none = (await api.get("/v1/crm/leads?clinic=CL01&from=2020-01-01&to=2020-01-02", headers=headers)).json()
+    assert none["total"] == 0 and none["items"] == []
     if d["items"]:
         one = (await api.get(f"/v1/crm/leads/{d['items'][0]['code']}", headers=headers)).json()
         assert one["code"] == d["items"][0]["code"] and isinstance(one["events"], list)

@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Mapping
+from datetime import date
 from typing import Annotated, Any, Literal
 
 from asyncpg import Connection, Record
@@ -260,21 +261,26 @@ async def leads(
     q: Annotated[str, Query(max_length=100)] = "",
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
 ) -> LeadList:
-    """Leads of one clinic, newest contact first. `q` matches name, phone, email or lead code."""
+    """Leads of one clinic, newest contact first. `q` matches name, phone, email or lead code; `from` and
+    `to` (days in clinic time, both included) keep leads created in that range."""
     can_see(user, clinic)
     where = "l.clinic_id = $1 and l.deleted_at is null and ($2::text is null or l.source = $2)"
     where += " and ($3 = '' or l.full_name ilike '%'||$3||'%' or l.phone_e164 like '%'||$3||'%'"
     where += " or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)"
-    args = [clinic, source, q.strip()]
+    where += f" and ($4::date is null or (l.created_at at time zone '{TZ}')::date >= $4)"
+    where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
+    args = [clinic, source, q.strip(), date_from, date_to]
     pool = await get_pool()
     async with pool.acquire() as conn:
         counts = {r[0]: r[1] for r in await conn.fetch(
             f"select l.stage, count(*) from app.leads l where {where} group by 1", *args
         )}  # fmt: skip
         rows = await conn.fetch(
-            f"""{LEAD_SELECT} where {where} and ($4::text is null or l.stage = $4)
-                order by l.last_contact_at desc limit $5 offset $6""",
+            f"""{LEAD_SELECT} where {where} and ($6::text is null or l.stage = $6)
+                order by l.last_contact_at desc limit $7 offset $8""",
             *args, stage, limit, offset,
         )  # fmt: skip
     return LeadList(
