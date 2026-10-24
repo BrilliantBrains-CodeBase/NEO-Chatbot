@@ -152,6 +152,12 @@ DONE = {
 }
 
 
+EMAIL_CHECK = [
+    {"label": "Yes, correct", "action": "email_ok"},
+    {"label": "Change email", "action": "email_change"},
+]
+
+
 def ask(f: Flow, cfg: dict[str, Any], lead: list[str] | None = None) -> ChatResponse:
     lead = lead or []
     step = f["step"]
@@ -162,7 +168,15 @@ def ask(f: Flow, cfg: dict[str, Any], lead: list[str] | None = None) -> ChatResp
             [*lead, f"Thanks, {first_name(f['name'])}. What is your contact number?"], None, PHONE_INPUT
         )
     if step == "email":
-        return reply([*lead, "What is your email address?"], None, EMAIL_INPUT)
+        text = "What is your email address?"
+        if f["kind"] == "online":
+            text = "What is your email address? We will send the Google Meet link there."
+        return reply([*lead, text], None, EMAIL_INPUT)
+    if step == "email_check":
+        return reply(
+            [*lead, f"Is this email correct? We will send the live consultation link to **{f['email']}**."],
+            {"type": "chips", "options": EMAIL_CHECK},
+        )
     if step == "treatment":
         opts = [{"label": t, "action": "treatment", "value": t} for t in cfg["treatments"]]
         return reply([*lead, "Which treatment are you looking for?"], {"type": "chips", "options": opts})
@@ -215,7 +229,7 @@ def when_text(f: Flow) -> str:
 
 def summary(f: Flow, lead: list[str]) -> ChatResponse:
     visit = "Online video consultation (Google Meet)" if f["kind"] == "online" else "In-clinic visit"
-    lines = ["Please check your details:", f"**{f['name']}**", f["phone"], f["email"], treatment_text(f), visit,
+    lines = ["Please check your details:", f"**{f['name']}**", f["phone"], *([f["email"]] if f.get("email") else []), treatment_text(f), visit,
              when_text(f), f"**{CONSENT}**"]  # fmt: skip
     options = [
         {"label": "Confirm booking", "action": "confirm"},
@@ -313,14 +327,17 @@ def typed(f: Flow, cfg: dict[str, Any], text: str, cc: str | None) -> tuple[Flow
             return f, _advance(f, cfg, "booked_date")
         if f["kind"] == "callback":
             return (None, ended(f)) if f.get("reason") else (f, _advance(f, cfg, "cb_reason"))
-        return f, _advance(f, cfg, "email")
-    if step == "email":
+        if f["kind"] in ("question", "online"):  # online: the Google Meet link is sent by email
+            return f, _advance(f, cfg, "email")
+        return f, _advance(f, cfg, "date" if f.get("treatment") else "treatment")  # in-clinic: no email
+    if step == "email" or (step == "email_check" and EMAIL.match(value)):  # a new address typed instead
         if not EMAIL.match(value):
             return f, reply(["Please enter a valid email address."], None, EMAIL_INPUT)
         f["email"] = value.lower()
         if f["kind"] == "question":
             return None, ended(f)
-        return f, _advance(f, cfg, "date" if f.get("treatment") else "treatment")
+        f["step"] = "email_check"
+        return f, ask(f, cfg)
     if step in ("reason", "cb_reason"):
         if len(value) < 3:
             placeholder = "Short reason" if step == "reason" else "Reason for the call"
@@ -341,6 +358,11 @@ def button(f: Flow, cfg: dict[str, Any], action: str, value: str | None) -> tupl
         action in ("treatment", "confirm", "change_treatment", "change_datetime", "switch_inclinic")
         and not booking
     ) or (action in ("date", "time") and not (booking or f["kind"] == "reschedule")):
+        return f, ask(f, cfg)
+    if action == "email_ok" and f["step"] == "email_check":
+        return f, _advance(f, cfg, "date" if f.get("treatment") else "treatment")
+    if action == "email_change" and f["step"] == "email_check":
+        f["step"] = "email"
         return f, ask(f, cfg)
     if action == "confirm" and f["step"] == "summary":
         return None, confirmed(f)

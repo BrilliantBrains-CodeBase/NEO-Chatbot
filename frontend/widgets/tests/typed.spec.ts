@@ -114,7 +114,6 @@ test('mid-booking question at the date step: short answer, then the date is aske
   await panel.getByRole('button', { name: 'Book appointment (in-clinic)' }).click();
   await type(panel, 'Priya Sharma');
   await type(panel, '9876543210');
-  await type(panel, 'priya@example.com');
   await panel.getByRole('button', { name: 'Hair Transplant for Men', exact: true }).click();
   await expect(bot(panel)).toHaveText('Which date works for you?');
 
@@ -140,14 +139,13 @@ test('mid-booking questions at typing steps: answered or noted, the step continu
   await expect(bot(panel)).toHaveText('May I know your full name?');
   await type(panel, 'Priya Sharma');
   await type(panel, '9876543210');
-  await expect(bot(panel)).toHaveText('What is your email address?');
+  await expect(bot(panel)).toHaveText('Which treatment are you looking for?');
 
   await type(panel, 'Is PRP painful?'); // medical: not answered, noted for the team
   await expect(bots(panel).nth(-2)).toHaveText(
     "I don't have a confirmed answer for that yet. I have noted your question for our team.",
   );
-  await expect(bot(panel)).toHaveText('What is your email address?');
-  await expect(panel.locator('.nb-in')).toHaveAttribute('type', 'email');
+  await expect(bot(panel)).toHaveText('Which treatment are you looking for?');
 });
 
 test('emergency in the middle of a booking takes over', async ({ page }) => {

@@ -225,7 +225,11 @@ def _text(
         return Turn(ChatResponse(messages=[BotMessage(text=said)], ui=c["menu"]), "menu", {})
     if flow:
         cfg = c["config"]
-        exact = flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
+        exact = (
+            flow["step"] == "treatment" and any(t.lower() == text.lower() for t in cfg["treatments"])
+        ) or (
+            flow["step"] == "email_check" and bool(flows.EMAIL.match(text.strip()))  # a corrected address
+        )
         question_at_name = flow["step"] == "name" and understand.NOT_A_NAME.search(low)
         if (flow["step"] in INPUT_STEPS and "?" not in text and not question_at_name) or exact:
             return _step(flow, flows.typed(flow, cfg, text, req.payload.cc))
@@ -401,6 +405,8 @@ def _typed_tap(
             return Turn(flows.ask(flow, cfg, [NOT_AVAILABLE_TIME]), "flow", {"flow": flow})
     if flow and flow["step"] == "summary" and understand.is_yes(text):
         return {"action": "confirm"}
+    if flow and flow["step"] == "email_check" and understand.is_yes(text):
+        return {"action": "email_ok"}
     # Only the buttons of the latest reply (never older ones: a typed name must not tap an old button).
     option = understand.match_option(text, state.get("last_shown", []))
     return {"action": option["action"], "value": option.get("value")} if option else None

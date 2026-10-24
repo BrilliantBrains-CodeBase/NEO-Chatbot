@@ -38,9 +38,26 @@ async function details(panel: Locator, start: string, intro: string) {
   await say(panel, 'Priya Sharma', 'Thanks, Priya. What is your contact number?');
   await expect(panel.getByRole('combobox', { name: 'Country code' })).toBeVisible();
   await say(panel, '12345', 'That number does not look right. Please check and enter it again.');
-  await say(panel, '9876543210', 'What is your email address?');
+  if (start !== 'Online consultation') {
+    await say(panel, '9876543210', 'Which treatment are you looking for?'); // in-clinic asks no email
+    return;
+  }
+  // Online: the email gets the Google Meet link, so it is checked before going on.
+  await say(panel, '9876543210', 'What is your email address? We will send the Google Meet link there.');
   await say(panel, 'priya@', 'Please enter a valid email address.');
-  await say(panel, 'priya@example.com', 'Which treatment are you looking for?');
+  await say(
+    panel,
+    'priya@example.co',
+    'Is this email correct? We will send the live consultation link to priya@example.co.',
+  );
+  await tap(panel, 'Change email');
+  await say(
+    panel,
+    'priya@example.com',
+    'Is this email correct? We will send the live consultation link to priya@example.com.',
+  );
+  await tap(panel, 'Yes, correct');
+  await expect(bot(panel)).toHaveText('Which treatment are you looking for?');
 }
 
 test('in-clinic booking from start to confirmation', async ({ page }) => {
@@ -74,7 +91,7 @@ test('in-clinic booking from start to confirmation', async ({ page }) => {
   await tap(panel, '10:30 AM');
 
   await expect(bot(panel)).toHaveText(
-    'Please check your details:Priya Sharma+91 9876543210priya@example.comHair Transplant for MenIn-clinic visit23 Oct 2026 at 10:30 AMBy confirming, you agree to be contacted by phone, WhatsApp or email.',
+    'Please check your details:Priya Sharma+91 9876543210Hair Transplant for MenIn-clinic visit23 Oct 2026 at 10:30 AMBy confirming, you agree to be contacted by phone, WhatsApp or email.',
   );
   await expect(panel.locator('.nb-chips').last().locator('.nb-chip')).toHaveText([
     'Confirm booking',

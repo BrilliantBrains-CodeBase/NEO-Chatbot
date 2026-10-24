@@ -73,9 +73,8 @@ test('Hair fall list has 10 treatments; Book for PRP preselects the booking opti
 
   await expect(bot(panel)).toHaveText("Sure, let's book your appointment. May I know your full name?");
   await say(panel, 'Priya Sharma', 'Thanks, Priya. What is your contact number?');
-  await say(panel, '9876543210', 'What is your email address?');
-  // The treatment step is skipped.
-  await say(panel, 'priya@example.com', 'Which date works for you?');
+  // No email step, and the treatment step is skipped.
+  await say(panel, '9876543210', 'Which date works for you?');
   await panel.locator('.nb-cal').last().getByRole('button', { name: '23 Oct 2026', exact: true }).click();
   await tap(panel, '10:00 AM');
   await expect(bot(panel)).toContainText('Non-Surgical Treatment (GFC, PRP, QR678)');

@@ -84,7 +84,6 @@ def test_a_whole_booking_typed_with_typos_and_short_labels() -> None:
     assert "let's book your appointment" in c.type("in clinic")
     c.type("Priya Sharma")
     c.type("9876543210")
-    c.type("priya@example.com")
     assert c.type("hair transplant for man") == "Which date works for you?"  # one-letter typo
     assert "That date is not available" in c.type("Tuesday")
     assert c.type("tomorrow") == "What time would you prefer?"
@@ -115,7 +114,7 @@ def test_questions_mid_booking_and_emergency() -> None:
     c.type("Priya Sharma")
     c.type("9876543210")
     assert c.type("Is PRP painful?") == (
-        "I don't have a confirmed answer for that yet. I have noted your question for our team. | What is your email address?"
+        "I don't have a confirmed answer for that yet. I have noted your question for our team. | Which treatment are you looking for?"
     )
     assert c.state["flow"]["questions"] == ["Is PRP painful?"]
     assert "call **108**" in c.type("I fainted")  # emergency takes over

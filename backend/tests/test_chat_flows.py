@@ -52,9 +52,7 @@ def test_in_clinic_booking_with_the_invalid_inputs() -> None:
     assert c.type("Priya Sharma") == "Thanks, Priya. What is your contact number?"
     assert c.last.input.mode == "phone"
     assert c.type("12345") == "That number does not look right. Please check and enter it again."
-    assert c.type("9876543210") == "What is your email address?"
-    assert c.type("priya@") == "Please enter a valid email address."
-    assert c.type("priya@example.com") == "Which treatment are you looking for?"
+    assert c.type("9876543210") == "Which treatment are you looking for?"  # bookings ask no email
     assert c.tap("treatment", "Hair Transplant for Men") == "Which date works for you?"
     cal = c.last.ui or {}
     assert (cal["min"], cal["max"], cal["closed_weekdays"]) == ("2026-10-21", "2026-11-04", [2])
@@ -77,7 +75,7 @@ def test_in_clinic_booking_with_the_invalid_inputs() -> None:
 def test_online_with_other_reason_any_time_and_switch() -> None:
     c = Chat()
     c.tap("start", "online")
-    for t in ["Priya Sharma", "9876543210", "priya@example.com"]:
+    for t in ["Priya Sharma", "9876543210"]:
         c.type(t)
     assert c.tap("treatment", "Other") == "Please tell us briefly what you are looking for."
     assert c.type("Hi") == "Please add a few more words."
@@ -94,9 +92,8 @@ def test_online_with_other_reason_any_time_and_switch() -> None:
 def test_book_for_preselects_and_skips_the_treatment_step() -> None:
     c = Chat()
     c.tap("book_for", "PRP Treatment")
-    for t in ["Priya Sharma", "9876543210"]:
-        c.type(t)
-    assert c.type("priya@example.com") == "Which date works for you?"
+    c.type("Priya Sharma")
+    assert c.type("9876543210") == "Which date works for you?"
     c.tap("date", "2026-10-23")
     assert "Non-Surgical Treatment (GFC, PRP, QR678)" in c.tap("time", "10:00")
 
@@ -146,3 +143,20 @@ def test_a_date_tap_never_moves_a_callback_into_booking() -> None:
     c.type("Rahul Verma")
     assert c.tap("date", "2026-10-23") == "Thanks, Rahul. What is your contact number?"  # asked again
     assert c.tap("confirm") == "Thanks, Rahul. What is your contact number?"
+
+
+def test_online_asks_the_email_and_checks_it() -> None:
+    c = Chat()
+    c.tap("start", "online")
+    c.type("Priya Sharma")
+    assert c.type("9876543210") == "What is your email address? We will send the Google Meet link there."
+    assert c.type("priya@") == "Please enter a valid email address."
+    assert c.type("priya@example.co") == (
+        "Is this email correct? We will send the live consultation link to **priya@example.co**."
+    )
+    assert c.tap("email_change") == "What is your email address? We will send the Google Meet link there."
+    assert "priya@example.com" in c.type("priya@example.com")
+    assert c.type("yes") == "Which treatment are you looking for?"
+    c.tap("treatment", "Beard Transplant")
+    c.tap("date", "2026-10-24")
+    assert "priya@example.com" in c.tap("time", "any")  # shown in the summary

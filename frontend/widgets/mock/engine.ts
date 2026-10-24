@@ -105,6 +105,7 @@ type Step =
   | 'name'
   | 'phone'
   | 'email'
+  | 'email_check'
   | 'treatment'
   | 'reason'
   | 'cb_reason'
@@ -208,10 +209,27 @@ function ask(f: Flow, lead: string[] = []): ChatResponse {
         placeholder: 'Mobile number',
       });
     case 'email':
-      return reply([...lead, 'What is your email address?'], null, {
-        mode: 'email',
-        placeholder: 'name@example.com',
-      });
+      return reply(
+        [
+          ...lead,
+          f.kind === 'online'
+            ? 'What is your email address? We will send the Google Meet link there.'
+            : 'What is your email address?',
+        ],
+        null,
+        { mode: 'email', placeholder: 'name@example.com' },
+      );
+    case 'email_check':
+      return reply(
+        [...lead, `Is this email correct? We will send the live consultation link to **${f.email}**.`],
+        {
+          type: 'chips',
+          options: [
+            { label: 'Yes, correct', action: 'email_ok' },
+            { label: 'Change email', action: 'email_change' },
+          ],
+        },
+      );
     case 'treatment':
       return reply([...lead, 'Which treatment are you looking for?'], {
         type: 'chips',
@@ -264,7 +282,7 @@ function summary(f: Flow, lead: string[] = []): ChatResponse {
     'Please check your details:',
     `**${f.name}**`,
     f.phone!,
-    f.email!,
+    ...(f.email ? [f.email] : []),
     treatmentText(f),
     visitText(f),
     whenText(f),
@@ -511,8 +529,16 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
       if (f.kind === 'cancel' || f.kind === 'reschedule') return advance(f, 'booked_date');
       // A callback opened with a topic already has its reason.
       if (f.kind === 'callback') return f.reason ? finish(calledBack(f)) : advance(f, 'cb_reason');
-      return advance(f, 'email');
+      // Online: the Google Meet link is sent by email. In-clinic bookings ask no email.
+      if (f.kind === 'question' || f.kind === 'online') return advance(f, 'email');
+      // Booked from a treatment card: the treatment is already chosen.
+      return advance(f, f.treatment ? 'date' : 'treatment');
     }
+    case 'email_check':
+      if (!validEmail(value)) return midFlow(session, f, value);
+      // A corrected address typed instead of tapping: checked again.
+      f.email = value.toLowerCase();
+      return ask(f);
     case 'email':
       if (!validEmail(value))
         return reply(['Please enter a valid email address.'], null, {
@@ -521,8 +547,8 @@ function typed(session: string, f: Flow, text: string, cc?: string): ChatRespons
         });
       f.email = value.toLowerCase();
       if (f.kind === 'question') return finish(leadTaken(f));
-      // Booked from a treatment card: the treatment is already chosen.
-      return advance(f, f.treatment ? 'date' : 'treatment');
+      f.step = 'email_check';
+      return ask(f);
     case 'reason':
       if (value.length < 3)
         return reply(['Please add a few more words.'], null, { mode: 'text', placeholder: 'Short reason' });
@@ -586,6 +612,14 @@ function bookingButton(session: string, f: Flow, action: string, value: string):
         return rescheduled(f);
       }
       return advance(f, 'summary');
+    case 'email_ok':
+      if (f.step !== 'email_check') break;
+      // Booked from a treatment card: the treatment is already chosen.
+      return advance(f, f.treatment ? 'date' : 'treatment');
+    case 'email_change':
+      if (f.step !== 'email_check') break;
+      f.step = 'email';
+      return ask(f);
     case 'change_treatment':
       f.step = 'treatment';
       f.backToSummary = true;
@@ -661,6 +695,7 @@ function typedTap(
     }
   }
   if (f && f.step === 'summary' && isYes(text)) return { action: 'confirm' };
+  if (f && f.step === 'email_check' && isYes(text)) return { action: 'email_ok' };
   const option = matchOption(text, shown.get(session) ?? []);
   return option ? { action: option.action, value: option.value } : null;
 }

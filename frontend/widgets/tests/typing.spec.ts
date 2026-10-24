@@ -58,8 +58,7 @@ test('a whole booking typed, with typos and short labels', () => {
   expect(say(text('Book Consultation'))).toBe('What would you like to do?');
   expect(say(text('in clinic'))).toContain("let's book your appointment");
   text('Priya Sharma');
-  text('9876543210');
-  expect(say(text('priya@example.com'))).toBe('Which treatment are you looking for?');
+  expect(say(text('9876543210'))).toBe('Which treatment are you looking for?');
   expect(say(text('hair transplant for man'))).toBe('Which date works for you?'); // one-letter typo
   expect(say(text('Tuesday'))).toContain('That date is not available'); // closed
   expect(say(text('tomorrow'))).toBe('What time would you prefer?');
@@ -95,7 +94,6 @@ test('emergency words are never taken as a tap, even at a date step', () => {
   text('in clinic');
   text('Priya Sharma');
   text('9876543210');
-  text('priya@example.com');
   text('Beard Transplant');
   expect(say(text('I am bleeding'))).toContain('call **108**');
 });
@@ -118,8 +116,9 @@ test('in the widget: a booking made by typing only', async ({ page }) => {
   await type('book consultation', 'What would you like to do?');
   await type('online', "Sure, let's book your online video consultation. May I know your full name?");
   await type('Priya Sharma', 'Thanks, Priya. What is your contact number?');
-  await type('9876543210', 'What is your email address?');
-  await type('priya@example.com', 'Which treatment are you looking for?');
+  await type('9876543210', 'What is your email address? We will send the Google Meet link there.');
+  await type('priya@example.com', /Is this email correct/);
+  await type('yes', 'Which treatment are you looking for?');
   await type('beard transplant', 'Which date works for you?');
   await type('28 Oct', 'What time would you prefer?');
   await type('11 am', /Please check your details/);
