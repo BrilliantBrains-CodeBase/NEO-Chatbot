@@ -175,6 +175,11 @@ def _text(
     if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
         # "no" to a form question ends the form; nothing is saved.
         return Turn(ChatResponse(messages=[BotMessage(text=STOPPED)], ui=c["menu"]), "menu", {})
+    if "reviews" in c and understand.REVIEWS.search(low) and not (flow and flow["step"] in INPUT_STEPS):
+        reviews = reviews_reply(c, low)
+        if flow:  # a booking stays open: the rating, then the same step
+            return _flow(flow, flows.ask(flow, c["config"], [reviews.messages[0].text]), answered_by="rule")
+        return Turn(reviews, "rule", {})
     if understand.not_offered(text, c) and not (flow and flow["step"] in INPUT_STEPS):
         if flow:  # a booking stays open: say so, then the same step
             return _flow(flow, flows.ask(flow, c["config"], [NOT_OFFERED_SHORT]), answered_by="lead")
@@ -290,6 +295,32 @@ def _about_treatments(ui: dict[str, Any] | None) -> bool:
         o.get("action") == "treat" or (o.get("action") == "go" and o.get("value") in ("treat", "ht", "hf"))
         for o in (ui or {}).get("options", [])
     )
+
+
+def reviews_reply(c: dict[str, Any], low: str) -> ChatResponse:
+    """The Google rating and three patient quotes that fit the question (GFC reviews for "gfc reviews",
+    international patients for "reviews from abroad", else one of each), with links to all reviews."""
+    r = c["reviews"]
+    topic = next((name for name, p in understand.REVIEW_TOPICS if p.search(low)), None)
+    items = r["items"]
+    picked = [i for i in items if i["topic"] == topic][:3]
+    for kind in ("transplant", "gfc", "international"):  # a mix when nothing (or too little) fits
+        nxt = next((i for i in items if i["topic"] == kind and i not in picked), None)
+        if nxt and len(picked) < 3:
+            picked.append(nxt)
+    score = f"**{r['rating']} ★ from {r['count']} Google reviews**"
+    rating = f"{r['clinic']} is rated {score}. Here is what patients say:"
+    quotes = [f"“{i['text']}” — {i['name']}" for i in picked]
+    ui = {
+        "type": "chips",
+        "options": [
+            {"label": "Read all Google reviews", "href": r["link"]},
+            {"label": "Watch patient videos", "href": r["videos"]},
+            {"label": "Book a consultation", "action": "start", "value": "book", "primary": True},
+        ],
+        "main": True,
+    }
+    return ChatResponse(messages=[BotMessage(text=t) for t in [rating, *quotes]], ui=ui)
 
 
 def all_treatments(c: dict[str, Any]) -> ChatResponse:

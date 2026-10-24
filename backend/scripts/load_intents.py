@@ -26,6 +26,16 @@ class _DryRun(Exception):
 async def save(conn: asyncpg.Connection, clinic: str) -> None:
     """Writes the phrases and wordings on this connection; the caller owns the transaction."""
     data = json.loads((ROOT / f"{clinic}.intents.json").read_text(encoding="utf-8"))
+    # New reviewed facts (e.g. Google reviews): added as approved; a fact already there is never changed.
+    for key, fact in data.get("new_facts", {}).items():
+        if await conn.fetchval("select 1 from app.kb_facts where clinic_id = $1 and key = $2", clinic, key):
+            continue
+        await conn.execute(
+            """insert into app.kb_facts (clinic_id, key, category, value, status, approved_at)
+               values ($1, $2, $3, $4, 'approved', now())""",
+            clinic, key, fact["category"], fact["value"],
+        )  # fmt: skip
+        print(f"  new fact {key}: {fact['value'][:80]}...")
     have = {
         norm(r["example"]): r["intent"]
         for r in await conn.fetch(

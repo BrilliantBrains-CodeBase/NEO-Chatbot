@@ -294,3 +294,29 @@ def test_naming_a_treatment_opens_its_card_but_a_question_gets_the_answer() -> N
     assert respond("fue hair transplant").reply.messages[0].text.startswith("**Direct Hair Transplant")
     assert respond("qr678 sessions needed").answered_by == "kb"
     assert respond("what is fue").answered_by == "kb"
+
+
+@pytest.mark.parametrize(
+    ("text", "first"),
+    [("reviews", "Venkat A."), ("what do patients say about you", "Venkat A."), ("gfc reviews", "Satya R."),
+     ("reviews from international patients", "Azhar K."), ("google rating?", "Venkat A.")],
+)  # fmt: skip
+def test_reviews_show_the_rating_and_three_fitting_quotes(text: str, first: str) -> None:
+    c = Chat()
+    c.type(text)
+    texts = [m.text for m in c.reply.messages]
+    assert texts[0].startswith("Neo Follicle is rated **4.8") and len(texts) == 4
+    assert texts[1].endswith(first)
+    links = [o.get("href") for o in c.reply.ui["options"]]  # type: ignore[index]
+    assert C["reviews"]["link"] in links
+
+
+def test_follow_up_reviews_after_a_procedure_are_not_google_reviews() -> None:
+    assert not understand.REVIEWS.search("do you have follow-up reviews after surgery")
+
+
+@pytest.mark.parametrize(
+    "text", ["is the clinic open on tuesday", "where is the clinic", "which area is the clinic in"]
+)
+def test_questions_about_the_clinic_are_not_reviews(text: str) -> None:
+    assert not understand.REVIEWS.search(text)

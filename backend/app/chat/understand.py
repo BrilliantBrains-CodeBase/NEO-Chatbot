@@ -271,6 +271,25 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
 ]
 
 
+# Asking what patients think of the clinic ("reviews", "google rating", "what do patients say"); not the
+# follow-up reviews after a procedure.
+REVIEWS = re.compile(
+    r"^(?!.*\b(follow[- ]?up reviews?|review (sessions?|visits?|appointments?)|medically reviewed)\b).*\b("
+    r"reviews?|ratings?|rated|testimonials?|stars on google|google stars|feedback|"
+    r"what (do|are) (patients|people|customers) (say|saying)( about you)?|patient (experiences?|stories)|"
+    r"how good is (this|the|your) clinic|"
+    r"is (this|the|your) clinic (good|any good|reliable|trustworthy|worth it|the best|genuine))\b"
+)
+REVIEW_TOPICS: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "international",
+        re.compile(r"\b(international|abroad|overseas|nri|foreign|outside india|other countr\w*)\b"),
+    ),
+    ("gfc", re.compile(r"\b(gfc|prp|non[- ]?surgical|sessions?|hair ?fall treatment)\b")),
+    ("transplant", re.compile(r"\btransplant\w*\b")),
+]
+
+
 def not_offered(text: str, c: dict[str, Any]) -> bool:
     """Whether the message asks for a service this clinic does not offer (its own "not_offered" list: a hair
     clinic does not do laser hair removal or botox). Never a lookalike answer for these."""

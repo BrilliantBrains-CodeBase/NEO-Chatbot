@@ -136,6 +136,12 @@
     "t_beard_transplant": ["patchy beard", "beard transplant", "fuller beard", "moustache transplant"],
     "t_eyebrow_restoration": ["thin eyebrows", "eyebrow transplant", "fuller eyebrows", "eyebrow hair restoration"]
   },
+  "new_facts": {
+    "google_reviews": {
+      "category": "clinic_info",
+      "value": "Neo Follicle is rated **4.8 ★ from 1,040 Google reviews**. One patient wrote: \"Service was excellent, staff and Doctor were very helpful.\"\nRead the reviews on Google: https://maps.app.goo.gl/jKaWhcfQuKZXRvE48\nWatch our patients' testimonial videos: https://neofollicletransplant.com/video-gallery/#hair-transplant-testimonials"
+    }
+  },
   "qa_variants": {
     "Who performs the hair transplant?": [
       "who will do the surgery", "who operates on patients", "who does the procedure",
@@ -158,7 +164,11 @@
     "social": ["instagram", "insta", "insta id", "facebook", "fb page", "youtube", "social media", "follow you"],
     "facilities": ["waiting area", "waiting room", "lounge", "amenities", "seating for family"],
     "languages_spoken": ["language", "speak kannada", "speak hindi", "hindi bolte", "kannada gottu", "which language"],
-    "celebrity_clients": ["celebrities", "famous patients", "film stars", "actors"],
+    "celebrity_clients": ["celebrities", "famous patients", "film stars", "actors", "actors who did transplant here",
+      "film stars treated here", "famous people", "kannada actors", "celebrity transplant"],
+    "google_reviews": ["reviews", "google reviews", "review", "ratings", "rating", "google rating", "stars",
+      "testimonials", "patient testimonials", "what do patients say", "patient feedback", "patient experience",
+      "patient stories", "happy patients", "is this clinic good", "how good is the clinic", "feedback"],
     "why_visit": ["why choose you", "why should i come to you", "what makes you different", "why neo follicle"],
     "philosophy": ["dermatologist led", "doctor led", "your approach"],
     "doctor_sandeep_education": ["dermatologist", "qualification", "degree", "md dermatology"],

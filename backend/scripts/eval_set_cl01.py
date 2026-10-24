@@ -61,6 +61,10 @@ CASES: list[tuple[str, str, str]] = [
     ("which areas do you serve", "any", ""), ("why should i choose you", "any", ""),
     ("what is your philosophy", "any", ""), ("is the clinic dermatologist led", "any", ""),
     ("about the clinic", "any", ""),
+    # reviews and celebrities (added 24 Oct: Google rating from the clinic listing)
+    ("do you have google reviews", "any", "4.8"), ("how many stars on google", "any", "4.8"),
+    ("patient reviews", "any", "4.8"), ("what are people saying about you", "any", "4.8"),
+    ("which actors got hair transplant here", "any", "Sri Murali"), ("any film stars", "any", "Sri Murali"),
     # --- cost (26) ---
     ("cost", "any", "graft"), ("price", "any", "graft"), ("hair transplant cost", "any", "graft"),
     ("how much for hair transplant", "any", "graft"), ("what are your charges", "any", "graft"),
