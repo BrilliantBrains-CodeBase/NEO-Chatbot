@@ -115,7 +115,7 @@ export type InboxItem = {
   time: string | null;
   booked_date: string | null;
   match_status: string | null;
-  appointment: { id: string; start: string | null; day: string | null; doctor: string | null; type: string; status: string } | null;
+  appointment: { id: string; start: string | null; day: string | null; doctor: string | null; doctor_id: string | null; type: string; status: string; meet_link: string | null } | null;
 };
 export type Inbox = { pending: Count[]; items: InboxItem[] };
 

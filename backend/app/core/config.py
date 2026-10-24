@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     gemini_api_key: str = ""
     interakt_api_key: str = ""
+    # Cal.com books online consults (Google Meet link) when staff approve them in the CRM.
+    calcom_api_key: str = ""
+    calcom_event_type_id: int = 0
 
     embed_model: str = "BAAI/bge-small-en-v1.5"
     # Where the model files are kept (about 130 MB). Empty: backend/.models. Not a temp folder, which the

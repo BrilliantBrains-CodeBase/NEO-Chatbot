@@ -9,8 +9,11 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.api.v1.crm import Count, _event, can_edit, can_see
+from app.api.v1.crm import Count, Option, _event, can_edit, can_see
+from app.chat import slots
+from app.chat.leads import _free_doctors as free_doctors
 from app.core.db import get_pool
+from app.crm import calcom
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -23,8 +26,10 @@ class Appt(BaseModel):
     start: str | None  # ISO time; None when the patient chose "Any time"
     day: str | None  # the clinic-local day
     doctor: str | None
+    doctor_id: str | None = None
     type: str
     status: str
+    meet_link: str | None = None  # online consults, from Cal.com when approved
 
 
 class InboxItem(BaseModel):
@@ -53,7 +58,7 @@ class Inbox(BaseModel):
 SELECT = """select r.id, r.type, r.status, r.created_at, r.data, r.match_status, r.clinic_id, r.lead_id,
     l.lead_code, l.full_name, l.phone_e164, l.email, a.id a_id, lower(a.slot) a_start,
     coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) a_day, d.name a_doctor,
-    a.type a_type, a.status a_status, a.doctor_id a_doctor_id
+    a.type a_type, a.status a_status, a.doctor_id a_doctor_id, a.meet_link a_meet
   from app.requests r join app.leads l on l.id = r.lead_id join app.clinics c on c.id = r.clinic_id
   left join app.appointments a on a.id = coalesce(r.matched_appointment_id,
     (select id from app.appointments where request_id = r.id order by created_at limit 1))
@@ -69,8 +74,10 @@ def _item(r: asyncpg.Record) -> InboxItem:
             start=r["a_start"].isoformat() if r["a_start"] else None,
             day=r["a_day"].isoformat() if r["a_day"] else None,
             doctor=r["a_doctor"],
+            doctor_id=str(r["a_doctor_id"]) if r["a_doctor_id"] else None,
             type=r["a_type"],
             status=r["a_status"],
+            meet_link=r["a_meet"],
         )
     return InboxItem(
         id=str(r["id"]), type=r["type"], status=r["status"], created_at=r["created_at"].isoformat(),
@@ -182,8 +189,115 @@ async def _new_slot(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str,
         ) from None
 
 
+class Approve(BaseModel):
+    """Changes agreed with the patient on the phone, applied before approving (all optional)."""
+
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # also for "Any time"
+    treatment: str | None = Field(default=None, min_length=2, max_length=100)
+    doctor_id: str | None = None  # the doctor whose free times staff picked from
+    note: str = Field(default="", max_length=2000)  # what the patient said, for the team (lead timeline)
+
+
+class Slots(BaseModel):
+    doctors: list[Option]  # doctors who work in this mode
+    days: dict[str, list[str]]  # YYYY-MM-DD -> free HH:MM starts of the chosen doctor
+
+
+@router.get("/slots", response_model=Slots)
+async def free_times(
+    user: Annotated[Staff, Depends(staff)],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    mode: Literal["in_clinic", "online"],
+    doctor_id: str | None = None,
+    days: Annotated[int, Query(ge=1, le=60)] = 14,
+) -> Slots:
+    """Free times for moving a booking: one doctor's (or any doctor's), from today. A time booked in-clinic
+    or online is taken for both."""
+    can_see(user, clinic)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        doctors = await conn.fetch(
+            """select distinct d.id, d.name, d.sort_order from app.doctors d
+               join app.doctor_availability a on a.doctor_id = d.id and a.mode = $2
+               where d.clinic_id = $1 and d.active order by d.sort_order, d.name""",
+            clinic, mode,
+        )  # fmt: skip
+        if doctor_id and doctor_id not in {str(d["id"]) for d in doctors}:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "That doctor does not work in this mode."
+            )
+        tz = await conn.fetchval("select timezone from app.clinics where id = $1", clinic)
+        now = datetime.now(ZoneInfo(tz))
+        free = await slots.free_slots_range(
+            conn, clinic, now.date(), now.date() + timedelta(days=days - 1), mode, now.date(),
+            now.hour * 60 + now.minute, doctor_id=doctor_id,
+        )  # fmt: skip
+    return Slots(doctors=[Option(id=str(d["id"]), name=d["name"]) for d in doctors], days=free)
+
+
+async def _move(
+    conn: asyncpg.Connection, r: asyncpg.Record, day_s: str | None, time_s: str | None, doctor_id: str | None
+) -> None:
+    """Moves a booking's appointment to the day and time agreed with the patient. The doctor must work then
+    and be free (in-clinic and online share one diary); the current doctor is kept when free."""
+    c = await conn.fetchrow(
+        "select id, timezone, slot_minutes from app.clinics where id = $1", r["clinic_id"]
+    )
+    day = date.fromisoformat(day_s) if day_s else r["a_day"]
+    if not time_s:  # a new day, still any time
+        await conn.execute(
+            "update app.appointments set slot = null, preferred_date = $2 where id = $1", r["a_id"], day
+        )
+        return
+    first = datetime.combine(day, time.fromisoformat(time_s), ZoneInfo(c["timezone"]))
+    last = first + timedelta(minutes=c["slot_minutes"])
+    if first <= datetime.now(first.tzinfo):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That time has already passed.")
+    await conn.execute("update app.appointments set slot = null where id = $1", r["a_id"])  # free its own
+    free = await free_doctors(conn, c, r["a_type"], first, last, "s_crm")
+    if not free:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No doctor is free at that time. Choose another time.")
+    if doctor_id:  # the doctor staff picked must be one of the free ones
+        doctor = next((d for d in free if str(d) == doctor_id), None)
+        if doctor is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "That doctor is not free then. Choose another time."
+            )
+    else:
+        doctor = r["a_doctor_id"] if r["a_doctor_id"] in free else free[0]
+    await conn.execute(
+        """update app.appointments set slot = tstzrange($2, $3, '[)'), preferred_date = null, doctor_id = $4
+           where id = $1""",
+        r["a_id"], first, last, doctor,
+    )  # fmt: skip
+
+
+async def _online(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, Any]) -> None:
+    """Books the consult in Cal.com (Google Meet) and keeps the link on the appointment. A request for
+    "Any time" needs the time staff agreed with the patient. Cal.com refusing undoes the approval."""
+    start: datetime | None = r["a_start"]
+    if start is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "The patient chose Any time: enter the agreed time first."
+        )
+    try:
+        booked = await calcom.book(
+            start, r["full_name"], r["email"], r["phone_e164"],
+            {"lead": r["lead_code"], "treatment": data.get("treatment") or ""},
+        )  # fmt: skip
+    except calcom.CalcomError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
+    await conn.execute(
+        "update app.appointments set meet_link = $2, calendar_event_id = $3 where id = $1",
+        r["a_id"], booked.meet_link, booked.uid,
+    )  # fmt: skip
+
+
 @router.post("/requests/{request_id}/approve", response_model=InboxItem)
-async def approve(user: Annotated[Staff, Depends(staff)], request_id: str) -> InboxItem:
+async def approve(
+    user: Annotated[Staff, Depends(staff)], request_id: str, body: Approve | None = None
+) -> InboxItem:
     """Booking or online consult: the appointment is confirmed and the lead becomes Booked. Cancel: the
     matched appointment is cancelled. Reschedule: the matched one is marked rescheduled and a confirmed
     one is made for the asked day and time."""
@@ -194,9 +308,35 @@ async def approve(user: Annotated[Staff, Depends(staff)], request_id: str) -> In
         kind = r["type"]
         if kind in ("callback", "question"):
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Mark a callback as done instead.")
+        if kind == "online" and not r["email"]:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "This patient has no email for the Meet link. Add it first.",
+            )
+        change = body or Approve()
+        if change.note.strip():
+            lead = {"id": r["lead_id"], "clinic_id": r["clinic_id"]}
+            await _event(conn, lead, user, "note", {"text": change.note.strip()})
+        if change.treatment and kind in ("book", "online", "reschedule"):
+            data["treatment"] = change.treatment.strip()
+            await conn.execute(
+                "update app.leads set treatment = $2 where id = $1", r["lead_id"], data["treatment"]
+            )
+            await conn.execute(
+                "update app.requests set data = data || $2::jsonb where id = $1",
+                r["id"], json.dumps({"treatment": data["treatment"]}),
+            )  # fmt: skip
+        if kind in ("book", "online") and r["a_id"] and (change.date or change.time):
+            await _move(conn, r, change.date, change.time, change.doctor_id)
+            r = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
+        if kind == "reschedule" and (change.date or change.time):
+            data["date"] = change.date or data.get("date")
+            data["time"] = change.time or data.get("time") or "any"
         if kind in ("book", "online"):
             if r["a_id"]:
                 await _set_appt(conn, r["a_id"], user, "confirmed")
+            if kind == "online" and r["a_id"]:
+                await _online(conn, r, data)
             await conn.execute(
                 """update app.leads set stage = 'booked', stage_reason = null, updated_at = now()
                    where id = $1 and stage in ('new', 'follow_up', 'lost')""",

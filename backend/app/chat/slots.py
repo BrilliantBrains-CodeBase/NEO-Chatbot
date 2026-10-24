@@ -27,6 +27,7 @@ d as (
   from days
   join app.doctor_availability da
     on da.clinic_id = $1 and da.mode = $4 and da.weekday = extract(dow from days.day)::smallint
+    and ($6::uuid is null or da.doctor_id = $6)  -- one doctor (CRM), or any
   join app.doctors doc on doc.id = da.doctor_id and doc.active
   where not exists (
     select 1 from app.doctor_leave l
@@ -77,11 +78,12 @@ async def free_slots_range(
     today: date,
     now_minutes: int,
     session_id: str = "",
+    doctor_id: str | None = None,
 ) -> dict[str, list[str]]:
     """Free HH:MM slot starts per day (YYYY-MM-DD). Days without a free slot are left out; for today,
     past times are removed. The session's own hold does not hide its time."""
     out: dict[str, list[str]] = {}
-    for r in await conn.fetch(FREE_SLOTS, clinic_id, first, last, mode, session_id):
+    for r in await conn.fetch(FREE_SLOTS, clinic_id, first, last, mode, session_id, doctor_id):
         slots = list(r["slots"])
         if r["day"] == today:
             slots = [s for s in slots if int(s[:2]) * 60 + int(s[3:]) > now_minutes]
