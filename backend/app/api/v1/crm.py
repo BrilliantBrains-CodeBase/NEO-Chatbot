@@ -1,7 +1,8 @@
 """CRM API (JSON only). Every route needs a signed-in staff member (app.crm.auth.staff)."""
 
 import json
-from typing import Annotated, Literal
+from collections.abc import Mapping
+from typing import Annotated, Any, Literal
 
 from asyncpg import Connection, Record
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -388,7 +389,9 @@ async def _lead_for_edit(conn: Connection, user: Staff, code: str) -> Record:
     return r
 
 
-async def _event(conn: Connection, lead: Record, user: Staff, kind: str, data: dict[str, object]) -> None:
+async def _event(
+    conn: Connection, lead: Mapping[str, Any], user: Staff, kind: str, data: dict[str, object]
+) -> None:
     await conn.execute(
         "insert into app.lead_events (clinic_id, lead_id, kind, data, actor)"
         " values ($1, $2, $3, $4::jsonb, $5::uuid)",

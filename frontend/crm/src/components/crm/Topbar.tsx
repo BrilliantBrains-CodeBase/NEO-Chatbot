@@ -9,6 +9,7 @@ import Icon from "./Icon";
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
+  const pending = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const router = useRouter();
   const [menu, setMenu] = useState(false);
@@ -57,6 +58,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       <span className="sp" />
       <button className="ib" aria-label="Notifications" onClick={() => router.push("/inbox")}>
         <Icon name="bell" />
+        {!!pending && <b>{pending}</b>}
       </button>
       <button
         className="btn"

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { CLINIC_CONTENT, REQUEST_TABS } from "@/lib/sample-data";
+import { INBOX_TABS } from "@/lib/api";
+import { CLINIC_CONTENT } from "@/lib/sample-data";
 import { useCrm } from "./CrmProvider";
 import Icon, { type IconName } from "./Icon";
 
@@ -31,7 +32,8 @@ export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigat
   const LIVE_COUNTS = false;
   const n = (x: number) => (LIVE_COUNTS && crm.ready ? x : undefined);
   const stage = params.get("stage") ?? "";
-  const tab = params.get("tab") ?? "appt";
+  const tab = params.get("tab") ?? "book";
+  const inboxTotal = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const doc = params.get("doc") ?? "";
 
   const item = (href: string, icon: IconName, label: string, on: boolean, count?: number) => (
@@ -87,14 +89,9 @@ export default function Sidebar({ open, onNavigate }: { open: boolean; onNavigat
           "inbox",
           "req",
           "Inbox",
-          n(crm.inboxCount),
-          REQUEST_TABS.map((t) =>
-            subItem(
-              `/inbox?tab=${t.key}`,
-              t.label,
-              path === "/inbox" && tab === t.key,
-              t.key === "chat" ? undefined : n(crm.pending(t.key)),
-            ),
+          inboxTotal || undefined,
+          INBOX_TABS.map(([key, label]) =>
+            subItem(`/inbox?tab=${key}`, label, path === "/inbox" && tab === key, crm.inbox?.[key] || undefined),
           ),
         )}
         {group(

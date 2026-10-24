@@ -99,3 +99,32 @@ export type LeadDetail = LeadRow & {
 
 export type StaffOption = { id: string; name: string; role_label: string };
 export type LeadOptions = { treatments: string[]; doctors: { id: string; name: string }[] };
+
+export type InboxItem = {
+  id: string;
+  type: string;
+  status: string;
+  created_at: string;
+  lead_code: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  treatment: string | null;
+  reason: string | null;
+  date: string | null;
+  time: string | null;
+  booked_date: string | null;
+  match_status: string | null;
+  appointment: { id: string; start: string | null; day: string | null; doctor: string | null; type: string; status: string } | null;
+};
+export type Inbox = { pending: Count[]; items: InboxItem[] };
+
+/** Inbox tabs, in the menu's order. */
+export const INBOX_TABS: [string, string][] = [
+  ["book", "Booking requests"],
+  ["online", "Online consults"],
+  ["cancel", "Cancellations"],
+  ["reschedule", "Reschedules"],
+  ["callback", "Callbacks"],
+  ["question", "Questions"],
+];

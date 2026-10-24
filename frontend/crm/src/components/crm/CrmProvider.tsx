@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, ApiError, type Me } from "@/lib/api";
+import { api, ApiError, type Inbox, type Me } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
   CLINICS,
@@ -45,6 +45,10 @@ type Crm = {
   pending: (k: ReqKind) => number;
   /** Booking, online, cancel and reschedule requests waiting (the Inbox count). */
   inboxCount: number;
+  /** Live pending requests per type (book, online, cancel, reschedule, callback, question); null while loading. */
+  inbox: Record<string, number> | null;
+  /** Load the pending counts again (after a request is handled). */
+  refreshInbox: () => void;
   toast: (message: string) => void;
   toastText: string;
   drawer: ReactNode | null;
@@ -110,6 +114,22 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   }, [clinic, now]);
   const ready = now !== null;
 
+  const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
+  const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number> } | null>(null);
+  const [inboxVersion, setInboxVersion] = useState(0);
+  const refreshInbox = useCallback(() => setInboxVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!clinicId) return;
+    let live = true;
+    api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}`).then(
+      (d) => live && setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])) }),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [clinicId, inboxVersion]);
+
   const [toastText, setToastText] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const toast = useCallback((m: string) => {
@@ -137,6 +157,8 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       stageCount,
       pending,
       inboxCount: (["appt", "online", "cancel", "resch"] as ReqKind[]).reduce((a, k) => a + pending(k), 0),
+      inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
+      refreshInbox,
       toast,
       toastText,
       drawer,
@@ -146,7 +168,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, signOut, leads, requests, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, signOut, leads, requests, inbox, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }
