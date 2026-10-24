@@ -414,3 +414,85 @@ async def done(user: Annotated[Staff, Depends(staff)], request_id: str, body: Do
         await _close(conn, r, user, "done", {"outcome": body.outcome})
         row = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
     return _item(row)
+
+
+class Appointment(BaseModel):
+    id: str
+    start: str | None  # ISO; None when the patient chose "Any time"
+    day: str  # the clinic-local day
+    time: str | None  # "14:30", clinic time
+    doctor: str | None
+    doctor_id: str | None
+    type: str  # in_clinic | online
+    status: str
+    meet_link: str | None
+    lead_code: str
+    name: str
+    phone: str | None
+    email: str | None
+    treatment: str | None
+    stage: str
+
+
+class Appointments(BaseModel):
+    doctors: list[Option]  # active doctors, for the day view's columns
+    items: list[Appointment]
+
+
+@router.get("/appointments", response_model=Appointments)
+async def appointments(
+    user: Annotated[Staff, Depends(staff)],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    date_from: Annotated[date, Query(alias="from")],
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    status_: Annotated[str, Query(alias="status", pattern="^(active|all)$")] = "active",
+) -> Appointments:
+    """Appointments of one clinic on the given days (clinic time), earliest first. `active` = pending and
+    confirmed, plus visited and no-show (what happened that day); `all` adds cancelled, rejected, moved."""
+    can_see(user, clinic)
+    last = date_to or date_from
+    if (last - date_from).days > 62:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose at most 2 months.")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        doctors = await conn.fetch(
+            "select id, name from app.doctors where clinic_id = $1 and active order by sort_order, name",
+            clinic,
+        )
+        rows = await conn.fetch(
+            """select a.id, lower(a.slot) start, d.id doctor_id, d.name doctor, a.type, a.status, a.meet_link,
+                 l.lead_code, l.full_name, l.phone_e164, l.email, l.treatment, l.stage,
+                 coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) as day,
+                 to_char(lower(a.slot) at time zone c.timezone, 'HH24:MI') tm
+               from app.appointments a join app.leads l on l.id = a.lead_id
+               join app.clinics c on c.id = a.clinic_id left join app.doctors d on d.id = a.doctor_id
+               where a.clinic_id = $1 and l.deleted_at is null
+                 and coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date)
+                     between $2 and $3
+                 and ($4 = 'all' or a.status in ('pending', 'confirmed', 'visited', 'no_show', 'missed'))
+               order by day, lower(a.slot) nulls last, l.full_name""",
+            clinic, date_from, last, status_,
+        )  # fmt: skip
+    return Appointments(
+        doctors=[Option(id=str(d["id"]), name=d["name"]) for d in doctors],
+        items=[
+            Appointment(
+                id=str(r["id"]),
+                start=r["start"].isoformat() if r["start"] else None,
+                day=r["day"].isoformat(),
+                time=r["tm"],
+                doctor=r["doctor"],
+                doctor_id=str(r["doctor_id"]) if r["doctor_id"] else None,
+                type=r["type"],
+                status=r["status"],
+                meet_link=r["meet_link"],
+                lead_code=r["lead_code"],
+                name=r["full_name"],
+                phone=r["phone_e164"],
+                email=r["email"],
+                treatment=r["treatment"],
+                stage=r["stage"],
+            )  # fmt: skip
+            for r in rows
+        ],
+    )

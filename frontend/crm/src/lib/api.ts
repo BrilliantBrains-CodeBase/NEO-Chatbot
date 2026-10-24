@@ -128,3 +128,22 @@ export const INBOX_TABS: [string, string][] = [
   ["callback", "Callbacks"],
   ["question", "Questions"],
 ];
+
+export type Appointment = {
+  id: string;
+  start: string | null;
+  day: string;
+  time: string | null;
+  doctor: string | null;
+  doctor_id: string | null;
+  type: string;
+  status: string;
+  meet_link: string | null;
+  lead_code: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  treatment: string | null;
+  stage: string;
+};
+export type Appointments = { doctors: { id: string; name: string }[]; items: Appointment[] };
