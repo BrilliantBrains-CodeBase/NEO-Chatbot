@@ -50,3 +50,21 @@ export type Me = {
   role_label: string;
   clinics: { id: string; name: string; role: string; role_label: string }[];
 };
+
+export type Count = { key: string; count: number };
+export type Dashboard = {
+  clinic: string;
+  days: number;
+  new_leads: number;
+  inbox_pending: number;
+  callbacks_waiting: number;
+  followups_due: number;
+  today: { time: string | null; patient: string; lead_code: string; doctor: string | null; type: string; status: string; treatment: string | null }[];
+  sources: Count[];
+  funnel: Count[];
+  treatments: Count[];
+  chats: number;
+  chat_leads: number;
+  chat_answered_by: Count[];
+  unanswered: number;
+};

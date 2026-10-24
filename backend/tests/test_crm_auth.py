@@ -73,3 +73,36 @@ async def test_bb_admin_sees_every_active_clinic(api: AsyncClient, monkeypatch: 
 )
 def test_initials(name: str, want: str) -> None:
     assert initials(name) == want
+
+
+@needs_db
+async def test_dashboard_returns_the_numbers(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    admin = await (await get_pool()).fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    r = await api.get("/v1/crm/dashboard?clinic=CL01&days=7", headers=headers)
+    assert r.status_code == 200
+    d = r.json()
+    assert [f["key"] for f in d["funnel"]] == ["new", "follow_up", "booked", "visited", "lost", "invalid"]
+    assert d["new_leads"] >= 0 and isinstance(d["today"], list)
+    assert (await api.get("/v1/crm/dashboard?clinic=bad", headers=headers)).status_code == 422
+
+
+@needs_db
+async def test_dashboard_needs_access_to_the_clinic(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """select u.user_id, c.id from app.user_clinics u join app.profiles p on p.id = u.user_id
+           cross join app.clinics c
+           where u.active and p.active and u.role <> 'bb_admin' and c.id not in
+             (select clinic_id from app.user_clinics where user_id = u.user_id) limit 1"""
+    )
+    if row is None:
+        pytest.skip("no staff member without access to some clinic")
+    r = await api.get(f"/v1/crm/dashboard?clinic={row[1]}", headers=signed_in_as(monkeypatch, str(row[0])))
+    assert r.status_code == 403
