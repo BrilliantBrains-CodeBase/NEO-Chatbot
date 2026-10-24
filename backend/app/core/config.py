@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     # Cal.com books online consults (Google Meet link) when staff approve them in the CRM.
     calcom_api_key: str = ""
     calcom_event_type_id: int = 0
+    # Shared with the Apps Script in each clinic's Google Sheet of Meta leads (/v1/integrations/sheet-leads).
+    sheet_webhook_secret: str = ""
 
     embed_model: str = "BAAI/bge-small-en-v1.5"
     # Where the model files are kept (about 130 MB). Empty: backend/.models. Not a temp folder, which the
