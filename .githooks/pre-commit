@@ -22,6 +22,11 @@ if echo "$staged" | grep -q '^backend/'; then
   (cd "$root/backend" && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests scripts)
 fi
 
+if echo "$staged" | grep -q '^frontend/crm/'; then
+  echo "pre-commit: CRM types, lint and build"
+  (cd "$root/frontend/crm" && npm run -s typecheck && npm run -s lint && npm run -s build > /dev/null)
+fi
+
 if echo "$staged" | grep -q '^frontend/widgets/'; then
   echo "pre-commit: widget types, lint, format, build and size"
   (cd "$root/frontend/widgets" \

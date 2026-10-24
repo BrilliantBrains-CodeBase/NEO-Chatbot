@@ -1,0 +1,26 @@
+/* Base for every page. Each area (sign-in, CRM) brings its own styles from its design. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #fff;
+  color: #16202e;
+  -webkit-font-smoothing: antialiased;
+}
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

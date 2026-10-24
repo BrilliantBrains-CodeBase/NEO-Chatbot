@@ -1,0 +1,255 @@
+/* Sign-in pages, from the approved design (claude.ai/artifact/YQfCYReoHxYCUwtVgn8MWW). Everything sits under
+   .auth so none of it reaches the CRM screens. */
+.auth {
+  --bg: #ffffff;
+  --ink: #16202e;
+  --soft: #5b6676;
+  --line: #e2e7ef;
+  --field: #ffffff;
+  --brand: #1f3a5f;
+  --brand-d: #162b47;
+  --accent: #3e6fd9;
+  --tint: #eef3fc;
+  --ok: #1f8a4c;
+  --err: #c62828;
+  --warn: #b26a00;
+  min-height: 100%;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-figtree), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+.auth .card {
+  width: 100%;
+  max-width: 420px;
+  animation: auth-in 0.2s ease-out;
+}
+.auth h2 {
+  font-size: 26px;
+  margin: 0 0 6px;
+}
+.auth .sub {
+  color: var(--soft);
+  margin: 0 0 24px;
+  font-size: 15px;
+}
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.auth label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.auth .row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 420px) {
+  .auth .row2 {
+    grid-template-columns: 1fr;
+  }
+}
+.auth input,
+.auth select {
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  min-height: 44px;
+  width: 100%;
+}
+.auth input:focus,
+.auth select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+.auth input[aria-invalid="true"],
+.auth select[aria-invalid="true"] {
+  border-color: var(--err);
+}
+.auth .pw {
+  position: relative;
+}
+.auth .pw input {
+  padding-right: 64px;
+}
+.auth .pw button {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+.auth .hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--soft);
+}
+.auth .err {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--err);
+}
+.auth .err:empty {
+  display: none;
+}
+.auth .meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.auth .meter i {
+  display: block;
+  height: 100%;
+  width: 0;
+  transition:
+    width 0.2s,
+    background 0.2s;
+}
+.auth .line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+}
+.auth .check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.auth .check input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+.auth .link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+}
+.auth .link:hover {
+  text-decoration: underline;
+}
+.auth .btn {
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.auth .btn:hover {
+  background: var(--brand-d);
+}
+.auth .btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.auth .alt {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--soft);
+}
+.auth .note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--tint);
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.auth .note svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  margin-top: 1px;
+}
+.auth .banner {
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.auth .banner.err {
+  background: #fdecec;
+  color: var(--err);
+}
+.auth .banner.ok {
+  background: #e8f6ee;
+  color: var(--ok);
+}
+.auth .done {
+  text-align: center;
+  padding: 10px 0;
+}
+.auth .done .ic {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+}
+.auth .done .ic svg {
+  width: 28px;
+  height: 28px;
+}
+@keyframes auth-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth .card {
+    animation: none;
+  }
+}
