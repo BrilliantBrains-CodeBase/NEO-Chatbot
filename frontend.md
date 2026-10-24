@@ -24,11 +24,11 @@ How to use this spec:
 
 ## Neo Fertility (Navya AI)
 
-- Header: **Navya AI**, subtitle "Instant Reply Assistant", refresh and close buttons
+- Header: **Navya AI**, subtitle "Instant Reply · Powered by Brilliant Brains" (link), refresh and close buttons
 - Greeting: "Hi, I'm Navya, Neo Fertility's AI assistant. How can I help you today?"
 - Main menu: Book Consultation | Explore Treatment | About Doctor | Call Back | WhatsApp | Emergency
 - Typing bar placeholder: "Type your question"
-- Footer: "AI Generated Responses, Not For Medical Advice / Powered By Brilliant Brains"
+- Footer (one line): "Not For Medical Advice · Powered By Brilliant Brains"
 - Colour tokens: `--rose:#3D203F; --rose-d:#2B152D; --blush:#8E5A92; --tint:#F5EEF6;`
 
 ### Book appointment (in-clinic)
@@ -116,11 +116,11 @@ How to use this spec:
 
 ## Neo Follicle (Arya AI)
 
-- Header: **Arya AI**, subtitle "Instant Reply Assistant", refresh and close buttons
+- Header: **Arya AI**, subtitle "Instant Reply · Powered by Brilliant Brains" (link), refresh and close buttons
 - Greeting: "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?"
 - Main menu: Book Consultation | Explore Treatments | About Doctors | International Patients | Call Back | WhatsApp | Emergency
 - Typing bar placeholder: "Type your question"
-- Footer: "AI Generated Responses, Not For Medical Advice / Powered By Brilliant Brains"
+- Footer (one line): "Not For Medical Advice · Powered By Brilliant Brains"
 - Colour tokens: `--rose:#3E74D9; --rose-d:#2A56AE; --blush:#8FB0EE; --tint:#EEF3FC;`
 
 ### Book appointment (in-clinic)
@@ -208,11 +208,11 @@ How to use this spec:
 
 ## Derma Solutions (Diya AI)
 
-- Header: **Diya AI**, subtitle "Instant Reply Assistant", refresh and close buttons
+- Header: **Diya AI**, subtitle "Instant Reply · Powered by Brilliant Brains" (link), refresh and close buttons
 - Greeting: "Hi, I'm Diya, Derma Solutions' AI assistant. How can I help you today? / Open today, 10 AM to 8 PM"
 - Main menu: Book Consultation | Explore Treatments | Our Doctors | Call Back | WhatsApp | Emergency
 - Typing bar placeholder: "Type your question"
-- Footer: "AI Generated Responses, Not For Medical Advice / Powered By Brilliant Brains"
+- Footer (one line): "Not For Medical Advice · Powered By Brilliant Brains"
 - Colour tokens: `--rose:#481E0B; --rose-d:#33150A; --blush:#B98A72; --tint:#F6F0EC;`
 
 ### Book appointment (in-clinic)

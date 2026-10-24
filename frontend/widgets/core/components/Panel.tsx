@@ -65,7 +65,16 @@ export function Panel({ botName, onClose, onRestart, composer, children }: Props
           </div>
           <div class="nb-title">
             <b>{botName}</b>
-            <span>{t.subtitle}</span>
+            <span>
+              {t.subtitle}
+              <span class="nb-pw">
+                {' · '}
+                {t.header_powered_by}{' '}
+                <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
+                  {t.footer_brand}
+                </a>
+              </span>
+            </span>
           </div>
           <button
             type="button"
@@ -86,7 +95,7 @@ export function Panel({ botName, onClose, onRestart, composer, children }: Props
         {composer}
         <div class="nb-legal">
           {t.footer_disclaimer}
-          <br />
+          {' · '}
           {t.footer_powered_by}{' '}
           <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
             {t.footer_brand}

@@ -144,6 +144,28 @@
   font-size: 12px;
   opacity: 0.9;
 }
+/* "Instant Reply · Powered by Brilliant Brains" on one line: 11px fits the header on desktop (208px wide)
+   and phones; a still narrower screen ends it with "…" instead of wrapping. */
+.nb-title > span {
+  display: block;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nb-title .nb-pw {
+  font-size: inherit;
+  opacity: 1;
+}
+.nb-title .nb-pw a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+.nb-title .nb-pw a:hover,
+.nb-title .nb-pw a:focus-visible {
+  text-decoration: underline;
+}
 .nb-x {
   position: relative;
   z-index: 1;

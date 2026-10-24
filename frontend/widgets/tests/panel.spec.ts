@@ -11,15 +11,19 @@ test.beforeEach(async ({ page }) => {
   await settled(panel);
 });
 
-test('header shows avatar, bot name and subtitle; footer shows disclaimer and link', async ({ page }) => {
+test('header shows avatar, bot name, subtitle and powered by link; footer shows disclaimer and link', async ({
+  page,
+}) => {
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-ava')).toHaveText('N');
   await expect(panel.locator('.nb-title b')).toHaveText('Arya AI');
-  await expect(panel.locator('.nb-title span')).toHaveText('Instant Reply Assistant');
-  await expect(panel.locator('.nb-legal')).toContainText('AI Generated Responses, Not For Medical Advice');
-  const link = panel.getByRole('link', { name: 'Brilliant Brains' });
-  await expect(link).toHaveAttribute('href', 'https://brilliantbrains.ai/');
-  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(panel.locator('.nb-title > span')).toHaveText('Instant Reply · Powered by Brilliant Brains');
+  await expect(panel.locator('.nb-legal')).toContainText('Not For Medical Advice');
+  for (const where of ['.nb-head', '.nb-legal']) {
+    const link = panel.locator(where).getByRole('link', { name: 'Brilliant Brains' });
+    await expect(link).toHaveAttribute('href', 'https://brilliantbrains.ai/');
+    await expect(link).toHaveAttribute('target', '_blank');
+  }
   // Clinic colour on the header despite the host page's aggressive CSS.
   await expect(panel.locator('.nb-head')).toHaveCSS('background-color', 'rgb(62, 116, 217)');
 });
