@@ -7,28 +7,49 @@ import AddLeadForm from "@/components/leads/AddLeadForm";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 
+const NOTICE: Record<string, string> = {
+  book: "Booking request",
+  online: "Online consult",
+  cancel: "Cancellation",
+  reschedule: "Reschedule",
+  callback: "Callback",
+  question: "Question",
+};
+function ago(iso: string) {
+  const min = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 60) return `${min} min ago`;
+  if (min < 1440) return `${Math.round(min / 60)} h ago`;
+  return `${Math.round(min / 1440)} d ago`;
+}
+
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
   const pending = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const router = useRouter();
-  const [menu, setMenu] = useState(false);
+  const [open, setOpen] = useState<"profile" | "bell" | null>(null);
+  const menu = open === "profile";
+  const setMenu = (on: boolean) => setOpen(on ? "profile" : null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLDivElement>(null);
 
-  // The profile menu closes on any click outside it.
+  // The menus close on any click outside them.
   useEffect(() => {
-    if (!menu) return;
+    if (!open) return;
+    const ref = open === "profile" ? menuRef : bellRef;
     const close = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenu(false);
+      if (!ref.current?.contains(e.target as Node)) setOpen(null);
     };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
-  }, [menu]);
+  }, [open]);
 
   const go = (href: string) => {
-    setMenu(false);
+    setOpen(null);
     router.push(href);
   };
+  // Newest first, the latest 8.
+  const latest = [...crm.inboxItems].reverse().slice(0, 8);
 
   return (
     <header className="tb">
@@ -56,10 +77,38 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         />
       </label>
       <span className="sp" />
-      <button className="ib" aria-label="Notifications" onClick={() => router.push("/inbox")}>
-        <Icon name="bell" />
-        {!!pending && <b>{pending}</b>}
-      </button>
+      <div ref={bellRef} style={{ position: "relative" }}>
+        <button
+          className="ib"
+          aria-label="Notifications"
+          aria-expanded={open === "bell"}
+          onClick={() => setOpen(open === "bell" ? null : "bell")}
+        >
+          <Icon name="bell" />
+          {!!pending && <b>{pending}</b>}
+        </button>
+        <div className={`pmenu${open === "bell" ? " on" : ""}`} style={{ top: 44, right: 0, width: 320 }} role="menu">
+          <div className="who">
+            <b>Notifications</b>
+            <span>{pending ? `${pending} waiting in the Inbox` : "Nothing waiting"}</span>
+          </div>
+          {latest.map((i) => (
+            <button key={i.id} role="menuitem" onClick={() => go(`/inbox?tab=${i.type}&open=${i.id}`)}>
+              <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <span>
+                  {NOTICE[i.type] ?? "New request"} · {i.name}
+                </span>
+                <small style={{ color: "var(--soft)", fontWeight: 500 }}>
+                  {[i.treatment, ago(i.created_at)].filter(Boolean).join(" · ")}
+                </small>
+              </span>
+            </button>
+          ))}
+          <button role="menuitem" style={{ color: "var(--brand)" }} onClick={() => go("/inbox")}>
+            View all in Inbox
+          </button>
+        </div>
+      </div>
       <button
         className="btn"
         onClick={() =>

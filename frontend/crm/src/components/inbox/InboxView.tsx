@@ -40,13 +40,15 @@ export default function InboxView() {
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const role = me?.clinics.find((c) => c.id === clinicId)?.role;
   const router = useRouter();
-  const asked_tab = useSearchParams().get("tab") ?? "book";
+  const params = useSearchParams();
+  const asked_tab = params.get("tab") ?? "book";
   const tab = INBOX_TABS.some(([k]) => k === asked_tab) ? asked_tab : "book";
   const [handled, setHandled] = useState(false);
   const [version, setVersion] = useState(0);
   const key = `${clinicId}|${tab}|${handled}|${version}`;
   const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({ key: "" });
-  const [openId, setOpenId] = useState<string | null>(null);
+  // The open request is in the address (?open=id), so a notification opens it.
+  const openId = params.get("open");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +71,7 @@ export default function InboxView() {
   const canAct = !!role && role !== "doctor" && item?.status === "pending";
 
   function open(id: string | null) {
-    setOpenId(id);
+    router.replace(`/inbox?tab=${tab}${id ? `&open=${id}` : ""}`, { scroll: false });
     setReason("");
     setNote("");
     setError("");

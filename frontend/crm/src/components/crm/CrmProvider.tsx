@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, ApiError, type Inbox, type Me } from "@/lib/api";
+import { api, ApiError, type Inbox, type InboxItem, type Me } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
   CLINICS,
@@ -47,6 +47,8 @@ type Crm = {
   inboxCount: number;
   /** Live pending requests per type (book, online, cancel, reschedule, callback, question); null while loading. */
   inbox: Record<string, number> | null;
+  /** The pending requests themselves (oldest first), for the notifications list. */
+  inboxItems: InboxItem[];
   /** Load the pending counts again (after a request is handled). */
   refreshInbox: () => void;
   toast: (message: string) => void;
@@ -115,14 +117,18 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const ready = now !== null;
 
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number> } | null>(null);
+  const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number>; items: InboxItem[] } | null>(
+    null,
+  );
   const [inboxVersion, setInboxVersion] = useState(0);
   const refreshInbox = useCallback(() => setInboxVersion((v) => v + 1), []);
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
     api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}`).then(
-      (d) => live && setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])) }),
+      (d) =>
+        live &&
+        setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])), items: d.items }),
       () => {},
     );
     return () => {
@@ -158,6 +164,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       pending,
       inboxCount: (["appt", "online", "cancel", "resch"] as ReqKind[]).reduce((a, k) => a + pending(k), 0),
       inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
+      inboxItems: inbox && inbox.clinic === clinicId ? inbox.items : [],
       refreshInbox,
       toast,
       toastText,
