@@ -3,11 +3,28 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { demoSignIn } from "@/lib/auth-demo";
+import { api, ApiError, type Me } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { EMAIL, type Errors } from "@/lib/validation";
 import { FieldError, PasswordInput } from "./fields";
 
 type Field = "email" | "password";
+
+/** Signs in with Supabase Auth, then asks the backend whether this person may use the CRM. Returns the
+ * message to show, or "" when signed in. A correct password without approved access is signed out again. */
+async function signIn(email: string, password: string): Promise<string> {
+  const { error } = await supabase().auth.signInWithPassword({ email, password });
+  if (error) {
+    return error.status === 400 ? "Email or password is incorrect." : "Sign-in is not available right now. Please try again.";
+  }
+  try {
+    await api<Me>("/v1/crm/me");
+    return "";
+  } catch (e) {
+    await supabase().auth.signOut();
+    return e instanceof ApiError ? e.message : "Sign-in is not available right now. Please try again.";
+  }
+}
 
 export default function SignInForm() {
   const router = useRouter();
@@ -28,13 +45,13 @@ export default function SignInForm() {
     setBanner("");
     if (next.email || next.password) return;
     setBusy(true);
-    const { ok } = await demoSignIn(email, password);
+    const message = await signIn(email, password);
     setBusy(false);
-    if (!ok) {
-      setBanner("Email or password is incorrect.");
+    if (message) {
+      setBanner(message);
       return;
     }
-    router.push("/dashboard");
+    router.replace("/dashboard");
   }
 
   return (

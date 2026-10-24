@@ -190,6 +190,3 @@ export function sampleRequests(clinic: Clinic, leads: Lead[], now = new Date()):
   mk("cb", 9, { reason: "Timings", status: "done", outcome: "Answered", by: "Priya S", attempts: 1 });
   return out;
 }
-
-/** The signed-in person (sample until sign-in is connected). */
-export const ME = { name: "Priya S", initials: "PS", role: "Front Desk", email: "priya@dermasolutions.co.in" };

@@ -5,11 +5,11 @@ import { useCrm } from "@/components/crm/CrmProvider";
 
 // Sub-step 2 (CRM frame): the screen's header from the design; its content is built in a later step.
 export default function ProfilePage() {
-  const { clinic } = useCrm();
+  const { me } = useCrm();
   return (
     <Placeholder
-      title={"Priya S"}
-      description={`Front Desk · ${clinic}`}
+      title={me?.name ?? ""}
+      description={me ? `${me.role_label} · ${me.clinics.map((c) => c.name).join(", ")}` : ""}
       next={["Personal details", "Change password", "My notifications and sign out"]}
     />
   );

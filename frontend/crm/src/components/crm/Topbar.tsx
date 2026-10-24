@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CLINICS, ME, type Clinic } from "@/lib/sample-data";
+import type { Clinic } from "@/lib/sample-data";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 
@@ -38,7 +38,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         value={crm.clinic}
         onChange={(e) => crm.setClinic(e.target.value as Clinic)}
       >
-        {CLINICS.map((c) => (
+        {crm.clinics.map((c) => (
           <option key={c}>{c}</option>
         ))}
       </select>
@@ -77,13 +77,13 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           aria-expanded={menu}
           onClick={() => setMenu(!menu)}
         >
-          {ME.initials}
+          {crm.me?.initials ?? ""}
         </button>
         <div className={`pmenu${menu ? " on" : ""}`} style={{ top: 44, right: 0 }} role="menu">
           <div className="who">
-            <b>{ME.name}</b>
+            <b>{crm.me?.name}</b>
             <span>
-              {ME.role} · {ME.email}
+              {crm.me?.role_label} · {crm.me?.email}
             </span>
           </div>
           <button role="menuitem" onClick={() => go("/profile")}>
@@ -92,7 +92,14 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           <button role="menuitem" onClick={() => go("/settings")}>
             Settings
           </button>
-          <button role="menuitem" style={{ color: "var(--err)" }} onClick={() => go("/sign-in")}>
+          <button
+            role="menuitem"
+            style={{ color: "var(--err)" }}
+            onClick={() => {
+              setMenu(false);
+              void crm.signOut();
+            }}
+          >
             Sign out
           </button>
         </div>

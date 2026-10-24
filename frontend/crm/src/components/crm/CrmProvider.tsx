@@ -4,12 +4,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
+import { api, ApiError, type Me } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import {
   CLINICS,
   sampleLeads,
@@ -26,8 +30,13 @@ type Modal = { title: string; body: ReactNode };
 type Crm = {
   /** False until the data has loaded (counts are hidden until then). */
   ready: boolean;
+  /** The signed-in person (from GET /v1/crm/me); null while loading. */
+  me: Me | null;
+  /** The clinics this person may see. */
+  clinics: Clinic[];
   clinic: Clinic;
   setClinic: (c: Clinic) => void;
+  signOut: () => Promise<void>;
   leads: Lead[];
   requests: Req[];
   /** Leads in a stage ("lo" also counts Invalid, like the design's "Lost & Invalid"). */
@@ -66,7 +75,31 @@ export function useCrm(): Crm {
 }
 
 export default function CrmProvider({ children }: { children: ReactNode }) {
-  const [clinic, setClinic] = useState<Clinic>(CLINICS[0]);
+  const router = useRouter();
+  // Who is signed in. Without CRM access (expired sign-in, removed or not approved): back to sign-in.
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<Me>("/v1/crm/me")
+      .then((m) => live && setMe(m))
+      .catch(async (e: unknown) => {
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+          await supabase().auth.signOut();
+          router.replace("/sign-in");
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [router]);
+  const signOut = useCallback(async () => {
+    await supabase().auth.signOut();
+    router.replace("/sign-in");
+  }, [router]);
+  // Clinic names match the screens' (still sample) data; only the clinics this person may see.
+  const clinics = useMemo(() => CLINICS.filter((c) => me?.clinics.some((x) => x.name === c)), [me]);
+  const [chosen, setClinic] = useState<Clinic | null>(null);
+  const clinic = chosen && clinics.includes(chosen) ? chosen : (clinics[0] ?? CLINICS[0]);
   // Sample data per clinic (replaced by backend data screen by screen). Made in the browser only, after the
   // frame shows: it depends on the current time, which the server must not use while pre-rendering.
   const now = useBrowserNow();
@@ -94,8 +127,11 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     const pending = (k: ReqKind) => requests.filter((r) => r.kind === k && r.status === "pending").length;
     return {
       ready,
+      me,
+      clinics,
       clinic,
       setClinic,
+      signOut,
       leads,
       requests,
       stageCount,
@@ -110,7 +146,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, clinic, leads, requests, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, signOut, leads, requests, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

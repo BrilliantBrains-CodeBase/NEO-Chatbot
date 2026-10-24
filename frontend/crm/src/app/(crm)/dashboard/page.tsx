@@ -6,10 +6,10 @@ import { useCrm } from "@/components/crm/CrmProvider";
 
 // Sub-step 2 (CRM frame): the screen's header from the design; its content is built in a later step.
 export default function DashboardPage() {
-  const { clinic } = useCrm();
+  const { clinic, me } = useCrm();
   return (
     <Placeholder
-      title={"Good morning, Priya"}
+      title={`Good morning${me ? ", " + me.name.split(" ")[0] : ""}`}
       description={
         <>
           {clinic} · <Live><Today /></Live>
