@@ -167,3 +167,37 @@ async def test_lead_stage_owner_note_and_call(api: AsyncClient, monkeypatch: pyt
             await pool.execute(
                 "delete from app.user_clinics where user_id = $1 and clinic_id = 'CL99'", admin
             )
+
+
+@needs_db
+async def test_add_lead_and_duplicate_phone(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    body = {
+        "clinic": "CL99",
+        "name": "Walk  In",
+        "phone": "9000000002",
+        "source": "manual",
+        "note": "Walk-in",
+    }
+    assert (
+        await api.post("/v1/crm/leads", json=body | {"phone": "12345"}, headers=headers)
+    ).status_code == 422
+    r = await api.post("/v1/crm/leads", json=body, headers=headers)
+    assert r.status_code == 201
+    lead = r.json()
+    try:
+        assert lead["name"] == "Walk In" and lead["phone"] == "+919000000002" and lead["notes"] == "Walk-in"
+        assert lead["events"][0]["kind"] == "contact"
+        dup = await api.post("/v1/crm/leads", json=body, headers=headers)
+        assert dup.status_code == 409 and lead["code"] in dup.json()["detail"]
+        opts = await api.get("/v1/crm/lead-options?clinic=CL01", headers=headers)
+        assert "Hair Transplant for Men" in opts.json()["treatments"]
+    finally:
+        lead_id = await pool.fetchval("select id from app.leads where lead_code = $1", lead["code"])
+        await pool.execute("select app.delete_patient_data($1)", lead_id)

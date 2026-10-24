@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Clinic } from "@/lib/sample-data";
+import AddLeadForm from "@/components/leads/AddLeadForm";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
+  const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         onClick={() =>
           crm.openModal({
             title: "Add lead",
-            body: <p className="sub2" style={{ margin: 0 }}>The Add lead form is built with the Leads screen.</p>,
+            body: clinicId ? (
+              <AddLeadForm clinicId={clinicId} onDone={crm.closeModal} />
+            ) : (
+              <p className="sub2" style={{ margin: 0 }}>Loading your clinics…</p>
+            ),
           })
         }
       >

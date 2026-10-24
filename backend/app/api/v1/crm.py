@@ -7,6 +7,8 @@ from asyncpg import Connection, Record
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.chat.content import content
+from app.chat.flows import EMAIL, normal_phone
 from app.core.db import get_pool
 from app.crm.auth import ROLE_LABEL, Staff, staff
 
@@ -450,3 +452,80 @@ async def log_call(user: Annotated[Staff, Depends(staff)], code: str, body: Call
         await _event(conn, lead, user, "call", {"outcome": body.outcome, "text": body.text.strip()})
         await conn.execute("update app.leads set last_contact_at = now() where id = $1", lead["id"])
     return await lead_detail(user, code)
+
+
+class Option(BaseModel):
+    id: str
+    name: str
+
+
+class LeadOptions(BaseModel):
+    treatments: list[str]
+    doctors: list[Option]
+
+
+@router.get("/lead-options", response_model=LeadOptions)
+async def lead_options(
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")]
+) -> LeadOptions:
+    """Choices for the Add lead form: the clinic's treatments (as in the chatbot) and active doctors."""
+    can_see(user, clinic)
+    c = content(clinic) or {}
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "select id, name from app.doctors where clinic_id = $1 and active order by sort_order, name", clinic
+    )
+    return LeadOptions(
+        treatments=list(c.get("config", {}).get("treatments", [])),
+        doctors=[Option(id=str(r[0]), name=r[1]) for r in rows],
+    )
+
+
+class NewLead(BaseModel):
+    clinic: str = Field(pattern=r"^CL\d{2}$")
+    name: str = Field(min_length=2, max_length=100)
+    phone: str = Field(max_length=20)  # 10-digit Indian mobile, or digits with phone_cc
+    phone_cc: str = Field(default="+91", pattern=r"^\+[1-9][0-9]{0,3}$")
+    email: str | None = Field(default=None, max_length=200)
+    source: Literal["manual", "whatsapp", "meta_ads", "google_ads", "chatbot"] = "manual"
+    campaign: str | None = Field(default=None, max_length=100)
+    treatment: str | None = Field(default=None, max_length=100)
+    doctor_id: str | None = None
+    type: Literal["in_clinic", "online"] | None = None
+    note: str = Field(default="", max_length=2000)
+
+
+@router.post("/leads", response_model=LeadDetail, status_code=status.HTTP_201_CREATED)
+async def add_lead(user: Annotated[Staff, Depends(staff)], body: NewLead) -> LeadDetail:
+    """A lead added by staff (walk-in, call, WhatsApp). The same phone in the clinic is a duplicate:
+    409 with the existing lead's code in the message, so staff open that one instead."""
+    can_edit(user, body.clinic)
+    phone = normal_phone(body.phone, body.phone_cc)
+    if not phone:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Enter a valid mobile number.")
+    email = (body.email or "").strip().lower() or None
+    if email and not EMAIL.match(email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Enter a valid email or leave it empty.")
+    cc, number = phone.split(" ", 1)
+    e164 = cc + number
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        existing = await conn.fetchval(
+            "select lead_code from app.leads where clinic_id = $1 and phone_e164 = $2 and deleted_at is null",
+            body.clinic, e164,
+        )  # fmt: skip
+        if existing:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"This number is already lead {existing}.")
+        r = await conn.fetchrow(
+            """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source, campaign,
+                 treatment, doctor_id, appointment_type, assigned_to, notes)
+               values ($1, $2, $3, $4, $5, $6, $7, $8, $9::uuid, $10,
+                 (select user_id from app.user_clinics where user_id = $11::uuid and clinic_id = $1
+                    and active and role <> 'doctor'), $12)
+               returning id, clinic_id, lead_code""",
+            body.clinic, " ".join(body.name.split()), e164, cc, email, body.source, body.campaign or None,
+            body.treatment or None, body.doctor_id or None, body.type, user.id, body.note.strip(),
+        )  # fmt: skip
+        await _event(conn, r, user, "contact", {"source": body.source, "by_staff": True})
+    return await lead_detail(user, r["lead_code"])

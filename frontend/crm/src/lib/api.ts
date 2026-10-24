@@ -98,3 +98,4 @@ export type LeadDetail = LeadRow & {
 };
 
 export type StaffOption = { id: string; name: string; role_label: string };
+export type LeadOptions = { treatments: string[]; doctors: { id: string; name: string }[] };

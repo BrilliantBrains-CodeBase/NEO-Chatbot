@@ -32,18 +32,28 @@ function useDebounced(value: string, ms = 300) {
 export default function LeadsView() {
   const { clinic, me } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  // The stage tab lives in the address (?stage=booked), so the menu links open it.
+  // The stage tab and the open lead live in the address (?stage=booked&open=CL01-00003), so the menu
+  // links and Add lead can open them.
   const router = useRouter();
-  const asked = useSearchParams().get("stage") ?? "";
+  const params = useSearchParams();
+  const asked = params.get("stage") ?? "";
   const stage = STAGE_LABEL[asked] ? asked : "";
-  const setStage = (s: string) => router.replace(s ? `/leads?stage=${s}` : "/leads");
+  const openCode = params.get("open");
+  const go = (s: string, code: string | null) => {
+    const p = new URLSearchParams();
+    if (s) p.set("stage", s);
+    if (code) p.set("open", code);
+    router.replace(p.size ? `/leads?${p}` : "/leads", { scroll: false });
+  };
+  const setStage = (s: string) => go(s, openCode);
   const [version, setVersion] = useState(0); // bumped after a change, to load the list again
   const [source, setSource] = useState("");
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
-  const key = `${clinicId}|${stage}|${source}|${q}|${version}`;
+  // A newly added lead is opened by its code: the list loads again to include it.
+  const key = `${clinicId}|${stage}|${source}|${q}|${version}|${openCode}`;
   const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
-  const [open, setOpen] = useState<{ code: string; d?: LeadDetail; error?: string } | null>(null);
+  const [detail, setDetail] = useState<{ code: string; d?: LeadDetail; error?: string }>({ code: "" });
 
   useEffect(() => {
     if (!clinicId) return;
@@ -61,18 +71,26 @@ export default function LeadsView() {
     };
   }, [clinicId, stage, source, q, key]);
 
+  useEffect(() => {
+    if (!openCode) return;
+    let live = true;
+    api<LeadDetail>(`/v1/crm/leads/${encodeURIComponent(openCode)}`).then(
+      (d) => live && setDetail({ code: openCode, d }),
+      (e) => live && setDetail({ code: openCode, error: errorText(e) }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [openCode]);
+
   function changed(d: LeadDetail) {
-    setOpen({ code: d.code, d });
+    setDetail({ code: d.code, d });
     setVersion((v) => v + 1);
   }
 
-  function show(code: string) {
-    setOpen({ code });
-    api<LeadDetail>(`/v1/crm/leads/${encodeURIComponent(code)}`).then(
-      (d) => setOpen((o) => (o?.code === code ? { code, d } : o)),
-      (e) => setOpen((o) => (o?.code === code ? { code, error: errorText(e) } : o)),
-    );
-  }
+  const show = (code: string) => go(stage, code);
+  const close = () => go(stage, null);
+  const open: typeof detail | null = openCode ? (detail.code === openCode ? detail : { code: openCode }) : null;
 
   const d = list.key === key ? list.d : undefined;
   const error = list.key === key ? list.error : undefined;
@@ -166,7 +184,7 @@ export default function LeadsView() {
         </p>
       )}
 
-      <div className={`ov${open ? " on" : ""}`} onClick={() => setOpen(null)} />
+      <div className={`ov${open ? " on" : ""}`} onClick={close} />
       <aside className={`dr${open ? " on" : ""}`} aria-hidden={!open}>
         {open && (
           <>
@@ -178,7 +196,7 @@ export default function LeadsView() {
                   {lead && <span className={`badge ${STAGE_LABEL[lead.stage]?.[1]}`}>{STAGE_LABEL[lead.stage]?.[0]}</span>}
                 </p>
               </div>
-              <button className="x" onClick={() => setOpen(null)} aria-label="Close">
+              <button className="x" onClick={close} aria-label="Close">
                 ✕
               </button>
             </div>
