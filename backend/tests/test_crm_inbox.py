@@ -145,3 +145,75 @@ async def test_online_approve_books_calcom_and_keeps_the_link(
     finally:
         await pool.execute("select app.delete_patient_data($1)", lead)
         await pool.execute("delete from app.doctors where id = $1", doctor)
+
+
+@needs_db
+async def test_online_cancel_and_reschedule_update_calcom(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.crm import calcom
+
+    calls: list[tuple[str, str]] = []
+
+    async def cancel(uid, reason):  # type: ignore[no-untyped-def]
+        calls.append(("cancel", uid))
+
+    async def reschedule(uid, start, reason):  # type: ignore[no-untyped-def]
+        calls.append(("reschedule", uid))
+        return calcom.Booking(uid="moved-uid", meet_link=None)  # the link stays the same
+
+    monkeypatch.setattr(calcom, "cancel", cancel)
+    monkeypatch.setattr(calcom, "reschedule", reschedule)
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    lead = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, email, source)
+           values ('CL99', 'Calcom Test', '+919000000007', 'c@example.com', 'chatbot') returning id"""
+    )
+    try:
+        appts = []
+        for day in ("2026-11-02", "2026-11-09"):  # two booked online consults with Cal.com bookings
+            appts.append(
+                await pool.fetchval(
+                    """insert into app.appointments (clinic_id, lead_id, type, slot, status, meet_link,
+                         calendar_event_id, confirmed_at)
+                       values ('CL99', $1, 'online', tstzrange(($2 || ' 11:00+05:30')::timestamptz,
+                         ($2 || ' 11:15+05:30')::timestamptz, '[)'), 'confirmed',
+                         'https://meet.google.com/aaa-bbbb-ccc', 'uid-' || $2, now()) returning id""",
+                    lead,
+                    day,
+                )
+            )
+        cancel_req = await pool.fetchval(
+            """insert into app.requests (clinic_id, lead_id, type, data, match_status, matched_appointment_id)
+               values ('CL99', $1, 'cancel', '{}', 'matched', $2) returning id""",
+            lead,
+            appts[0],
+        )
+        resch_req = await pool.fetchval(
+            """insert into app.requests (clinic_id, lead_id, type, data, match_status, matched_appointment_id)
+               values ('CL99', $1, 'reschedule', '{"date": "2026-11-16", "time": "any"}', 'matched', $2)
+               returning id""",
+            lead,
+            appts[1],
+        )
+        r = await api.post(f"/v1/crm/requests/{cancel_req}/approve", headers=headers)
+        assert r.status_code == 200 and calls == [("cancel", "uid-2026-11-02")]
+        url = f"/v1/crm/requests/{resch_req}/approve"
+        assert (await api.post(url, headers=headers)).status_code == 422  # online needs an exact time
+        r = await api.post(url, json={"time": "12:00"}, headers=headers)
+        assert r.status_code == 200, r.text
+        assert calls[-1] == ("reschedule", "uid-2026-11-09")
+        new = r.json()["appointment"]
+        assert new["meet_link"] == "https://meet.google.com/aaa-bbbb-ccc" and new["status"] == "confirmed"
+        uid = await pool.fetchval(
+            "select calendar_event_id from app.appointments where id = $1::uuid", new["id"]
+        )
+        assert uid == "moved-uid"
+    finally:
+        await pool.execute("select app.delete_patient_data($1)", lead)

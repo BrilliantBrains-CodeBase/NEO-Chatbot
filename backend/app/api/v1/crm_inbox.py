@@ -1,6 +1,7 @@
 """CRM Inbox (JSON only): the requests patients made in the chatbot, and what staff do with them."""
 
 import json
+from collections.abc import Awaitable
 from datetime import date, datetime, time, timedelta
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
@@ -58,10 +59,12 @@ class Inbox(BaseModel):
 SELECT = """select r.id, r.type, r.status, r.created_at, r.data, r.match_status, r.clinic_id, r.lead_id,
     l.lead_code, l.full_name, l.phone_e164, l.email, a.id a_id, lower(a.slot) a_start,
     coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) a_day, d.name a_doctor,
-    a.type a_type, a.status a_status, a.doctor_id a_doctor_id, a.meet_link a_meet
+    a.type a_type, a.status a_status, a.doctor_id a_doctor_id, a.meet_link a_meet,
+    a.calendar_event_id a_cal
   from app.requests r join app.leads l on l.id = r.lead_id join app.clinics c on c.id = r.clinic_id
-  left join app.appointments a on a.id = coalesce(r.matched_appointment_id,
-    (select id from app.appointments where request_id = r.id order by created_at limit 1))
+  left join app.appointments a on a.id = coalesce(
+    (select id from app.appointments where request_id = r.id order by created_at desc limit 1),
+    r.matched_appointment_id)
   left join app.doctors d on d.id = a.doctor_id"""
 
 
@@ -163,7 +166,9 @@ async def _set_appt(conn: asyncpg.Connection, appt: Any, user: Staff, state: str
     )  # fmt: skip
 
 
-async def _new_slot(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, Any], user: Staff) -> None:
+async def _new_slot(
+    conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, Any], user: Staff
+) -> tuple[Any, datetime | None]:
     """The appointment a reschedule moves to: same doctor and type, the asked day and time."""
     c = await conn.fetchrow("select timezone, slot_minutes from app.clinics where id = $1", r["clinic_id"])
     day = date.fromisoformat(data["date"])
@@ -174,14 +179,15 @@ async def _new_slot(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str,
         end = start + timedelta(minutes=c["slot_minutes"])
     try:
         async with conn.transaction():
-            await conn.execute(
+            new = await conn.fetchval(
                 """insert into app.appointments (clinic_id, lead_id, request_id, doctor_id, type, slot,
                      preferred_date, status, rescheduled_from_id, confirmed_by, confirmed_at)
                    values ($1, $2, $3, $4, $5, case when $6::timestamptz is null then null
-                     else tstzrange($6, $7, '[)') end, $8, 'confirmed', $9, $10::uuid, now())""",
+                     else tstzrange($6, $7, '[)') end, $8, 'confirmed', $9, $10::uuid, now()) returning id""",
                 r["clinic_id"], r["lead_id"], r["id"], r["a_doctor_id"], r["a_type"] or "in_clinic",
                 start, end, None if start else day, r["a_id"], user.id,
             )  # fmt: skip
+            return new, start
     except asyncpg.exceptions.ExclusionViolationError:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
@@ -294,6 +300,14 @@ async def _online(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, A
     )  # fmt: skip
 
 
+async def _calcom[T](call: Awaitable[T]) -> T:
+    """A Cal.com call inside an approval: when Cal.com refuses, the whole approval is undone."""
+    try:
+        return await call
+    except calcom.CalcomError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
+
+
 @router.post("/requests/{request_id}/approve", response_model=InboxItem)
 async def approve(
     user: Annotated[Staff, Depends(staff)], request_id: str, body: Approve | None = None
@@ -344,12 +358,28 @@ async def approve(
             )
         elif kind == "cancel" and r["a_id"]:
             await _set_appt(conn, r["a_id"], user, "cancelled")
+            if r["a_cal"]:  # an online consult: Cal.com cancels it and emails the patient
+                await _calcom(calcom.cancel(r["a_cal"], "Cancelled at the patient's request"))
         elif kind == "reschedule":
             if not data.get("date"):
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The new day is missing.")
+            if r["a_cal"] and data.get("time") in (None, "any"):
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    "An online consult needs an exact new time: choose one.",
+                )
             if r["a_id"]:
                 await _set_appt(conn, r["a_id"], user, "rescheduled")
-            await _new_slot(conn, r, data, user)
+            new, start = await _new_slot(conn, r, data, user)
+            if r["a_cal"] and start:  # an online consult: Cal.com moves it and emails the new time
+                moved = await _calcom(
+                    calcom.reschedule(r["a_cal"], start, "Rescheduled at the patient's request")
+                )
+                await conn.execute(
+                    """update app.appointments set meet_link = coalesce($2, $3), calendar_event_id = $4
+                       where id = $1""",
+                    new, moved.meet_link, r["a_meet"], moved.uid,
+                )  # fmt: skip
         await _close(conn, r, user, "done", {"outcome": "approved"})
         row = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
     return _item(row)

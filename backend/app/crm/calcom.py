@@ -68,5 +68,18 @@ async def book(start: datetime, name: str, email: str, phone: str | None, note: 
     )
 
 
+async def reschedule(uid: str, start: datetime, reason: str) -> Booking:
+    """Moves the booking. Cal.com gives it a new uid, emails the patient the new time, may change the link."""
+    data = (
+        await _post(
+            f"/bookings/{uid}/reschedule", {"start": start.isoformat(), "reschedulingReason": reason[:500]}
+        )
+    )["data"]
+    link = data.get("meetingUrl") or data.get("location")
+    return Booking(
+        uid=data["uid"], meet_link=link if str(link).startswith("https://meet.google.com/") else None
+    )
+
+
 async def cancel(uid: str, reason: str) -> None:
     await _post(f"/bookings/{uid}/cancel", {"cancellationReason": reason[:500]})

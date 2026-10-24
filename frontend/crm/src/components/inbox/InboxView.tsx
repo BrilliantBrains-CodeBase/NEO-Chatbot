@@ -135,8 +135,15 @@ export default function InboxView() {
   const item = d?.items.find((i) => i.id === openId);
   const canAct = !!role && role !== "doctor" && item?.status === "pending";
   // An online consult for "Any time" needs the time agreed with the patient before Cal.com can book it.
+  // An online consult needs an exact time for Cal.com: a request for "Any time" (new booking or reschedule)
+  // opens the time picker.
   const needsTime =
-    item?.type === "online" && !!item.appointment && !item.appointment.start;
+    (item?.type === "online" &&
+      !!item.appointment &&
+      !item.appointment.start) ||
+    (item?.type === "reschedule" &&
+      item.appointment?.type === "online" &&
+      (!item.time || item.time === "any"));
 
   function open(id: string | null) {
     router.replace(`/inbox?tab=${tab}${id ? `&open=${id}` : ""}`, {
