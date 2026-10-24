@@ -451,7 +451,7 @@ export const REVIEWS = {
   clinic: 'Neo Follicle',
   rating: '4.8',
   count: '1,040',
-  link: 'https://maps.app.goo.gl/jKaWhcfQuKZXRvE48',
+  link: 'https://www.google.com/maps/place/Neo+Follicle+Hair+Transplant/@12.9562256,77.7073554,17z/data=!4m8!3m7!1s0x3bae13439e1fc9e7:0x12fed4d549fb599a!8m2!3d12.9562256!4d77.7073554!9m1!1b1!16s%2Fg%2F11gjn959r3',
   videos: 'https://neofollicletransplant.com/video-gallery/#hair-transplant-testimonials',
   items: [
     {
