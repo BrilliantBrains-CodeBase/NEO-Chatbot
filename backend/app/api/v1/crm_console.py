@@ -4,6 +4,7 @@ Clinic managers and BB Admin only. The live chatbot does not read these settings
 
 import json
 from typing import Annotated, Any, Literal
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -113,8 +114,175 @@ class Template(BaseModel):
     filled_button: str = Field(default="Book Consultation", max_length=40)  # "" for none
 
 
+# What a button does. "page" opens one of the clinic's existing chat pages (e.g. a doctor's profile), so
+# nothing the chat has today is lost; the others are the chat's own actions.
+ACTIONS = Literal[
+    "submenu",
+    "book",
+    "online",
+    "cancel",
+    "reschedule",
+    "callback",
+    "treatments",
+    "treatment",
+    "page",
+    "answer",
+    "link",
+    "whatsapp",
+    "call",
+    "emergency",
+]
+
+
+class Figure(BaseModel):
+    value: str = Field(max_length=12)  # e.g. "4.8★"
+    label: str = Field(max_length=24)  # e.g. "Google rating"
+
+
+class SubButton(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    action: ACTIONS = "answer"
+    value: str = Field(default="", max_length=500)  # the page, treatment, text, link, number or message
+    visible: bool = True
+
+
+class MainButton(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    icon: str = Field(default="", max_length=20)
+    action: ACTIONS = "submenu"
+    value: str = Field(default="", max_length=500)
+    message: str = Field(default="", max_length=500)  # shown above the sub-buttons
+    variant: Literal["", "wa", "sos"] = ""  # WhatsApp (green) or Emergency (red, full width)
+    visible: bool = True
+    sub: list[SubButton] = Field(default=[], max_length=12)
+
+
+class Menu(BaseModel):
+    """The chat's opening: welcome message, trust figures, then the main buttons and their sub-buttons."""
+
+    welcome: str = Field(default="", max_length=500)
+    show_figures: bool = True
+    figures: list[Figure] = Field(default=[], max_length=3)
+    fallback: str = Field(
+        default="I don't have a confirmed answer for that yet. Would you like our team to call you back?",
+        max_length=300,
+    )  # shown with a call-back button when no answer is found
+    buttons: list[MainButton] = Field(default=[], max_length=12)
+
+
+def menu_from_content(clinic: str) -> dict[str, Any]:
+    """Today's chat menu (the clinic's content file) as the first draft of Menu buttons."""
+    c = content(clinic) or {}
+    nodes = c.get("nodes", {})
+
+    def button(o: dict[str, Any]) -> dict[str, Any]:
+        href, action, value = o.get("href", ""), o.get("action", ""), str(o.get("value", ""))
+        if href.startswith("tel:"):
+            return {"action": "call", "value": href[4:]}
+        if "wa.me" in href:
+            return {"action": "whatsapp", "value": href}
+        if href:
+            return {"action": "link", "value": href}
+        if action == "start" and value in ("book", "online", "cancel", "reschedule", "callback"):
+            return {"action": value, "value": ""}
+        if action == "callback":
+            return {"action": "callback", "value": value}
+        if action == "treat":
+            return {"action": "treatment", "value": value}
+        return {"action": "page", "value": value}
+
+    out = []
+    for item in (c.get("menu") or {}).get("items", []):
+        b: dict[str, Any] = {
+            "label": item["label"],
+            "icon": item.get("icon", ""),
+            "variant": item.get("variant", ""),
+        }
+        node = nodes.get(item.get("value", "")) if item.get("action") == "go" else None
+        if item.get("variant") == "sos":
+            b |= {"action": "emergency", "value": ""}
+        elif node:
+            msgs = node.get("messages", [])
+            b |= {
+                "action": "submenu",
+                "message": msgs[0].get("text", "") if msgs else "",
+                "sub": [
+                    {"label": o["label"], **button(o)} for o in (node.get("ui") or {}).get("options", [])
+                ][:12],
+            }
+        else:
+            b |= button(item)
+        out.append(b)
+    reviews = c.get("reviews") or {}
+    figures = [{"value": f"{reviews['rating']}★", "label": "Google rating"}] if reviews.get("rating") else []
+    return {
+        "welcome": c.get("greeting") or (c.get("config") or {}).get("greeting", ""),
+        "figures": figures,
+        "buttons": out,
+    }
+
+
+PHONE = r"^(\+[1-9]\d{7,14})?$"
+TIME = r"^([01]\d|2[0-3]):[0-5]\d$"
+DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
+class Day(BaseModel):
+    day: Literal["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    open: bool = True
+    start: str = Field(default="10:00", pattern=TIME)
+    end: str = Field(default="19:00", pattern=TIME)
+
+
+class Contact(BaseModel):
+    """Clinic info → Contact & hours. Every chat button that calls, opens WhatsApp or a map uses these."""
+
+    phone: str = Field(default="", max_length=16, pattern=PHONE)  # reception, e.g. +919731207940
+    emergency_number: str = Field(default="108", max_length=16, pattern=r"^\+?\d{3,15}$")
+    whatsapp: str = Field(default="", max_length=16, pattern=PHONE)
+    whatsapp_message: str = Field(default="", max_length=300)  # typed for the patient; they can change it
+    email: str = Field(default="", max_length=120, pattern=r"^([^\s@]+@[^\s@]+\.[^\s@]{2,})?$")
+    address: str = Field(default="", max_length=300)
+    landmark: str = Field(default="", max_length=120)
+    parking: str = Field(default="", max_length=200)
+    maps_link: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")
+    hours: list[Day] = Field(default=[Day(day=d) for d in DAYS], min_length=7, max_length=7)
+    closed_message: str = Field(
+        default="The clinic is closed right now. Leave your number and we will call you back.", max_length=300
+    )
+
+
+def contact_from_clinic(row: Any, clinic: str) -> dict[str, Any]:
+    """Today's details (the clinic's row and its chat page) as the first draft of Contact & hours."""
+    c = content(clinic) or {}
+    page = (c.get("nodes") or {}).get("clinic") or {}
+    text = ((page.get("messages") or [{}])[0].get("text") or "").split("\n")
+    links = {o.get("label", ""): o.get("href", "") for o in (page.get("ui") or {}).get("options", [])}
+    wa = next(
+        (i.get("href", "") for i in (c.get("menu") or {}).get("items", []) if i.get("variant") == "wa"), ""
+    )
+    wa_text = unquote(wa.split("text=", 1)[1]) if "text=" in wa else ""
+    closed = set(row["closed_weekdays"] or [])
+    start, end = row["open_time"].strftime("%H:%M"), row["close_time"].strftime("%H:%M")
+    return {
+        "phone": row["phone"] or "",
+        "whatsapp": row["whatsapp"] or "",
+        "whatsapp_message": wa_text,
+        "address": text[1].strip() if len(text) > 1 else "",
+        "maps_link": next((h for label, h in links.items() if "Maps" in label), ""),
+        "hours": [
+            {"day": d, "open": i not in closed, "start": start, "end": end} for i, d in enumerate(DAYS)
+        ],
+    }
+
+
 # The sections of the settings; each later screen (Menu buttons, ...) adds its own.
-SECTIONS: dict[str, type[BaseModel]] = {"appearance": Appearance, "template": Template}
+SECTIONS: dict[str, type[BaseModel]] = {
+    "appearance": Appearance,
+    "template": Template,
+    "menu": Menu,
+    "contact": Contact,
+}
 
 
 class MenuItem(BaseModel):
@@ -152,9 +320,18 @@ async def _load(clinic: str) -> Settings:
         if not await conn.fetchval("select 1 from app.clinics where id = $1 and active", clinic):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown clinic.")
         r = await conn.fetchrow("select * from app.clinic_settings where clinic_id = $1", clinic)
-        bot = await conn.fetchval("select bot_name from app.clinics where id = $1", clinic)
+        info = await conn.fetchrow(
+            """select bot_name, phone, whatsapp, open_time, close_time, closed_weekdays from app.clinics
+               where id = $1""",
+            clinic,
+        )
+        bot = info["bot_name"]
     draft_saved = _json(r["draft"]) if r else {}
     published_saved = _json(r["published"]) if r else {}
+    if not draft_saved.get("contact"):  # start from the clinic's details today
+        draft_saved["contact"] = contact_from_clinic(info, clinic)
+    if not draft_saved.get("menu"):  # start from the chat's menu today
+        draft_saved["menu"] = menu_from_content(clinic)
     if not draft_saved.get("appearance"):  # start from the clinic's bot name
         draft_saved["appearance"] = {"look": {"name": bot, "avatar_letter": bot[:1].upper()}}
     draft, published = _filled(draft_saved), _filled(published_saved) if published_saved else {}

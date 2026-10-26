@@ -58,6 +58,12 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 | Cal.com, Google Sheet webhook (Integrations) | Website approval and embed code per clinic; per-clinic integration keys |
 | Allowed website list per clinic (`clinics.allowed_origins`, checked on every chat request) | |
 
+## Pending
+
+- **Menu buttons** (2026-10-26): the one-level screen is built, but the chat goes deeper (main button → sub-button
+  → more). To be rebuilt as **pages linked by buttons** (a tree of pages, any depth, breadcrumb, click-through
+  preview, unreachable pages flagged; all of CL01's 19 pages imported). Paused at the user's request.
+
 ## Not decided yet
 
 - **HealthPlix** (Lead questions → request the slot in HealthPlix): is NEO using it?

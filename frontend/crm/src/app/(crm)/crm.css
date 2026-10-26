@@ -377,3 +377,20 @@
 .crm .fg .opt { display:flex;flex-direction:row;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer }
 .crm .fg .opt input { margin:0;width:16px;height:16px;accent-color:var(--brand) }
 .crm .fg .fld .row { gap:18px }
+
+/* Dashboard → Clinic info: compact grouped fields and short opening hours. */
+.crm .ci { display:flex;flex-direction:column;gap:14px }
+.crm .ci section { border:1px solid var(--line);border-radius:12px;padding:10px 12px }
+.crm .ci h4 { margin:0 0 8px;font-size:12px;letter-spacing:.04em;color:var(--mute);text-transform:uppercase }
+.crm .ci-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px }
+.crm .ci-grid label { display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:600;color:var(--soft) }
+.crm .ci-grid label.wide { grid-column:1/-1 }
+.crm .ci-grid input, .crm .ci-times input { font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-height:32px;background:#fff }
+.crm .ci-days { display:flex;flex-wrap:wrap;gap:5px;align-items:center }
+.crm .ci-days > button { width:34px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--mute);font-weight:700;font-size:12px;cursor:pointer }
+.crm .ci-days > button.on { background:var(--brand);border-color:var(--brand);color:#fff }
+.crm .ci-times { display:inline-flex;gap:6px;align-items:center;margin-left:8px;font-size:12.5px;color:var(--soft) }
+.crm .ci-times input { width:108px;padding:4px 6px;min-height:30px }
+.crm .ci-perday { display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px }
+.crm .ci-perday .ci-times { margin-left:0 }
+.crm .ci-perday b { width:30px;color:var(--ink);font-size:12px }

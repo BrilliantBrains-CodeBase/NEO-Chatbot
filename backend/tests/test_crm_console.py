@@ -49,6 +49,24 @@ async def test_appearance_draft_and_publish(api: AsyncClient, monkeypatch: pytes
         t = await api.put(url + "/template", json={"id": "pills"}, headers=headers)
         assert t.json()["draft"]["template"]["id"] == "pills"
         assert (await api.put(url + "/template", json={"id": "grid"}, headers=headers)).status_code == 422
+        menu = {
+            "welcome": "Hello",
+            "figures": [{"value": "4.8★", "label": "Google rating"}],
+            "buttons": [
+                {"label": "Book", "action": "submenu", "sub": [{"label": "In clinic", "action": "book"}]}
+            ],
+        }
+        m = await api.put(url + "/menu", json=menu, headers=headers)
+        assert m.status_code == 200 and m.json()["draft"]["menu"]["buttons"][0]["sub"][0]["action"] == "book"
+        bad_menu = menu | {"buttons": [{"label": "X", "action": "fly"}]}
+        assert (await api.put(url + "/menu", json=bad_menu, headers=headers)).status_code == 422
+        contact = start["draft"]["contact"]
+        assert len(contact["hours"]) == 7 and contact["emergency_number"] == "108"
+        c = await api.put(url + "/contact", json=contact | {"phone": "+919000000010"}, headers=headers)
+        assert c.status_code == 200 and c.json()["draft"]["contact"]["phone"] == "+919000000010"
+        assert (
+            await api.put(url + "/contact", json=contact | {"phone": "98765"}, headers=headers)
+        ).status_code == 422
         p = await api.post("/v1/crm/console/CL99/publish", headers=headers)
         assert p.status_code == 200 and p.json()["version"] >= 1 and p.json()["changed"] is False
         assert p.json()["published"]["appearance"]["look"]["name"] == "Test Bot"
