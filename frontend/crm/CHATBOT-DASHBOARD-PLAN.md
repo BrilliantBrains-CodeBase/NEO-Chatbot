@@ -30,7 +30,7 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 | Widget | **Menu buttons** | The chat's opening: **welcome message and trust figures**, then main buttons and sub-buttons, ON/OFF, create, delete, reorder, what each does (booking, online consult, cancel, reschedule, callback, answer, treatments, link, WhatsApp, call), **typed example phrases** per button. **Also:** three figures under the greeting, fallback message with a call-back button when no answer is found, icon per button, message above sub-buttons, cards (title, text, button text and link), Emergency button on/off. | 1 |
 | Widget | **Clinic info** (4 tabs, one live preview) | **Lead questions:** The booking, callback and "talk to a person" questions, **editable**: order, wording, the check on each answer, where each lead goes. **Services:** Every treatment: name, description, website page, price, Book button; cost options; services not offered. **Contact & hours:** Phone, WhatsApp, email, address and map, opening hours, closed days (used by every button). **Reviews:** Google rating and count, selected patient quotes, the reviews link, celebrity answers. **Also, Lead questions:** question types, flow name, CRM tag per flow, opening line, read the answers back to confirm, final message, save to Lead CRM, email alert to the front desk, WhatsApp confirmation, HealthPlix slot request (to decide). **Services:** category, photo, duration, starting price with a "From ₹" switch (off: price shared at consultation), page on the website, Read more, which flow the Book button runs, show in chat; renaming updates every button. **Contact & hours:** emergency number, WhatsApp pre-filled message, landmark, parking, Google Maps link, closed message. | 2 |
 | Widget | **Emergency & medical** | The emergency (108) reply and the wording used when a question needs the doctor (medical guard) | 2 |
-| Widget | **AI answers** | Typed questions answered from **approved content only**: facts, Q&A and their wordings (knowledge base), with approval | 5 |
+| Widget | **Knowledge base** | Typed questions answered from **approved content only**: facts, Q&A and their wordings (knowledge base), with approval | 5 |
 | Widget | **Legal & consent** | Consent wording and policy links shown in the chat | 5 |
 | Bot quality | **Unanswered questions** | What patients asked that the bot could not answer; staff write an answer or add it as a new wording of an existing one; used only after approval | 3 |
 | Bot quality | **Chat transcripts** | Every conversation, its patient and lead, and **why** the bot gave each reply (from the answer traces) | 3 |
@@ -51,7 +51,7 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 | Booking, callback and consult flows (Lead questions) | Widget settings per clinic in the database (look, welcome, template, buttons, reviews, safety wording) |
 | Treatment list and cost options (Services) | Draft → publish with versions and roll back |
 | Clinic hours, closed days, slots (Contact & hours) | One widget script for all clinics that reads its settings |
-| Approved facts and Q&A, no LLM (AI answers) | Editable lead questions with answer checks |
+| Approved facts and Q&A, no LLM (Knowledge base) | Editable lead questions with answer checks |
 | Unanswered questions table, answer traces (Bot quality) | Approval queue for answers, phrases and buttons |
 | Consent on leads, patient data deletion (Privacy) | Test sets runnable from the dashboard; test link |
 | Audit log (Activity log), roles per clinic (Team) | Invites, email domain policy, staff alerts |
@@ -73,4 +73,4 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 2. **Stage 2:** Clinic info (Lead questions, Services, Contact & hours, Reviews), Emergency & medical, Team & access
 3. **Stage 3:** Unanswered questions, Chat transcripts, Test & quality, Website install, Integrations
 4. **Stage 4:** Login & security, Privacy & data, Activity log, Staff alerts
-5. **Stage 5:** AI answers, Legal & consent, Versions
+5. **Stage 5:** Knowledge base, Legal & consent, Versions

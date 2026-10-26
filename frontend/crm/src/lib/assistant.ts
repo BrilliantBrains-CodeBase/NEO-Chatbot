@@ -64,7 +64,7 @@ export const SECTIONS: Section[] = [
   {
     id: "ai",
     icon: "spark",
-    label: "AI answers",
+    label: "Knowledge base",
     group: "Widget",
     stage: 5,
     desc: "Typed questions answered from approved content only.",
