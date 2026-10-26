@@ -276,12 +276,60 @@ def contact_from_clinic(row: Any, clinic: str) -> dict[str, Any]:
     }
 
 
+class Service(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    category: str = Field(default="", max_length=40)
+    description: str = Field(default="", max_length=400)
+    page: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")  # "Read more" on the website
+    photo: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")
+    duration: str = Field(default="", max_length=30)  # e.g. "6 to 8 hours"
+    price: int | None = Field(default=None, ge=0, le=10_000_000)  # starting price in rupees
+    show_price: bool = False  # off: "the price is shared at consultation"
+    book_as: str = Field(default="", max_length=80)  # the booking-list option its Book button chooses
+    show: bool = True
+
+
+class Services(BaseModel):
+    """Clinic info → Services: every treatment the chat can show, the booking list, what is not offered."""
+
+    items: list[Service] = Field(default=[], max_length=80)
+    booking_options: list[str] = Field(default=[], max_length=20)  # "Which treatment?" when booking
+    not_offered: list[str] = Field(default=[], max_length=80)  # words the chat answers "not offered" to
+
+
+GROUP = {"ht": "Hair transplant", "hf": "Hair fall & scalp", "treat": "Other treatments"}
+
+
+def services_from_content(clinic: str) -> dict[str, Any]:
+    """Today's treatments, booking list and "not offered" words as the first draft of Services."""
+    c = content(clinic) or {}
+    site = str(c.get("site") or "").rstrip("/") + "/"
+    options = list((c.get("config") or {}).get("treatments", []))
+    mapping = c.get("booking_option") or {}
+    items = [
+        {
+            "name": name,
+            "category": GROUP.get(t.get("list", ""), "Other treatments"),
+            "description": t.get("text", ""),
+            "page": site + t["path"] if t.get("path") and site.startswith("https://") else "",
+            "book_as": mapping.get(name) or (name if name in options else ""),
+        }
+        for name, t in (c.get("treatments") or {}).items()
+    ]
+    return {
+        "items": items,
+        "booking_options": options,
+        "not_offered": [w.rstrip("?") for w in c.get("not_offered", [])],
+    }
+
+
 # The sections of the settings; each later screen (Menu buttons, ...) adds its own.
 SECTIONS: dict[str, type[BaseModel]] = {
     "appearance": Appearance,
     "template": Template,
     "menu": Menu,
     "contact": Contact,
+    "services": Services,
 }
 
 
@@ -330,6 +378,8 @@ async def _load(clinic: str) -> Settings:
     published_saved = _json(r["published"]) if r else {}
     if not draft_saved.get("contact"):  # start from the clinic's details today
         draft_saved["contact"] = contact_from_clinic(info, clinic)
+    if not draft_saved.get("services"):  # start from the chat's treatments today
+        draft_saved["services"] = services_from_content(clinic)
     if not draft_saved.get("menu"):  # start from the chat's menu today
         draft_saved["menu"] = menu_from_content(clinic)
     if not draft_saved.get("appearance"):  # start from the clinic's bot name

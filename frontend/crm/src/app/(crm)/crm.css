@@ -394,3 +394,12 @@
 .crm .ci-perday { display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px }
 .crm .ci-perday .ci-times { margin-left:0 }
 .crm .ci-perday b { width:30px;color:var(--ink);font-size:12px }
+
+/* Clinic info → Services list. */
+.crm .svc { display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:420px;overflow-y:auto }
+.crm .svc-row { border-top:1px solid var(--line) }
+.crm .svc-row:first-child { border-top:0 }
+.crm .svc-row.on { background:#FAFBFD }
+.crm .svc-head { display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;font-size:13px }
+.crm .svc-head:hover { background:var(--panel) }
+.crm .svc-head input { margin:0 }

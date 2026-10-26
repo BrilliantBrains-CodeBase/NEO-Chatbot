@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
+import ServicesTab, { ServiceCard, type Services } from "./ServicesTab";
 
 // Dashboard → Clinic info: Contact & hours, Services, Reviews and Lead questions, one draft with a preview.
 // Contact & hours is built first; the other tabs follow one by one.
@@ -24,6 +25,7 @@ type Contact = {
 type Settings = {
   draft: {
     contact: Contact;
+    services: Services;
     appearance: {
       look: { name: string };
       colours: { main: string; whatsapp: string };
@@ -71,6 +73,8 @@ export default function ClinicInfoView() {
   const [form, setForm] = useState<Contact | null>(null);
   const [tab, setTab] = useState<Tab>("contact");
   const [perDay, setPerDay] = useState(false);
+  const [services, setServices] = useState<Services | null>(null);
+  const [svc, setSvc] = useState<number | null>(null); // the treatment open in the list (and the preview)
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -82,6 +86,7 @@ export default function ClinicInfoView() {
         if (!live) return;
         setLoaded({ clinic: clinicId, s });
         setForm(s.draft.contact);
+        setServices(s.draft.services);
       },
       (e) =>
         live &&
@@ -96,8 +101,13 @@ export default function ClinicInfoView() {
   }, [clinicId]);
 
   const s = loaded.clinic === clinicId ? loaded.s : undefined;
-  const dirty =
+  const contactDirty =
     !!s && !!form && JSON.stringify(form) !== JSON.stringify(s.draft.contact);
+  const servicesDirty =
+    !!s &&
+    !!services &&
+    JSON.stringify(services) !== JSON.stringify(s.draft.services);
+  const dirty = contactDirty || servicesDirty;
 
   useEffect(() => {
     if (!dirty) return;
@@ -122,6 +132,7 @@ export default function ClinicInfoView() {
       });
       setLoaded({ clinic: clinicId, s: next });
       setForm(next.draft.contact);
+      setServices(next.draft.services);
       if (done) toast(done);
     } catch (e) {
       setError(
@@ -134,7 +145,20 @@ export default function ClinicInfoView() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !form) return <p className="sub2">Loading…</p>;
+  if (!s || !form || !services) return <p className="sub2">Loading…</p>;
+
+  async function save() {
+    // Each changed tab is its own section of the draft.
+    if (servicesDirty)
+      await call(
+        "settings/services",
+        "PUT",
+        services,
+        contactDirty ? undefined : "Draft saved",
+      );
+    if (contactDirty)
+      await call("settings/contact", "PUT", form, "Draft saved");
+  }
   const set = (patch: Partial<Contact>) => setForm({ ...form, ...patch });
   const setDay = (i: number, patch: Partial<Day>) =>
     set({
@@ -152,11 +176,7 @@ export default function ClinicInfoView() {
           <h1>Clinic info</h1>
         </div>
         <div className="row">
-          <button
-            className="pill"
-            disabled={busy || !dirty}
-            onClick={() => call("settings/contact", "PUT", form, "Draft saved")}
-          >
+          <button className="pill" disabled={busy || !dirty} onClick={save}>
             Save changes
           </button>
           <button
@@ -189,7 +209,14 @@ export default function ClinicInfoView() {
               </button>
             ))}
           </div>
-          {tab !== "contact" ? (
+          {tab === "services" ? (
+            <ServicesTab
+              value={services}
+              onChange={setServices}
+              selected={svc}
+              onSelect={setSvc}
+            />
+          ) : tab !== "contact" ? (
             <p className="sub2">This tab is built next, one by one.</p>
           ) : (
             <div className="ci">
@@ -375,12 +402,31 @@ export default function ClinicInfoView() {
             </div>
           )}
         </div>
-        <Preview
-          c={form}
-          name={s.draft.appearance.look.name}
-          main={s.draft.appearance.colours.main}
-          wa={s.draft.appearance.colours.whatsapp}
-        />
+        {tab === "services" ? (
+          <div className="card" style={{ position: "sticky", top: 70 }}>
+            <h3>
+              Live preview <small>the treatment card</small>
+            </h3>
+            {(() => {
+              const shown =
+                svc !== null
+                  ? services.items[svc]
+                  : services.items.find((x) => x.show);
+              return shown ? (
+                <ServiceCard s={shown} main={s.draft.appearance.colours.main} />
+              ) : (
+                <p className="sub2">Add a treatment to see its card.</p>
+              );
+            })()}
+          </div>
+        ) : (
+          <Preview
+            c={form}
+            name={s.draft.appearance.look.name}
+            main={s.draft.appearance.colours.main}
+            wa={s.draft.appearance.colours.whatsapp}
+          />
+        )}
       </div>
     </>
   );
