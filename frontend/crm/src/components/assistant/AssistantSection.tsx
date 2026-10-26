@@ -3,6 +3,7 @@
 import { useCrm } from "@/components/crm/CrmProvider";
 import Placeholder from "@/components/crm/Placeholder";
 import AppearanceView from "./AppearanceView";
+import TemplatesView from "./TemplatesView";
 import { canUseConsole, type Section } from "@/lib/assistant";
 
 /** One console section. Each is built in its stage; until then it shows the design's header. */
@@ -18,6 +19,7 @@ export default function AssistantSection({ section }: { section: Section }) {
     );
   }
   if (section.id === "appearance") return <AppearanceView />;
+  if (section.id === "templates") return <TemplatesView />;
   return (
     <Placeholder
       title={section.label}

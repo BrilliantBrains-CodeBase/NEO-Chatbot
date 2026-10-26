@@ -4,8 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
 
-// Dashboard → Appearance: Look, Colours, Widget style and Launcher, one draft with a live preview.
-// Saving keeps a draft; patients see it only after Publish (backend: /v1/crm/console/{clinic}/...).
+// Dashboard → Appearance: Look (and header), Colours, Widget style (chat panel) and Launcher, one draft with a
+// live preview. Saving keeps a draft; patients see it only after Publish (backend: /v1/crm/console/{clinic}).
 
 type Look = {
   name: string;
@@ -13,17 +13,39 @@ type Look = {
   enabled: boolean;
   logo: string;
   avatar_letter: string;
+  location: string;
+  tagline: string;
+  header_arc: boolean;
 };
-type Colours = { main: string; highlight: string };
+type Colours = {
+  main: string;
+  highlight: string;
+  main_dark: string;
+  accent: string;
+  tint: string;
+  surface: string;
+  line: string;
+  text: string;
+  muted: string;
+  whatsapp: string;
+  dark_mode: boolean;
+  dark_page: string;
+  dark_card: string;
+  dark_text: string;
+  dark_line: string;
+};
 type Widget = {
   size: string;
   radius: string;
   border: string;
   shadow: string;
+  font: string;
   header_text: string;
   footer_on: boolean;
   footer_text: string;
   footer_link: string;
+  mobile_contact_row: boolean;
+  contact_buttons: string[];
 };
 type Launcher = {
   position: string;
@@ -41,6 +63,9 @@ type Launcher = {
   notification_dot: boolean;
   opens_as: string;
   open_on_first_visit: boolean;
+  mobile_offset_x: number;
+  mobile_offset_y: number;
+  mobile_label: boolean;
 };
 export type Appearance = {
   look: Look;
@@ -50,10 +75,8 @@ export type Appearance = {
 };
 type Settings = {
   draft: { appearance: Appearance };
-  published: { appearance?: Appearance };
-  version: number;
   changed: boolean;
-  published_at: string | null;
+  version: number;
 };
 
 const TABS = [
@@ -63,6 +86,64 @@ const TABS = [
   ["launcher", "Launcher"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
+
+// ---------- colour helpers ----------
+const rgb = (h: string) =>
+  [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const hex = (c: number[]) =>
+  "#" +
+  c
+    .map((v) =>
+      Math.round(Math.max(0, Math.min(255, v)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")
+    .toUpperCase();
+const mix = (a: string, b: string, t: number) =>
+  hex(rgb(a).map((v, i) => v + (rgb(b)[i] - v) * t));
+function luminance(h: string) {
+  const [r, g, b] = rgb(h).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+/** Contrast ratio of two colours (WCAG): 4.5 or more is AA for normal text. */
+function contrast(a: string, b: string) {
+  const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+const valid = (h: string) => /^#[0-9A-Fa-f]{6}$/.test(h);
+/** The shades the designs use, worked out from the main colour. */
+const fromMain = (main: string) => ({
+  main_dark: mix(main, "#000000", 0.3),
+  accent: mix(main, "#FFFFFF", 0.45),
+  tint: mix(main, "#FFFFFF", 0.92),
+});
+
+const COLOUR_FIELDS: [keyof Colours, string, string][] = [
+  ["main", "Main colour", "Header, filled buttons, patient bubbles."],
+  [
+    "highlight",
+    "Highlight colour",
+    "Online dot, unread badge, keyboard focus.",
+  ],
+  ["main_dark", "Main dark", "Hover, sub-button text, bold text."],
+  ["accent", "Light accent", "Header arc, typing dots, focus rings."],
+  ["tint", "Tint", "Icon wells, hover fills, the selected slot."],
+  ["surface", "Surface", "Bot bubbles, home button."],
+  ["line", "Lines", "Borders and dividers."],
+  ["text", "Text", "Body text and tile labels."],
+  ["muted", "Muted text", "Back / Main menu and small text."],
+  ["whatsapp", "WhatsApp green", "The WhatsApp button's border."],
+];
+const DARK_FIELDS: [keyof Colours, string][] = [
+  ["dark_page", "Page"],
+  ["dark_card", "Chat panel"],
+  ["dark_text", "Text"],
+  ["dark_line", "Lines"],
+];
 
 export default function AppearanceView() {
   const { clinic, me, toast } = useCrm();
@@ -146,6 +227,12 @@ export default function AppearanceView() {
     k: K,
     patch: Partial<Appearance[K]>,
   ) => setForm({ ...form, [k]: { ...form[k], ...patch } });
+  const c = form.colours;
+  const ratio = valid(c.main) ? contrast("#FFFFFF", c.main) : 0;
+  const textRatio =
+    valid(c.text) && valid(c.surface) ? contrast(c.text, c.surface) : 0;
+  const readable = ratio >= 4.5 && textRatio >= 4.5;
+
   return (
     <>
       <div className="ph">
@@ -175,7 +262,7 @@ export default function AppearanceView() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 360px",
+          gridTemplateColumns: "minmax(0, 1fr) 380px",
           gap: 16,
           alignItems: "start",
         }}
@@ -222,7 +309,7 @@ export default function AppearanceView() {
                 </Field>
                 <Field
                   label="Status line"
-                  hint='Under the name, up to 13 characters, for example "Instant Reply".'
+                  hint='Up to 13 characters, for example "Instant Reply".'
                 >
                   <input
                     className="f"
@@ -247,9 +334,44 @@ export default function AppearanceView() {
                   />
                 </Field>
                 <Field
+                  label="Location line"
+                  hint='Under the name in the header, e.g. "Marathahalli, Whitefield".'
+                >
+                  <input
+                    className="f"
+                    maxLength={60}
+                    value={form.look.location}
+                    onChange={(e) => set("look", { location: e.target.value })}
+                  />
+                </Field>
+                <Field
+                  label="Tagline"
+                  hint='E.g. "Best Fertility and IVF Clinic". Empty: the header text shows instead.'
+                >
+                  <input
+                    className="f"
+                    maxLength={60}
+                    value={form.look.tagline}
+                    onChange={(e) => set("look", { tagline: e.target.value })}
+                  />
+                </Field>
+                <Field label="Header" group full>
+                  <label className="opt">
+                    <input
+                      type="checkbox"
+                      checked={form.look.header_arc}
+                      onChange={(e) =>
+                        set("look", { header_arc: e.target.checked })
+                      }
+                    />
+                    Soft arc behind the header, in the light accent colour
+                  </label>
+                </Field>
+                <Field
                   label="Logo"
                   hint="Square, at least 128×128 px, under 200 KB. Upload a file or paste an https:// address."
                   full
+                  group
                 >
                   <div className="row">
                     <input
@@ -293,34 +415,85 @@ export default function AppearanceView() {
                 </Field>
               </>
             )}
+
             {tab === "colours" && (
               <>
-                <Colour
-                  label="Main colour"
-                  hint="Patient bubbles, the send button and links."
-                  value={form.colours.main}
-                  onChange={(v) => set("colours", { main: v })}
-                />
-                <Colour
-                  label="Highlight colour"
-                  hint="Small accents and badges."
-                  value={form.colours.highlight}
-                  onChange={(v) => set("colours", { highlight: v })}
-                />
+                <div
+                  className="full row"
+                  style={{ justifyContent: "space-between" }}
+                >
+                  <span className="sub2">
+                    The same colour roles as the clinic designs; only the values
+                    change.
+                  </span>
+                  <button
+                    className="pill"
+                    disabled={!valid(c.main)}
+                    onClick={() => set("colours", fromMain(c.main))}
+                  >
+                    Fill shades from the main colour
+                  </button>
+                </div>
+                {COLOUR_FIELDS.map(([k, label, hint]) => (
+                  <Colour
+                    key={k}
+                    label={label}
+                    hint={hint}
+                    value={String(c[k])}
+                    onChange={(v) => set("colours", { [k]: v })}
+                  />
+                ))}
+                <div className={`full ${readable ? "okbox" : "warnbox"}`}>
+                  White text on the main colour: <b>{ratio.toFixed(1)} : 1</b>.
+                  Text on the surface: <b>{textRatio.toFixed(1)} : 1</b>.{" "}
+                  {readable
+                    ? "Easy to read (WCAG AA)."
+                    : "Too light to read easily: WCAG AA needs 4.5 : 1. Choose a darker colour."}
+                </div>
+                <Field label="Dark mode" group full>
+                  <label className="opt">
+                    <input
+                      type="checkbox"
+                      checked={c.dark_mode}
+                      onChange={(e) =>
+                        set("colours", { dark_mode: e.target.checked })
+                      }
+                    />
+                    Follow the visitor&apos;s dark setting
+                  </label>
+                </Field>
+                {c.dark_mode &&
+                  DARK_FIELDS.map(([k, label]) => (
+                    <Colour
+                      key={k}
+                      label={`Dark: ${label}`}
+                      value={String(c[k])}
+                      onChange={(v) => set("colours", { [k]: v })}
+                    />
+                  ))}
               </>
             )}
+
             {tab === "widget" && (
               <>
                 <Choice
-                  label="Size"
+                  label="Panel size (desktop)"
                   value={form.widget.size}
-                  options={["small", "medium", "large"]}
+                  options={[
+                    ["small", "Small (340 × 540)"],
+                    ["medium", "Medium (380 × 580)"],
+                    ["large", "Large (420 × 640)"],
+                  ]}
                   onChange={(v) => set("widget", { size: v })}
                 />
                 <Choice
                   label="Corner radius"
                   value={form.widget.radius}
-                  options={["square", "rounded", "round"]}
+                  options={[
+                    ["square", "Square (8 px)"],
+                    ["rounded", "Rounded (20 px)"],
+                    ["round", "Round (28 px)"],
+                  ]}
                   onChange={(v) => set("widget", { radius: v })}
                 />
                 <Choice
@@ -330,12 +503,18 @@ export default function AppearanceView() {
                   onChange={(v) => set("widget", { border: v })}
                 />
                 <Choice
-                  label="Shadow"
+                  label="Shadow (tinted with the main colour)"
                   value={form.widget.shadow}
                   options={["none", "soft", "strong"]}
                   onChange={(v) => set("widget", { shadow: v })}
                 />
-                <Field label="Header text" full>
+                <Choice
+                  label="Font"
+                  value={form.widget.font}
+                  options={["Figtree", "Inter", "System"]}
+                  onChange={(v) => set("widget", { font: v })}
+                />
+                <Field label="Header text" hint="Shown when no tagline is set.">
                   <input
                     className="f"
                     maxLength={80}
@@ -345,7 +524,55 @@ export default function AppearanceView() {
                     }
                   />
                 </Field>
-                <Field label="Footer" full group>
+                <Field label="On mobile" group full>
+                  <span className="sub2" style={{ fontWeight: 400 }}>
+                    The chat covers the whole screen (no corners), so nothing
+                    behind it can be tapped.
+                  </span>
+                  <label className="opt">
+                    <input
+                      type="checkbox"
+                      checked={form.widget.mobile_contact_row}
+                      onChange={(e) =>
+                        set("widget", { mobile_contact_row: e.target.checked })
+                      }
+                    />
+                    Contact row at the bottom of the chat
+                  </label>
+                  {form.widget.mobile_contact_row && (
+                    <div className="row">
+                      {(
+                        [
+                          ["call", "Call"],
+                          ["book", "Book"],
+                          ["whatsapp", "WhatsApp"],
+                        ] as const
+                      ).map(([k, label]) => (
+                        <label key={k} className="opt">
+                          <input
+                            type="checkbox"
+                            checked={form.widget.contact_buttons.includes(k)}
+                            onChange={(e) =>
+                              set("widget", {
+                                contact_buttons: e.target.checked
+                                  ? ["call", "book", "whatsapp"].filter(
+                                      (x) =>
+                                        x === k ||
+                                        form.widget.contact_buttons.includes(x),
+                                    )
+                                  : form.widget.contact_buttons.filter(
+                                      (x) => x !== k,
+                                    ),
+                              })
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </Field>
+                <Field label="Footer" group full>
                   <label className="opt">
                     <input
                       type="checkbox"
@@ -383,20 +610,74 @@ export default function AppearanceView() {
                 )}
               </>
             )}
+
             {tab === "launcher" && (
               <>
                 <Choice
                   label="Position"
                   value={form.launcher.position}
-                  options={["bottom_right", "bottom_left"]}
+                  options={[
+                    ["bottom_right", "Bottom right"],
+                    ["bottom_left", "Bottom left"],
+                  ]}
                   onChange={(v) => set("launcher", { position: v })}
                 />
                 <Choice
                   label="Shape"
                   value={form.launcher.shape}
-                  options={["pill", "rounded", "circle"]}
+                  options={["circle", "rounded", "pill"]}
                   onChange={(v) => set("launcher", { shape: v })}
                 />
+                <Choice
+                  label="Size"
+                  value={form.launcher.size}
+                  options={[
+                    ["small", "Small (48 px)"],
+                    ["medium", "Medium (54 px)"],
+                    ["large", "Large (60 px)"],
+                  ]}
+                  onChange={(v) => set("launcher", { size: v })}
+                />
+                <Choice
+                  label="Icon"
+                  value={form.launcher.icon}
+                  options={[
+                    ["chat", "Chat icon"],
+                    ["logo", "Your logo"],
+                  ]}
+                  onChange={(v) => set("launcher", { icon: v })}
+                />
+                <Colour
+                  label="Background colour"
+                  value={form.launcher.background}
+                  onChange={(v) => set("launcher", { background: v })}
+                />
+                <Colour
+                  label="Icon colour"
+                  value={form.launcher.icon_color}
+                  onChange={(v) => set("launcher", { icon_color: v })}
+                />
+                <Choice
+                  label="Border"
+                  value={form.launcher.border}
+                  options={["none", "subtle", "strong"]}
+                  onChange={(v) => set("launcher", { border: v })}
+                />
+                <Choice
+                  label="Chat opens as"
+                  value={form.launcher.opens_as}
+                  options={[
+                    ["panel", "Panel"],
+                    ["full", "Full screen"],
+                  ]}
+                  onChange={(v) => set("launcher", { opens_as: v })}
+                />
+                <div
+                  className="full sub2"
+                  style={{ fontWeight: 700, marginTop: 6 }}
+                >
+                  Desktop
+                </div>
                 <Field label="Horizontal offset (px)">
                   <input
                     className="f"
@@ -421,43 +702,9 @@ export default function AppearanceView() {
                     }
                   />
                 </Field>
-                <Choice
-                  label="Size"
-                  value={form.launcher.size}
-                  options={["small", "medium", "large"]}
-                  onChange={(v) => set("launcher", { size: v })}
-                />
-                <Choice
-                  label="Icon"
-                  value={form.launcher.icon}
-                  options={["chat", "logo"]}
-                  onChange={(v) => set("launcher", { icon: v })}
-                />
-                <Colour
-                  label="Background colour"
-                  value={form.launcher.background}
-                  onChange={(v) => set("launcher", { background: v })}
-                />
-                <Colour
-                  label="Icon colour"
-                  value={form.launcher.icon_color}
-                  onChange={(v) => set("launcher", { icon_color: v })}
-                />
-                <Choice
-                  label="Border"
-                  value={form.launcher.border}
-                  options={["none", "subtle", "strong"]}
-                  onChange={(v) => set("launcher", { border: v })}
-                />
-                <Choice
-                  label="Chat opens as"
-                  value={form.launcher.opens_as}
-                  options={["panel", "full"]}
-                  onChange={(v) => set("launcher", { opens_as: v })}
-                />
                 <Field
                   label="Label text"
-                  hint="Keep it under 32 characters so it fits on one line."
+                  hint="Under 32 characters so it fits on one line."
                 >
                   <input
                     className="f"
@@ -470,7 +717,7 @@ export default function AppearanceView() {
                 </Field>
                 <Field
                   label="Show label after (seconds)"
-                  hint="0 shows it as soon as the page loads."
+                  hint="The designs use 8. 0 shows it as soon as the page loads."
                 >
                   <input
                     className="f"
@@ -483,17 +730,17 @@ export default function AppearanceView() {
                     }
                   />
                 </Field>
-                <Field label="Options" full group>
+                <Field label="Desktop options" group full>
                   {(
                     [
-                      ["label_on", "Show the label (pill shape)"],
+                      ["label_on", "Show the label beside the button"],
                       [
                         "notification_dot",
-                        "Notification dot until the chat is opened",
+                        "Dot in the highlight colour until the chat is opened",
                       ],
                       [
                         "open_on_first_visit",
-                        "Open automatically on first visit",
+                        "Open the chat automatically on the first visit",
                       ],
                     ] as const
                   ).map(([k, label]) => (
@@ -508,6 +755,58 @@ export default function AppearanceView() {
                       {label}
                     </label>
                   ))}
+                </Field>
+                <div
+                  className="full sub2"
+                  style={{ fontWeight: 700, marginTop: 6 }}
+                >
+                  Mobile
+                </div>
+                <Field label="From the side (px)">
+                  <input
+                    className="f"
+                    type="number"
+                    min={0}
+                    max={200}
+                    value={form.launcher.mobile_offset_x}
+                    onChange={(e) =>
+                      set("launcher", {
+                        mobile_offset_x: Number(e.target.value),
+                      })
+                    }
+                  />
+                </Field>
+                <Field
+                  label="From the bottom (px)"
+                  hint="Keep it above the website's own sticky Call / Book / WhatsApp bar."
+                >
+                  <input
+                    className="f"
+                    type="number"
+                    min={0}
+                    max={300}
+                    value={form.launcher.mobile_offset_y}
+                    onChange={(e) =>
+                      set("launcher", {
+                        mobile_offset_y: Number(e.target.value),
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Mobile options" group full>
+                  <label className="opt">
+                    <input
+                      type="checkbox"
+                      checked={form.launcher.mobile_label}
+                      onChange={(e) =>
+                        set("launcher", { mobile_label: e.target.checked })
+                      }
+                    />
+                    Show the label on mobile too (the designs: button only)
+                  </label>
+                  <span className="sub2" style={{ fontWeight: 400 }}>
+                    On mobile the chat never opens by itself.
+                  </span>
                 </Field>
               </>
             )}
@@ -529,10 +828,10 @@ function Field({
   label: string;
   hint?: string;
   full?: boolean;
-  group?: boolean; // holds its own checkboxes or radio buttons
+  group?: boolean;
   children: ReactNode;
 }) {
-  const Tag = group ? "div" : "label";
+  const Tag = group ? "div" : "label"; // a group holds its own checkboxes or radio buttons
   return (
     <Tag
       className={
@@ -560,7 +859,7 @@ function Choice({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: (string | [string, string])[];
   onChange: (v: string) => void;
 }) {
   return (
@@ -570,11 +869,14 @@ function Choice({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {words(o)}
-          </option>
-        ))}
+        {options.map((o) => {
+          const [v, text] = typeof o === "string" ? [o, words(o)] : o;
+          return (
+            <option key={v} value={v}>
+              {text}
+            </option>
+          );
+        })}
       </select>
     </Field>
   );
@@ -596,9 +898,9 @@ function Colour({
       <div className="row">
         <input
           type="color"
-          value={value}
+          value={valid(value) ? value : "#000000"}
           onChange={(e) => onChange(e.target.value.toUpperCase())}
-          style={{ width: 48, height: 36, border: 0, background: "none" }}
+          style={{ width: 44, height: 34, border: 0, background: "none" }}
         />
         <input
           className="f"
@@ -612,31 +914,52 @@ function Colour({
   );
 }
 
-const RADIUS: Record<string, number> = { square: 4, rounded: 14, round: 24 };
-const BORDER: Record<string, string> = {
-  none: "0",
-  subtle: "1px solid #E3E8EF",
-  strong: "2px solid #9AA3AF",
+// Sizes from the clinic designs (desktop panel 380 × 580, radius 20; launcher 60 px).
+const PANEL: Record<string, [number, number]> = {
+  small: [340, 540],
+  medium: [380, 580],
+  large: [420, 640],
 };
-const SHADOW: Record<string, string> = {
-  none: "none",
-  soft: "0 10px 30px -12px rgba(22,32,46,.35)",
-  strong: "0 18px 50px -14px rgba(22,32,46,.55)",
+const RADIUS: Record<string, number> = { square: 8, rounded: 20, round: 28 };
+const BUTTON: Record<string, number> = { small: 48, medium: 54, large: 60 };
+const FONT: Record<string, string> = {
+  Figtree: "Figtree, system-ui, sans-serif",
+  Inter: "Inter, system-ui, sans-serif",
+  System: "system-ui, sans-serif",
 };
-const WIDTH: Record<string, number> = { small: 260, medium: 300, large: 330 };
-const BUTTON: Record<string, number> = { small: 44, medium: 52, large: 60 };
 
-/** A live preview of the chat and its launcher from the unsaved form: chat open or closed, desktop or mobile. */
+/** A live preview from the unsaved form: desktop or mobile, chat open or closed, light or dark. Drawn at 80%. */
 function Preview({ a }: { a: Appearance }) {
   const [open, setOpen] = useState(true);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [dark, setDark] = useState(false);
   const mobile = device === "mobile";
+  const c = a.colours;
+  const night = dark && c.dark_mode;
+  const card = night ? c.dark_card : "#FFFFFF";
+  const ink = night ? c.dark_text : c.text;
+  const line = night ? c.dark_line : c.line;
   const l = a.launcher;
   const left = l.position === "bottom_left";
-  const pill = l.shape === "pill" && l.label_on && l.icon !== "logo";
-  // On a phone the chat covers the screen (as it does when it opens as full screen); the launcher is hidden then.
-  const sheet = mobile || l.opens_as === "full";
-  // As in the real widget: a white round avatar (logo or letter) with a dot in the highlight colour.
+  const sheet = mobile || l.opens_as === "full"; // on a phone the chat covers the screen
+  const showLabel = mobile ? l.mobile_label : l.label_on;
+  const button = BUTTON[l.size] * 0.8;
+  const [w, h] = PANEL[a.widget.size];
+  const panelBorder =
+    a.widget.border === "none"
+      ? "0"
+      : `${a.widget.border === "strong" ? 2 : 1}px solid ${line}`;
+  const shadow =
+    a.widget.shadow === "none"
+      ? "none"
+      : `0 ${a.widget.shadow === "strong" ? 22 : 12}px ${a.widget.shadow === "strong" ? 50 : 30}px -14px ${c.main}66`;
+  const offX = (mobile ? l.mobile_offset_x : l.offset_x) * 0.5 + 6;
+  const offY = (mobile ? l.mobile_offset_y : l.offset_y) * 0.5 + 6;
+  const seg = (on: boolean, label: string, click: () => void) => (
+    <button className={on ? "on" : ""} onClick={click}>
+      {label}
+    </button>
+  );
   const avatar = (
     <span style={{ position: "relative", flex: "0 0 auto" }}>
       {a.look.logo ? (
@@ -660,7 +983,7 @@ function Preview({ a }: { a: Appearance }) {
             height: 36,
             borderRadius: "50%",
             background: "#fff",
-            color: a.colours.main,
+            color: c.main,
             display: "grid",
             placeItems: "center",
             fontWeight: 800,
@@ -678,17 +1001,13 @@ function Preview({ a }: { a: Appearance }) {
           width: 11,
           height: 11,
           borderRadius: "50%",
-          background: a.colours.highlight,
-          border: "2px solid " + a.colours.main,
+          background: c.highlight,
+          border: `2px solid ${c.main}`,
         }}
       />
     </span>
   );
-  const seg = (on: boolean, label: string, click: () => void) => (
-    <button className={on ? "on" : ""} onClick={click}>
-      {label}
-    </button>
-  );
+
   return (
     <div className="card" style={{ position: "sticky", top: 70 }}>
       <h3>
@@ -702,22 +1021,30 @@ function Preview({ a }: { a: Appearance }) {
           {seg(!mobile, "Desktop", () => setDevice("desktop"))}
           {seg(mobile, "Mobile", () => setDevice("mobile"))}
         </div>
-        <div className="seg">
-          {seg(open, "Chat open", () => setOpen(true))}
-          {seg(!open, "Chat closed", () => setOpen(false))}
+        <div className="seg" style={{ marginLeft: 0 }}>
+          {seg(open, "Open", () => setOpen(true))}
+          {seg(!open, "Closed", () => setOpen(false))}
         </div>
+        {c.dark_mode && (
+          <div className="seg" style={{ marginLeft: 0 }}>
+            {seg(!dark, "Light", () => setDark(false))}
+            {seg(dark, "Dark", () => setDark(true))}
+          </div>
+        )}
       </div>
       <div
         style={{
-          background: "#F3F5F9",
+          background: night ? c.dark_page : "#F4F1F2",
           borderRadius: mobile ? 28 : 12,
           border: mobile ? "8px solid #1F2937" : "1px solid #E3E8EF",
           width: mobile ? 250 : "100%",
-          height: mobile ? 500 : 470,
+          height: mobile ? 500 : Math.round(h * 0.8) + 90,
           margin: "0 auto",
           position: "relative",
           overflow: "hidden",
           opacity: a.look.enabled ? 1 : 0.5,
+          fontFamily: FONT[a.widget.font],
+          color: ink,
         }}
       >
         {/* A sketch of the clinic's web page behind the chat. */}
@@ -727,6 +1054,7 @@ function Preview({ a }: { a: Appearance }) {
             display: "flex",
             flexDirection: "column",
             gap: 8,
+            opacity: night ? 0.3 : 1,
           }}
         >
           <i
@@ -746,132 +1074,245 @@ function Preview({ a }: { a: Appearance }) {
               borderRadius: 4,
             }}
           />
-          <i
-            style={{
-              height: 10,
-              width: "65%",
-              background: "#E6EBF2",
-              borderRadius: 4,
-            }}
-          />
         </div>
         {open && (
           <div
             style={{
               position: "absolute",
               ...(sheet
-                ? { inset: mobile ? "40px 0 0 0" : 8 }
+                ? { inset: mobile ? "0" : 8 }
                 : {
-                    bottom: BUTTON[l.size] + 24,
-                    [left ? "left" : "right"]: 12,
-                    width: Math.min(WIDTH[a.widget.size], 300),
+                    bottom: button + 24,
+                    [left ? "left" : "right"]: 10,
+                    width: Math.round(w * 0.8),
+                    height: Math.round(h * 0.8),
                   }),
-              background: "#fff",
-              borderRadius: mobile ? "16px 16px 0 0" : RADIUS[a.widget.radius],
-              border: BORDER[a.widget.border],
-              boxShadow: SHADOW[a.widget.shadow],
+              background: card,
+              borderRadius: mobile ? 0 : RADIUS[a.widget.radius],
+              border: mobile ? 0 : panelBorder,
+              boxShadow: mobile ? "none" : shadow,
               overflow: "hidden",
-              fontSize: 12.5,
+              fontSize: 12,
               display: "flex",
               flexDirection: "column",
             }}
           >
             <div
               style={{
-                display: "flex",
-                gap: 10,
-                alignItems: "center",
-                padding: "10px 12px",
-                background: a.colours.main,
+                position: "relative",
+                background: c.main,
                 color: "#fff",
+                padding: "10px 12px",
+                overflow: "hidden",
               }}
             >
-              {avatar}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <b style={{ display: "block" }}>{a.look.name || "Assistant"}</b>
-                <span style={{ fontSize: 11, opacity: 0.9 }}>
-                  {a.widget.header_text || a.look.status_line}
-                </span>
-              </div>
-              <button
-                aria-label="Close the preview chat"
-                onClick={() => setOpen(false)}
+              {a.look.header_arc && (
+                <i
+                  style={{
+                    position: "absolute",
+                    right: -40,
+                    top: -50,
+                    width: 140,
+                    height: 140,
+                    borderRadius: "50%",
+                    background: c.accent,
+                    opacity: 0.35,
+                  }}
+                />
+              )}
+              <div
                 style={{
-                  color: "#fff",
-                  border: 0,
-                  background: "none",
-                  cursor: "pointer",
-                  fontSize: 16,
+                  position: "relative",
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
                 }}
               >
-                ✕
-              </button>
+                {avatar}
+                <div style={{ flex: 1, minWidth: 0, lineHeight: 1.25 }}>
+                  <b style={{ display: "block", fontSize: 13.5 }}>
+                    {a.look.name || "Assistant"}
+                  </b>
+                  {a.look.location && (
+                    <span
+                      style={{ display: "block", fontSize: 10.5, opacity: 0.9 }}
+                    >
+                      {a.look.location}
+                    </span>
+                  )}
+                  <span
+                    style={{ display: "block", fontSize: 10.5, opacity: 0.9 }}
+                  >
+                    {a.look.tagline ||
+                      a.widget.header_text ||
+                      a.look.status_line}
+                  </span>
+                </div>
+                <button
+                  aria-label="Close the preview chat"
+                  onClick={() => setOpen(false)}
+                  style={{
+                    color: "#fff",
+                    border: 0,
+                    background: "none",
+                    cursor: "pointer",
+                    fontSize: 16,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             <div
               style={{
-                padding: 12,
+                padding: 10,
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: 7,
                 flex: 1,
               }}
             >
               <span
                 style={{
                   alignSelf: "flex-start",
-                  background: "#F1F3F7",
+                  background: night ? c.dark_line : c.surface,
                   borderRadius: 12,
-                  padding: "8px 10px",
+                  padding: "7px 9px",
                   maxWidth: "85%",
                 }}
               >
                 Hi, I&apos;m {a.look.name || "your assistant"}. How can I help
                 you today?
               </span>
-              <span
+              <div
                 style={{
-                  alignSelf: "flex-start",
-                  border: `1px solid ${a.colours.main}`,
-                  color: a.colours.main,
-                  borderRadius: 999,
-                  padding: "5px 10px",
-                  fontWeight: 600,
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 6,
                 }}
               >
-                Book Consultation
-              </span>
+                <span
+                  style={{
+                    background: c.main,
+                    color: "#fff",
+                    borderRadius: 12,
+                    padding: 8,
+                    fontWeight: 600,
+                  }}
+                >
+                  Book Consultation
+                </span>
+                <span
+                  style={{
+                    border: `1px solid ${line}`,
+                    borderRadius: 12,
+                    padding: 8,
+                    fontWeight: 600,
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                  }}
+                >
+                  <i
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 6,
+                      background: night ? c.dark_line : c.tint,
+                    }}
+                  />
+                  Explore
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    border: `1.5px solid ${c.main}`,
+                    color: night ? ink : c.main_dark,
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                    fontWeight: 600,
+                  }}
+                >
+                  IVF
+                </span>
+                <span
+                  style={{
+                    border: `1.5px solid ${c.whatsapp}`,
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                    fontWeight: 600,
+                  }}
+                >
+                  WhatsApp us
+                </span>
+              </div>
               <span
                 style={{
                   alignSelf: "flex-end",
-                  background: a.colours.main,
+                  background: c.main,
                   color: "#fff",
                   borderRadius: 12,
-                  padding: "8px 10px",
+                  padding: "7px 9px",
                 }}
               >
                 I want to book
               </span>
               <span
                 style={{
-                  alignSelf: "flex-start",
-                  background: a.colours.highlight,
-                  borderRadius: 999,
-                  padding: "2px 8px",
+                  color: night ? ink : c.muted,
                   fontSize: 11,
-                  fontWeight: 700,
+                  fontWeight: 600,
                 }}
               >
-                4.8★ Google
+                ‹ Back · Main menu
               </span>
             </div>
+            {mobile &&
+              a.widget.mobile_contact_row &&
+              a.widget.contact_buttons.length > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `repeat(${a.widget.contact_buttons.length}, 1fr)`,
+                    gap: 6,
+                    padding: "6px 8px",
+                    borderTop: `1px solid ${line}`,
+                  }}
+                >
+                  {a.widget.contact_buttons.map((b) => (
+                    <span
+                      key={b}
+                      style={{
+                        textAlign: "center",
+                        padding: "6px 0",
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        background: b === "book" ? c.main : "transparent",
+                        color: b === "book" ? "#fff" : ink,
+                        border:
+                          b === "book"
+                            ? 0
+                            : `1px solid ${b === "whatsapp" ? c.whatsapp : line}`,
+                      }}
+                    >
+                      {b === "call"
+                        ? "Call"
+                        : b === "book"
+                          ? "Book"
+                          : "WhatsApp"}
+                    </span>
+                  ))}
+                </div>
+              )}
             {a.widget.footer_on && (
               <div
                 style={{
                   textAlign: "center",
-                  fontSize: 10,
-                  color: "#7A8494",
-                  padding: "6px 8px",
-                  borderTop: "1px solid #EEF1F5",
+                  fontSize: 9.5,
+                  color: night ? ink : c.muted,
+                  padding: "5px 8px",
+                  borderTop: `1px solid ${line}`,
                 }}
               >
                 {a.widget.footer_text}
@@ -887,15 +1328,18 @@ function Preview({ a }: { a: Appearance }) {
             onClick={() => setOpen(!open)}
             style={{
               position: "absolute",
-              bottom: Math.min(l.offset_y, 40) / 2 + 8,
-              [left ? "left" : "right"]: Math.min(l.offset_x, 40) / 2 + 8,
-              height: BUTTON[l.size],
-              minWidth: BUTTON[l.size],
-              padding: pill && !open ? "0 16px" : 0,
+              bottom: offY,
+              [left ? "left" : "right"]: offX,
+              height: button,
+              minWidth: button,
+              padding: l.shape === "pill" && showLabel && !open ? "0 14px" : 0,
               borderRadius: l.shape === "rounded" ? 14 : 999,
               background: l.background,
               color: l.icon_color,
-              border: BORDER[l.border],
+              border:
+                l.border === "none"
+                  ? 0
+                  : `${l.border === "strong" ? 2 : 1}px solid ${c.line}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -913,8 +1357,8 @@ function Preview({ a }: { a: Appearance }) {
                 src={a.look.logo}
                 alt=""
                 style={{
-                  width: BUTTON[l.size] - 14,
-                  height: BUTTON[l.size] - 14,
+                  width: button - 12,
+                  height: button - 12,
                   borderRadius: "50%",
                 }}
               />
@@ -930,22 +1374,44 @@ function Preview({ a }: { a: Appearance }) {
                 <path d="M4 5h16v11H9l-5 4z" />
               </svg>
             )}
-            {pill && !open && <span>{l.label_text}</span>}
+            {l.shape === "pill" && showLabel && !open && (
+              <span>{l.label_text}</span>
+            )}
             {l.notification_dot && !open && (
               <i
                 style={{
                   position: "absolute",
-                  top: 2,
-                  right: 2,
-                  width: 10,
-                  height: 10,
+                  top: 1,
+                  right: 1,
+                  width: 11,
+                  height: 11,
                   borderRadius: "50%",
-                  background: "#E5484D",
+                  background: c.highlight,
                   border: "2px solid #fff",
                 }}
               />
             )}
           </button>
+        )}
+        {/* The label pill beside a round or rounded button (desktop; mobile only if turned on). */}
+        {!open && showLabel && l.shape !== "pill" && (
+          <span
+            style={{
+              position: "absolute",
+              bottom: offY + button / 2 - 14,
+              [left ? "left" : "right"]: offX + button + 8,
+              background: "#fff",
+              color: c.text,
+              borderRadius: 999,
+              padding: "6px 12px",
+              fontSize: 12,
+              fontWeight: 700,
+              boxShadow: "0 6px 16px -8px rgba(0,0,0,.35)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {l.label_text}
+          </span>
         )}
       </div>
     </div>

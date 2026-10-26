@@ -24,6 +24,7 @@ async def test_appearance_draft_and_publish(api: AsyncClient, monkeypatch: pytes
     try:
         start = (await api.get(url, headers=headers)).json()
         look = start["draft"]["appearance"]["look"]
+        assert start["draft"]["template"]["id"] == "tiles" and isinstance(start["menu"], list)
         assert start["version"] == 0 and look["enabled"] is True and len(look["avatar_letter"]) == 1
         bad = await api.put(url + "/appearance", json={"colours": {"main": "blue"}}, headers=headers)
         assert bad.status_code == 422
@@ -45,6 +46,9 @@ async def test_appearance_draft_and_publish(api: AsyncClient, monkeypatch: pytes
             "Hi",
         )
         assert a["colours"]["highlight"] == "#FFCC70"  # untouched fields keep their defaults
+        t = await api.put(url + "/template", json={"id": "pills"}, headers=headers)
+        assert t.json()["draft"]["template"]["id"] == "pills"
+        assert (await api.put(url + "/template", json={"id": "grid"}, headers=headers)).status_code == 422
         p = await api.post("/v1/crm/console/CL99/publish", headers=headers)
         assert p.status_code == 200 and p.json()["version"] >= 1 and p.json()["changed"] is False
         assert p.json()["published"]["appearance"]["look"]["name"] == "Test Bot"
