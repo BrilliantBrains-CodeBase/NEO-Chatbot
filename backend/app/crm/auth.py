@@ -5,6 +5,7 @@ enough: people waiting for approval, or disabled, get 403.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -14,6 +15,8 @@ from fastapi import Header, HTTPException, status
 
 from app.core.config import get_settings
 from app.core.db import get_pool
+
+log = logging.getLogger(__name__)
 
 ROLE_LABEL = {
     "bb_admin": "BB Admin",
@@ -44,8 +47,9 @@ def verify(token: str) -> dict[str, Any]:
     issuer = get_settings().supabase_url.rstrip("/") + "/auth/v1"
     key = _keys().get_signing_key_from_jwt(token).key
     claims: dict[str, Any] = jwt.decode(
-        token, key, algorithms=["ES256", "RS256"], audience="authenticated", issuer=issuer
-    )
+        token, key, algorithms=["ES256", "RS256"], audience="authenticated", issuer=issuer,
+        leeway=30,  # a few seconds of clock difference between this server and Supabase
+    )  # fmt: skip
     return claims
 
 
@@ -61,7 +65,8 @@ async def staff(authorization: str = Header(default="")) -> Staff:
     try:
         # The signing keys are fetched over the network (cached for an hour): off the event loop.
         claims = await asyncio.to_thread(verify, token)
-    except jwt.PyJWTError:
+    except jwt.PyJWTError as e:
+        log.warning("CRM token rejected: %s: %s", type(e).__name__, e)
         raise _unauthorized("Your sign-in has expired. Please sign in again.") from None
     pool = await get_pool()
     async with pool.acquire() as conn:

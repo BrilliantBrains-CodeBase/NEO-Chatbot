@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const { data } = await supabase().auth.getSession();
   const token = data.session?.access_token;
   let res: Response;
@@ -31,6 +31,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     });
   } catch {
     throw new ApiError(0, "The CRM server cannot be reached. Check your connection and try again.");
+  }
+  // A stored sign-in token can be out of date (e.g. the laptop slept): renew it once and try again.
+  if (res.status === 401 && token && !retried) {
+    const { data: fresh } = await supabase().auth.refreshSession();
+    if (fresh.session) return api<T>(path, init, true);
   }
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
