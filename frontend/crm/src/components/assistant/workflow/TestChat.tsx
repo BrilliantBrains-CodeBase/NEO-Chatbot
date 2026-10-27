@@ -31,6 +31,7 @@ const MATCH: Record<string, string> = {
   typo: "approved phrase (typo)",
   "phrase in message": "approved phrase in the message",
   meaning: "approved phrase by meaning",
+  "treatment name": "typed treatment name",
 };
 
 const OPEN: Record<string, string> = {

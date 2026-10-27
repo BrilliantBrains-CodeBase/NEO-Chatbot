@@ -14,10 +14,11 @@ from typing import Any
 
 from rapidfuzz.distance import Levenshtein
 
-from app.chat.engine import NO_ANSWER
+from app.chat.engine import BYE, MAIN_MENU_TEXT, NO_ANSWER, NOTED, THANKS
 from app.chat.flows import EMAIL, normal_phone, valid_name
 from app.chat.understand import (
     EMERGENCY,
+    IDENTITY,
     MEDICAL,
     is_menu,
     is_yes,
@@ -25,12 +26,25 @@ from app.chat.understand import (
     norm,
     parse_date,
     parse_time,
+    small_talk,
 )
 from app.crm.flow import DAYS, DEFAULT_QUESTIONS, LEAD_TYPES, Flow, Node, settings_of
 
 AUTO = {"typed", "set_field", "goto", "condition", "clinic_open", "media"}  # go on by themselves
 MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
+BACK = re.compile(r"back|go back|previous|undo")
+# Changing their mind mid-question ("actually I want to cancel"): the block type it switches to.
+SWITCH = [
+    ("cancel", re.compile(r"\bcancel\w*\b.*\b(appointment|booking|visit|it)\b|\bcancel (my|the)\b")),
+    (
+        "reschedule",
+        re.compile(r"\b(reschedul\w*|postpone|(change|move|shift) (my |the )?(appointment|booking|date))\b"),
+    ),
+]
+QUESTION = re.compile(
+    r"\?\s*$|^(what|how|when|where|why|which|who|is|are|do|does|can|will|kya|kitna|kab|kahan)\b"
+)
 
 
 @dataclass
@@ -65,6 +79,7 @@ class Run:
         self.at: str | None = st.get("at")
         self.fields: dict[str, str] = dict(st.get("fields") or {})
         self.ask: dict[str, Any] | None = st.get("ask")
+        self.back: list[str] = list(st.get("back") or [])  # the screens before this one, for "back"
         self.out: list[dict[str, Any]] = []
         self.lead: dict[str, Any] | None = None  # a finished booking / call back ... (saved by the caller)
         self.matched: dict[str, Any] | None = None  # what typed text matched (shown in the test chat)
@@ -76,7 +91,7 @@ class Run:
             "at": self.at,
             "lead": self.lead,
             "matched": self.matched,
-            "state": {"at": self.at, "fields": self.fields, "ask": self.ask},
+            "state": {"at": self.at, "fields": self.fields, "ask": self.ask, "back": self.back[-10:]},
         }
 
     def say(self, text: str, **more: Any) -> None:
@@ -163,6 +178,8 @@ class Run:
             if nxt:
                 self.enter(nxt, steps + 1)
             return
+        if self.at and self.at != node_id and node.type not in AUTO:
+            self.back.append(self.at)
         self.at, self.ask = node_id, None
         s = node.settings
         t = node.type
@@ -274,7 +291,7 @@ class Run:
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
-        if self.ask and self.ask["kind"] in ("question", "consent", "lead"):
+        if self.ask and self.ask["kind"] in ("question", "consent", "lead", "switch"):
             return self.text(button_id)
         b = next((x for x in self.buttons(node) if x["id"] == button_id), None)
         kind, _, name = button_id.partition(":")
@@ -348,8 +365,17 @@ class Run:
             offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
             self.say(NO_ANSWER, buttons=offer)
             return self.reply()
+        low = " ".join(text.lower().split())
+        if BACK.fullmatch(norm(text)):
+            self.go_back()
+            return self.reply()
         if self.ask:
             self.answer(node, text)
+            return self.reply()
+        said = self.small(low)
+        if said is not None:
+            self.say(said)
+            self.render(node)
             return self.reply()
         options = self.buttons(node)
         hit = match_option(text, options)
@@ -359,6 +385,9 @@ class Run:
             self.act(node, hit)
         elif phrase:
             self.go_to_phrase(phrase)
+        elif treatment := self.named_treatment(low):
+            self.matched = {"how": "treatment name", "text": treatment}
+            self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
         elif not self.follow("no_match"):
             topic = next(
                 (
@@ -377,6 +406,82 @@ class Run:
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
                 self.render(node)
         return self.reply()
+
+    # ---------- typed text beside the flow ----------
+    def small(self, low: str) -> str | None:
+        """Small talk and "who are you": the live chat's replies (a greeting gets the welcome)."""
+        welcome = next((n.settings.get("welcome", "") for n in self.flow.nodes if n.type == "opening"), "")
+        if IDENTITY.search(low):
+            return str(welcome or MAIN_MENU_TEXT)
+        chat = small_talk(low)
+        if chat is None:
+            return None
+        return {"greeting": welcome or MAIN_MENU_TEXT, "thanks": THANKS, "bye": BYE, "ok": MAIN_MENU_TEXT}[
+            chat
+        ]
+
+    def aside(self, node: Node, text: str, before: bool) -> bool:
+        """Typed text mid-question that is not the answer: changing their mind or small talk (checked before
+        the answer), a medical or side question (after: it was no valid answer). Then the same question again.
+        A one-word reply to a free-text question ("ok", "sure") is still its answer."""
+        low = " ".join(text.lower().split())
+        if before:
+            for type_, pattern in SWITCH:
+                target = self.first(type_)
+                if pattern.search(low) and target and node.type != type_:
+                    self.ask = {"kind": "switch", "to": target, "was": self.ask}
+                    self.say(f"Shall I stop this and help you {type_} instead?", buttons=self.yes_no())
+                    return True
+            free_text = node.type == "question" and node.settings.get("kind") == "text"
+            said = None if free_text else self.small(low)
+            if said is not None:
+                self.say(said)
+                self.reask(node)
+                return True
+            return False
+        if MEDICAL.search(low):
+            self.say(NOTED)
+            self.reask(node)
+            return True
+        if QUESTION.search(low):
+            found = self.ctx.kb(text)
+            if found:
+                self.say(found)
+                self.reask(node)
+                return True
+        return False
+
+    def reask(self, node: Node) -> None:
+        if (self.ask or {}).get("kind") == "lead":
+            self.next_question(node)
+        else:
+            self.at = None  # the same block again, not a new screen in the history
+            self.enter(node.id)
+
+    def go_back(self) -> None:
+        """The screen before this one (as tapped through), or the opening."""
+        while self.back:
+            prev = self.back.pop()
+            if prev != self.at and self.shown(self.nodes.get(prev)):
+                self.at = None  # going back adds nothing to the history
+                self.enter(prev)
+                return
+        self.at = None
+        self.enter(self.first("opening") or "")
+
+    def named_treatment(self, low: str) -> str | None:
+        """A treatment typed by name ("beard transplant", or a first word only one treatment has, "prp"):
+        its card, live from Services."""
+        names = [t["name"] for t in self.ctx.services if t.get("show")]
+        t = f" {norm(low)} "
+        for name in sorted(names, key=len, reverse=True):
+            if f" {norm(name)} " in t:
+                return str(name)
+        firsts = [norm(n).split()[0] for n in names]
+        for name, first in zip(names, firsts, strict=True):
+            if len(first) >= 3 and firsts.count(first) == 1 and f" {first} " in t:
+                return str(name)
+        return None
 
     # ---------- approved typed phrases ----------
     def phrase(self, text: str) -> dict[str, Any] | None:
@@ -452,6 +557,15 @@ class Run:
                 self.say("I couldn't find an upcoming appointment with this number.")
             self.follow("found" if booked else "not_found")
             return
+        if kind == "switch":  # "Shall I stop this?"
+            if is_yes(text):
+                self.enter(ask["to"])
+            else:
+                self.ask = ask["was"]
+                self.reask(node)
+            return
+        if kind in ("lead", "question") and self.aside(node, text, before=True):
+            return
         if kind == "consent":
             if is_yes(text):
                 self.finish(node)
@@ -465,6 +579,8 @@ class Run:
         if kind == "question":
             s = node.settings
             value = self.check(s["kind"], text, s)
+            if value is None and self.aside(node, text, before=False):
+                return
             if value is None:
                 if not s.get("required", True) and norm(text) in ("skip", "no"):
                     self.follow("next")
@@ -481,6 +597,8 @@ class Run:
         fields = self.lead_fields(node)
         key = fields[ask["i"]]
         value = self.check(key, text, {})
+        if value is None and self.aside(node, text, before=False):
+            return
         if value is None:
             return self.wrong(node, f"Sorry, that doesn't look like a valid {key.replace('_', ' ')}.", None)
         free = self.free(node)

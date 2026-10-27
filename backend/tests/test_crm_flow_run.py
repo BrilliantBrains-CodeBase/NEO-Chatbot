@@ -321,3 +321,53 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
     chat = fresh(meaning=lambda t: near)
     assert chat("can i come in next week") == ["May I know your full name?"]  # by meaning
     assert chat.r["matched"] == {"how": "meaning", "text": "I want to book", "score": 88.0}
+
+
+def test_typed_text_beside_the_flow() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone"]}}
+    cancel = {"id": "cancel", "type": "cancel", "settings": {"fields": ["name"]}}
+    menu = {
+        "id": "menu",
+        "type": "choice",
+        "settings": {"message": "More", "buttons": [{"id": "b1", "label": "Deep"}]},
+    }
+    deep = {"id": "deep", "type": "answer", "settings": {"text": "Deep page"}}
+    edges = [line("opening", "m1", "book"), line("opening", "m2", "menu"), line("menu", "b1", "deep")]
+    flow = {"nodes": [opening(("m1", "Book"), ("m2", "More")), book, cancel, menu, deep], "edges": edges}
+    kb = ctx(kb=lambda q: "We are open 10 to 7." if "open" in q else None)
+
+    chat = Chat(flow, kb)
+    assert chat("hello") == ["Hi!", "Hi!"]  # small talk: the welcome, with the screen again
+    assert chat.labels() == ["Book", "More"]
+    chat(tap="m1")
+    assert chat("thanks") == [
+        "You're welcome! Is there anything else I can help you with?",
+        "May I know your full name?",
+    ]
+    chat("Asha Rao")
+    texts = chat("when are you open?")  # a side question mid-booking: answered, then the same question
+    assert texts == ["We are open 10 to 7.", "Thanks, Asha Rao. What is your contact number?"]
+    assert chat("is it painful?")[0].startswith(
+        "I don't have a confirmed answer"
+    )  # medical: noted, never answered
+    assert chat("actually I want to cancel my appointment") == [
+        "Shall I stop this and help you cancel instead?"
+    ]
+    chat("no")
+    assert chat.at == "book" and chat.r["messages"][-1]["text"].endswith("contact number?")  # carries on
+    chat("cancel my booking")
+    chat(tap="yes")
+    assert chat.at == "cancel"
+
+    chat = Chat(flow, kb)
+    chat(tap="m2")
+    chat(tap="b1")
+    assert chat.at == "deep"
+    chat("back")
+    assert chat.at == "menu"
+    chat("back")
+    assert chat.at == "opening"
+
+    chat = Chat(flow, kb)
+    assert chat("tell me about fue")[0].startswith("FUE")  # a treatment typed by name: its card
+    assert chat.r["matched"] == {"how": "treatment name", "text": "FUE"}

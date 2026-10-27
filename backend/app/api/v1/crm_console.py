@@ -680,7 +680,7 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
         return start(draft["flow"], ctx)
     # The engine is synchronous: what it may ask for this message is looked up first, live.
     waiting = (body.state.get("ask") or {}).get("kind")
-    if waiting == "knowledge" and body.text:
+    if waiting in ("knowledge", "lead", "question") and body.text:  # a side question mid-booking too
         found = await _kb_answer(clinic, body.text)
         ctx.kb = lambda q: found
     if waiting == "check" and body.text:
