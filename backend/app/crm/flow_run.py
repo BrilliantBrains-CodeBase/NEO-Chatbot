@@ -46,6 +46,9 @@ class Context:
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
     appointments: Callable[[str], list[str]] = lambda phone: []  # upcoming, as text
+    # Free HH:MM slots per day (YYYY-MM-DD) for the booking open now: doctors' hours, leave, holidays and
+    # appointments (in-clinic and online share one diary). None: not checked (e.g. no database).
+    slots: dict[str, dict[str, list[str]]] | None = None  # by mode: in_clinic, online
 
 
 class Run:
@@ -265,7 +268,7 @@ class Run:
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
-        if self.ask and self.ask["kind"] in ("question", "consent"):
+        if self.ask and self.ask["kind"] in ("question", "consent", "lead"):
             return self.text(button_id)
         b = next((x for x in self.buttons(node) if x["id"] == button_id), None)
         kind, _, name = button_id.partition(":")
@@ -422,6 +425,22 @@ class Run:
         value = self.check(key, text, {})
         if value is None:
             return self.wrong(node, f"Sorry, that doesn't look like a valid {key.replace('_', ' ')}.", None)
+        free = self.free(node)
+        if free is not None and key == "date" and value not in free:
+            days = ", ".join(_day(d) for d in list(free)[:5]) or "none in the next two weeks"
+            self.wrong(node, f"Sorry, there are no free times on {_day(value)}. Free days: {days}.", None)
+            if self.ask:
+                self.say("", buttons=self.picks(node, "date"))
+            return
+        if free is not None and key == "time" and value != "any":
+            times = free.get(self.fields.get("date", ""), [])
+            if value not in times:
+                self.wrong(
+                    node, f"Sorry, {_time(value)} is not free that day. Please pick a free time.", None
+                )
+                if self.ask:
+                    self.say("", buttons=self.picks(node, "time"))
+                return
         self.fields[key] = value
         ask.update(i=ask["i"] + 1, tries=0)
         self.next_question(node)
@@ -481,12 +500,34 @@ class Run:
             skip.add("reason")
         return [f for f in s.get("fields", []) if f not in skip]
 
+    def free(self, node: Node) -> dict[str, list[str]] | None:
+        """Free slots, when this block books a time (a cancel or call back has no slot to check)."""
+        if self.ctx.slots is None or node.type not in ("book", "online", "reschedule"):
+            return None
+        return self.ctx.slots.get("online" if node.type == "online" else "in_clinic", {})
+
+    def picks(self, node: Node, key: str) -> list[dict[str, Any]]:
+        """Tap answers for a date or a time: the next free days, or that day's free times."""
+        free = self.free(node)
+        if free is None:
+            return []
+        if key == "date":
+            return [{"id": d, "label": _day(d), "action": "answer"} for d in list(free)[:6]]
+        if key == "time":
+            times = free.get(self.fields.get("date", ""), [])
+            return [{"id": t, "label": _time(t), "action": "answer"} for t in times[:12]] + [
+                {"id": "any", "label": "Any time", "action": "answer"}
+            ]
+        return []
+
     def next_question(self, node: Node) -> None:
         s, ask = node.settings, self.ask or {}
         fields = self.lead_fields(node)
         if ask.get("i", 0) < len(fields):
             key = fields[ask["i"]]
-            self.say((s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key])
+            self.say(
+                (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key], buttons=self.picks(node, key)
+            )
             return
         if s.get("consent", True):
             self.ask = {"kind": "consent", "tries": 0}
@@ -515,6 +556,15 @@ class Run:
         self.ask = None
         self.say(s.get("final_message") or "Thank you, {name}. Our team will contact you shortly.")
         self.follow("done")
+
+
+def _day(d: str) -> str:
+    return date.fromisoformat(d).strftime("%a %d %b")
+
+
+def _time(hm: str) -> str:
+    h, m = int(hm[:2]), int(hm[3:])
+    return f"{(h - 1) % 12 + 1}:{m:02d} {'AM' if h < 12 else 'PM'}"
 
 
 def start(flow: dict[str, Any], ctx: Context) -> dict[str, Any]:

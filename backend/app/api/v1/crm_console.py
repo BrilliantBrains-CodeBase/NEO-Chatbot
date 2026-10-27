@@ -3,6 +3,7 @@ edit, then publish (migration 0019). Every value is checked here; the browser ne
 Clinic managers and BB Admin only. The live chatbot does not read these settings until it is switched over."""
 
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import unquote
@@ -10,7 +11,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.chat import kb
+from app.chat import kb, slots
 from app.chat.content import content
 from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
@@ -685,10 +686,33 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
     if waiting == "check" and body.text:
         booked = await _upcoming(clinic, body.text)
         ctx.appointments = lambda phone: booked
+    at = next((n for n in draft["flow"]["nodes"] if n["id"] == body.state.get("at")), None)
+    if at and at["type"] in ("book", "online", "reschedule"):
+        ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
     reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
     if reply["lead"]:
         reply["saved"] = await _save_test_lead(user, reply["lead"], body.device)
     return reply
+
+
+async def _free(clinic: str, doctor: str) -> dict[str, dict[str, list[str]]]:
+    """Free slots for the booking window, in-clinic and online (one diary), as the live chat reads them;
+    only the named doctor's when the block always uses one doctor."""
+    today, now = ist_now()
+    last = today + timedelta(days=(content(clinic) or {}).get("config", {}).get("bookingWindowDays", 14))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        doctor_id = None
+        if doctor:
+            doctor_id = await conn.fetchval(
+                "select id::text from app.doctors where clinic_id = $1 and name = $2 and active",
+                clinic,
+                doctor,
+            )
+        return {
+            mode: await slots.free_slots_range(conn, clinic, today, last, mode, today, now, "", doctor_id)
+            for mode in ("in_clinic", "online")
+        }
 
 
 async def _kb_answer(clinic: str, text: str) -> str | None:

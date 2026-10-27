@@ -246,3 +246,28 @@ def test_medical_questions_are_never_answered() -> None:
     assert chat.labels() == ["Yes", "No"]  # consent next: the reason was not asked again
     chat(tap="yes")
     assert chat.r["lead"]["reason"].startswith("which tablets")
+
+
+def test_booking_offers_and_checks_live_free_slots() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["date", "time"], "consent": False}}
+    free = {"in_clinic": {"2026-10-29": ["11:00", "11:15"]}, "online": {}}
+    chat = Chat(
+        {"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]}, ctx(slots=free)
+    )
+    chat(tap="m1")
+    assert chat.labels() == ["Thu 29 Oct"]  # only days with a free time
+    assert "no free times on Fri 30 Oct" in chat("30 oct")[0]  # typed, not free: asked again
+    chat(tap="2026-10-29")
+    assert chat.labels() == ["11:00 AM", "11:15 AM", "Any time"]
+    assert "11:30 AM is not free" in chat("11:30 am")[0]
+    chat("11:15")
+    assert chat.r["lead"] == {"type": "book", "block": "book", "date": "2026-10-29", "time": "11:15"}
+    online = Chat(
+        {
+            "nodes": [opening(("m1", "Online")), book | {"id": "on", "type": "online"}],
+            "edges": [line("opening", "m1", "on")],
+        },
+        ctx(slots=free),
+    )
+    online(tap="m1")
+    assert online.labels() == []  # no free online time in the window: nothing to tap
