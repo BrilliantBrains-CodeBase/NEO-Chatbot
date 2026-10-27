@@ -90,3 +90,22 @@ def test_blocks_can_be_off_or_scheduled() -> None:
         normalise({"nodes": [OPENING, BOOK | {"show_from": "2026-11-10", "show_until": "2026-11-01"}]})
     with pytest.raises(FlowError, match="Opening block cannot be off"):
         normalise({"nodes": [OPENING | {"enabled": False}]})
+
+
+def test_fields_set_field_and_unknown_fields_in_messages() -> None:
+    welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
+    set_it = {
+        "id": "set-1",
+        "type": "set_field",
+        "settings": {"field": "interest", "value": "Hair transplant"},
+    }
+    flow = {"nodes": [welcome, set_it], "fields": [{"key": "interest", "label": "Interest"}]}
+    saved = normalise(flow)
+    assert saved["fields"][0]["key"] == "interest"
+    assert not [p for p in check(saved) if p.level == "error"]
+    unknown = check(normalise(flow | {"fields": []} | {"nodes": [welcome]}))
+    assert [p.message for p in unknown if p.level == "error"] == ["Uses {interest}, which is not a field."]
+    with pytest.raises(FlowError, match="sets a field that does not exist"):
+        normalise(flow | {"fields": []})
+    with pytest.raises(FlowError, match="own name"):
+        normalise(flow | {"fields": [{"key": "name", "label": "Name"}]})

@@ -44,6 +44,8 @@ import {
   type Problem,
   ACTION_TAG,
   pruneLines,
+  BUILT_IN_FIELDS,
+  type FieldDef,
 } from "./blocks";
 import BlockSettings from "./BlockSettings";
 
@@ -583,6 +585,10 @@ function Canvas() {
                   key={block.id}
                   block={block}
                   services={services}
+                  fields={[
+                    ...BUILT_IN_FIELDS,
+                    ...(flow.fields ?? []).map((f) => f.key),
+                  ]}
                   onChange={setBlock}
                   onButtons={setButtons}
                 />
@@ -629,6 +635,10 @@ function Canvas() {
                     </span>
                   </button>
                 ))}
+                <FieldsPanel
+                  fields={flow.fields ?? []}
+                  onChange={(fields) => setFlow({ ...flow, fields })}
+                />
                 <p className="sub2" style={{ marginTop: 12 }}>
                   {flow.nodes.length} blocks · {flow.edges.length} lines. Click
                   a block to edit it.
@@ -639,5 +649,67 @@ function Canvas() {
         )}
       </div>
     </>
+  );
+}
+
+/** The clinic's own fields (beside the built-in ones), used in messages as {key} and by Set field blocks. */
+function FieldsPanel({
+  fields,
+  onChange,
+}: {
+  fields: FieldDef[];
+  onChange: (f: FieldDef[]) => void;
+}) {
+  const [key, setKey] = useState("");
+  const [label, setLabel] = useState("");
+  const ok =
+    /^[a-z][a-z0-9_]{1,29}$/.test(key) &&
+    !BUILT_IN_FIELDS.includes(key) &&
+    !fields.some((f) => f.key === key);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <h3 style={{ margin: "0 0 6px" }}>Fields</h3>
+      <p className="sub2" style={{ margin: "0 0 6px", fontSize: 11.5 }}>
+        Built in: {BUILT_IN_FIELDS.map((f) => `{${f}}`).join(" ")}
+      </p>
+      {fields.map((f) => (
+        <div key={f.key} className="wf-btn" style={{ fontSize: 12.5 }}>
+          <b style={{ flex: 1 }}>
+            {`{${f.key}}`} <span className="sub2">{f.label}</span>
+          </b>
+          <button
+            aria-label="Remove"
+            onClick={() => onChange(fields.filter((x) => x.key !== f.key))}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="wf-btn" style={{ marginTop: 6 }}>
+        <input
+          placeholder="key, e.g. interest"
+          value={key}
+          onChange={(e) =>
+            setKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
+          }
+        />
+        <input
+          placeholder="Label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <button
+          className="pill"
+          disabled={!ok || !label.trim()}
+          onClick={() => {
+            onChange([...fields, { key, label: label.trim(), kind: "text" }]);
+            setKey("");
+            setLabel("");
+          }}
+        >
+          Add
+        </button>
+      </div>
+    </div>
   );
 }

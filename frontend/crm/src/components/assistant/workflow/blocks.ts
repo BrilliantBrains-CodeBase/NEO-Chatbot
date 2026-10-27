@@ -43,7 +43,30 @@ export type FlowNode = {
   clinic_hours_only?: boolean;
 };
 export type FlowEdge = { source: string; exit: string; target: string };
-export type Flow = { nodes: FlowNode[]; edges: FlowEdge[] };
+export type FieldDef = {
+  key: string;
+  label: string;
+  kind: string;
+  options?: string[];
+};
+export type Flow = {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  fields?: FieldDef[];
+};
+/** Filled by the chat itself; a clinic adds its own fields beside these. */
+export const BUILT_IN_FIELDS = [
+  "name",
+  "phone",
+  "email",
+  "treatment",
+  "doctor",
+  "date",
+  "time",
+  "booked_date",
+  "reason",
+  "source",
+];
 export type Problem = {
   level: "error" | "warning";
   node: string;
@@ -189,6 +212,13 @@ export const KINDS: Record<string, Kind> = {
       profile_url: "",
     },
   },
+  set_field: {
+    label: "Set field",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "Saves a value into a field, then goes on",
+    start: { field: "", value: "" },
+  },
   link: {
     label: "Link",
     group: "Contact & safety",
@@ -225,6 +255,8 @@ export const GROUPS = [
   "Treatments",
   "Information",
   "Contact & safety",
+  ,
+  "Logic",
 ];
 const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
 /** Blocks that are a message with buttons (each button its own exit). */
@@ -245,7 +277,8 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
   const out = buttonsOf(n)
     .filter((b) => !b.action)
     .map((b) => ({ id: b.id, label: b.label }));
-  if (n.type === "typed") out.push({ id: "next", label: "next" });
+  if (n.type === "typed" || n.type === "set_field")
+    out.push({ id: "next", label: "next" });
   if (LEAD.has(n.type)) out.push({ id: "done", label: "done" });
   if (n.type === "doctor_card" && n.settings.book_label)
     out.push({ id: "book", label: String(n.settings.book_label) });

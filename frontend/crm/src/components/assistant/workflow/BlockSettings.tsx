@@ -32,8 +32,10 @@ export default function BlockSettings({
   onChange,
   onButtons,
   services,
+  fields,
 }: {
   services: Service[];
+  fields: string[]; // built-in and the clinic's own
   block: FlowNode;
   onChange: (patch: Partial<FlowNode>) => void;
   onButtons: (buttons: FlowButton[]) => void;
@@ -158,6 +160,31 @@ export default function BlockSettings({
           600,
         )}
       {block.type === "call" && text("number", "Phone number", 1, 16)}
+      {block.type === "set_field" && (
+        <>
+          <Row label="Field">
+            <select
+              value={String(s.field ?? "")}
+              onChange={(e) => set({ field: e.target.value })}
+            >
+              <option value="">Choose…</option>
+              {fields.map((f) => (
+                <option key={f}>{f}</option>
+              ))}
+            </select>
+          </Row>
+          {text(
+            "value",
+            "Value (may use other fields, e.g. {treatment})",
+            1,
+            200,
+          )}
+        </>
+      )}
+      <span className="sub2" style={{ fontSize: 11 }}>
+        Messages can use fields, e.g. Thanks {"{name}"}:{" "}
+        {fields.map((f) => `{${f}}`).join(" ")}
+      </span>
       {block.type === "treatment_list" && (
         <Row label="Category (its treatments come live from Clinic info → Services)">
           <select

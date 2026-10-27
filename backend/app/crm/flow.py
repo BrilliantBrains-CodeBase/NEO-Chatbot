@@ -11,6 +11,7 @@ today's chat (the clinic's content file: menu, 19 pages, booking questions) into
 left to right.
 See frontend/crm/WORKFLOW-CANVAS-PLAN.md."""
 
+import re
 from collections import deque
 from datetime import date
 from typing import Any, Literal
@@ -155,7 +156,7 @@ class Node(BaseModel):
     type: Literal[
         "opening", "typed", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list",
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
-        "doctor_card", "link", "whatsapp", "call", "emergency",
+        "doctor_card", "link", "whatsapp", "call", "emergency", "set_field",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -178,6 +179,38 @@ class Edge(BaseModel):
 class Flow(BaseModel):
     nodes: list[Node] = Field(default=[], max_length=MAX_NODES)
     edges: list[Edge] = Field(default=[], max_length=MAX_EDGES)
+    fields: list["FieldDef"] = Field(default=[], max_length=50)  # the clinic's own fields
+
+
+# Fields: values saved during a chat, used in messages as {name}. The built-in ones are filled by the chat
+# itself (questions, the source of the visit); a clinic adds its own and fills them with Set field blocks.
+BUILT_IN_FIELDS = {
+    "name",
+    "phone",
+    "email",
+    "treatment",
+    "doctor",
+    "date",
+    "time",
+    "booked_date",
+    "reason",
+    "source",
+}
+FIELD = r"^[a-z][a-z0-9_]{1,29}$"
+
+
+class FieldDef(BaseModel):
+    key: str = Field(pattern=FIELD)  # used as {key} in messages
+    label: str = Field(min_length=1, max_length=40)
+    kind: Literal["text", "number", "date", "choice"] = "text"
+    options: list[str] = Field(default=[], max_length=20)  # for choice
+
+
+class SetFieldSettings(BaseModel):
+    """Saves a value into a field, e.g. interest = Hair transplant, then goes on."""
+
+    field: str = Field(pattern=FIELD)
+    value: str = Field(default="", max_length=200)  # may use other fields, e.g. {treatment}
 
 
 class Problem(BaseModel):
@@ -186,6 +219,8 @@ class Problem(BaseModel):
     message: str
 
 
+TYPES["set_field"] = SetFieldSettings
+Flow.model_rebuild()
 _settings = {t: TypeAdapter(m) for t, m in TYPES.items()}
 
 
@@ -198,7 +233,7 @@ def settings_of(node: Node) -> BaseModel:
 def exits(node: Node) -> list[str]:
     s = settings_of(node)
     out = [b.id for b in getattr(s, "buttons", []) if not b.action]
-    if node.type == "typed":
+    if node.type in ("typed", "set_field"):
         out.append("next")
     if node.type in LEAD_TYPES:
         out.append("done")
@@ -223,6 +258,13 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         raise FlowError("Two blocks have the same id.")
     if [n.type for n in flow.nodes].count("opening") != 1 and flow.nodes:
         raise FlowError("A flow needs exactly one Opening block.")
+    keys = [f.key for f in flow.fields]
+    if len(keys) != len(set(keys)) or set(keys) & BUILT_IN_FIELDS:
+        raise FlowError("Each field needs its own name, not one of the built-in fields.")
+    known = BUILT_IN_FIELDS | set(keys)
+    for n in flow.nodes:
+        if n.type == "set_field" and n.settings.get("field") not in known:
+            raise FlowError(f"Block '{n.title or n.id}' sets a field that does not exist.")
     by_id = {n.id: n for n in flow.nodes}
     clean_nodes = []
     for n in flow.nodes:
@@ -248,7 +290,7 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         if (e.source, e.exit) in seen:
             raise FlowError(f"Two lines start from the same exit of '{by_id[e.source].title or e.source}'.")
         seen.add((e.source, e.exit))
-    return Flow(nodes=clean_nodes, edges=flow.edges).model_dump(mode="json")
+    return Flow(nodes=clean_nodes, edges=flow.edges, fields=flow.fields).model_dump(mode="json")
 
 
 def check(raw: dict[str, Any]) -> list[Problem]:
@@ -267,6 +309,11 @@ def check(raw: dict[str, Any]) -> list[Problem]:
         for b in getattr(settings_of(n), "buttons", []):
             if b.visible and not b.action and (n.id, b.id) not in linked:
                 out.append(Problem(level="error", node=n.id, message=f"Button '{b.label}' leads nowhere."))
+    known = BUILT_IN_FIELDS | {f.key for f in flow.fields}
+    for n in flow.nodes:
+        texts = [str(v) for k, v in n.settings.items() if isinstance(v, str)]
+        for name in sorted({m for t in texts for m in re.findall(r"\{([a-z][a-z0-9_]*)\}", t)} - known):
+            out.append(Problem(level="error", node=n.id, message=f"Uses {{{name}}}, which is not a field."))
     nxt: dict[str, list[str]] = {}
     for e in flow.edges:
         nxt.setdefault(e.source, []).append(e.target)
