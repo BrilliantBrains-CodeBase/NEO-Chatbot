@@ -279,6 +279,24 @@ export const KINDS: Record<string, Kind> = {
     hint: "One way while open, another while closed",
     start: { hours: "in_clinic" },
   },
+  condition: {
+    label: "Condition",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "If / else on fields, day, time, device, returning patient",
+    start: {
+      branches: [
+        {
+          id: "c1",
+          label: "Weekend",
+          match: "all",
+          tests: [
+            { subject: "weekday", field: "", op: "is", value: "sat,sun" },
+          ],
+        },
+      ],
+    },
+  },
   goto: {
     label: "Go to",
     group: "Logic",
@@ -356,6 +374,13 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
       { id: "found", label: "found" },
       { id: "not_found", label: "not found" },
       ...(n.settings.otp ? [{ id: "code_failed", label: "code failed" }] : []),
+    );
+  if (n.type === "condition")
+    out.push(
+      ...((n.settings.branches as { id: string; label: string }[]) ?? []).map(
+        (b) => ({ id: b.id, label: b.label }),
+      ),
+      { id: "else", label: "else" },
     );
   if (n.type === "clinic_open")
     out.push({ id: "open", label: "open" }, { id: "closed", label: "closed" });

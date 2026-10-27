@@ -163,6 +163,27 @@ def test_check_open_and_goto_blocks() -> None:
         normalise({"nodes": [OPENING, {"id": "go", "type": "goto", "settings": {"target": "go"}}]})
 
 
+def test_condition_block() -> None:
+    def cond(*tests: dict[str, Any]) -> dict[str, Any]:
+        branch = {"id": "c1", "label": "Weekend", "tests": list(tests)}
+        return {"id": "if", "type": "condition", "settings": {"branches": [branch]}}
+
+    weekend = {"subject": "weekday", "op": "is", "value": "sat,sun"}
+    lines = [{"source": "if", "exit": e, "target": "book"} for e in ("c1", "else")]
+    assert normalise({"nodes": [OPENING, cond(weekend), BOOK], "edges": lines})["edges"] == lines
+    bad = [
+        ({"subject": "weekday", "op": "is", "value": "funday"}, "Days are"),
+        ({"subject": "time", "op": "after", "value": "7pm"}, "13:30"),
+        ({"subject": "time", "op": "is", "value": "10:00"}, "cannot be used"),
+        ({"subject": "device", "op": "is", "value": "tablet"}, "mobile or desktop"),
+        ({"subject": "field", "field": "nope", "op": "empty"}, "field that does not exist"),
+        ({"subject": "field", "field": "treatment", "op": "is"}, "needs a value"),
+    ]
+    for test, words in bad:
+        with pytest.raises(FlowError, match=words):
+            normalise({"nodes": [OPENING, cond(test)]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

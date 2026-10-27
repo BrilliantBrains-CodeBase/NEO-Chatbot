@@ -423,6 +423,13 @@ export default function BlockSettings({
           </select>
         </Row>
       )}
+      {block.type === "condition" && (
+        <Conditions
+          branches={(s.branches as Branch[]) ?? []}
+          fields={fields}
+          onChange={(branches) => set({ branches })}
+        />
+      )}
       {block.type === "goto" && (
         <Row label="Go to block">
           <select
@@ -855,6 +862,182 @@ export default function BlockSettings({
         />
       )}
     </div>
+  );
+}
+
+type Test = { subject: string; field: string; op: string; value: string };
+type Branch = { id: string; label: string; match: string; tests: Test[] };
+// What each subject can be tested with (as the backend's Test model), and a hint for its value.
+const SUBJECTS: Record<string, { label: string; ops: string[]; hint: string }> =
+  {
+    field: {
+      label: "Field",
+      ops: ["is", "is_not", "contains", "empty", "not_empty"],
+      hint: "a value",
+    },
+    weekday: { label: "Day", ops: ["is", "is_not"], hint: "sat,sun" },
+    time: { label: "Time (India)", ops: ["before", "after"], hint: "13:30" },
+    device: { label: "Device", ops: ["is"], hint: "mobile or desktop" },
+    returning: { label: "Returning patient", ops: ["is"], hint: "yes or no" },
+  };
+const OPS: Record<string, string> = {
+  is: "is",
+  is_not: "is not",
+  contains: "contains",
+  empty: "is empty",
+  not_empty: "is filled",
+  before: "before",
+  after: "after",
+};
+
+/** If / else branches: tried in order, the first that matches leads on along its line; none → else. */
+function Conditions({
+  branches,
+  fields,
+  onChange,
+}: {
+  branches: Branch[];
+  fields: string[];
+  onChange: (b: Branch[]) => void;
+}) {
+  const put = (i: number, patch: Partial<Branch>) =>
+    onChange(branches.map((b, k) => (k === i ? { ...b, ...patch } : b)));
+  const blank: Test = { subject: "field", field: "", op: "is", value: "" };
+  return (
+    <Row label="Branches (tried in order; none matches → else)">
+      {branches.map((b, i) => (
+        <div
+          key={b.id}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            border: "1px solid var(--line, #e5e7eb)",
+            borderRadius: 6,
+            padding: 6,
+          }}
+        >
+          <div style={{ display: "flex", gap: 4 }}>
+            <input
+              maxLength={40}
+              placeholder="Branch name (its exit)"
+              value={b.label}
+              onChange={(e) => put(i, { label: e.target.value })}
+            />
+            <select
+              value={b.match}
+              onChange={(e) => put(i, { match: e.target.value })}
+            >
+              <option value="all">all match</option>
+              <option value="any">any matches</option>
+            </select>
+            <button
+              aria-label="Remove branch"
+              onClick={() => onChange(branches.filter((_, k) => k !== i))}
+            >
+              ✕
+            </button>
+          </div>
+          {b.tests.map((t, j) => {
+            const putTest = (patch: Partial<Test>) =>
+              put(i, {
+                tests: b.tests.map((x, k) =>
+                  k === j ? { ...x, ...patch } : x,
+                ),
+              });
+            const sub = SUBJECTS[t.subject] ?? SUBJECTS.field;
+            return (
+              <div key={j} style={{ display: "flex", gap: 4 }}>
+                <select
+                  value={t.subject}
+                  onChange={(e) =>
+                    putTest({
+                      subject: e.target.value,
+                      op: SUBJECTS[e.target.value].ops[0],
+                      value: "",
+                    })
+                  }
+                >
+                  {Object.entries(SUBJECTS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+                {t.subject === "field" && (
+                  <select
+                    value={t.field}
+                    onChange={(e) => putTest({ field: e.target.value })}
+                  >
+                    <option value="">Choose…</option>
+                    {fields.map((f) => (
+                      <option key={f}>{f}</option>
+                    ))}
+                  </select>
+                )}
+                <select
+                  value={t.op}
+                  onChange={(e) => putTest({ op: e.target.value })}
+                >
+                  {sub.ops.map((o) => (
+                    <option key={o} value={o}>
+                      {OPS[o]}
+                    </option>
+                  ))}
+                </select>
+                {t.op !== "empty" && t.op !== "not_empty" && (
+                  <input
+                    maxLength={100}
+                    placeholder={sub.hint}
+                    value={t.value}
+                    onChange={(e) => putTest({ value: e.target.value })}
+                  />
+                )}
+                <button
+                  aria-label="Remove test"
+                  disabled={b.tests.length < 2}
+                  onClick={() =>
+                    put(i, { tests: b.tests.filter((_, k) => k !== j) })
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+          {b.tests.length < 5 && (
+            <button
+              className="pill"
+              style={{ alignSelf: "flex-start" }}
+              onClick={() => put(i, { tests: [...b.tests, blank] })}
+            >
+              + Add a test
+            </button>
+          )}
+        </div>
+      ))}
+      {branches.length < 8 && (
+        <button
+          className="pill"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() => {
+            let n = 1;
+            while (branches.some((b) => b.id === `c${n}`)) n++;
+            onChange([
+              ...branches,
+              {
+                id: `c${n}`,
+                label: `Branch ${n}`,
+                match: "all",
+                tests: [blank],
+              },
+            ]);
+          }}
+        >
+          + Add a branch
+        </button>
+      )}
+    </Row>
   );
 }
 

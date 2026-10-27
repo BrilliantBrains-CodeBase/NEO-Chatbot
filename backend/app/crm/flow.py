@@ -233,6 +233,65 @@ class ClinicOpenSettings(BaseModel):
     hours: Literal["in_clinic", "online"] = "in_clinic"
 
 
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+class Test(BaseModel):
+    """One test: a field's value, the day (India time), the time, the device, or a returning patient (a lead
+    with this phone already exists)."""
+
+    subject: Literal["field", "weekday", "time", "device", "returning"]
+    field: str = Field(default="", max_length=30)  # subject field
+    op: Literal["is", "is_not", "contains", "empty", "not_empty", "before", "after"] = "is"
+    value: str = Field(default="", max_length=100)  # weekday: mon,sat; time: 13:30; device: mobile; yes / no
+
+    @model_validator(mode="after")
+    def _fits(self) -> "Test":
+        ok = {
+            "field": {"is", "is_not", "contains", "empty", "not_empty"},
+            "weekday": {"is", "is_not"},
+            "time": {"before", "after"},
+            "device": {"is"},
+            "returning": {"is"},
+        }[self.subject]
+        if self.op not in ok:
+            raise ValueError(f"'{self.op}' cannot be used with {self.subject}.")
+        v = self.value.strip().lower()
+        if self.subject == "weekday" and (not v or set(v.replace(" ", "").split(",")) - set(DAYS)):
+            raise ValueError("Days are mon, tue, wed, thu, fri, sat, sun (comma separated).")
+        if self.subject == "time" and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("A time is written as 13:30.")
+        if self.subject == "device" and v not in ("mobile", "desktop"):
+            raise ValueError("Device is mobile or desktop.")
+        if self.subject == "returning" and v not in ("yes", "no"):
+            raise ValueError("Returning patient is yes or no.")
+        if self.subject == "field" and self.op not in ("empty", "not_empty") and not v:
+            raise ValueError("The test needs a value.")
+        return self
+
+
+class Branch(BaseModel):
+    id: str = Field(pattern=ID)  # its exit
+    label: str = Field(min_length=1, max_length=40)
+    match: Literal["all", "any"] = "all"
+    tests: list[Test] = Field(min_length=1, max_length=5)
+
+
+class ConditionSettings(BaseModel):
+    """If / else: the branches are tried in order; the first that matches leads on along its line, none →
+    else."""
+
+    branches: list[Branch] = Field(min_length=1, max_length=8)
+
+    @field_validator("branches")
+    @classmethod
+    def _ids(cls, v: list[Branch]) -> list[Branch]:
+        ids = [b.id for b in v]
+        if len(ids) != len(set(ids)) or "else" in ids:
+            raise ValueError("Each branch needs its own id (not 'else').")
+        return v
+
+
 class GotoSettings(BaseModel):
     """Jumps to another block (e.g. back to the main menu), so long lines across the canvas are not needed."""
 
@@ -266,6 +325,7 @@ TYPES: dict[str, type[BaseModel]] = {
     "check_appointment": CheckAppointmentSettings,
     "clinic_open": ClinicOpenSettings,
     "goto": GotoSettings,
+    "condition": ConditionSettings,
 }
 LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback"}
 MENUS = {"opening", "choice", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list"}
@@ -278,6 +338,7 @@ class Node(BaseModel):
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
         "location", "reviews", "faq", "knowledge", "check_appointment", "clinic_open", "goto",
+        "condition",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -404,6 +465,8 @@ def exits(node: Node) -> list[str]:
         out += ["found", "not_found"] + (["code_failed"] if s.otp else [])
     if node.type == "clinic_open":
         out += ["open", "closed"]
+    if isinstance(s, ConditionSettings):
+        out += [b.id for b in s.branches] + ["else"]
     if node.type in LEAD_TYPES:
         out.append("done")
     if isinstance(s, DoctorSettings) and s.book_label:
@@ -434,6 +497,11 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     for n in flow.nodes:
         if n.type in ("set_field", "question") and n.settings.get("field") not in known:
             raise FlowError(f"Block '{n.title or n.id}' saves into a field that does not exist.")
+        if n.type == "condition":
+            for b in n.settings.get("branches") or []:
+                for t in b.get("tests") or [] if isinstance(b, dict) else []:
+                    if isinstance(t, dict) and t.get("subject") == "field" and t.get("field") not in known:
+                        raise FlowError(f"Block '{n.title or n.id}' tests a field that does not exist.")
         if n.type == "goto" and n.settings.get("target") not in ids + [None]:
             raise FlowError(f"Block '{n.title or n.id}' goes to a block that does not exist.")
         if n.type == "goto" and n.settings.get("target") == n.id:
