@@ -75,6 +75,12 @@ async def test_appearance_draft_and_publish(api: AsyncClient, monkeypatch: pytes
         assert sv.status_code == 200 and sv.json()["draft"]["services"]["items"][0]["price"] == 5000
         bad_sv = {"items": [{"name": "X", "page": "http://plain"}]}
         assert (await api.put(url + "/services", json=bad_sv, headers=headers)).status_code == 422
+        rv = {"rating": "4.9", "quotes": [{"name": "Asha R.", "text": "Very kind and clear team."}]}
+        r2 = await api.put(url + "/reviews", json=rv, headers=headers)
+        assert r2.status_code == 200 and r2.json()["draft"]["reviews"]["rating"] == "4.9"
+        assert (
+            await api.put(url + "/reviews", json=rv | {"rating": "9"}, headers=headers)
+        ).status_code == 422
         p = await api.post("/v1/crm/console/CL99/publish", headers=headers)
         assert p.status_code == 200 and p.json()["version"] >= 1 and p.json()["changed"] is False
         assert p.json()["published"]["appearance"]["look"]["name"] == "Test Bot"

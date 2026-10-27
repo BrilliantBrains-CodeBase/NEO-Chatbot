@@ -3,6 +3,7 @@ edit, then publish (migration 0019). Every value is checked here; the browser ne
 Clinic managers and BB Admin only. The live chatbot does not read these settings until it is switched over."""
 
 import json
+from pathlib import Path
 from typing import Annotated, Any, Literal
 from urllib.parse import unquote
 
@@ -323,6 +324,49 @@ def services_from_content(clinic: str) -> dict[str, Any]:
     }
 
 
+class Quote(BaseModel):
+    name: str = Field(min_length=2, max_length=40)  # first name and last initial only, e.g. "Venkat A."
+    topic: str = Field(default="", max_length=30)  # e.g. transplant, gfc, international
+    text: str = Field(min_length=10, max_length=1500)  # word for word from the review
+    show: bool = True
+
+
+class Reviews(BaseModel):
+    """Clinic info → Reviews: Google rating, selected patient quotes, the links, well-known patients."""
+
+    rating: str = Field(default="", max_length=3, pattern=r"^([1-5](\.\d)?)?$")  # e.g. 4.8
+    count: str = Field(default="", max_length=12)  # e.g. 1,040
+    link: str = Field(
+        default="", max_length=600, pattern=r"^(https://\S+)?$"
+    )  # the Reviews tab on Google Maps
+    videos: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")  # patient videos page
+    quotes: list[Quote] = Field(default=[], max_length=30)
+    celebrities: str = Field(default="", max_length=600)  # "well-known patients" answer
+
+
+def reviews_from_content(clinic: str) -> dict[str, Any]:
+    """Today's Google rating, quotes and links, and the well-known patients fact, as the first draft."""
+    r = (content(clinic) or {}).get("reviews") or {}
+    facts = (kb_file(clinic) or {}).get("facts", [])
+    celeb = next((f.get("value", "") for f in facts if f.get("key") == "celebrity_clients"), "")
+    return {
+        "rating": str(r.get("rating", "")),
+        "count": str(r.get("count", "")),
+        "link": r.get("link", ""),
+        "videos": r.get("videos", ""),
+        "quotes": [
+            {"name": q["name"], "topic": q.get("topic", ""), "text": q["text"]} for q in r.get("items", [])
+        ],
+        "celebrities": celeb,
+    }
+
+
+def kb_file(clinic: str) -> dict[str, Any] | None:
+    """The clinic's knowledge-base file (app/clinics/<id>.kb.json), if it has one."""
+    path = Path(__file__).resolve().parents[2] / "clinics" / f"{clinic}.kb.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
 # The sections of the settings; each later screen (Menu buttons, ...) adds its own.
 SECTIONS: dict[str, type[BaseModel]] = {
     "appearance": Appearance,
@@ -330,6 +374,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "menu": Menu,
     "contact": Contact,
     "services": Services,
+    "reviews": Reviews,
 }
 
 
@@ -380,6 +425,8 @@ async def _load(clinic: str) -> Settings:
         draft_saved["contact"] = contact_from_clinic(info, clinic)
     if not draft_saved.get("services"):  # start from the chat's treatments today
         draft_saved["services"] = services_from_content(clinic)
+    if not draft_saved.get("reviews"):  # start from the Google reviews shown today
+        draft_saved["reviews"] = reviews_from_content(clinic)
     if not draft_saved.get("menu"):  # start from the chat's menu today
         draft_saved["menu"] = menu_from_content(clinic)
     if not draft_saved.get("appearance"):  # start from the clinic's bot name

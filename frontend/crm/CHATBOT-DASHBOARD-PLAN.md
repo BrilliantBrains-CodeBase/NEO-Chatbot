@@ -60,9 +60,9 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 
 ## Pending
 
-- **Menu buttons** (2026-10-26): the one-level screen is built, but the chat goes deeper (main button → sub-button
-  → more). To be rebuilt as **pages linked by buttons** (a tree of pages, any depth, breadcrumb, click-through
-  preview, unreachable pages flagged; all of CL01's 19 pages imported). Paused at the user's request.
+- **Menu buttons → Workflow canvas:** the one-level screen is replaced by an n8n-style canvas of ready-made blocks
+  (triggers, appointments with Form / Step by step, treatments, information, logic), working with taps and typed
+  text, saving into the CRM pipeline. Full plan: **WORKFLOW-CANVAS-PLAN.md** (build steps W1-W11).
 
 ## Not decided yet
 

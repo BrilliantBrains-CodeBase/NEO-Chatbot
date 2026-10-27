@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
+import ReviewsTab, { ReviewsPreview, type Reviews } from "./ReviewsTab";
 import ServicesTab, { ServiceCard, type Services } from "./ServicesTab";
 
 // Dashboard → Clinic info: Contact & hours, Services, Reviews and Lead questions, one draft with a preview.
@@ -26,6 +27,7 @@ type Settings = {
   draft: {
     contact: Contact;
     services: Services;
+    reviews: Reviews;
     appearance: {
       look: { name: string };
       colours: { main: string; whatsapp: string };
@@ -75,6 +77,8 @@ export default function ClinicInfoView() {
   const [perDay, setPerDay] = useState(false);
   const [services, setServices] = useState<Services | null>(null);
   const [svc, setSvc] = useState<number | null>(null); // the treatment open in the list (and the preview)
+  const [reviews, setReviews] = useState<Reviews | null>(null);
+  const [quote, setQuote] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -87,6 +91,7 @@ export default function ClinicInfoView() {
         setLoaded({ clinic: clinicId, s });
         setForm(s.draft.contact);
         setServices(s.draft.services);
+        setReviews(s.draft.reviews);
       },
       (e) =>
         live &&
@@ -107,7 +112,11 @@ export default function ClinicInfoView() {
     !!s &&
     !!services &&
     JSON.stringify(services) !== JSON.stringify(s.draft.services);
-  const dirty = contactDirty || servicesDirty;
+  const reviewsDirty =
+    !!s &&
+    !!reviews &&
+    JSON.stringify(reviews) !== JSON.stringify(s.draft.reviews);
+  const dirty = contactDirty || servicesDirty || reviewsDirty;
 
   useEffect(() => {
     if (!dirty) return;
@@ -133,6 +142,7 @@ export default function ClinicInfoView() {
       setLoaded({ clinic: clinicId, s: next });
       setForm(next.draft.contact);
       setServices(next.draft.services);
+      setReviews(next.draft.reviews);
       if (done) toast(done);
     } catch (e) {
       setError(
@@ -145,20 +155,24 @@ export default function ClinicInfoView() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !form || !services) return <p className="sub2">Loading…</p>;
+  if (!s || !form || !services || !reviews)
+    return <p className="sub2">Loading…</p>;
 
   async function save() {
-    // Each changed tab is its own section of the draft.
-    if (servicesDirty)
+    // Each changed tab is its own section of the draft; the last save shows "Draft saved".
+    const todo: [string, object][] = [];
+    if (reviewsDirty && reviews) todo.push(["settings/reviews", reviews]);
+    if (servicesDirty && services) todo.push(["settings/services", services]);
+    if (contactDirty && form) todo.push(["settings/contact", form]);
+    for (const [k, [path, body]] of todo.entries())
       await call(
-        "settings/services",
+        path,
         "PUT",
-        services,
-        contactDirty ? undefined : "Draft saved",
+        body,
+        k === todo.length - 1 ? "Draft saved" : undefined,
       );
-    if (contactDirty)
-      await call("settings/contact", "PUT", form, "Draft saved");
   }
+
   const set = (patch: Partial<Contact>) => setForm({ ...form, ...patch });
   const setDay = (i: number, patch: Partial<Day>) =>
     set({
@@ -209,7 +223,14 @@ export default function ClinicInfoView() {
               </button>
             ))}
           </div>
-          {tab === "services" ? (
+          {tab === "reviews" ? (
+            <ReviewsTab
+              value={reviews}
+              onChange={setReviews}
+              selected={quote}
+              onSelect={setQuote}
+            />
+          ) : tab === "services" ? (
             <ServicesTab
               value={services}
               onChange={setServices}
@@ -402,7 +423,22 @@ export default function ClinicInfoView() {
             </div>
           )}
         </div>
-        {tab === "services" ? (
+        {tab === "reviews" ? (
+          <div className="card" style={{ position: "sticky", top: 70 }}>
+            <h3>
+              Live preview <small>&quot;Show me reviews&quot;</small>
+            </h3>
+            <ReviewsPreview
+              r={reviews}
+              quote={
+                quote !== null
+                  ? reviews.quotes[quote]
+                  : reviews.quotes.find((q) => q.show)
+              }
+              main={s.draft.appearance.colours.main}
+            />
+          </div>
+        ) : tab === "services" ? (
           <div className="card" style={{ position: "sticky", top: 70 }}>
             <h3>
               Live preview <small>the treatment card</small>
