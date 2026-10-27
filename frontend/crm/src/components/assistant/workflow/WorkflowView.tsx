@@ -676,6 +676,17 @@ function Canvas() {
                   ]}
                   onChange={setBlock}
                   onButtons={setButtons}
+                  phrases={flow.phrases ?? []}
+                  onPhrases={(phrases) => setFlow({ ...flow, phrases })}
+                  onApprove={(ids) =>
+                    call(
+                      "flow/phrases/approve",
+                      "POST",
+                      { ids },
+                      "Phrases approved",
+                    )
+                  }
+                  dirty={dirty}
                 />
                 <div className="wf-save">
                   <button

@@ -57,6 +57,15 @@ export type Flow = {
   fields?: FieldDef[];
   globals?: Globals;
   checks?: FlowCheck[];
+  phrases?: Phrase[];
+};
+/** A typed phrase leading to a button ("block:button") or a Typed trigger ("block"); used once approved. */
+export type Phrase = {
+  id: string;
+  target: string;
+  text: string;
+  status: "pending" | "approved";
+  approved_by?: string | null;
 };
 /** A saved test chat: replayed before Publish; it must end on the same block (and finish its lead). */
 export type FlowCheck = {

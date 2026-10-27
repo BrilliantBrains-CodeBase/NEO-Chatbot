@@ -462,12 +462,24 @@ class FlowCheck(BaseModel):
     expect_lead: bool = False  # a booking / call back ... was finished
 
 
+class Phrase(BaseModel):
+    """A typed phrase that leads to a button ("block id:button id") or a Typed trigger ("block id"). The chat
+    uses it only once a clinic manager approved it (no self-training): saving a flow never approves one."""
+
+    id: str = Field(pattern=r"^p[a-z0-9]{1,20}$")
+    target: str = Field(max_length=100)
+    text: str = Field(min_length=2, max_length=100)
+    status: Literal["pending", "approved"] = "pending"
+    approved_by: str | None = None  # the approver's user id (set by the approve action only)
+
+
 class Flow(BaseModel):
     nodes: list[Node] = Field(default=[], max_length=MAX_NODES)
     edges: list[Edge] = Field(default=[], max_length=MAX_EDGES)
     fields: list["FieldDef"] = Field(default=[], max_length=50)  # the clinic's own fields
     globals: Globals = Globals()  # no reply, and triggers that work from anywhere
     checks: list[FlowCheck] = Field(default=[], max_length=30)  # publish checks (saved test chats)
+    phrases: list[Phrase] = Field(default=[], max_length=2000)  # typed phrases, approved by staff
 
 
 # Fields: values saved during a chat, used in messages as {name}. The built-in ones are filled by the chat
@@ -668,9 +680,40 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
             raise FlowError(f"Two lines start from the same exit of '{by_id[e.source].title or e.source}'.")
         seen.add((e.source, e.exit))
     clean = Flow(
-        nodes=clean_nodes, edges=flow.edges, fields=flow.fields, globals=flow.globals, checks=flow.checks
-    )
+        nodes=clean_nodes, edges=flow.edges, fields=flow.fields, globals=flow.globals, checks=flow.checks,
+        phrases=phrases_kept(clean_nodes, flow.phrases),
+    )  # fmt: skip
     return clean.model_dump(mode="json")
+
+
+def phrase_targets(nodes: list[Node]) -> dict[str, str]:
+    """Where a typed phrase can lead: each button (block id:button id) and each Typed trigger (block id),
+    with a name for staff."""
+    out: dict[str, str] = {}
+    for n in nodes:
+        if n.type == "typed":
+            out[n.id] = f"{n.title or n.id} (typed)"
+        for b in n.settings.get("buttons") or []:
+            out[f"{n.id}:{b['id']}"] = f"{n.title or n.id} → {b['label']}"
+    return out
+
+
+def phrases_kept(nodes: list[Node], phrases: list[Phrase]) -> list[Phrase]:
+    """Drops phrases whose button or trigger is gone; refuses one phrase leading to two places."""
+    targets: dict[str, str] = phrase_targets(nodes)
+    seen: dict[str, str] = {}
+    kept = []
+    for p in phrases:
+        if p.target not in targets:
+            continue
+        key = re.sub(r"[^a-z0-9]+", " ", p.text.lower()).strip()
+        if key in seen and seen[key] != p.target:
+            raise FlowError(f"The phrase '{p.text}' already leads to {targets[seen[key]]}.")
+        if key in seen:
+            continue  # the same phrase twice on one button
+        seen[key] = p.target
+        kept.append(p.model_copy(update={"text": p.text.strip()}))
+    return kept
 
 
 def check(raw: dict[str, Any]) -> list[Problem]:

@@ -483,6 +483,8 @@ async def save_draft(
         err = e.errors()[0]
         field = " → ".join(str(x) for x in err["loc"])
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{field}: {err['msg']}") from None
+    if section == "flow":
+        value["phrases"] = _phrase_status(value["phrases"], (await _load(clinic)).draft["flow"])
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who
@@ -493,6 +495,46 @@ async def save_draft(
                  set draft = app.clinic_settings.draft || jsonb_build_object($2::text, $3::jsonb),
                      updated_by = $4::uuid""",
             clinic, section, json.dumps(value), user.id,
+        )  # fmt: skip
+    return await _load(clinic)
+
+
+def _phrase_status(new: list[dict[str, Any]], old_flow: dict[str, Any]) -> list[dict[str, Any]]:
+    """Saving never approves a phrase: an unchanged phrase keeps its status; a new or edited one is pending
+    until a manager approves it (POST /flow/phrases/approve)."""
+    old = {p["id"]: p for p in old_flow.get("phrases") or []}
+    out = []
+    for p in new:
+        was = old.get(p["id"])
+        if was and was["text"] == p["text"] and was["target"] == p["target"]:
+            out.append(p | {"status": was["status"], "approved_by": was.get("approved_by")})
+        else:
+            out.append(p | {"status": "pending", "approved_by": None})
+    return out
+
+
+class Approve(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
+@router.post("/{clinic}/flow/phrases/approve", response_model=Settings)
+async def approve_phrases(user: Annotated[Staff, Depends(staff)], clinic: str, body: Approve) -> Settings:
+    """A clinic manager approves typed phrases: only then does the chat use them (no self-training)."""
+    await _manager(user, clinic)
+    flow = (await _load(clinic)).draft["flow"]
+    for p in flow["phrases"]:
+        if p["id"] in body.ids:
+            p.update(status="approved", approved_by=user.id)
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await conn.execute(
+            """insert into app.clinic_settings (clinic_id, draft, updated_by)
+               values ($1, jsonb_build_object('flow', $2::jsonb), $3::uuid)
+               on conflict (clinic_id) do update
+                 set draft = app.clinic_settings.draft || jsonb_build_object('flow', $2::jsonb),
+                     updated_by = $3::uuid""",
+            clinic, json.dumps(flow), user.id,
         )  # fmt: skip
     return await _load(clinic)
 

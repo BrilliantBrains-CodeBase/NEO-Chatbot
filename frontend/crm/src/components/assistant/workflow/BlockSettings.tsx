@@ -10,6 +10,7 @@ import {
   MENUS,
   type FlowButton,
   type FlowNode,
+  type Phrase,
 } from "./blocks";
 
 // The selected block's settings (right side of the canvas). Appointment blocks get their full field settings
@@ -113,6 +114,10 @@ export default function BlockSettings({
   block,
   onChange,
   onButtons,
+  phrases,
+  onPhrases,
+  onApprove,
+  dirty,
   services,
   fields,
   clinicId,
@@ -126,6 +131,10 @@ export default function BlockSettings({
   block: FlowNode;
   onChange: (patch: Partial<FlowNode>) => void;
   onButtons: (buttons: FlowButton[]) => void;
+  phrases: Phrase[]; // the whole flow's
+  onPhrases: (p: Phrase[]) => void;
+  onApprove: (ids: string[]) => void;
+  dirty: boolean;
 }) {
   const s = block.settings;
   const live = useLive(
@@ -932,7 +941,112 @@ export default function BlockSettings({
           prefix={block.type === "opening" ? "m" : "b"}
         />
       )}
+      <Phrases
+        block={block}
+        phrases={phrases}
+        onChange={onPhrases}
+        onApprove={onApprove}
+        dirty={dirty}
+      />
     </div>
+  );
+}
+
+/** Typed phrases for this block's buttons (or its Typed trigger). New ones are pending; the chat uses a
+ * phrase only after a manager approves it here (saved first), never by itself. */
+function Phrases({
+  block,
+  phrases,
+  onChange,
+  onApprove,
+  dirty,
+}: {
+  block: FlowNode;
+  phrases: Phrase[];
+  onChange: (p: Phrase[]) => void;
+  onApprove: (ids: string[]) => void;
+  dirty: boolean;
+}) {
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const targets: [string, string][] =
+    block.type === "typed"
+      ? [[block.id, "This trigger"]]
+      : buttonsOf(block)
+          .filter((b) => b.visible !== false)
+          .map((b) => [`${block.id}:${b.id}`, b.label]);
+  if (!targets.length) return null;
+  const pending = phrases.filter(
+    (p) => p.status === "pending" && targets.some(([t]) => t === p.target),
+  );
+  return (
+    <Row label="Typed phrases (used only once approved)">
+      {targets.map(([t, label]) => (
+        <div
+          key={t}
+          style={{ display: "flex", flexDirection: "column", gap: 3 }}
+        >
+          <span style={{ fontWeight: 600, fontSize: 12 }}>{label}</span>
+          {phrases
+            .filter((p) => p.target === t)
+            .map((p) => (
+              <div key={p.id} className="wf-btn" style={{ fontSize: 12 }}>
+                <span
+                  className={`badge ${p.status === "approved" ? "b-vi" : "b-fu"}`}
+                >
+                  {p.status === "approved" ? "Approved" : "Pending"}
+                </span>
+                <span style={{ flex: 1, fontWeight: 400 }}>{p.text}</span>
+                <button
+                  aria-label="Remove"
+                  onClick={() => onChange(phrases.filter((x) => x.id !== p.id))}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          <div className="wf-btn">
+            <input
+              maxLength={100}
+              placeholder="e.g. I want to book"
+              value={drafts[t] ?? ""}
+              onChange={(e) => setDrafts({ ...drafts, [t]: e.target.value })}
+            />
+            <button
+              className="pill"
+              disabled={(drafts[t] ?? "").trim().length < 2}
+              onClick={() => {
+                onChange([
+                  ...phrases,
+                  {
+                    id:
+                      "p" +
+                      Date.now().toString(36) +
+                      Math.random().toString(36).slice(2, 6),
+                    target: t,
+                    text: (drafts[t] ?? "").trim(),
+                    status: "pending",
+                  },
+                ]);
+                setDrafts({ ...drafts, [t]: "" });
+              }}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      ))}
+      {!!pending.length && (
+        <button
+          className="pill"
+          style={{ alignSelf: "flex-start" }}
+          disabled={dirty}
+          title={dirty ? "Save changes first" : ""}
+          onClick={() => onApprove(pending.map((p) => p.id))}
+        >
+          Approve {pending.length} pending
+        </button>
+      )}
+    </Row>
   );
 }
 

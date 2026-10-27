@@ -134,6 +134,47 @@ async def test_test_leads_go_to_cl99_and_are_deleted(
     assert await pool.fetchval("select count(*) from app.leads where lead_code = $1", saved["code"]) == 0
 
 
+def test_phrases_follow_their_buttons() -> None:
+    p1 = {"id": "p1", "target": "opening:m1", "text": "I want to book"}
+    gone = {"id": "p2", "target": "opening:m9", "text": "old button"}
+    twice = {"id": "p3", "target": "opening:m1", "text": "i want to BOOK!"}
+    saved = normalise({"nodes": [OPENING], "phrases": [p1, gone, twice]})
+    assert [p["id"] for p in saved["phrases"]] == ["p1"] and saved["phrases"][0]["status"] == "pending"
+    two = OPENING | {"settings": {"buttons": [{"id": "m1", "label": "Book"}, {"id": "m2", "label": "Call"}]}}
+    with pytest.raises(FlowError, match="already leads to"):
+        normalise({"nodes": [two], "phrases": [p1, twice | {"target": "opening:m2"}]})
+
+
+@needs_db
+async def test_only_the_approve_action_approves_phrases(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99"
+    sneaky = {"id": "p1", "target": "opening:m1", "text": "I want to book", "status": "approved"}
+    flow = {"nodes": [OPENING, BOOK], "edges": [{"source": "opening", "exit": "m1", "target": "book"}]}
+    await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
+    try:
+        r = await api.put(f"{url}/settings/flow", json=flow | {"phrases": [sneaky]}, headers=headers)
+        assert r.json()["draft"]["flow"]["phrases"][0]["status"] == "pending"  # a save never approves
+        r = await api.post(f"{url}/flow/phrases/approve", json={"ids": ["p1"]}, headers=headers)
+        approved = r.json()["draft"]["flow"]["phrases"][0]
+        assert approved["status"] == "approved" and approved["approved_by"] == str(admin)
+        r = await api.put(f"{url}/settings/flow", json=flow | {"phrases": [approved]}, headers=headers)
+        assert r.json()["draft"]["flow"]["phrases"][0]["status"] == "approved"  # unchanged: kept
+        edited = approved | {"text": "I want to book now"}
+        r = await api.put(f"{url}/settings/flow", json=flow | {"phrases": [edited]}, headers=headers)
+        assert r.json()["draft"]["flow"]["phrases"][0]["status"] == "pending"  # edited: approve again
+    finally:
+        await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
+
+
 def test_blocks_can_be_off_or_scheduled() -> None:
     line = {"source": "opening", "exit": "m1", "target": "book"}
     off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}
