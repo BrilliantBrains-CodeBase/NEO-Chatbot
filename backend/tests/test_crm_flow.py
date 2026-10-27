@@ -78,3 +78,15 @@ async def test_publish_is_blocked_by_a_loose_end(api: AsyncClient, monkeypatch: 
         assert bad.status_code == 422 and "Opening" in bad.json()["detail"]
     finally:
         await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
+
+
+def test_blocks_can_be_off_or_scheduled() -> None:
+    line = {"source": "opening", "exit": "m1", "target": "book"}
+    off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}
+    saved = normalise({"nodes": [OPENING, off], "edges": [line]})
+    assert saved["nodes"][1]["show_from"] == "2026-11-01"  # stored as text (JSON)
+    assert [(p.level, p.node) for p in check(saved)] == [("warning", "book")]
+    with pytest.raises(FlowError, match="ends before it starts"):
+        normalise({"nodes": [OPENING, BOOK | {"show_from": "2026-11-10", "show_until": "2026-11-01"}]})
+    with pytest.raises(FlowError, match="Opening block cannot be off"):
+        normalise({"nodes": [OPENING | {"enabled": False}]})

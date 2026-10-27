@@ -36,6 +36,11 @@ export type FlowNode = {
   x: number;
   y: number;
   settings: Record<string, unknown>;
+  /** OFF: hidden from patients with the buttons leading to it; schedule: shown only between days / in hours. */
+  enabled?: boolean;
+  show_from?: string | null;
+  show_until?: string | null;
+  clinic_hours_only?: boolean;
 };
 export type FlowEdge = { source: string; exit: string; target: string };
 export type Flow = { nodes: FlowNode[]; edges: FlowEdge[] };

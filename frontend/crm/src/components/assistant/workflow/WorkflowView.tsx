@@ -82,7 +82,7 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
   );
   return (
     <div
-      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}`}
+      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}${b.enabled === false ? " off" : ""}`}
       style={{ borderTopColor: kind?.color }}
     >
       {b.type !== "opening" && b.type !== "typed" && (
@@ -91,6 +91,11 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
       <div className="wf-kind" style={{ color: kind?.color }}>
         {kind?.label ?? b.type}
         {data.problems > 0 && <span className="wf-bad">{data.problems}</span>}
+        {b.enabled === false ? (
+          <span className="wf-state">OFF</span>
+        ) : b.show_from || b.show_until || b.clinic_hours_only ? (
+          <span className="wf-state sched">Scheduled</span>
+        ) : null}
       </div>
       <b className="wf-title">{b.title || b.id}</b>
       {text && (
@@ -161,6 +166,7 @@ export default function WorkflowView() {
 const noSubscription = () => () => {};
 const FIT = { padding: 0.04, maxZoom: 1 };
 const NONE: Service[] = [];
+const DASHED = { strokeDasharray: "5 5", opacity: 0.5 };
 
 function Canvas() {
   const { clinic, me, toast } = useCrm();
@@ -266,6 +272,11 @@ function Canvas() {
         source: e.source,
         sourceHandle: e.exit,
         target: e.target,
+        // a line into an OFF block is dashed: that button is hidden from patients
+        style:
+          flow?.nodes.find((n) => n.id === e.target)?.enabled === false
+            ? DASHED
+            : undefined,
       })),
     [flow],
   );

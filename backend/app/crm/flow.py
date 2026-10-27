@@ -12,6 +12,7 @@ left to right.
 See frontend/crm/WORKFLOW-CANVAS-PLAN.md."""
 
 from collections import deque
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
@@ -160,6 +161,12 @@ class Node(BaseModel):
     x: float = 0
     y: float = 0
     settings: dict[str, Any] = {}
+    # ON/OFF: an off block is hidden from patients, with the buttons that lead to it. A schedule shows it only
+    # between two days (both included) and/or only while the clinic is open.
+    enabled: bool = True
+    show_from: date | None = None
+    show_until: date | None = None
+    clinic_hours_only: bool = False
 
 
 class Edge(BaseModel):
@@ -227,6 +234,10 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         buttons = [b.id for b in getattr(s, "buttons", [])]
         if len(buttons) != len(set(buttons)):
             raise FlowError(f"Block '{n.title or n.id}' has two buttons with the same id.")
+        if n.show_from and n.show_until and n.show_from > n.show_until:
+            raise FlowError(f"Block '{n.title or n.id}': the schedule ends before it starts.")
+        if n.type == "opening" and not n.enabled:
+            raise FlowError("The Opening block cannot be off (turn the chatbot off in Appearance instead).")
         clean_nodes.append(n.model_copy(update={"settings": s.model_dump()}))
     seen: set[tuple[str, str]] = set()
     for e in flow.edges:
@@ -237,7 +248,7 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         if (e.source, e.exit) in seen:
             raise FlowError(f"Two lines start from the same exit of '{by_id[e.source].title or e.source}'.")
         seen.add((e.source, e.exit))
-    return Flow(nodes=clean_nodes, edges=flow.edges).model_dump()
+    return Flow(nodes=clean_nodes, edges=flow.edges).model_dump(mode="json")
 
 
 def check(raw: dict[str, Any]) -> list[Problem]:
@@ -248,6 +259,11 @@ def check(raw: dict[str, Any]) -> list[Problem]:
     out: list[Problem] = []
     linked = {(e.source, e.exit) for e in flow.edges}
     for n in flow.nodes:
+        if not n.enabled:
+            out.append(
+                Problem(level="warning", node=n.id, message="Off: hidden from patients, with its buttons.")
+            )
+            continue
         for b in getattr(settings_of(n), "buttons", []):
             if b.visible and not b.action and (n.id, b.id) not in linked:
                 out.append(Problem(level="error", node=n.id, message=f"Button '{b.label}' leads nowhere."))
@@ -501,7 +517,7 @@ def _layout(nodes: dict[str, dict[str, Any]], edges: list[dict[str, str]]) -> No
             todo.extend((t, col + 1) for t in nxt.get(nid, []) if t not in placed)
         lanes.append((blocks, max(bottom) + 1, max(bottom.values())))
     # Pack the lanes into k side-by-side columns; choose k whose overall shape is closest to 16:9.
-    best: list[list[int]] = [list(range(len(lanes)))]
+    best: list[list[int]] = [list(range(len(lanes)))] if lanes else []
     if lanes:
         total = sum(h for _, _, h in lanes)
         best_score = float("inf")

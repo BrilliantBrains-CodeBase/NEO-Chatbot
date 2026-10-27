@@ -74,6 +74,66 @@ export default function BlockSettings({
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </Row>
+      {block.type !== "opening" && (
+        <Row label="Shown to patients">
+          <div className="wf-seg">
+            <button
+              className={block.enabled !== false ? "on" : ""}
+              onClick={() => onChange({ enabled: true })}
+            >
+              ON
+            </button>
+            <button
+              className={block.enabled === false ? "on" : ""}
+              onClick={() => onChange({ enabled: false })}
+            >
+              OFF
+            </button>
+          </div>
+          {block.enabled !== false && (
+            <>
+              <span style={{ fontWeight: 400 }}>
+                Schedule (optional): show only
+              </span>
+              <div className="wf-btn">
+                <span style={{ fontWeight: 400 }}>from</span>
+                <input
+                  type="date"
+                  value={block.show_from ?? ""}
+                  onChange={(e) =>
+                    onChange({ show_from: e.target.value || null })
+                  }
+                />
+                <span style={{ fontWeight: 400 }}>to</span>
+                <input
+                  type="date"
+                  value={block.show_until ?? ""}
+                  onChange={(e) =>
+                    onChange({ show_until: e.target.value || null })
+                  }
+                />
+              </div>
+              <label
+                style={{
+                  fontWeight: 400,
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!block.clinic_hours_only}
+                  onChange={(e) =>
+                    onChange({ clinic_hours_only: e.target.checked })
+                  }
+                />
+                only while the clinic is open
+              </label>
+            </>
+          )}
+        </Row>
+      )}
 
       {block.type === "opening" && text("welcome", "Welcome message", 3, 500)}
       {MENUS.has(block.type) &&
