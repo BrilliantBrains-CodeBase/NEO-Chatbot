@@ -16,7 +16,7 @@ from collections import deque
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 ID = r"^[a-z0-9][a-z0-9_-]{0,47}$"
 MAX_NODES, MAX_EDGES, MAX_BUTTONS = 200, 600, 12
@@ -80,10 +80,45 @@ class AnswerSettings(BaseModel):
 FIELDS = Literal["name", "phone", "email", "treatment", "doctor", "date", "time", "booked_date", "reason"]
 
 
+# Today's wording of each question (app/chat/flows.py); a block can change any of them.
+DEFAULT_QUESTIONS = {
+    "name": "May I know your full name?",
+    "phone": "Thanks, {name}. What is your contact number?",
+    "email": "What is your email address?",
+    "treatment": "Which treatment are you looking for?",
+    "doctor": "Which doctor would you like to see?",
+    "date": "Which date works for you?",
+    "time": "What time would you prefer?",
+    "booked_date": "Which date is your appointment booked for?",
+    "reason": "What would you like us to call you about?",
+}
+
+
 class LeadSettings(BaseModel):
-    """Booking, online consult, cancel, reschedule, call back: as a form or one question at a time."""
+    """Booking, online consult, cancel, reschedule, call back: as a form or one question at a time.
+    Each answer is checked by its kind (Indian mobile, email, a bookable day, a free slot); a wrong answer is
+    asked again up to `retries` times, then the patient is offered a call back."""
 
     mode: Literal["steps", "form"] = "steps"
+    questions: dict[str, str] = {}  # field -> wording; a field left out uses DEFAULT_QUESTIONS
+    retries: int = Field(default=2, ge=0, le=3)
+    consent: bool = True  # ask for consent before the lead is saved
+    consent_text: str = Field(
+        default="By continuing, you agree to be contacted by phone, WhatsApp or email.", max_length=300
+    )
+    # Which doctor: "" asks the patient (when the doctor question is on) or takes any free doctor; or a name.
+    doctor: str = Field(default="", max_length=80)
+
+    @field_validator("questions")
+    @classmethod
+    def _questions(cls, v: dict[str, str]) -> dict[str, str]:
+        for key, text in v.items():
+            if key not in DEFAULT_QUESTIONS or not 2 <= len(text.strip()) <= 200:
+                raise ValueError(
+                    f"Question '{key}' needs 2 to 200 characters and must be one of the questions."
+                )
+        return {k: t.strip() for k, t in v.items()}
+
     fields: list[FIELDS] = Field(default=["name", "phone"], max_length=9)
     treatment: str = Field(default="", max_length=80)  # filled in (e.g. "Book for Beard Transplant")
     topic: str = Field(default="", max_length=120)  # call back: what it is about

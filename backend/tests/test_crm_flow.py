@@ -92,6 +92,16 @@ def test_blocks_can_be_off_or_scheduled() -> None:
         normalise({"nodes": [OPENING | {"enabled": False}]})
 
 
+def test_appointment_block_settings() -> None:
+    settings = {"fields": ["name", "phone"], "questions": {"name": "Your full name, please?"}, "retries": 1}
+    saved = normalise({"nodes": [OPENING, BOOK | {"settings": settings}]})["nodes"][1]["settings"]
+    assert saved["questions"] == {"name": "Your full name, please?"} and saved["consent"] is True
+    with pytest.raises(FlowError, match="Question 'age'"):
+        normalise({"nodes": [OPENING, BOOK | {"settings": {"questions": {"age": "How old?"}}}]})
+    with pytest.raises(FlowError):
+        normalise({"nodes": [OPENING, BOOK | {"settings": {"retries": 9}}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

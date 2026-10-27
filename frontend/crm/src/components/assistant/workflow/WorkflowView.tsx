@@ -584,6 +584,7 @@ function Canvas() {
                 <BlockSettings
                   key={block.id}
                   block={block}
+                  clinicId={clinicId}
                   services={services}
                   fields={[
                     ...BUILT_IN_FIELDS,

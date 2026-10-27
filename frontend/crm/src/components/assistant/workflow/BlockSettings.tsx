@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { api } from "@/lib/api";
 import type { Service } from "./WorkflowView";
 import {
   BUTTON_ACTIONS,
@@ -26,6 +27,74 @@ const FIELDS: [string, string][] = [
   ["reason", "Reason"],
 ];
 const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
+// The chat's usual wording (backend: DEFAULT_QUESTIONS in app/crm/flow.py), shown when a block keeps it.
+const DEFAULT_QUESTIONS: Record<string, string> = {
+  name: "May I know your full name?",
+  phone: "Thanks, {name}. What is your contact number?",
+  email: "What is your email address?",
+  treatment: "Which treatment are you looking for?",
+  doctor: "Which doctor would you like to see?",
+  date: "Which date works for you?",
+  time: "What time would you prefer?",
+  booked_date: "Which date is your appointment booked for?",
+  reason: "What would you like us to call you about?",
+};
+
+type Live = {
+  doctors: { id: string; name: string }[];
+  days: Record<string, string[]>;
+};
+
+/** Live doctors and free slots from the CRM (doctors' hours, leave and appointments), next 7 days. */
+function useLive(
+  clinicId: string | undefined,
+  mode: string,
+  on: boolean,
+): Live {
+  const [live, setLive] = useState<{ key: string; v: Live }>({
+    key: "",
+    v: { doctors: [], days: {} },
+  });
+  const key = `${clinicId}|${mode}`;
+  useEffect(() => {
+    if (!on || !clinicId) return;
+    let alive = true;
+    api<Live>(`/v1/crm/slots?clinic=${clinicId}&mode=${mode}&days=7`).then(
+      (v) => alive && setLive({ key, v }),
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, [clinicId, mode, on, key]);
+  return live.key === key ? live.v : { doctors: [], days: {} };
+}
+
+function LiveSlots({ live }: { live: Live }) {
+  const days = Object.keys(live.days).sort().slice(0, 4);
+  return (
+    <Row label="Free slots now (live from the CRM)">
+      {days.length === 0 ? (
+        <span style={{ fontWeight: 400 }}>
+          No free slots in the next 7 days.
+        </span>
+      ) : (
+        days.map((d) => (
+          <span key={d} style={{ fontWeight: 400 }}>
+            <b>
+              {new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              })}
+            </b>
+            : {live.days[d].length} free, from {live.days[d][0]}
+          </span>
+        ))
+      )}
+    </Row>
+  );
+}
 
 export default function BlockSettings({
   block,
@@ -33,7 +102,9 @@ export default function BlockSettings({
   onButtons,
   services,
   fields,
+  clinicId,
 }: {
+  clinicId: string | undefined;
   services: Service[];
   fields: string[]; // built-in and the clinic's own
   block: FlowNode;
@@ -41,6 +112,11 @@ export default function BlockSettings({
   onButtons: (buttons: FlowButton[]) => void;
 }) {
   const s = block.settings;
+  const live = useLive(
+    clinicId,
+    block.type === "online" ? "online" : "in_clinic",
+    LEAD.has(block.type),
+  );
   const set = (patch: Record<string, unknown>) =>
     onChange({ settings: { ...s, ...patch } });
   const kind = KINDS[block.type];
@@ -335,6 +411,87 @@ export default function BlockSettings({
             text("treatment", "Treatment filled in (optional)", 1, 80)}
           {block.type === "callback" &&
             text("topic", "What the call back is about (optional)", 1, 120)}
+          <Row label="Wording of each question (empty: the usual wording)">
+            {((s.fields as string[]) ?? []).map((f) => {
+              const questions = (s.questions as Record<string, string>) ?? {};
+              return (
+                <input
+                  key={f}
+                  maxLength={200}
+                  placeholder={DEFAULT_QUESTIONS[f] ?? f}
+                  value={questions[f] ?? ""}
+                  onChange={(e) => {
+                    const next = { ...questions, [f]: e.target.value };
+                    if (!e.target.value.trim()) delete next[f];
+                    set({ questions: next });
+                  }}
+                />
+              );
+            })}
+            <span style={{ fontWeight: 400 }}>
+              Answers are checked (Indian mobile, email, a bookable day, a free
+              slot).
+            </span>
+          </Row>
+          <Row label="Wrong answer: ask again">
+            <select
+              value={Number(s.retries ?? 2)}
+              onChange={(e) => set({ retries: Number(e.target.value) })}
+            >
+              {[0, 1, 2, 3].map((n) => (
+                <option key={n} value={n}>
+                  {n === 0
+                    ? "No, offer a call back"
+                    : `Up to ${n} time${n > 1 ? "s" : ""}, then offer a call back`}
+                </option>
+              ))}
+            </select>
+          </Row>
+          {((s.fields as string[]) ?? []).includes("doctor") ||
+          block.type === "book" ||
+          block.type === "online" ? (
+            <Row label="Doctor">
+              <select
+                value={String(s.doctor ?? "")}
+                onChange={(e) => set({ doctor: e.target.value })}
+              >
+                <option value="">Ask the patient, or any free doctor</option>
+                {live.doctors.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    Always {d.name}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          ) : null}
+          {(block.type === "book" ||
+            block.type === "online" ||
+            block.type === "reschedule") && <LiveSlots live={live} />}
+          <Row label="Consent before saving the lead">
+            <label
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "center",
+                fontWeight: 400,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={s.consent !== false}
+                onChange={(e) => set({ consent: e.target.checked })}
+              />
+              Ask for consent
+            </label>
+            {s.consent !== false && (
+              <textarea
+                rows={2}
+                maxLength={300}
+                value={String(s.consent_text ?? "")}
+                onChange={(e) => set({ consent_text: e.target.value })}
+              />
+            )}
+          </Row>
           {text("final_message", "Final message (optional)", 2, 500)}
         </>
       )}
