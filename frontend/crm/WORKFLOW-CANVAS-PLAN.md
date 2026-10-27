@@ -154,7 +154,7 @@ consults (exists), reminders 24 h and 1 h before.
 | **W2** | Canvas: library, drag, connect, zoom, mini-map, auto-arrange; settings panel for Choice, Answer, WhatsApp, Call, Emergency |
 | **W3** | Treatment blocks (categories → list → card → cost), reading from Services |
 | **W4** | Appointment blocks with Form / Step by step and field settings, Consent, Choose a doctor, Slot picker; saving into Leads, Inbox, Appointments |
-| **W5** | Information blocks (Doctors, Location, Reviews, Knowledge base, FAQ list), Report request, Check my appointment, Clinic open / closed, Go to |
+| **W5** | Information blocks (Doctors, Location, Reviews, Knowledge base, FAQ list), Check my appointment (OTP optional, sent on WhatsApp through Interakt), Clinic open / closed, Go to. Report request: paused (2026-10-27) |
 | **W6** | Test chat (tap and type, active block and matched phrase shown); publish checks with the test sets |
 | **W7** | Typed phrases per button and trigger, with staff approval |
 | **W8** | Templates (Hair, Fertility, Skin) and block groups |

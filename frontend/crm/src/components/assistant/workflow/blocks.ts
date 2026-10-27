@@ -161,6 +161,17 @@ export const KINDS: Record<string, Kind> = {
     hint: "Name, phone and what it is about",
     start: { mode: "steps", fields: ["name", "phone", "reason"] },
   },
+  check_appointment: {
+    label: "Check my appointment",
+    group: "Appointments",
+    color: "#0E9F6E",
+    hint: "Shows upcoming appointments by phone (OTP optional)",
+    start: {
+      message: "Please share the phone number you booked with.",
+      otp: false,
+      otp_retries: 2,
+    },
+  },
   treatment_categories: {
     label: "Treatment categories",
     group: "Treatments",
@@ -261,6 +272,20 @@ export const KINDS: Record<string, Kind> = {
       retries: 2,
     },
   },
+  clinic_open: {
+    label: "Clinic open / closed",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "One way while open, another while closed",
+    start: { hours: "in_clinic" },
+  },
+  goto: {
+    label: "Go to",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "Jumps to another block (no long line)",
+    start: { target: "" },
+  },
   set_field: {
     label: "Set field",
     group: "Logic",
@@ -326,6 +351,14 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
   const out = buttonsOf(n)
     .filter((b) => !b.action)
     .map((b) => ({ id: b.id, label: b.label }));
+  if (n.type === "check_appointment")
+    out.push(
+      { id: "found", label: "found" },
+      { id: "not_found", label: "not found" },
+      ...(n.settings.otp ? [{ id: "code_failed", label: "code failed" }] : []),
+    );
+  if (n.type === "clinic_open")
+    out.push({ id: "open", label: "open" }, { id: "closed", label: "closed" });
   if (n.type === "knowledge")
     out.push(
       { id: "answered", label: "answered" },

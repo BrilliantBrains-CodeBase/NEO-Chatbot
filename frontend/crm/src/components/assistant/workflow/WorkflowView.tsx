@@ -143,6 +143,11 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
             <i className="wf-tag">answer</i>
           </div>
         ))}
+      {b.type === "goto" && (
+        <p className="wf-text">
+          → {String(b.settings.target || "choose a block")}
+        </p>
+      )}
       {(b.type === "location" || b.type === "reviews") && (
         <p className="wf-text">
           Live from Clinic info →{" "}
@@ -608,6 +613,7 @@ function Canvas() {
                   block={block}
                   clinicId={clinicId}
                   services={services}
+                  blocks={flow.nodes}
                   fields={[
                     ...BUILT_IN_FIELDS,
                     ...(flow.fields ?? []).map((f) => f.key),

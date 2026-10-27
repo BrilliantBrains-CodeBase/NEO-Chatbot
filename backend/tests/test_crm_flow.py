@@ -142,6 +142,27 @@ def test_information_blocks() -> None:
         normalise({"nodes": [OPENING, {"id": t, "type": t, "settings": {}}]})
 
 
+def test_check_open_and_goto_blocks() -> None:
+    blocks = [
+        {"id": "rep", "type": "callback", "settings": {}},
+        {"id": "chk", "type": "check_appointment", "settings": {}},
+        {"id": "open", "type": "clinic_open", "settings": {}},
+        {"id": "go", "type": "goto", "settings": {"target": "chk"}},
+    ]
+    exits = [("opening", "m1", "open"), ("open", "open", "rep"), ("open", "closed", "go")]
+    lines = [{"source": s, "exit": e, "target": t} for s, e, t in exits]
+    lines += [{"source": "chk", "exit": e, "target": "rep"} for e in ("found", "not_found")]
+    saved = normalise({"nodes": [OPENING, *blocks], "edges": lines})
+    assert check(saved) == []  # the Go to reaches 'chk' with no line
+    otp = {"id": "chk", "type": "check_appointment", "settings": {"otp": True}}
+    failed = [{"source": "chk", "exit": "code_failed", "target": "opening"}]
+    assert normalise({"nodes": [OPENING, otp], "edges": failed})["edges"] == failed  # OTP adds code_failed
+    with pytest.raises(FlowError, match="does not exist"):
+        normalise({"nodes": [OPENING, {"id": "go", "type": "goto", "settings": {"target": "nope"}}]})
+    with pytest.raises(FlowError, match="itself"):
+        normalise({"nodes": [OPENING, {"id": "go", "type": "goto", "settings": {"target": "go"}}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

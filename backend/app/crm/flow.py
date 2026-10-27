@@ -217,6 +217,28 @@ class KnowledgeSettings(BaseModel):
     topics: list[str] = Field(default=[], max_length=20)  # limit to these topics (empty: all)
 
 
+class CheckAppointmentSettings(BaseModel):
+    """The patient gives their phone number; their upcoming appointments (CRM → Appointments) are shown,
+    matched by phone. Optional OTP: a code is sent on WhatsApp (Interakt) and must be typed back first.
+    Exits: found, not_found, and code_failed when the OTP is on (wrong code after the retries)."""
+
+    message: str = Field(default="Please share the phone number you booked with.", max_length=300)
+    otp: bool = False
+    otp_retries: int = Field(default=2, ge=0, le=3)
+
+
+class ClinicOpenSettings(BaseModel):
+    """Goes one way while the clinic is open and another while it is closed (Contact & hours)."""
+
+    hours: Literal["in_clinic", "online"] = "in_clinic"
+
+
+class GotoSettings(BaseModel):
+    """Jumps to another block (e.g. back to the main menu), so long lines across the canvas are not needed."""
+
+    target: str = Field(pattern=ID)
+
+
 TYPES: dict[str, type[BaseModel]] = {
     "opening": OpeningSettings,
     "typed": TriggerSettings,
@@ -241,6 +263,9 @@ TYPES: dict[str, type[BaseModel]] = {
     "reviews": ReviewsSettings,
     "faq": FaqSettings,
     "knowledge": KnowledgeSettings,
+    "check_appointment": CheckAppointmentSettings,
+    "clinic_open": ClinicOpenSettings,
+    "goto": GotoSettings,
 }
 LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback"}
 MENUS = {"opening", "choice", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list"}
@@ -252,7 +277,7 @@ class Node(BaseModel):
         "opening", "typed", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list",
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
-        "location", "reviews", "faq", "knowledge",
+        "location", "reviews", "faq", "knowledge", "check_appointment", "clinic_open", "goto",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -375,6 +400,10 @@ def exits(node: Node) -> list[str]:
         out.append("next")
     if node.type == "knowledge":
         out += ["answered", "not_found"]
+    if isinstance(s, CheckAppointmentSettings):
+        out += ["found", "not_found"] + (["code_failed"] if s.otp else [])
+    if node.type == "clinic_open":
+        out += ["open", "closed"]
     if node.type in LEAD_TYPES:
         out.append("done")
     if isinstance(s, DoctorSettings) and s.book_label:
@@ -405,6 +434,10 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     for n in flow.nodes:
         if n.type in ("set_field", "question") and n.settings.get("field") not in known:
             raise FlowError(f"Block '{n.title or n.id}' saves into a field that does not exist.")
+        if n.type == "goto" and n.settings.get("target") not in ids + [None]:
+            raise FlowError(f"Block '{n.title or n.id}' goes to a block that does not exist.")
+        if n.type == "goto" and n.settings.get("target") == n.id:
+            raise FlowError(f"Block '{n.title or n.id}' cannot go to itself.")
         if n.type == "question" and n.settings.get("kind") in ("choice", "picture_choice"):
             if len(n.settings.get("options") or []) < 2:
                 raise FlowError(f"Block '{n.title or n.id}' needs at least 2 options.")
@@ -460,6 +493,9 @@ def check(raw: dict[str, Any]) -> list[Problem]:
     nxt: dict[str, list[str]] = {}
     for e in flow.edges:
         nxt.setdefault(e.source, []).append(e.target)
+    for n in flow.nodes:
+        if n.type == "goto" and n.settings.get("target"):
+            nxt.setdefault(n.id, []).append(str(n.settings["target"]))
     starts = [n.id for n in flow.nodes if n.type in ("opening", "typed")]  # the triggers
     reached, todo = set(starts), deque(starts)
     while todo:

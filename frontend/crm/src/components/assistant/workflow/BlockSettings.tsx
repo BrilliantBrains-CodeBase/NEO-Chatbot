@@ -116,9 +116,12 @@ export default function BlockSettings({
   services,
   fields,
   clinicId,
+  blocks,
 }: {
   clinicId: string | undefined;
   services: Service[];
+  blocks: FlowNode[]; // for Go to
+
   fields: string[]; // built-in and the clinic's own
   block: FlowNode;
   onChange: (patch: Partial<FlowNode>) => void;
@@ -380,6 +383,62 @@ export default function BlockSettings({
           AI writing, no self-learning). Draw &quot;not found&quot; to a call
           back or a menu.
         </span>
+      )}
+      {block.type === "check_appointment" &&
+        text("message", "Message asking for the phone number", 2, 300)}
+      {block.type === "check_appointment" && (
+        <Row label="Shows upcoming appointments from CRM → Appointments, matched by phone">
+          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={!!s.otp}
+              onChange={(e) => set({ otp: e.target.checked })}
+            />
+            Ask for an OTP first (sent on WhatsApp through Interakt)
+          </label>
+          {!!s.otp && (
+            <select
+              value={Number(s.otp_retries ?? 2)}
+              onChange={(e) => set({ otp_retries: Number(e.target.value) })}
+            >
+              {[0, 1, 2, 3].map((n) => (
+                <option key={n} value={n}>
+                  {n === 0
+                    ? "Wrong code: go to code failed"
+                    : `Wrong code: ask again up to ${n} time${n > 1 ? "s" : ""}`}
+                </option>
+              ))}
+            </select>
+          )}
+        </Row>
+      )}
+      {block.type === "clinic_open" && (
+        <Row label="Hours to check (Clinic info → Contact & hours)">
+          <select
+            value={String(s.hours ?? "in_clinic")}
+            onChange={(e) => set({ hours: e.target.value })}
+          >
+            <option value="in_clinic">Clinic hours</option>
+            <option value="online">Online consult hours</option>
+          </select>
+        </Row>
+      )}
+      {block.type === "goto" && (
+        <Row label="Go to block">
+          <select
+            value={String(s.target ?? "")}
+            onChange={(e) => set({ target: e.target.value })}
+          >
+            <option value="">Choose…</option>
+            {blocks
+              .filter((b) => b.id !== block.id && b.type !== "goto")
+              .map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title || b.id}
+                </option>
+              ))}
+          </select>
+        </Row>
       )}
       {block.type === "question" && (
         <>
