@@ -271,3 +271,53 @@ def test_booking_offers_and_checks_live_free_slots() -> None:
     )
     online(tap="m1")
     assert online.labels() == []  # no free online time in the window: nothing to tap
+
+
+def test_approved_phrases_lead_to_their_buttons() -> None:
+    menu = {
+        "id": "menu",
+        "type": "choice",
+        "settings": {"message": "Pick", "buttons": [{"id": "b1", "label": "Cost"}]},
+    }
+    cost = {"id": "cost", "type": "answer", "settings": {"text": "From ₹60 a graft."}}
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}
+    timing = {"id": "t", "type": "typed", "settings": {"topic": "timing"}}
+    hours = {"id": "hours", "type": "answer", "settings": {"text": "10 to 7."}}
+    edges = [
+        line("opening", "m1", "book"),
+        line("opening", "m2", "menu"),
+        line("menu", "b1", "cost"),
+        line("t", "next", "hours"),
+    ]
+    phrases = [
+        {"id": "p1", "target": "opening:m1", "text": "I want to book", "status": "approved"},
+        {"id": "p2", "target": "menu:b1", "text": "how much does it cost", "status": "approved"},
+        {"id": "p3", "target": "t", "text": "when are you open", "status": "approved"},
+        {"id": "p4", "target": "opening:m1", "text": "appointment chahiye", "status": "pending"},
+    ]
+    flow = {
+        "nodes": [opening(("m1", "Book"), ("m2", "More")), menu, cost, book, timing, hours],
+        "edges": edges,
+        "phrases": phrases,
+    }
+
+    def fresh(**more: Any) -> Chat:
+        chat = Chat(flow, ctx(**more))
+        # approval is the API's job (a save sets pending); here the phrases are set as approved directly
+        chat.flow["phrases"] = phrases
+        return chat
+
+    chat = fresh()
+    assert chat("i want to bok") == ["May I know your full name?"]  # an approved phrase, with a typo
+    assert chat.r["matched"] == {"how": "typo", "text": "I want to book"}
+    chat = fresh()
+    assert chat("hi, how much does it cost for me") == ["From ₹60 a graft."]  # another screen's button
+    assert chat.r["matched"]["how"] == "phrase in message"
+    chat = fresh()
+    assert chat("when are you open") == ["10 to 7."]  # a Typed trigger
+    chat = fresh()
+    assert chat("appointment chahiye")[0].startswith("Sorry")  # pending: never used
+    near = {"target": "opening:m1", "text": "I want to book", "score": 88.0}
+    chat = fresh(meaning=lambda t: near)
+    assert chat("can i come in next week") == ["May I know your full name?"]  # by meaning
+    assert chat.r["matched"] == {"how": "meaning", "text": "I want to book", "score": 88.0}

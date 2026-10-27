@@ -547,3 +547,5 @@
 .crm .wf-test-fields dd { margin:0;word-break:break-word }
 .crm .wf-test-msg.note p { background:var(--okt);border-color:var(--okt);color:var(--ok);font-size:12px }
 .crm .wf-test-head { flex-wrap:wrap }
+.crm .wf-state.typed { background:var(--accent) }
+.crm .wf-state.typed + .wf-state { margin-left:4px }

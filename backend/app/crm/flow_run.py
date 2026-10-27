@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from rapidfuzz.distance import Levenshtein
+
 from app.chat.engine import NO_ANSWER
 from app.chat.flows import EMAIL, normal_phone, valid_name
 from app.chat.understand import (
@@ -49,6 +51,8 @@ class Context:
     # Free HH:MM slots per day (YYYY-MM-DD) for the booking open now: doctors' hours, leave, holidays and
     # appointments (in-clinic and online share one diary). None: not checked (e.g. no database).
     slots: dict[str, dict[str, list[str]]] | None = None  # by mode: in_clinic, online
+    # The approved phrase closest in meaning ({"target", "text", "score"}), when no words matched.
+    meaning: Callable[[str], dict[str, Any] | None] = lambda text: None
 
 
 class Run:
@@ -63,6 +67,7 @@ class Run:
         self.ask: dict[str, Any] | None = st.get("ask")
         self.out: list[dict[str, Any]] = []
         self.lead: dict[str, Any] | None = None  # a finished booking / call back ... (saved by the caller)
+        self.matched: dict[str, Any] | None = None  # what typed text matched (shown in the test chat)
 
     # ---------- the result ----------
     def reply(self) -> dict[str, Any]:
@@ -70,6 +75,7 @@ class Run:
             "messages": self.out,
             "at": self.at,
             "lead": self.lead,
+            "matched": self.matched,
             "state": {"at": self.at, "fields": self.fields, "ask": self.ask},
         }
 
@@ -347,8 +353,12 @@ class Run:
             return self.reply()
         options = self.buttons(node)
         hit = match_option(text, options)
+        phrase = None if hit else self.phrase(text)
         if hit:
+            self.matched = {"how": "button", "text": hit["label"]}
             self.act(node, hit)
+        elif phrase:
+            self.go_to_phrase(phrase)
         elif not self.follow("no_match"):
             topic = next(
                 (
@@ -367,6 +377,54 @@ class Run:
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
                 self.render(node)
         return self.reply()
+
+    # ---------- approved typed phrases ----------
+    def phrase(self, text: str) -> dict[str, Any] | None:
+        """The approved phrase the patient meant: the same words, a small typo (about 1 in 6 letters), or the
+        phrase inside a longer message (2+ words); else the closest by meaning (from the caller). Phrases on
+        the screen the patient is on come first. Pending phrases are never used."""
+        t = norm(text)
+        here = (self.at or "") + ":"
+        ranked = []
+        for p in self.flow.phrases:
+            if p.status != "approved" or not self.reachable(p.target):
+                continue
+            w = norm(p.text)
+            if w == t:
+                rank = 0
+            elif Levenshtein.distance(w, t) <= max(1, len(t) // 6):
+                rank = 1
+            elif " " in w and f" {w} " in f" {t} ":  # the whole phrase, as whole words
+                rank = 2
+            else:
+                continue
+            ranked.append((rank, not p.target.startswith(here), -len(w), p))
+        if ranked:
+            rank, _, _, p = min(ranked, key=lambda r: r[:3])
+            return {"target": p.target, "text": p.text, "how": ("phrase", "typo", "phrase in message")[rank]}
+        near = self.ctx.meaning(text)
+        if near and self.reachable(near["target"]):
+            return near | {"how": "meaning"}
+        return None
+
+    def reachable(self, target: str) -> bool:
+        node_id, _, button = target.partition(":")
+        node = self.nodes.get(node_id)
+        if not self.shown(node) or node is None:
+            return False
+        return not button or any(b["id"] == button for b in self.buttons(node))
+
+    def go_to_phrase(self, p: dict[str, Any]) -> None:
+        """As if the patient tapped that button (on its own screen), or reached that Typed trigger."""
+        self.matched = {"how": p["how"], "text": p["text"]} | ({"score": p["score"]} if "score" in p else {})
+        node_id, _, button = p["target"].partition(":")
+        if not button:
+            self.enter(node_id)
+            return
+        node = self.nodes[node_id]
+        b = next(x for x in self.buttons(node) if x["id"] == button)
+        self.at = node_id
+        self.act(node, b)
 
     # ---------- answers to questions ----------
     def answer(self, node: Node, text: str) -> None:

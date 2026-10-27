@@ -74,6 +74,7 @@ type BlockData = {
   problems: number;
   services: Service[];
   live: boolean; // the test chat is on this block
+  typed: number; // approved typed phrases leading to its buttons (or to it, a Typed trigger)
 };
 
 function Block({ data, selected }: NodeProps<Node<BlockData>>) {
@@ -102,6 +103,11 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
       <div className="wf-kind" style={{ color: kind?.color }}>
         {kind?.label ?? b.type}
         {data.problems > 0 && <span className="wf-bad">{data.problems}</span>}
+        {data.typed > 0 && (
+          <span className="wf-state typed" title="Approved typed phrases">
+            Typed: {data.typed}
+          </span>
+        )}
         {b.enabled === false ? (
           <span className="wf-state">OFF</span>
         ) : b.show_from || b.show_until || b.clinic_hours_only ? (
@@ -328,6 +334,11 @@ function Canvas() {
               ? services
               : NONE,
           live: n.id === liveAt,
+          typed: (flow?.phrases ?? []).filter(
+            (p) =>
+              p.status === "approved" &&
+              (p.target === n.id || p.target.startsWith(n.id + ":")),
+          ).length,
         },
         selected: n.id === selected,
         deletable: n.type !== "opening",

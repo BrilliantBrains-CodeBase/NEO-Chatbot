@@ -11,7 +11,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.chat import kb, slots
+from app.chat import embed, kb, slots
 from app.chat.content import content
 from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
@@ -686,6 +686,9 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
     if waiting == "check" and body.text:
         booked = await _upcoming(clinic, body.text)
         ctx.appointments = lambda phone: booked
+    if body.text and not waiting:
+        near = await _nearest_phrase(draft["flow"], body.text)
+        ctx.meaning = lambda t: near
     at = next((n for n in draft["flow"]["nodes"] if n["id"] == body.state.get("at")), None)
     if at and at["type"] in ("book", "online", "reschedule"):
         ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
@@ -713,6 +716,27 @@ async def _free(clinic: str, doctor: str) -> dict[str, dict[str, list[str]]]:
             mode: await slots.free_slots_range(conn, clinic, today, last, mode, today, now, "", doctor_id)
             for mode in ("in_clinic", "online")
         }
+
+
+_phrase_vectors: dict[str, list[float]] = {}  # by phrase text (the model's numbers never change)
+
+
+async def _nearest_phrase(flow: dict[str, Any], text: str) -> dict[str, Any] | None:
+    """The approved phrase closest in meaning to the typed text, if close enough (the Knowledge base's
+    threshold); None while the model is loading. Used only when no words matched."""
+    approved = [p for p in flow.get("phrases") or [] if p["status"] == "approved"]
+    if not approved or not embed.ready():
+        return None
+    missing = [p["text"] for p in approved if p["text"] not in _phrase_vectors]
+    if missing:
+        for t, v in zip(missing, await embed.vectors(missing), strict=True):
+            _phrase_vectors[t] = [float(x) for x in v]
+    q = await embed.vector(text)
+    scores = [sum(a * b for a, b in zip(q, _phrase_vectors[p["text"]], strict=True)) for p in approved]
+    score, best = max(zip(scores, approved, strict=True), key=lambda x: x[0])
+    if score < kb.SEMANTIC_MIN:
+        return None
+    return {"target": best["target"], "text": best["text"], "score": round(score * 100, 1)}
 
 
 async def _kb_answer(clinic: str, text: str) -> str | None:

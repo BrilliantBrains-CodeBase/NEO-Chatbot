@@ -21,9 +21,17 @@ type Reply = {
   at: string | null;
   lead: Record<string, string> | null;
   saved?: { code?: string; clinic?: string; error?: string };
+  matched?: { how: string; text: string; score?: number } | null;
   state: Record<string, unknown> & { fields?: Record<string, string> };
 };
 type Line = { from: "bot" | "me"; msg: Msg };
+
+const MATCH: Record<string, string> = {
+  phrase: "approved phrase",
+  typo: "approved phrase (typo)",
+  "phrase in message": "approved phrase in the message",
+  meaning: "approved phrase by meaning",
+};
 
 const OPEN: Record<string, string> = {
   call: "Opens the phone to call",
@@ -67,6 +75,17 @@ export default function TestChat({
       });
       setLines((l) => [
         ...l,
+        ...(r.matched && r.matched.how !== "button"
+          ? [
+              {
+                from: "bot" as const,
+                msg: {
+                  text: `Matched ${MATCH[r.matched.how] ?? r.matched.how}: “${r.matched.text}”${r.matched.score ? ` (${r.matched.score}%)` : ""}`,
+                  note: true,
+                },
+              },
+            ]
+          : []),
         ...r.messages.map((m) => ({ from: "bot" as const, msg: m })),
         ...(r.saved
           ? [
