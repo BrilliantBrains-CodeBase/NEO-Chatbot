@@ -1,0 +1,215 @@
+"""Running a canvas flow (app.crm.flow_run): taps and typed text, questions, logic, live data, triggers."""
+
+from datetime import date
+from typing import Any
+
+from app.chat.content import content
+from app.crm.flow import import_content, normalise
+from app.crm.flow_run import Context, send, start
+
+FUE = {"name": "FUE", "category": "Hair transplant", "show": True, "price": 50000, "show_price": True}
+WED = date(2026, 10, 28)  # a Wednesday
+
+
+def ctx(**more: Any) -> Context:
+    return Context(today=WED, minutes=11 * 60, services=[FUE], **more)
+
+
+def line(source: str, exit_: str, target: str) -> dict[str, str]:
+    return {"source": source, "exit": exit_, "target": target}
+
+
+def opening(*buttons: tuple[str, str]) -> dict[str, Any]:
+    return {
+        "id": "opening",
+        "type": "opening",
+        "settings": {"welcome": "Hi!", "buttons": [{"id": i, "label": label} for i, label in buttons]},
+    }
+
+
+class Chat:
+    """A patient: each message returns the bot's texts; .at is the block the chat is on."""
+
+    def __init__(self, flow: dict[str, Any], c: Context | None = None) -> None:
+        self.flow, self.ctx = normalise(flow), c or ctx()
+        self.r = start(self.flow, self.ctx)
+
+    def __call__(self, text: str | None = None, tap: str | None = None) -> list[str]:
+        self.r = send(self.flow, self.ctx, self.r["state"], tap=tap, text=text)
+        return [m["text"] for m in self.r["messages"]]
+
+    @property
+    def at(self) -> str | None:
+        at: str | None = self.r["at"]
+        return at
+
+    def labels(self) -> list[str]:
+        return [b["label"] for m in self.r["messages"] for b in m.get("buttons", [])]
+
+
+def test_cl01_imported_flow_opens_and_follows_taps_and_typos() -> None:
+    chat = Chat(import_content(content("CL01") or {}))
+    assert chat.r["messages"][0]["text"].startswith("Hi, I'm Arya")
+    chat(tap="m2")  # Explore Treatments
+    assert chat.at != "opening" and chat.labels()
+    chat("main menu")  # a global trigger, from anywhere
+    assert chat.at == "opening"
+    chat("explore treatmnts")  # a typo still finds the button
+    assert chat.at != "opening"
+
+
+def test_booking_step_by_step_with_a_wrong_answer_and_consent() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone", "date"]}}
+    done = {"id": "thanks", "type": "answer", "settings": {"text": "See you, {name}!"}}
+    chat = Chat(
+        {
+            "nodes": [opening(("m1", "Book")), book, done],
+            "edges": [line("opening", "m1", "book"), line("book", "done", "thanks")],
+        }
+    )
+    assert chat("book") == ["May I know your full name?"]
+    assert chat("Asha Rao") == ["Thanks, Asha Rao. What is your contact number?"]
+    assert "valid phone" in chat("12345")[0]  # asked again
+    chat("98765 43210")
+    chat("tomorrow")
+    assert chat.labels() == ["Yes", "No"]  # consent
+    texts = chat(tap="yes")
+    assert chat.r["lead"] == {
+        "type": "book",
+        "block": "book",
+        "name": "Asha Rao",
+        "phone": "+91 9876543210",
+        "date": "2026-10-29",
+    }
+    assert texts[-1] == "See you, Asha Rao!" and chat.at == "thanks"
+
+
+def test_too_many_wrong_answers_offer_a_call_back() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["phone"], "retries": 1}}
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
+    chat = Chat({"nodes": [opening(("m1", "Book")), book, cb], "edges": [line("opening", "m1", "book")]})
+    chat(tap="m1")
+    chat("abc")
+    texts = chat("abc")
+    assert chat.at == "cb" and "call back" in texts[0]
+
+
+def test_question_yes_no_choice_and_fields_in_messages() -> None:
+    q1 = {
+        "id": "q1",
+        "type": "question",
+        "settings": {"question": "Had a transplant before?", "kind": "yes_no", "field": "reason"},
+    }
+    opts = [{"label": "Crown"}, {"label": "Hairline"}]
+    q2 = {
+        "id": "q2",
+        "type": "question",
+        "settings": {"question": "Which area?", "kind": "choice", "field": "area", "options": opts},
+    }
+    end = {"id": "end", "type": "answer", "settings": {"text": "Noted: {area}."}}
+    flow = {
+        "nodes": [opening(("m1", "Start")), q1, q2, end],
+        "edges": [line("opening", "m1", "q1"), line("q1", "no", "q2"), line("q2", "next", "end")],
+        "fields": [{"key": "area", "label": "Area"}],
+    }
+    chat = Chat(flow)
+    chat(tap="m1")
+    assert chat.labels() == ["Yes", "No"]
+    chat(tap="no")
+    assert chat.at == "q2"
+    assert chat("hairlne") == ["Noted: Hairline."]  # typed, with a typo
+
+
+def test_logic_condition_clinic_open_set_field_goto() -> None:
+    weekend = {
+        "id": "c1",
+        "label": "Weekend",
+        "tests": [{"subject": "weekday", "op": "is", "value": "sat,sun"}],
+    }
+    nodes = [
+        opening(("m1", "Go")),
+        {"id": "if", "type": "condition", "settings": {"branches": [weekend]}},
+        {"id": "set", "type": "set_field", "settings": {"field": "reason", "value": "weekday visit"}},
+        {"id": "open", "type": "clinic_open", "settings": {}},
+        {"id": "go", "type": "goto", "settings": {"target": "closed"}},
+        {"id": "yes", "type": "answer", "settings": {"text": "Open: {reason}"}},
+        {"id": "closed", "type": "answer", "settings": {"text": "Closed now: {reason}"}},
+    ]
+    edges = [
+        line("opening", "m1", "if"),
+        line("if", "else", "set"),
+        line("set", "next", "open"),
+        line("open", "open", "yes"),
+        line("open", "closed", "go"),
+    ]
+    assert Chat({"nodes": nodes, "edges": edges})(tap="m1") == ["Open: weekday visit"]
+    closed = ctx(open_now={"in_clinic": False, "online": True})
+    assert Chat({"nodes": nodes, "edges": edges}, closed)(tap="m1") == ["Closed now: weekday visit"]
+
+
+def test_live_treatments_card_and_book_skips_the_treatment_question() -> None:
+    tl = {
+        "id": "tl",
+        "type": "treatment_list",
+        "settings": {"message": "Pick one", "category": "Hair transplant"},
+    }
+    book = {"id": "book", "type": "book", "settings": {"fields": ["treatment", "name"]}}
+    chat = Chat({"nodes": [opening(("m1", "Treatments")), tl, book], "edges": [line("opening", "m1", "tl")]})
+    chat(tap="m1")
+    assert chat.labels() == ["FUE"]  # live from Services
+    assert chat(tap="t:FUE")[0].startswith("FUE\nFrom ₹50,000")
+    assert chat(tap="book:FUE") == ["May I know your full name?"]  # treatment already known
+
+
+def test_off_blocks_hide_their_buttons_and_global_emergency() -> None:
+    off = {"id": "off", "type": "answer", "enabled": False, "settings": {"text": "Hidden"}}
+    sos = {
+        "id": "sos",
+        "type": "emergency",
+        "settings": {
+            "text": "Call 108 now.",
+            "buttons": [{"id": "b1", "label": "Call 108", "action": "call", "value": "108"}],
+        },
+    }
+    flow = {
+        "nodes": [
+            opening(("m1", "Offer"), ("m2", "Other")),
+            off,
+            sos,
+            {"id": "o", "type": "answer", "settings": {"text": "Other"}},
+        ],
+        "edges": [line("opening", "m1", "off"), line("opening", "m2", "o")],
+        "globals": {"triggers": [{"kind": "emergency", "target": "sos"}]},
+    }
+    chat = Chat(flow)
+    assert chat.labels() == ["Other"]  # the button to the off block is hidden
+    assert chat("there is heavy bleeding") == ["Call 108 now."] and chat.labels() == ["Call 108"]
+
+
+def test_knowledge_base_and_check_my_appointment() -> None:
+    kb = {"id": "kb", "type": "knowledge", "settings": {}}
+    chk = {"id": "chk", "type": "check_appointment", "settings": {}}
+    found = {"id": "f", "type": "answer", "settings": {"text": "Anything else?"}}
+    lost = {"id": "nf", "type": "callback", "settings": {"fields": ["name"]}}
+    edges = [
+        line("opening", "m1", "kb"),
+        line("opening", "m2", "chk"),
+        line("kb", "answered", "f"),
+        line("kb", "not_found", "nf"),
+        line("chk", "found", "f"),
+    ]
+    flow = {"nodes": [opening(("m1", "Ask"), ("m2", "My appointment")), kb, chk, found, lost], "edges": edges}
+    c = ctx(
+        kb=lambda q: "We are open 10 to 7." if "timing" in q else None,
+        appointments=lambda p: ["Thu 29 Oct, 11:00 AM"],
+    )
+    chat = Chat(flow, c)
+    chat(tap="m1")
+    assert chat("clinic timings?") == ["We are open 10 to 7.", "Anything else?"]
+    chat("menu")
+    chat(tap="m1")
+    chat("parking?")
+    assert chat.at == "nf"  # not found → call back
+    chat("menu")
+    chat(tap="m2")
+    assert chat("9876543210") == ["Thu 29 Oct, 11:00 AM", "Anything else?"]
