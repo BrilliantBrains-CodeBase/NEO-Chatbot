@@ -32,6 +32,7 @@ class Context:
     services: list[dict[str, Any]] = field(default_factory=list)  # Clinic info → Services
     open_now: dict[str, bool] = field(default_factory=lambda: {"in_clinic": True, "online": True})
     location: str = ""  # Contact & hours, as text
+    phone: str = ""  # the clinic's number: a call button with no number calls it
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
     appointments: Callable[[str], list[str]] = lambda phone: []  # upcoming, as text
@@ -247,7 +248,7 @@ class Run:
         if t is None:
             return name
         price = f"\nFrom ₹{t['price']:,}" if t.get("show_price") and t.get("price") is not None else ""
-        return f"{name}{price}\n{t.get('about') or ''}".strip()
+        return f"{name}{price}\n{t.get('description') or ''}".strip()
 
     # ---------- the patient's message ----------
     def tap(self, button_id: str) -> dict[str, Any]:
@@ -287,6 +288,8 @@ class Run:
             if target:
                 self.enter(target)
         else:  # link, whatsapp, call: the widget opens it
+            if a == "call" and not value:
+                value = self.ctx.phone
             self.say("", open={"action": a, "value": value})
 
     def first(self, type_: str) -> str | None:

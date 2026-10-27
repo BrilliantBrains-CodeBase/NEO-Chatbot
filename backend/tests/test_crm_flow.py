@@ -80,6 +80,22 @@ async def test_publish_is_blocked_by_a_loose_end(api: AsyncClient, monkeypatch: 
         await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
 
 
+@needs_db
+async def test_test_chat_runs_the_draft(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL01/flow/test"  # reads the draft only; nothing is saved
+    r = (await api.post(url, json={}, headers=headers)).json()
+    assert r["at"] == "opening" and r["messages"][0]["buttons"]
+    nxt = (await api.post(url, json={"state": r["state"], "tap": "m2"}, headers=headers)).json()
+    assert nxt["at"] != "opening" and nxt["messages"]
+
+
 def test_blocks_can_be_off_or_scheduled() -> None:
     line = {"source": "opening", "exit": "m1", "target": "book"}
     off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}

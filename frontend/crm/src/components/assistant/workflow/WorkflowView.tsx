@@ -50,6 +50,7 @@ import {
   type Globals,
 } from "./blocks";
 import BlockSettings from "./BlockSettings";
+import TestChat from "./TestChat";
 
 // Dashboard → Menu buttons: the workflow canvas (like n8n). Blocks from the library on the left, lines from
 // each button or exit to the next block, the selected block's settings on the right. One draft per clinic:
@@ -67,7 +68,12 @@ type Settings = {
   changed: boolean;
   flow_problems: Problem[];
 };
-type BlockData = { block: FlowNode; problems: number; services: Service[] };
+type BlockData = {
+  block: FlowNode;
+  problems: number;
+  services: Service[];
+  live: boolean; // the test chat is on this block
+};
 
 function Block({ data, selected }: NodeProps<Node<BlockData>>) {
   const b = data.block;
@@ -86,7 +92,7 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
   );
   return (
     <div
-      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}${b.enabled === false ? " off" : ""}`}
+      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}${b.enabled === false ? " off" : ""}${data.live ? " live-at" : ""}`}
       style={{ borderTopColor: kind?.color }}
     >
       {b.type !== "opening" && b.type !== "typed" && (
@@ -236,6 +242,8 @@ function Canvas() {
   }>({ clinic: "" });
   const [flow, setFlow] = useState<Flow | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [liveAt, setLiveAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [find, setFind] = useState("");
@@ -314,13 +322,17 @@ function Canvas() {
         data: {
           block: n,
           problems: problems.filter((p) => p.node === n.id).length,
-          services: n.type === "treatment_list" ? services : NONE,
+          services:
+            n.type === "treatment_list" || n.type === "carousel"
+              ? services
+              : NONE,
+          live: n.id === liveAt,
         },
         selected: n.id === selected,
         deletable: n.type !== "opening",
         measured: sizes[n.id],
       })),
-    [flow, problems, selected, sizes, services],
+    [flow, problems, selected, sizes, services, liveAt],
   );
   const edges = useMemo<Edge[]>(
     () =>
@@ -532,6 +544,9 @@ function Canvas() {
           <button className="pill" onClick={() => setFlow(arrange(flow))}>
             Auto-arrange
           </button>
+          <button className="pill" onClick={() => setTesting((t) => !t)}>
+            Test chat
+          </button>
           <button
             className="pill"
             disabled={busy || !dirty}
@@ -551,6 +566,14 @@ function Canvas() {
         </div>,
       )}
       {error && <div className="warnbox">{error}</div>}
+      {testing && clinicId && (
+        <TestChat
+          clinicId={clinicId}
+          dirty={dirty}
+          onAt={setLiveAt}
+          onClose={() => setTesting(false)}
+        />
+      )}
       <div className={`wf${block || side ? "" : " no-side"}`}>
         <aside className="wf-lib">
           <input

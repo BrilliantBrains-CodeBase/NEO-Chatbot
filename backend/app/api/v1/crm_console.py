@@ -11,10 +11,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.chat.content import content
+from app.chat.flows import ist_now
 from app.core.db import get_pool
 from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
 from app.crm.flow import check as check_flow
+from app.crm.flow_run import Context, send, start
 
 router = APIRouter(prefix="/crm/console", tags=["crm"])
 
@@ -530,6 +532,47 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             clinic, version, json.dumps(current.draft), user.id,
         )  # fmt: skip
     return await _load(clinic)
+
+
+class TestChat(BaseModel):
+    """One message in the test chat: none to start (state empty), a tapped button id, or typed text."""
+
+    state: dict[str, Any] | None = None  # as returned by the last reply
+    tap: str | None = Field(default=None, max_length=200)
+    text: str | None = Field(default=None, max_length=500)
+    device: Literal["desktop", "mobile"] = "desktop"
+
+
+WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _context(draft: dict[str, Any], device: str) -> Context:
+    """The test chat reads the draft: Services, Contact & hours, Reviews (nothing published is used)."""
+    today, minutes = ist_now()
+    contact, reviews = draft["contact"], draft["reviews"]
+    day = next((d for d in contact["hours"] if d["day"] == WEEKDAYS[today.weekday()]), None)
+    hm = f"{minutes // 60:02d}:{minutes % 60:02d}"
+    open_now = bool(day and day["open"] and day["start"] <= hm < day["end"])
+    where = [contact["address"], contact["landmark"], contact["maps_link"]]
+    return Context(
+        today=today, minutes=minutes, device=device,
+        services=draft["services"]["items"],
+        open_now={"in_clinic": open_now, "online": open_now},
+        location="\n".join(x for x in where if x),
+        phone=contact["phone"],
+        reviews=[f"“{q['text']}” — {q['name']}" for q in reviews["quotes"] if q["show"]],
+    )  # fmt: skip
+
+
+@router.post("/{clinic}/flow/test")
+async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: TestChat) -> dict[str, Any]:
+    """Runs the DRAFT flow, one message at a time, for the test chat on the canvas (patients see nothing)."""
+    await _manager(user, clinic)
+    draft = (await _load(clinic)).draft
+    ctx = _context(draft, body.device)
+    if body.state is None:
+        return start(draft["flow"], ctx)
+    return send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
 
 
 @router.post("/{clinic}/flow/rebuild", response_model=Settings)

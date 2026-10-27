@@ -524,3 +524,18 @@
 .crm .wf-block.off { opacity:.45;filter:grayscale(1) }
 .crm .wf-state { margin-left:auto;font-size:9.5px;font-weight:800;color:#fff;background:var(--mute);border-radius:999px;padding:0 6px }
 .crm .wf-state.sched { background:#D97706 }
+/* Workflow canvas: the test chat (W6) and the block it is on */
+.crm .wf-block.live-at { box-shadow:0 0 0 3px var(--ok),0 0 14px rgba(31,138,76,.45) }
+.crm .wf-test { position:fixed;right:16px;bottom:16px;width:340px;max-width:calc(100vw - 32px);height:min(520px,calc(100vh - 90px));z-index:30;display:flex;flex-direction:column;background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(22,32,46,.18);overflow:hidden }
+.crm .wf-test-head { display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--line) }
+.crm .wf-test-head b { flex:1 }
+.crm .wf-test-head button:last-child { border:0;background:none;cursor:pointer;color:var(--soft) }
+.crm .wf-test-body { flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;background:var(--panel) }
+.crm .wf-test-msg { max-width:88%;align-self:flex-start }
+.crm .wf-test-msg.me { align-self:flex-end }
+.crm .wf-test-msg p { margin:0;padding:7px 10px;border-radius:10px;background:#fff;border:1px solid var(--line);white-space:pre-wrap;font-size:13px }
+.crm .wf-test-msg.me p { background:var(--brand);color:#fff;border-color:var(--brand) }
+.crm .wf-test-msg p.wf-test-note,.crm .wf-test-note { background:none;border:0;padding:2px 4px;color:var(--soft);font-size:11.5px;margin:0 }
+.crm .wf-test-btns { display:flex;flex-wrap:wrap;gap:4px;margin-top:5px }
+.crm .wf-test-input { display:flex;gap:6px;padding:8px;border-top:1px solid var(--line) }
+.crm .wf-test-input input { flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font:inherit }
