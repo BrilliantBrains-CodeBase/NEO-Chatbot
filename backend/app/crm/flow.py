@@ -16,7 +16,7 @@ from collections import deque
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError, field_validator, model_validator
 
 ID = r"^[a-z0-9][a-z0-9_-]{0,47}$"
 MAX_NODES, MAX_EDGES, MAX_BUTTONS = 200, 600, 12
@@ -37,6 +37,13 @@ class Button(BaseModel):
     # link / whatsapp: https address; call: number; treatment: its name (shows its card);
     # callback: what it is about; book: the treatment filled in
     value: str = Field(default="", max_length=600)
+
+    @model_validator(mode="after")
+    def _number(self) -> "Button":
+        # A call opens the phone's dialler; empty uses the clinic's number from Contact & hours.
+        if self.action == "call" and not re.fullmatch(r"(\+?\d{3,15})?", self.value.replace(" ", "")):
+            raise ValueError(f"Button '{self.label}': the phone number is not valid.")
+        return self
 
 
 class Figure(BaseModel):
@@ -358,10 +365,49 @@ class Edge(BaseModel):
     target: str = Field(pattern=ID)  # the next block
 
 
+class NoReply(BaseModel):
+    """A reminder when the patient goes quiet mid-chat (sent up to `reminders` times, `minutes` apart)."""
+
+    enabled: bool = True
+    minutes: int = Field(default=3, ge=1, le=30)
+    message: str = Field(default="Are you still there? I'm here when you're ready.", max_length=300)
+    reminders: int = Field(default=1, ge=1, le=2)
+
+
+class GlobalTrigger(BaseModel):
+    """Works from anywhere in the chat, typed or tapped (its phrases are approved in W7). Main menu and start
+    again go to the Opening block (start again also clears the fields); the others to the block chosen."""
+
+    kind: Literal["main_menu", "start_again", "talk_to_person", "emergency"]
+    enabled: bool = True
+    target: str = Field(default="", max_length=48)  # a block id; empty: the Opening block
+
+
+class Globals(BaseModel):
+    no_reply: NoReply = NoReply()
+    triggers: list[GlobalTrigger] = Field(
+        default=[
+            GlobalTrigger(kind="main_menu"),
+            GlobalTrigger(kind="start_again"),
+            GlobalTrigger(kind="talk_to_person", enabled=False),
+            GlobalTrigger(kind="emergency", enabled=False),
+        ],
+        max_length=4,
+    )
+
+    @field_validator("triggers")
+    @classmethod
+    def _kinds(cls, v: list[GlobalTrigger]) -> list[GlobalTrigger]:
+        if len({t.kind for t in v}) != len(v):
+            raise ValueError("Each global trigger is set once.")
+        return v
+
+
 class Flow(BaseModel):
     nodes: list[Node] = Field(default=[], max_length=MAX_NODES)
     edges: list[Edge] = Field(default=[], max_length=MAX_EDGES)
     fields: list["FieldDef"] = Field(default=[], max_length=50)  # the clinic's own fields
+    globals: Globals = Globals()  # no reply, and triggers that work from anywhere
 
 
 # Fields: values saved during a chat, used in messages as {name}. The built-in ones are filled by the chat
@@ -484,7 +530,12 @@ class FlowError(ValueError):
 
 def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     """Checks the flow's structure and each block's settings. Raises FlowError; returns the clean flow."""
-    flow = Flow.model_validate(raw)
+    try:
+        flow = Flow.model_validate(raw)
+    except ValidationError as err:
+        if any(e["loc"][:1] == ("globals",) for e in err.errors()):
+            raise FlowError(f"Whole flow settings: {err.errors()[0]['msg']}") from None
+        raise
     ids = [n.id for n in flow.nodes]
     if len(ids) != len(set(ids)):
         raise FlowError("Two blocks have the same id.")
@@ -509,6 +560,13 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         if n.type == "question" and n.settings.get("kind") in ("choice", "picture_choice"):
             if len(n.settings.get("options") or []) < 2:
                 raise FlowError(f"Block '{n.title or n.id}' needs at least 2 options.")
+    for t in flow.globals.triggers:
+        if t.enabled and t.kind in ("talk_to_person", "emergency") and t.target not in ids:
+            raise FlowError(f"Global trigger '{t.kind.replace('_', ' ')}' needs a block to go to.")
+        if t.target and t.target not in ids:
+            raise FlowError(
+                f"Global trigger '{t.kind.replace('_', ' ')}' goes to a block that does not exist."
+            )
     by_id = {n.id: n for n in flow.nodes}
     clean_nodes = []
     for n in flow.nodes:
@@ -534,7 +592,9 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         if (e.source, e.exit) in seen:
             raise FlowError(f"Two lines start from the same exit of '{by_id[e.source].title or e.source}'.")
         seen.add((e.source, e.exit))
-    return Flow(nodes=clean_nodes, edges=flow.edges, fields=flow.fields).model_dump(mode="json")
+    return Flow(nodes=clean_nodes, edges=flow.edges, fields=flow.fields, globals=flow.globals).model_dump(
+        mode="json"
+    )
 
 
 def check(raw: dict[str, Any]) -> list[Problem]:
@@ -565,6 +625,7 @@ def check(raw: dict[str, Any]) -> list[Problem]:
         if n.type == "goto" and n.settings.get("target"):
             nxt.setdefault(n.id, []).append(str(n.settings["target"]))
     starts = [n.id for n in flow.nodes if n.type in ("opening", "typed")]  # the triggers
+    starts += [t.target for t in flow.globals.triggers if t.enabled and t.target]
     reached, todo = set(starts), deque(starts)
     while todo:
         for t in nxt.get(todo.popleft(), []):

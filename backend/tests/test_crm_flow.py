@@ -184,6 +184,33 @@ def test_condition_block() -> None:
             normalise({"nodes": [OPENING, cond(test)]})
 
 
+def test_no_reply_and_global_triggers() -> None:
+    saved = normalise({"nodes": [OPENING]})
+    assert saved["globals"]["no_reply"]["minutes"] == 3  # on by default
+    sos = {"id": "sos", "type": "emergency", "settings": {"text": "Call 108."}}
+    globals_ = {"triggers": [{"kind": "emergency", "target": "sos"}], "no_reply": {"minutes": 5}}
+    saved = normalise({"nodes": [OPENING, sos], "globals": globals_})
+    assert [p for p in check(saved) if p.node == "sos"] == []  # reached from anywhere, no warning
+    with pytest.raises(FlowError, match="needs a block"):
+        normalise({"nodes": [OPENING], "globals": {"triggers": [{"kind": "talk_to_person"}]}})
+    with pytest.raises(FlowError, match="set once"):
+        normalise({"nodes": [OPENING], "globals": {"triggers": [{"kind": "main_menu"}] * 2}})
+    with pytest.raises(FlowError):
+        normalise({"nodes": [OPENING], "globals": {"no_reply": {"minutes": 99}}})
+
+
+def test_emergency_call_buttons() -> None:
+    calls = [
+        {"id": "b1", "label": "Call 108", "action": "call", "value": "108"},
+        {"id": "b2", "label": "Call the clinic", "action": "call", "value": ""},  # Contact & hours
+    ]
+    sos = {"id": "sos", "type": "emergency", "settings": {"text": "Call 108.", "buttons": calls}}
+    assert check(normalise({"nodes": [OPENING | {"settings": {"buttons": []}}, sos]}))[0].level == "warning"
+    wrong = [calls[0] | {"value": "call me"}]
+    with pytest.raises(FlowError, match="not valid"):
+        normalise({"nodes": [OPENING, sos | {"settings": {"text": "Call 108.", "buttons": wrong}}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

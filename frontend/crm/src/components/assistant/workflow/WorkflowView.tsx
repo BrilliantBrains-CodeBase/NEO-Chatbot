@@ -45,7 +45,9 @@ import {
   ACTION_TAG,
   pruneLines,
   BUILT_IN_FIELDS,
+  DEFAULT_GLOBALS,
   type FieldDef,
+  type Globals,
 } from "./blocks";
 import BlockSettings from "./BlockSettings";
 
@@ -668,6 +670,11 @@ function Canvas() {
                   fields={flow.fields ?? []}
                   onChange={(fields) => setFlow({ ...flow, fields })}
                 />
+                <GlobalsPanel
+                  globals={flow.globals ?? DEFAULT_GLOBALS}
+                  blocks={flow.nodes}
+                  onChange={(globals) => setFlow({ ...flow, globals })}
+                />
                 <p className="sub2" style={{ marginTop: 12 }}>
                   {flow.nodes.length} blocks · {flow.edges.length} lines. Click
                   a block to edit it.
@@ -678,6 +685,111 @@ function Canvas() {
         )}
       </div>
     </>
+  );
+}
+
+const TRIGGER_LABEL: Record<string, string> = {
+  main_menu: "Main menu",
+  start_again: "Start again (clears the fields)",
+  talk_to_person: "Talk to a person",
+  emergency: "Emergency",
+};
+
+/** Whole flow: the no-reply reminder and the triggers that work from anywhere (typed or tapped). */
+function GlobalsPanel({
+  globals,
+  blocks,
+  onChange,
+}: {
+  globals: Globals;
+  blocks: FlowNode[];
+  onChange: (g: Globals) => void;
+}) {
+  const nr = globals.no_reply;
+  const setNr = (patch: Partial<Globals["no_reply"]>) =>
+    onChange({ ...globals, no_reply: { ...nr, ...patch } });
+  return (
+    <div style={{ marginTop: 14 }}>
+      <h3 style={{ margin: "0 0 6px" }}>Whole flow</h3>
+      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+        <input
+          type="checkbox"
+          checked={nr.enabled}
+          onChange={(e) => setNr({ enabled: e.target.checked })}
+        />
+        No reply: remind after
+        <select
+          value={nr.minutes}
+          onChange={(e) => setNr({ minutes: Number(e.target.value) })}
+        >
+          {[1, 2, 3, 5, 10, 15, 30].map((m) => (
+            <option key={m} value={m}>
+              {m} min
+            </option>
+          ))}
+        </select>
+        <select
+          value={nr.reminders}
+          onChange={(e) => setNr({ reminders: Number(e.target.value) })}
+        >
+          <option value={1}>once</option>
+          <option value={2}>twice</option>
+        </select>
+      </label>
+      {nr.enabled && (
+        <textarea
+          rows={2}
+          maxLength={300}
+          style={{ width: "100%" }}
+          value={nr.message}
+          onChange={(e) => setNr({ message: e.target.value })}
+        />
+      )}
+      <p className="sub2" style={{ margin: "8px 0 4px", fontSize: 11.5 }}>
+        Work from anywhere in the chat, typed or tapped:
+      </p>
+      {globals.triggers.map((t, i) => (
+        <div key={t.kind} className="wf-btn" style={{ fontSize: 12.5 }}>
+          <input
+            type="checkbox"
+            checked={t.enabled}
+            onChange={(e) =>
+              onChange({
+                ...globals,
+                triggers: globals.triggers.map((x, k) =>
+                  k === i ? { ...x, enabled: e.target.checked } : x,
+                ),
+              })
+            }
+          />
+          <b style={{ flex: 1 }}>{TRIGGER_LABEL[t.kind]}</b>
+          <select
+            value={t.target}
+            onChange={(e) =>
+              onChange({
+                ...globals,
+                triggers: globals.triggers.map((x, k) =>
+                  k === i ? { ...x, target: e.target.value } : x,
+                ),
+              })
+            }
+          >
+            <option value="">
+              {t.kind === "main_menu" || t.kind === "start_again"
+                ? "Opening"
+                : "Choose a block…"}
+            </option>
+            {blocks
+              .filter((b) => b.type !== "opening")
+              .map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title || b.id}
+                </option>
+              ))}
+          </select>
+        </div>
+      ))}
+    </div>
   );
 }
 

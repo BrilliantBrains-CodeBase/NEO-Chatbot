@@ -53,6 +53,36 @@ export type Flow = {
   nodes: FlowNode[];
   edges: FlowEdge[];
   fields?: FieldDef[];
+  globals?: Globals;
+};
+/** Whole-flow settings: a reminder when the patient goes quiet, and triggers that work from anywhere. */
+export type GlobalTrigger = {
+  kind: "main_menu" | "start_again" | "talk_to_person" | "emergency";
+  enabled: boolean;
+  target: string; // a block id; empty: the Opening block
+};
+export type Globals = {
+  no_reply: {
+    enabled: boolean;
+    minutes: number;
+    message: string;
+    reminders: number;
+  };
+  triggers: GlobalTrigger[];
+};
+export const DEFAULT_GLOBALS: Globals = {
+  no_reply: {
+    enabled: true,
+    minutes: 3,
+    message: "Are you still there? I'm here when you're ready.",
+    reminders: 1,
+  },
+  triggers: [
+    { kind: "main_menu", enabled: true, target: "" },
+    { kind: "start_again", enabled: true, target: "" },
+    { kind: "talk_to_person", enabled: false, target: "" },
+    { kind: "emergency", enabled: false, target: "" },
+  ],
 };
 /** Filled by the chat itself; a clinic adds its own fields beside these. */
 export const BUILT_IN_FIELDS = [
@@ -337,7 +367,20 @@ export const KINDS: Record<string, Kind> = {
     group: "Contact & safety",
     color: "#DC2626",
     hint: "108 reply, warning signs, call the clinic",
-    start: { text: "For a medical emergency, call 108.", buttons: [] },
+    // Each button opens the phone's dialler; an empty number is the clinic's (Contact & hours).
+    start: {
+      text: "For a medical emergency, call 108 or go to the nearest hospital.",
+      buttons: [
+        {
+          id: "b1",
+          label: "Call 108",
+          variant: "sos",
+          action: "call",
+          value: "108",
+        },
+        { id: "b2", label: "Call the clinic", action: "call", value: "" },
+      ],
+    },
   },
 };
 export const GROUPS = [
