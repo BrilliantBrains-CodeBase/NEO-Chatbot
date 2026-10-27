@@ -145,6 +145,32 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
             <i className="wf-tag">answer</i>
           </div>
         ))}
+      {b.type === "media" && (
+        <p className="wf-text">
+          {String(b.settings.kind ?? "image")}:{" "}
+          {String(b.settings.url ?? "").slice(0, 40)}
+        </p>
+      )}
+      {b.type === "carousel" &&
+        (b.settings.source === "custom"
+          ? ((b.settings.cards as { title: string }[]) ?? []).map((c, i) => (
+              <div key={i} className="wf-exit live">
+                <span>{c.title || "Card"}</span>
+                <i className="wf-tag">card</i>
+              </div>
+            ))
+          : data.services
+              .filter(
+                (t) =>
+                  t.show &&
+                  (!b.settings.category || t.category === b.settings.category),
+              )
+              .map((t) => (
+                <div key={t.name} className="wf-exit live">
+                  <span>{t.name}</span>
+                  <i className="wf-tag">card</i>
+                </div>
+              )))}
       {b.type === "goto" && (
         <p className="wf-text">
           → {String(b.settings.target || "choose a block")}

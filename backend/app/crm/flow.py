@@ -240,6 +240,47 @@ class ClinicOpenSettings(BaseModel):
     hours: Literal["in_clinic", "online"] = "in_clinic"
 
 
+class MediaSettings(BaseModel):
+    """An image, video, file (PDF) or map with a caption; the chat goes on to `next` by itself."""
+
+    kind: Literal["image", "video", "file", "map"] = "image"
+    url: str = Field(max_length=600, pattern=r"^https://\S+$")  # map: a Google Maps link
+    caption: str = Field(default="", max_length=300)
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+
+class Card(BaseModel):
+    title: str = Field(min_length=1, max_length=60)
+    text: str = Field(default="", max_length=200)
+    image: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")
+    # The card's buttons do their own job (book, call, link, treatment ...), so a card needs no line.
+    buttons: list[Button] = Field(default=[], max_length=2)
+
+    @field_validator("buttons")
+    @classmethod
+    def _inline(cls, v: list[Button]) -> list[Button]:
+        if any(not b.action for b in v):
+            raise ValueError("A card's button needs a job of its own (book, call, link, treatment ...).")
+        return v
+
+
+class CarouselSettings(BaseModel):
+    """Swipeable cards: one category's treatments, live from Services (each to its card, with its price when
+    shown), or the clinic's own cards."""
+
+    message: str = Field(default="", max_length=500)
+    source: Literal["treatments", "custom"] = "treatments"
+    category: str = Field(default="", max_length=40)  # treatments: a Services category (empty: all shown)
+    cards: list[Card] = Field(default=[], max_length=10)  # custom
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+    @model_validator(mode="after")
+    def _cards(self) -> "CarouselSettings":
+        if self.source == "custom" and len(self.cards) < 2:
+            raise ValueError("A carousel needs at least 2 cards.")
+        return self
+
+
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
@@ -333,6 +374,8 @@ TYPES: dict[str, type[BaseModel]] = {
     "clinic_open": ClinicOpenSettings,
     "goto": GotoSettings,
     "condition": ConditionSettings,
+    "media": MediaSettings,
+    "carousel": CarouselSettings,
 }
 LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback"}
 MENUS = {"opening", "choice", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list"}
@@ -345,7 +388,7 @@ class Node(BaseModel):
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
         "location", "reviews", "faq", "knowledge", "check_appointment", "clinic_open", "goto",
-        "condition",
+        "condition", "media", "carousel",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -357,6 +400,7 @@ class Node(BaseModel):
     show_from: date | None = None
     show_until: date | None = None
     clinic_hours_only: bool = False
+    typing: float = Field(default=0, ge=0, le=5)  # seconds of typing dots before its message
 
 
 class Edge(BaseModel):
@@ -503,7 +547,7 @@ def exits(node: Node) -> list[str]:
     out = [b.id for b in getattr(s, "buttons", []) if not b.action]
     if isinstance(s, QuestionSettings):
         out += ["yes", "no"] if s.kind == "yes_no" else ["next"]
-    if node.type in ("typed", "set_field"):
+    if node.type in ("typed", "set_field", "media"):
         out.append("next")
     if node.type == "knowledge":
         out += ["answered", "not_found"]

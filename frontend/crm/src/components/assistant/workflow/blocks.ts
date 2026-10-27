@@ -41,6 +41,8 @@ export type FlowNode = {
   show_from?: string | null;
   show_until?: string | null;
   clinic_hours_only?: boolean;
+  /** Seconds of typing dots before its message (0 to 5). */
+  typing?: number;
 };
 export type FlowEdge = { source: string; exit: string; target: string };
 export type FieldDef = {
@@ -309,6 +311,26 @@ export const KINDS: Record<string, Kind> = {
     hint: "One way while open, another while closed",
     start: { hours: "in_clinic" },
   },
+  media: {
+    label: "Media",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Image, video, file (PDF) or map with a caption",
+    start: { kind: "image", url: "https://", caption: "", buttons: [] },
+  },
+  carousel: {
+    label: "Carousel",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Swipeable cards: treatments (live) or your own",
+    start: {
+      message: "",
+      source: "treatments",
+      category: "",
+      cards: [],
+      buttons: [],
+    },
+  },
   condition: {
     label: "Condition",
     group: "Logic",
@@ -441,7 +463,7 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
           ]
         : [{ id: "next", label: "next" }]),
     );
-  if (n.type === "typed" || n.type === "set_field")
+  if (n.type === "typed" || n.type === "set_field" || n.type === "media")
     out.push({ id: "next", label: "next" });
   if (LEAD.has(n.type)) out.push({ id: "done", label: "done" });
   if (n.type === "doctor_card" && n.settings.book_label)

@@ -229,6 +229,75 @@ export default function BlockSettings({
         </Row>
       )}
 
+      {!["typed", "set_field", "goto", "condition", "clinic_open"].includes(
+        block.type,
+      ) && (
+        <Row label="Typing dots before the message">
+          <select
+            value={Number(block.typing ?? 0)}
+            onChange={(e) => onChange({ typing: Number(e.target.value) })}
+          >
+            {[0, 0.5, 1, 1.5, 2, 3, 5].map((n) => (
+              <option key={n} value={n}>
+                {n === 0 ? "None" : `${n} s`}
+              </option>
+            ))}
+          </select>
+        </Row>
+      )}
+      {block.type === "media" && (
+        <>
+          <Row label="Kind">
+            <select
+              value={String(s.kind ?? "image")}
+              onChange={(e) => set({ kind: e.target.value })}
+            >
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+              <option value="file">File (PDF)</option>
+              <option value="map">Map (Google Maps link)</option>
+            </select>
+          </Row>
+          {text("url", "Web address (https://…)", 1, 600)}
+          {text("caption", "Caption (optional)", 2, 300)}
+        </>
+      )}
+      {block.type === "carousel" && (
+        <>
+          {text("message", "Message above the cards (optional)", 2, 500)}
+          <Row label="Cards">
+            <select
+              value={String(s.source ?? "treatments")}
+              onChange={(e) => set({ source: e.target.value })}
+            >
+              <option value="treatments">
+                Treatments, live from Clinic info → Services
+              </option>
+              <option value="custom">My own cards</option>
+            </select>
+          </Row>
+          {s.source !== "custom" ? (
+            <Row label="Category (empty: all shown treatments)">
+              <select
+                value={String(s.category ?? "")}
+                onChange={(e) => set({ category: e.target.value })}
+              >
+                <option value="">All</option>
+                {[
+                  ...new Set(services.map((t) => t.category).filter(Boolean)),
+                ].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Row>
+          ) : (
+            <Cards
+              cards={(s.cards as CardT[]) ?? []}
+              onChange={(cards) => set({ cards })}
+            />
+          )}
+        </>
+      )}
       {block.type === "opening" && text("welcome", "Welcome message", 3, 500)}
       {MENUS.has(block.type) &&
         block.type !== "opening" &&
@@ -854,6 +923,8 @@ export default function BlockSettings({
           "location",
           "reviews",
           "faq",
+          "media",
+          "carousel",
         ].includes(block.type)) && (
         <Buttons
           list={buttonsOf(block)}
@@ -862,6 +933,125 @@ export default function BlockSettings({
         />
       )}
     </div>
+  );
+}
+
+type CardT = {
+  title: string;
+  text: string;
+  image: string;
+  buttons: FlowButton[];
+};
+
+/** A carousel's own cards (2 to 10); each card's one button does its own job, so it needs no line. */
+function Cards({
+  cards,
+  onChange,
+}: {
+  cards: CardT[];
+  onChange: (c: CardT[]) => void;
+}) {
+  const put = (i: number, patch: Partial<CardT>) =>
+    onChange(cards.map((c, k) => (k === i ? { ...c, ...patch } : c)));
+  const actions = BUTTON_ACTIONS.filter(([a]) => a);
+  return (
+    <Row label="Cards (2 to 10; each button does its own job)">
+      {cards.map((c, i) => {
+        const btn = c.buttons[0] ?? {
+          id: "b1",
+          label: "Book",
+          action: "book",
+          value: "",
+        };
+        const putBtn = (patch: Partial<FlowButton>) =>
+          put(i, { buttons: [{ ...btn, ...patch }] });
+        return (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              border: "1px solid var(--line, #e5e7eb)",
+              borderRadius: 6,
+              padding: 6,
+            }}
+          >
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                maxLength={60}
+                placeholder="Title"
+                value={c.title}
+                onChange={(e) => put(i, { title: e.target.value })}
+              />
+              <button
+                aria-label="Remove card"
+                onClick={() => onChange(cards.filter((_, k) => k !== i))}
+              >
+                ✕
+              </button>
+            </div>
+            <input
+              maxLength={200}
+              placeholder="Text (optional)"
+              value={c.text}
+              onChange={(e) => put(i, { text: e.target.value })}
+            />
+            <input
+              maxLength={300}
+              placeholder="Picture https://… (optional)"
+              value={c.image}
+              onChange={(e) => put(i, { image: e.target.value })}
+            />
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                maxLength={40}
+                placeholder="Button text"
+                value={btn.label}
+                onChange={(e) => putBtn({ label: e.target.value })}
+              />
+              <select
+                value={btn.action}
+                onChange={(e) => putBtn({ action: e.target.value })}
+              >
+                {actions.map(([a, label]) => (
+                  <option key={a} value={a}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <input
+              maxLength={600}
+              placeholder={actions.find(([a]) => a === btn.action)?.[2] ?? ""}
+              value={btn.value ?? ""}
+              onChange={(e) => putBtn({ value: e.target.value })}
+            />
+          </div>
+        );
+      })}
+      {cards.length < 10 && (
+        <button
+          className="pill"
+          style={{ alignSelf: "flex-start" }}
+          onClick={() =>
+            onChange([
+              ...cards,
+              {
+                title: "",
+                text: "",
+                image: "",
+                buttons: [
+                  { id: "b1", label: "Book", action: "book", value: "" },
+                ],
+              },
+            ])
+          }
+        >
+          + Add a card
+        </button>
+      )}
+    </Row>
   );
 }
 

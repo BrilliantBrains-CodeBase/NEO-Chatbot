@@ -211,6 +211,25 @@ def test_emergency_call_buttons() -> None:
         normalise({"nodes": [OPENING, sos | {"settings": {"text": "Call 108.", "buttons": wrong}}]})
 
 
+def test_media_carousel_and_typing_delay() -> None:
+    pic = {"id": "pic", "type": "media", "typing": 1.5, "settings": {"url": "https://x.in/a.jpg"}}
+    line = [{"source": "pic", "exit": "next", "target": "book"}]
+    saved = normalise({"nodes": [OPENING, pic, BOOK], "edges": line})
+    assert saved["nodes"][1]["typing"] == 1.5 and saved["edges"] == line
+    with pytest.raises(ValueError):  # the API answers 422 "nodes → 1 → typing: ..."
+        normalise({"nodes": [OPENING, pic | {"typing": 9}]})
+    book = {"id": "b1", "label": "Book", "action": "book", "value": "FUE"}
+    card = {"title": "FUE", "buttons": [book]}
+    car = {"id": "car", "type": "carousel", "settings": {"source": "custom", "cards": [card, card]}}
+    normalise({"nodes": [OPENING, car]})
+    normalise({"nodes": [OPENING, car | {"settings": {"category": "Hair transplant"}}]})  # live treatments
+    with pytest.raises(FlowError, match="at least 2 cards"):
+        normalise({"nodes": [OPENING, car | {"settings": {"source": "custom", "cards": [card]}}]})
+    plain = card | {"buttons": [{"id": "b1", "label": "More"}]}
+    with pytest.raises(FlowError, match="job of its own"):
+        normalise({"nodes": [OPENING, car | {"settings": {"source": "custom", "cards": [plain, card]}}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {
