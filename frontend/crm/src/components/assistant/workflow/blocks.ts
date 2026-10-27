@@ -200,7 +200,7 @@ export const KINDS: Record<string, Kind> = {
     label: "Doctor card",
     group: "Information",
     color: "#0891B2",
-    hint: "A doctor's profile and Book with",
+    hint: "A doctor's profile, Book with, View treatments",
     start: {
       doctor: "Dr. ",
       title: "",
@@ -208,8 +208,11 @@ export const KINDS: Record<string, Kind> = {
       photo: "",
       about: "",
       stats: [],
-      book_label: "Book with Dr. ",
+      book_label: "Book an appointment with {doctor}",
       profile_url: "",
+      treatments_label: "",
+      treatments: [],
+      buttons: [],
     },
   },
   question: {
@@ -217,7 +220,14 @@ export const KINDS: Record<string, Kind> = {
     group: "Questions",
     color: "#DB2777",
     hint: "Asks one thing (text, number, date, choice, rating, yes/no, file) and saves it",
-    start: { question: "Your question?", kind: "text", field: "reason", options: [], required: true, retries: 2 },
+    start: {
+      question: "Your question?",
+      kind: "text",
+      field: "reason",
+      options: [],
+      required: true,
+      retries: 2,
+    },
   },
   set_field: {
     label: "Set field",
@@ -285,7 +295,14 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
     .filter((b) => !b.action)
     .map((b) => ({ id: b.id, label: b.label }));
   if (n.type === "question")
-    out.push(...(n.settings.kind === "yes_no" ? [{ id: "yes", label: "yes" }, { id: "no", label: "no" }] : [{ id: "next", label: "next" }]));
+    out.push(
+      ...(n.settings.kind === "yes_no"
+        ? [
+            { id: "yes", label: "yes" },
+            { id: "no", label: "no" },
+          ]
+        : [{ id: "next", label: "next" }]),
+    );
   if (n.type === "typed" || n.type === "set_field")
     out.push({ id: "next", label: "next" });
   if (LEAD.has(n.type)) out.push({ id: "done", label: "done" });

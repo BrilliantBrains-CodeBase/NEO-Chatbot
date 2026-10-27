@@ -117,6 +117,17 @@ def test_question_block_kinds_and_exits() -> None:
         normalise({"nodes": [OPENING, ask(field="nope")]})
 
 
+def test_doctor_card_buttons() -> None:
+    card: dict[str, Any] = {"doctor": "Dr. A", "book_label": "Book with {doctor}", "treatments_label": "View"}
+    doc: dict[str, Any] = {"id": "doc", "type": "doctor_card", "settings": card}
+    more = card | {"treatments": ["FUE"], "buttons": [{"id": "b1", "label": "Ask a question"}]}
+    lines = [{"source": "doc", "exit": e, "target": "book"} for e in ("book", "b1")]
+    saved = normalise({"nodes": [OPENING, doc | {"settings": more}, BOOK], "edges": lines})
+    assert saved["edges"] == lines  # Book with and its own buttons each have a line; treatments open cards
+    with pytest.raises(FlowError, match="at least one treatment"):
+        normalise({"nodes": [OPENING, doc | {"settings": card}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

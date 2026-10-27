@@ -16,7 +16,7 @@ from collections import deque
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, Field, TypeAdapter, field_validator, model_validator
 
 ID = r"^[a-z0-9][a-z0-9_-]{0,47}$"
 MAX_NODES, MAX_EDGES, MAX_BUTTONS = 200, 600, 12
@@ -131,7 +131,9 @@ class TreatmentSettings(BaseModel):
 
 
 class DoctorSettings(BaseModel):
-    """A doctor's profile card: name, title, qualifications, photo, a few figures, Book with, full profile."""
+    """A doctor's profile card: name, title, qualifications, photo, a few figures, Book with, full profile.
+    Book with {doctor}: the line's booking block gets this doctor filled in (no doctor question; this doctor's
+    slots only). View treatments: this doctor's treatments (from Clinic info → Services), each to its card."""
 
     doctor: str = Field(min_length=1, max_length=80)  # the name, as in the CRM's Doctors
     title: str = Field(default="", max_length=120)  # e.g. Founder and Director
@@ -143,6 +145,15 @@ class DoctorSettings(BaseModel):
         default="", max_length=40
     )  # "Book with Dr ..." (empty: no button); a line to a booking
     profile_url: str = Field(default="", max_length=600, pattern=r"^(https://\S+)?$")  # "Read full profile"
+    treatments_label: str = Field(default="", max_length=40)  # "View treatments" (empty: no button)
+    treatments: list[str] = Field(default=[], max_length=30)  # treatment names from Services
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)  # more buttons, as on a menu
+
+    @model_validator(mode="after")
+    def _treatments(self) -> "DoctorSettings":
+        if self.treatments_label.strip() and not self.treatments:
+            raise ValueError("View treatments needs at least one treatment.")
+        return self
 
 
 class LinkSettings(BaseModel):

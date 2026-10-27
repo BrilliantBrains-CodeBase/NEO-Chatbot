@@ -366,7 +366,8 @@ export default function BlockSettings({
                     value={s[k] == null ? "" : String(s[k])}
                     onChange={(e) =>
                       set({
-                        [k]: e.target.value === "" ? null : Number(e.target.value),
+                        [k]:
+                          e.target.value === "" ? null : Number(e.target.value),
                       })
                     }
                   />
@@ -499,6 +500,37 @@ export default function BlockSettings({
             "Full profile link (https://…, optional)",
             1,
             600,
+          )}
+          {text(
+            "treatments_label",
+            "View treatments button text (empty: no button)",
+            1,
+            40,
+          )}
+          {String(s.treatments_label ?? "").trim() && (
+            <Row label="This doctor's treatments (each opens its card)">
+              <div className="wf-checks">
+                {services.map((t) => {
+                  const picked = (s.treatments as string[]) ?? [];
+                  return (
+                    <label key={t.name}>
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(t.name)}
+                        onChange={(e) =>
+                          set({
+                            treatments: e.target.checked
+                              ? [...picked, t.name]
+                              : picked.filter((x) => x !== t.name),
+                          })
+                        }
+                      />
+                      {t.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </Row>
           )}
         </>
       )}
@@ -638,7 +670,7 @@ export default function BlockSettings({
       )}
 
       {(MENUS.has(block.type) ||
-        ["answer", "emergency"].includes(block.type)) && (
+        ["answer", "emergency", "doctor_card"].includes(block.type)) && (
         <Buttons
           list={buttonsOf(block)}
           onChange={onButtons}

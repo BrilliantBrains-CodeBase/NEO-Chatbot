@@ -127,6 +127,15 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
       {b.type === "treatment_list" && !b.settings.category && (
         <p className="wf-text">Choose a category in the settings.</p>
       )}
+      {b.type === "doctor_card" &&
+        String(b.settings.treatments_label ?? "") && (
+          <div className="wf-exit live">
+            <span>{String(b.settings.treatments_label)}</span>
+            <i className="wf-tag">
+              {((b.settings.treatments as string[]) ?? []).length} treatments
+            </i>
+          </div>
+        )}
       {/* Every button in order: one that leads on has a dot for its line; one that does its own job shows a tag. */}
       {buttonsOf(b).map((x) => (
         <div
