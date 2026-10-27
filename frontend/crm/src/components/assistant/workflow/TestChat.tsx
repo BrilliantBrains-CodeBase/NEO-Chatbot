@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import type { FlowCheck } from "./blocks";
 
 // The test chat on the canvas: runs the saved DRAFT flow (patients see nothing), tap or type like a patient.
 // The block the chat is on lights up on the canvas (onAt).
@@ -35,12 +36,18 @@ export default function TestChat({
   dirty,
   onAt,
   onClose,
+  onSaveCheck,
 }: {
   clinicId: string;
   dirty: boolean;
   onAt: (id: string | null) => void;
   onClose: () => void;
+  onSaveCheck: (c: FlowCheck) => void;
 }) {
+  // What was tapped and typed since the start, for "Save as a check".
+  const [steps, setSteps] = useState<FlowCheck["steps"]>([]);
+  const [at, setAt] = useState<string | null>(null);
+  const [leadDone, setLeadDone] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [state, setState] = useState<Reply["state"] | null>(null);
   const [showFields, setShowFields] = useState(true);
@@ -76,7 +83,11 @@ export default function TestChat({
           : []),
       ]);
       setState(r.state);
+      setAt(r.at);
       onAt(r.at);
+      if (r.lead) setLeadDone(true);
+      const { tap, text } = body as { tap?: string; text?: string };
+      setSteps((s) => [...s, tap !== undefined ? { tap } : { text }]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "The test chat failed.");
     }
@@ -92,6 +103,9 @@ export default function TestChat({
         if (!live) return;
         setLines(r.messages.map((m) => ({ from: "bot", msg: m })));
         setState(r.state);
+        setAt(r.at);
+        setSteps([]);
+        setLeadDone(false);
         onAt(r.at);
       })
       .catch((e) =>
@@ -159,6 +173,23 @@ export default function TestChat({
           }}
         >
           Delete test leads
+        </button>
+        <button
+          className="pill"
+          disabled={!steps.length || !at || dirty}
+          title="Replays this chat before every Publish: it must end here again"
+          onClick={() => {
+            const name = window.prompt("Name this check, e.g. Booking works");
+            if (!name?.trim() || !at) return;
+            onSaveCheck({
+              name: name.trim().slice(0, 60),
+              steps: steps.slice(0, 40),
+              expect_at: at,
+              expect_lead: leadDone,
+            });
+          }}
+        >
+          Save as a check
         </button>
         <button
           aria-label="Close"

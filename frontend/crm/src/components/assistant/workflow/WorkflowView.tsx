@@ -47,6 +47,7 @@ import {
   BUILT_IN_FIELDS,
   DEFAULT_GLOBALS,
   type FieldDef,
+  type FlowCheck,
   type Globals,
 } from "./blocks";
 import BlockSettings from "./BlockSettings";
@@ -572,6 +573,10 @@ function Canvas() {
           dirty={dirty}
           onAt={setLiveAt}
           onClose={() => setTesting(false)}
+          onSaveCheck={(c) => {
+            setFlow({ ...flow, checks: [...(flow.checks ?? []), c] });
+            toast("Check added. Save changes to keep it.");
+          }}
         />
       )}
       <div className={`wf${block || side ? "" : " no-side"}`}>
@@ -719,6 +724,12 @@ function Canvas() {
                   fields={flow.fields ?? []}
                   onChange={(fields) => setFlow({ ...flow, fields })}
                 />
+                <ChecksPanel
+                  clinicId={clinicId}
+                  checks={flow.checks ?? []}
+                  dirty={dirty}
+                  onChange={(checks) => setFlow({ ...flow, checks })}
+                />
                 <GlobalsPanel
                   globals={flow.globals ?? DEFAULT_GLOBALS}
                   blocks={flow.nodes}
@@ -734,6 +745,94 @@ function Canvas() {
         )}
       </div>
     </>
+  );
+}
+
+/** Publish checks: saved test chats, replayed on the draft; all must pass before Publish. */
+function ChecksPanel({
+  clinicId,
+  checks,
+  dirty,
+  onChange,
+}: {
+  clinicId: string | undefined;
+  checks: FlowCheck[];
+  dirty: boolean;
+  onChange: (c: FlowCheck[]) => void;
+}) {
+  const [results, setResults] = useState<
+    { name: string; ok: boolean; message: string }[] | null
+  >(null);
+  const [err, setErr] = useState("");
+  return (
+    <div style={{ marginTop: 14 }}>
+      <h3 style={{ margin: "0 0 6px" }}>Publish checks</h3>
+      {!checks.length && (
+        <p className="sub2" style={{ margin: 0, fontSize: 11.5 }}>
+          None yet. In the test chat, click &quot;Save as a check&quot; after a
+          good run.
+        </p>
+      )}
+      {checks.map((c, i) => {
+        const r = results?.[i];
+        return (
+          <div key={i} className="wf-btn" style={{ fontSize: 12.5 }}>
+            {r && (
+              <span className={`badge ${r.ok ? "b-vi" : "b-in"}`}>
+                {r.ok ? "Pass" : "Fail"}
+              </span>
+            )}
+            <b style={{ flex: 1 }}>
+              {c.name}{" "}
+              <span className="sub2">
+                {r && !r.ok
+                  ? r.message
+                  : `${c.steps.length} steps → ${c.expect_at}`}
+              </span>
+            </b>
+            <button
+              aria-label="Remove"
+              onClick={() => {
+                setResults(null);
+                onChange(checks.filter((_, k) => k !== i));
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      {!!checks.length && (
+        <button
+          className="pill"
+          style={{ marginTop: 6 }}
+          disabled={dirty || !clinicId}
+          title={
+            dirty ? "Save changes first: checks run on the saved draft" : ""
+          }
+          onClick={async () => {
+            setErr("");
+            try {
+              setResults(
+                await api(`/v1/crm/console/${clinicId}/flow/checks`, {
+                  method: "POST",
+                }),
+              );
+            } catch (e) {
+              setErr(
+                e instanceof ApiError ? e.message : "Could not run the checks.",
+              );
+            }
+          }}
+        >
+          Run checks
+        </button>
+      )}
+      {err && <p className="warnbox">{err}</p>}
+      <p className="sub2" style={{ margin: "4px 0 0", fontSize: 11 }}>
+        They run as if the clinic is open at 11 AM.
+      </p>
+    </div>
   );
 }
 

@@ -16,7 +16,7 @@ from app.core.db import get_pool
 from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
 from app.crm.flow import check as check_flow
-from app.crm.flow_run import Context, send, start
+from app.crm.flow_run import Context, run_checks, send, start
 
 router = APIRouter(prefix="/crm/console", tags=["crm"])
 
@@ -510,6 +510,12 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             status.HTTP_409_CONFLICT,
             f"Fix the workflow first ({len(errors)} to fix): {errors[0].message}",
         )
+    failed = [c for c in run_checks(current.draft["flow"], _check_context(current.draft)) if not c["ok"]]
+    if failed:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"A publish check failed ({len(failed)}): '{failed[0]['name']}' {failed[0]['message']}.",
+        )
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
@@ -602,6 +608,21 @@ async def _save_test_lead(user: Staff, lead: dict[str, Any], device: str) -> dic
         )  # fmt: skip
         code: str = await conn.fetchval("select lead_code from app.leads where id = $1", lead_id)
     return {"code": code, "clinic": TEST_CLINIC}
+
+
+def _check_context(draft: dict[str, Any]) -> Context:
+    """Checks run as if the clinic is open at 11 AM, so a check passes or fails the same at any hour."""
+    ctx = _context(draft, "desktop")
+    ctx.minutes, ctx.open_now = 11 * 60, {"in_clinic": True, "online": True}
+    return ctx
+
+
+@router.post("/{clinic}/flow/checks")
+async def flow_checks(user: Annotated[Staff, Depends(staff)], clinic: str) -> list[dict[str, Any]]:
+    """Replays the draft's publish checks (saved test chats): pass or fail for each."""
+    await _manager(user, clinic)
+    draft = (await _load(clinic)).draft
+    return run_checks(draft["flow"], _check_context(draft))
 
 
 @router.post("/{clinic}/flow/test")

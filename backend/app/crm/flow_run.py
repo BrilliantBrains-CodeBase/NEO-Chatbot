@@ -509,4 +509,24 @@ def send(
     return run.tap(tap) if tap is not None else run.text(text or "")
 
 
-__all__ = ["Context", "send", "start"]
+def run_checks(flow: dict[str, Any], ctx: Context) -> list[dict[str, Any]]:
+    """Replays each saved check on the flow: it passes when the chat ends on the same block (and finishes a
+    lead when it did before)."""
+    results = []
+    for c in flow.get("checks") or []:
+        r, lead = start(flow, ctx), False
+        try:
+            for step in c["steps"]:
+                r = send(flow, ctx, r["state"], tap=step.get("tap"), text=step.get("text"))
+                lead = lead or bool(r["lead"])
+            ok = r["at"] == c["expect_at"] and (lead or not c.get("expect_lead"))
+            why = "" if ok else f"ended at '{r['at']}', expected '{c['expect_at']}'"
+            if r["at"] == c["expect_at"] and not ok:
+                why = "the booking / call back was not finished"
+        except Exception as err:  # a broken flow must not stop the other checks
+            ok, why = False, f"stopped: {err}"
+        results.append({"name": c["name"], "ok": ok, "message": why})
+    return results
+
+
+__all__ = ["Context", "run_checks", "send", "start"]

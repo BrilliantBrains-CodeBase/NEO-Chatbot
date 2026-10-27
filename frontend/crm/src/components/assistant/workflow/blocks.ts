@@ -56,6 +56,14 @@ export type Flow = {
   edges: FlowEdge[];
   fields?: FieldDef[];
   globals?: Globals;
+  checks?: FlowCheck[];
+};
+/** A saved test chat: replayed before Publish; it must end on the same block (and finish its lead). */
+export type FlowCheck = {
+  name: string;
+  steps: { tap?: string; text?: string }[];
+  expect_at: string;
+  expect_lead: boolean;
 };
 /** Whole-flow settings: a reminder when the patient goes quiet, and triggers that work from anywhere. */
 export type GlobalTrigger = {

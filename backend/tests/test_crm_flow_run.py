@@ -5,7 +5,7 @@ from typing import Any
 
 from app.chat.content import content
 from app.crm.flow import import_content, normalise
-from app.crm.flow_run import Context, send, start
+from app.crm.flow_run import Context, run_checks, send, start
 
 FUE = {"name": "FUE", "category": "Hair transplant", "show": True, "price": 50000, "show_price": True}
 WED = date(2026, 10, 28)  # a Wednesday
@@ -213,3 +213,19 @@ def test_knowledge_base_and_check_my_appointment() -> None:
     chat("menu")
     chat(tap="m2")
     assert chat("9876543210") == ["Thu 29 Oct, 11:00 AM", "Anything else?"]
+
+
+def test_publish_checks_replay_saved_test_chats() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone"]}}
+    done = {"id": "thanks", "type": "answer", "settings": {"text": "Thanks!"}}
+    steps = [{"tap": "m1"}, {"text": "Asha Rao"}, {"text": "9876543210"}, {"tap": "yes"}]
+    check = {"name": "Booking works", "steps": steps, "expect_at": "thanks", "expect_lead": True}
+    edges = [line("opening", "m1", "book"), line("book", "done", "thanks")]
+    flow = normalise({"nodes": [opening(("m1", "Book")), book, done], "edges": edges, "checks": [check]})
+    assert flow["checks"][0]["name"] == "Booking works"  # kept with the flow
+    assert run_checks(flow, ctx()) == [{"name": "Booking works", "ok": True, "message": ""}]
+    broken = flow | {"edges": edges[:1]}  # the line after the booking was removed
+    [result] = run_checks(broken, ctx())
+    assert not result["ok"] and "expected 'thanks'" in result["message"]
+    unfinished = flow | {"checks": [check | {"steps": steps[:2], "expect_at": "book"}]}
+    assert run_checks(unfinished, ctx())[0]["message"] == "the booking / call back was not finished"

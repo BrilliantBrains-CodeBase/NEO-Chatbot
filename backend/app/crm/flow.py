@@ -447,11 +447,27 @@ class Globals(BaseModel):
         return v
 
 
+class Step(BaseModel):
+    tap: str | None = Field(default=None, max_length=200)  # a button id
+    text: str | None = Field(default=None, max_length=500)  # or typed text
+
+
+class FlowCheck(BaseModel):
+    """A saved test chat: the same taps and texts must still end at the same block (and finish a lead when
+    it did). All checks must pass before Publish."""
+
+    name: str = Field(min_length=1, max_length=60)
+    steps: list[Step] = Field(min_length=1, max_length=40)
+    expect_at: str = Field(max_length=48)  # the block the chat ends on
+    expect_lead: bool = False  # a booking / call back ... was finished
+
+
 class Flow(BaseModel):
     nodes: list[Node] = Field(default=[], max_length=MAX_NODES)
     edges: list[Edge] = Field(default=[], max_length=MAX_EDGES)
     fields: list["FieldDef"] = Field(default=[], max_length=50)  # the clinic's own fields
     globals: Globals = Globals()  # no reply, and triggers that work from anywhere
+    checks: list[FlowCheck] = Field(default=[], max_length=30)  # publish checks (saved test chats)
 
 
 # Fields: values saved during a chat, used in messages as {name}. The built-in ones are filled by the chat
@@ -651,9 +667,10 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         if (e.source, e.exit) in seen:
             raise FlowError(f"Two lines start from the same exit of '{by_id[e.source].title or e.source}'.")
         seen.add((e.source, e.exit))
-    return Flow(nodes=clean_nodes, edges=flow.edges, fields=flow.fields, globals=flow.globals).model_dump(
-        mode="json"
+    clean = Flow(
+        nodes=clean_nodes, edges=flow.edges, fields=flow.fields, globals=flow.globals, checks=flow.checks
     )
+    return clean.model_dump(mode="json")
 
 
 def check(raw: dict[str, Any]) -> list[Problem]:
