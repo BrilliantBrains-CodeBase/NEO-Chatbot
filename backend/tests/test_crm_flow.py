@@ -128,6 +128,20 @@ def test_doctor_card_buttons() -> None:
         normalise({"nodes": [OPENING, doc | {"settings": card}]})
 
 
+def test_information_blocks() -> None:
+    kb = {"id": "kb", "type": "knowledge", "settings": {}}
+    lines = [{"source": "kb", "exit": e, "target": "book"} for e in ("answered", "not_found")]
+    assert normalise({"nodes": [OPENING, kb, BOOK], "edges": lines})["edges"] == lines
+    faq: dict[str, Any] = {"id": "faq", "type": "faq", "settings": {"items": []}}
+    with pytest.raises(FlowError):
+        normalise({"nodes": [OPENING, faq]})  # an FAQ list needs a question
+    same = [{"question": "Is it painful?", "answer": "No."}] * 2
+    with pytest.raises(FlowError, match="same"):
+        normalise({"nodes": [OPENING, faq | {"settings": {"items": same}}]})
+    for t in ("location", "reviews"):
+        normalise({"nodes": [OPENING, {"id": t, "type": t, "settings": {}}]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {

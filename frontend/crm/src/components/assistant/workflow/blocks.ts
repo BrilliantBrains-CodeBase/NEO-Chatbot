@@ -215,6 +215,38 @@ export const KINDS: Record<string, Kind> = {
       buttons: [],
     },
   },
+  location: {
+    label: "Location",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Address, hours and map, live from Contact & hours",
+    start: { message: "", map: true, hours: true, buttons: [] },
+  },
+  reviews: {
+    label: "Reviews",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Patient reviews, live from Clinic info → Reviews",
+    start: { message: "", count: 3, buttons: [] },
+  },
+  faq: {
+    label: "FAQ list",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Questions as buttons, each shows its answer",
+    start: {
+      message: "Common questions:",
+      items: [{ question: "Is it painful?", answer: "Your answer" }],
+      buttons: [],
+    },
+  },
+  knowledge: {
+    label: "Knowledge base",
+    group: "Information",
+    color: "#0891B2",
+    hint: "Answers a typed question from approved answers only",
+    start: { message: "What would you like to know?", topics: [] },
+  },
   question: {
     label: "Question",
     group: "Questions",
@@ -294,6 +326,11 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
   const out = buttonsOf(n)
     .filter((b) => !b.action)
     .map((b) => ({ id: b.id, label: b.label }));
+  if (n.type === "knowledge")
+    out.push(
+      { id: "answered", label: "answered" },
+      { id: "not_found", label: "not found" },
+    );
   if (n.type === "question")
     out.push(
       ...(n.settings.kind === "yes_no"

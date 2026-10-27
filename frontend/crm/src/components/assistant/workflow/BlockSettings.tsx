@@ -270,6 +270,117 @@ export default function BlockSettings({
           )}
         </>
       )}
+      {["location", "reviews", "faq", "knowledge"].includes(block.type) &&
+        text(
+          "message",
+          block.type === "knowledge"
+            ? "Message asking for the question"
+            : "Message (optional)",
+          2,
+          block.type === "knowledge" ? 300 : 500,
+        )}
+      {block.type === "location" && (
+        <Row label="Shown with the address (live from Contact & hours)">
+          {(
+            [
+              ["map", "Map link"],
+              ["hours", "Today's hours, open / closed now"],
+            ] as const
+          ).map(([k, label]) => (
+            <label key={k} style={{ display: "flex", gap: 6, fontWeight: 400 }}>
+              <input
+                type="checkbox"
+                checked={s[k] !== false}
+                onChange={(e) => set({ [k]: e.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+        </Row>
+      )}
+      {block.type === "reviews" && (
+        <Row label="How many reviews (newest first, from Clinic info → Reviews)">
+          <select
+            value={Number(s.count ?? 3)}
+            onChange={(e) => set({ count: Number(e.target.value) })}
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+              <option key={n}>{n}</option>
+            ))}
+          </select>
+        </Row>
+      )}
+      {block.type === "faq" && (
+        <Row label="Questions (each a button; a tap shows its answer)">
+          {((s.items as { question: string; answer: string }[]) ?? []).map(
+            (f, i, all) => (
+              <div
+                key={i}
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <div style={{ display: "flex", gap: 4 }}>
+                  <input
+                    maxLength={120}
+                    placeholder="Question"
+                    value={f.question}
+                    onChange={(e) =>
+                      set({
+                        items: all.map((x, k) =>
+                          k === i ? { ...x, question: e.target.value } : x,
+                        ),
+                      })
+                    }
+                  />
+                  <button
+                    aria-label="Remove"
+                    onClick={() =>
+                      set({ items: all.filter((_, k) => k !== i) })
+                    }
+                  >
+                    ✕
+                  </button>
+                </div>
+                <textarea
+                  rows={2}
+                  maxLength={1500}
+                  placeholder="Answer"
+                  value={f.answer}
+                  onChange={(e) =>
+                    set({
+                      items: all.map((x, k) =>
+                        k === i ? { ...x, answer: e.target.value } : x,
+                      ),
+                    })
+                  }
+                />
+              </div>
+            ),
+          )}
+          {((s.items as unknown[]) ?? []).length < 20 && (
+            <button
+              className="pill"
+              style={{ alignSelf: "flex-start" }}
+              onClick={() =>
+                set({
+                  items: [
+                    ...((s.items as unknown[]) ?? []),
+                    { question: "", answer: "" },
+                  ],
+                })
+              }
+            >
+              + Add a question
+            </button>
+          )}
+        </Row>
+      )}
+      {block.type === "knowledge" && (
+        <span className="sub2" style={{ fontSize: 11 }}>
+          Answers come only from the Knowledge base&apos;s approved answers (no
+          AI writing, no self-learning). Draw &quot;not found&quot; to a call
+          back or a menu.
+        </span>
+      )}
       {block.type === "question" && (
         <>
           {text("question", "Question", 2, 300)}
@@ -670,7 +781,14 @@ export default function BlockSettings({
       )}
 
       {(MENUS.has(block.type) ||
-        ["answer", "emergency", "doctor_card"].includes(block.type)) && (
+        [
+          "answer",
+          "emergency",
+          "doctor_card",
+          "location",
+          "reviews",
+          "faq",
+        ].includes(block.type)) && (
         <Buttons
           list={buttonsOf(block)}
           onChange={onButtons}

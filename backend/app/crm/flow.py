@@ -172,6 +172,51 @@ class TriggerSettings(BaseModel):
     phrases: list[str] = Field(default=[], max_length=200)  # examples shown on the block
 
 
+class LocationSettings(BaseModel):
+    """Address, hours and directions, live from Clinic info → Contact & hours."""
+
+    message: str = Field(default="", max_length=500)
+    map: bool = True  # a map link (Google Maps) under the address
+    hours: bool = True  # today's hours and open / closed now
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+
+class ReviewsSettings(BaseModel):
+    """Patient reviews, live from Clinic info → Reviews (shown ones, newest first)."""
+
+    message: str = Field(default="", max_length=500)
+    count: int = Field(default=3, ge=1, le=10)
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+
+class Faq(BaseModel):
+    question: str = Field(min_length=2, max_length=120)  # shown as a button
+    answer: str = Field(min_length=1, max_length=1500)
+
+
+class FaqSettings(BaseModel):
+    """Questions as buttons; a tap shows its fixed answer (no line needed)."""
+
+    message: str = Field(default="", max_length=500)
+    items: list[Faq] = Field(min_length=1, max_length=20)
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+    @field_validator("items")
+    @classmethod
+    def _items(cls, v: list[Faq]) -> list[Faq]:
+        if len({f.question.strip().lower() for f in v}) != len(v):
+            raise ValueError("Two questions are the same.")
+        return v
+
+
+class KnowledgeSettings(BaseModel):
+    """The patient types a question; the answer comes from the Knowledge base's approved answers only (matched
+    by regular and semantic search, no LLM, no self-training). Exits: answered, not_found."""
+
+    message: str = Field(default="What would you like to know?", max_length=300)
+    topics: list[str] = Field(default=[], max_length=20)  # limit to these topics (empty: all)
+
+
 TYPES: dict[str, type[BaseModel]] = {
     "opening": OpeningSettings,
     "typed": TriggerSettings,
@@ -192,6 +237,10 @@ TYPES: dict[str, type[BaseModel]] = {
     "whatsapp": LinkSettings,
     "call": CallSettings,
     "emergency": AnswerSettings,
+    "location": LocationSettings,
+    "reviews": ReviewsSettings,
+    "faq": FaqSettings,
+    "knowledge": KnowledgeSettings,
 }
 LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback"}
 MENUS = {"opening", "choice", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list"}
@@ -203,6 +252,7 @@ class Node(BaseModel):
         "opening", "typed", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list",
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
+        "location", "reviews", "faq", "knowledge",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -323,6 +373,8 @@ def exits(node: Node) -> list[str]:
         out += ["yes", "no"] if s.kind == "yes_no" else ["next"]
     if node.type in ("typed", "set_field"):
         out.append("next")
+    if node.type == "knowledge":
+        out += ["answered", "not_found"]
     if node.type in LEAD_TYPES:
         out.append("done")
     if isinstance(s, DoctorSettings) and s.book_label:

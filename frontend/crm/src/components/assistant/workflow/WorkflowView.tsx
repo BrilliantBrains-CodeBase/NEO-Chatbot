@@ -136,6 +136,19 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
             </i>
           </div>
         )}
+      {b.type === "faq" &&
+        ((b.settings.items as { question: string }[]) ?? []).map((f, i) => (
+          <div key={i} className="wf-exit live">
+            <span>{f.question}</span>
+            <i className="wf-tag">answer</i>
+          </div>
+        ))}
+      {(b.type === "location" || b.type === "reviews") && (
+        <p className="wf-text">
+          Live from Clinic info →{" "}
+          {b.type === "location" ? "Contact & hours" : "Reviews"}
+        </p>
+      )}
       {/* Every button in order: one that leads on has a dot for its line; one that does its own job shows a tag. */}
       {buttonsOf(b).map((x) => (
         <div
