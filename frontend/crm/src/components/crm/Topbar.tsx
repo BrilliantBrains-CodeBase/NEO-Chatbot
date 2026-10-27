@@ -109,6 +109,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </button>
         </div>
       )}
+      <div id="tb-slot" className="tb-slot" />
       <span className="sp" />
       <div ref={bellRef} style={{ position: "relative" }}>
         <button

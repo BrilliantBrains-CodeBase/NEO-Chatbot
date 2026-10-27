@@ -4,7 +4,7 @@ import { useCrm } from "@/components/crm/CrmProvider";
 import Placeholder from "@/components/crm/Placeholder";
 import AppearanceView from "./AppearanceView";
 import ClinicInfoView from "./ClinicInfoView";
-import MenuView from "./MenuView";
+import WorkflowView from "./workflow/WorkflowView";
 import TemplatesView from "./TemplatesView";
 import { canUseConsole, type Section } from "@/lib/assistant";
 
@@ -22,7 +22,7 @@ export default function AssistantSection({ section }: { section: Section }) {
   }
   if (section.id === "appearance") return <AppearanceView />;
   if (section.id === "templates") return <TemplatesView />;
-  if (section.id === "menu") return <MenuView />;
+  if (section.id === "menu") return <WorkflowView />;
   if (section.id === "content") return <ClinicInfoView />;
   return (
     <Placeholder

@@ -54,14 +54,6 @@ export const SECTIONS: Section[] = [
     desc: "One place for what the chat says about the clinic: Lead questions, Services, Contact & hours, and Reviews (Google rating, patient quotes, celebrities), each a tab, with a live preview.",
   },
   {
-    id: "safety",
-    icon: "alert",
-    label: "Emergency & medical",
-    group: "Widget",
-    stage: 2,
-    desc: "Emergency (108) reply and the wording used when a question needs the doctor.",
-  },
-  {
     id: "ai",
     icon: "spark",
     label: "Knowledge base",

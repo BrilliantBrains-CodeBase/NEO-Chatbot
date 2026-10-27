@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.chat.content import content
 from app.core.db import get_pool
 from app.crm.auth import Staff, staff
+from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
+from app.crm.flow import check as check_flow
 
 router = APIRouter(prefix="/crm/console", tags=["crm"])
 
@@ -375,6 +377,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "contact": Contact,
     "services": Services,
     "reviews": Reviews,
+    "flow": Flow,  # the workflow canvas; checked by app.crm.flow.normalise on save
 }
 
 
@@ -392,6 +395,7 @@ class Settings(BaseModel):
     changed: bool  # the draft differs from what is published
     published_at: str | None
     updated_at: str | None
+    flow_problems: list[Problem] = []  # loose ends (block a publish) and unreachable blocks (warnings)
     menu: list[MenuItem]  # the clinic's chat menu today, for the previews (Menu buttons edits it later)
 
 
@@ -427,6 +431,8 @@ async def _load(clinic: str) -> Settings:
         draft_saved["services"] = services_from_content(clinic)
     if not draft_saved.get("reviews"):  # start from the Google reviews shown today
         draft_saved["reviews"] = reviews_from_content(clinic)
+    if not draft_saved.get("flow"):  # start from the chat today: menu, pages, booking questions
+        draft_saved["flow"] = import_content(content(clinic) or {})
     if not draft_saved.get("menu"):  # start from the chat's menu today
         draft_saved["menu"] = menu_from_content(clinic)
     if not draft_saved.get("appearance"):  # start from the clinic's bot name
@@ -437,6 +443,7 @@ async def _load(clinic: str) -> Settings:
         changed=draft != published,
         published_at=r["published_at"].isoformat() if r and r["published_at"] else None,
         updated_at=r["updated_at"].isoformat() if r else None,
+        flow_problems=check_flow(draft["flow"]),
         menu=[MenuItem.model_validate(i) for i in _menu_items(clinic)],
     )  # fmt: skip
 
@@ -467,7 +474,9 @@ async def save_draft(
     if model is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown settings section.")
     try:
-        value = model.model_validate(body).model_dump()
+        value = normalise(body) if section == "flow" else model.model_validate(body).model_dump()
+    except FlowError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from None
     except ValidationError as e:  # the first wrong field, in words staff can act on
         err = e.errors()[0]
         field = " → ".join(str(x) for x in err["loc"])
@@ -493,6 +502,12 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
     current = await _load(clinic)
     if not current.changed:
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing new to publish.")
+    errors = [p for p in current.flow_problems if p.level == "error"]
+    if errors:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Fix the workflow first ({len(errors)} to fix): {errors[0].message}",
+        )
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
@@ -513,5 +528,24 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             """insert into app.clinic_setting_versions (clinic_id, version, settings, published_by)
                values ($1, $2, $3::jsonb, $4::uuid)""",
             clinic, version, json.dumps(current.draft), user.id,
+        )  # fmt: skip
+    return await _load(clinic)
+
+
+@router.post("/{clinic}/flow/rebuild", response_model=Settings)
+async def rebuild_flow(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settings:
+    """Replaces the draft workflow with one built from today's chat again (the published one is untouched)."""
+    await _manager(user, clinic)
+    flow = import_content(content(clinic) or {})
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await conn.execute(
+            """insert into app.clinic_settings (clinic_id, draft, updated_by)
+               values ($1, jsonb_build_object('flow', $2::jsonb), $3::uuid)
+               on conflict (clinic_id) do update
+                 set draft = app.clinic_settings.draft || jsonb_build_object('flow', $2::jsonb),
+                     updated_by = $3::uuid""",
+            clinic, json.dumps(flow), user.id,
         )  # fmt: skip
     return await _load(clinic)

@@ -1,6 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import CrmProvider, { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 import Sidebar from "./Sidebar";
@@ -45,7 +50,11 @@ function Frame({ children }: { children: ReactNode }) {
       </div>
 
       <div className={`ov${drawer ? " on" : ""}`} onClick={closeDrawer} />
-      <aside className={`dr${drawer ? " on" : ""}`} aria-label="Details" aria-hidden={!drawer}>
+      <aside
+        className={`dr${drawer ? " on" : ""}`}
+        aria-label="Details"
+        aria-hidden={!drawer}
+      >
         {drawer}
       </aside>
 

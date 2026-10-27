@@ -161,3 +161,58 @@ consults (exists), reminders 24 h and 1 h before.
 | **W9** | Stats on the canvas (reach and drop-off per block) |
 | **W10** | Engagement blocks (rating, Google review, offers), A/B test, messages out |
 | **W11** | (With the user's OK) the live chatbot runs the published flow instead of `CL01.json` |
+
+## 7. More from other tools (Voiceflow, Botpress, Typebot, Landbot, ManyChat)
+
+Ideas that fit the rules (no LLM, staff approval); AI-written replies and AI routing are left out.
+
+| Idea | What it adds | Step |
+|---|---|---|
+| **ON/OFF everywhere** | Whole flow, block (skipped; the patient goes on) and button ON/OFF; scheduled ON/OFF (between dates, or clinic hours only); greyed out on the canvas | W4 |
+| **Fields (variables)** | Saved answers (name, phone, treatment, date, source); used in messages ("Thanks {name}"); a **Set field** block | W4 |
+| **Conditions** | If / else on fields, clinic hours, day and time, device, returning patient | W5 |
+| **No reply / retries** | Reminder after N minutes of silence; ask again up to 2 times on a wrong answer, then offer a call back | W5 |
+| **Global triggers** | Main menu, talk to a person, emergency, start again: set once for the whole flow | W5 |
+| **Richer messages** | Image, video, card, carousel (treatments, doctors), file / PDF, map, typing delay | W5 |
+| **More question types** | Number, date picker, time slots, picture choice, rating 1-5, file upload (with consent), yes / no, consent tick | W4 |
+| **Components** | Save a group of blocks (e.g. "Full booking"), reuse it in many flows, edit once | W8 |
+| **Hand-over to a person** | Urgent / normal, confirmation message, outside-hours message; lands in the Inbox with the transcript | W5 |
+| **Test chat with fields** | See the saved values while clicking through; test link before going live | W6 |
+| **Path stats** | Reach, drop-off and conversion to booking per block | W9 |
+| **Content helpers** | Search, unused blocks, duplicate a flow to another clinic, translations per block (when languages are decided) | W8 |
+
+Canvas behaviour: the view is fitted once when a workflow loads; clicking a block, opening the side panel or
+adding blocks keeps the user's zoom and position.
+
+## 8. To do: Doctor card buttons (noted 2026-10-27)
+
+The Doctor card (built: name, title, qualifications, photo, about, up to 6 figures, Book button, full profile link)
+also needs its own buttons, like a menu block, each with a dot for its line or a job of its own:
+- **Book an appointment with {doctor}**: opens a booking block with this doctor filled in (the doctor question
+  is skipped; slots are this doctor's only).
+- **View treatments**: this doctor's treatments (from Clinic info → Services), each to its card.
+- More to be listed by the user.
+
+## 9. To do: Webhook blocks (noted 2026-10-27)
+
+- **Webhook (send)** block: when the chat reaches it, the backend sends the conversation's data as JSON to an
+  address the clinic sets (e.g. another system, Google Sheet, Zapier / Make). Settings: https address, method
+  (POST), which fields to send (name, phone, treatment, answers, lead code ...), a secret header so the receiver
+  can trust it, a time limit and up to 3 retries. Exits: **Sent** and **Failed** (e.g. Failed → call back block).
+  Values from the reply can be saved into fields (e.g. a booking number) to use in the next messages.
+- **Webhook (receive)** trigger: an address of our backend with a secret that an outside system can call to start
+  or continue a flow (e.g. a lead from an ad form), like the Google Sheet leads webhook already built.
+- Every send and receive is logged (time, status, error) in the Activity log; no patient data in the address,
+  only in the body; https only.
+
+## 10. Live CRM data in the blocks (noted 2026-10-27)
+
+Blocks show and use the CRM's **live** data, never copies typed into the canvas:
+- **Appointment blocks:** doctors from the CRM's Doctors; **free slots live** from the doctors' hours, leave and
+  existing appointments (in-clinic and online share one diary); the canvas shows today's free slots on the block.
+- **Doctor card / Doctors list:** name, photo, qualifications and status from the CRM's Doctors (on leave shown).
+- **Treatments:** from Clinic info → Services (published prices).
+- **Contact & hours, Reviews:** from Clinic info.
+- **On each block:** live counts from the CRM: leads and bookings made through it (today / 7 days), pending
+  requests waiting in the Inbox.
+- **Test chat:** makes test leads and requests in the test clinic, visible in the CRM's Leads and Inbox.

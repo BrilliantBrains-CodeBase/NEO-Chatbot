@@ -93,8 +93,11 @@ async def test_neo_follicle_doctor_and_hours_are_seeded(db: asyncpg.Connection) 
            from app.doctor_availability where doctor_id = $1""",
         doc["id"],
     )
-    assert sorted(r["weekday"] for r in rows) == [0, 1, 3, 4, 5, 6]  # Tuesday (2) closed
-    assert {(r["mode"], r["s"], r["e"]) for r in rows} == {("in_clinic", "10:00:00", "19:00:00")}
+    # In-clinic and online (added 2026-10-24 for online consults), the same hours; Tuesday (2) closed.
+    for mode in ("in_clinic", "online"):
+        days = sorted(r["weekday"] for r in rows if r["mode"] == mode)
+        assert days == [0, 1, 3, 4, 5, 6], mode
+    assert {(r["s"], r["e"]) for r in rows} == {("10:00:00", "19:00:00")}
 
 
 # ---------- availability and leave

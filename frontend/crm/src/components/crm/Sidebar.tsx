@@ -54,7 +54,13 @@ export default function Sidebar({
     on: boolean,
     count?: number,
   ) => (
-    <Link href={href} className={on ? "on" : ""} onClick={onNavigate}>
+    <Link
+      key={href}
+      href={href}
+      className={on ? "on" : ""}
+      onClick={onNavigate}
+      title={label}
+    >
       <Icon name={icon} />
       <span>{label}</span>
       {count != null && <span className="c">{count}</span>}
@@ -104,7 +110,8 @@ export default function Sidebar({
   return (
     <aside className={`sb${open ? " on" : ""}`} aria-label="Main menu">
       <div className="sb-top">
-        <i>N</i>NEO CRM
+        <i>N</i>
+        <span className="sb-name">NEO CRM</span>
       </div>
       {path.startsWith("/assistant") ? (
         <nav className="nav">

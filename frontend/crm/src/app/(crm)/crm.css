@@ -403,3 +403,119 @@
 .crm .svc-head { display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;font-size:13px }
 .crm .svc-head:hover { background:var(--panel) }
 .crm .svc-head input { margin:0 }
+
+/* Dashboard → Workflow canvas. */
+.crm .wf { display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:12px;height:calc(100vh - 170px);min-height:520px }
+.crm .wf-lib, .crm .wf-side { border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px;overflow-y:auto }
+.crm .wf-lib h4 { margin:12px 0 6px;font-size:11px;letter-spacing:.06em;color:var(--mute);text-transform:uppercase }
+.crm .wf-item { display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid;border-radius:8px;background:#fff;padding:6px 8px;margin-bottom:6px;cursor:grab;font:inherit }
+.crm .wf-item b { font-size:12.5px }
+.crm .wf-item span { font-size:11px;color:var(--soft) }
+.crm .wf-canvas { border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#FAFBFD }
+.crm .wf-block { width:220px;background:#fff;border:1px solid var(--line);border-top:4px solid;border-radius:10px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px -10px rgba(22,32,46,.4) }
+.crm .wf-block.on { outline:2px solid var(--brand) }
+.crm .wf-block.bad { border-color:#F3B5B5 }
+.crm .wf-kind { font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;gap:6px;align-items:center }
+.crm .wf-bad { background:var(--err);color:#fff;border-radius:999px;padding:0 6px;font-size:10px }
+.crm .wf-title { display:block;font-size:13px;margin:2px 0 }
+.crm .wf-text { margin:2px 0;color:var(--soft);font-size:11px;line-height:1.35 }
+.crm .wf-exit { position:relative;border-top:1px dashed var(--line);padding:4px 10px 4px 0;font-size:11.5px;font-weight:600;color:var(--ink) }
+.crm .wf-exit.soft { color:var(--mute);font-weight:500;font-style:italic }
+.crm .wf-exit .react-flow__handle, .crm .wf-block > .react-flow__handle { width:10px;height:10px;background:var(--brand);border:2px solid #fff }
+.crm .wf-exit .react-flow__handle { right:-15px }
+.crm .wf-problem { display:flex;gap:8px;align-items:flex-start;text-align:left;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:7px 0;cursor:pointer;font:inherit;font-size:12.5px }
+.crm .wf-form { display:flex;flex-direction:column;gap:10px }
+.crm .wf-row { display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--soft) }
+.crm .wf-row input, .crm .wf-row textarea { font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px }
+.crm .wf-seg { display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden }
+.crm .wf-seg button { border:0;background:#fff;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer;color:var(--soft) }
+.crm .wf-seg button.on { background:var(--brand);color:#fff }
+.crm .wf-checks { display:flex;flex-wrap:wrap;gap:4px 12px }
+.crm .wf-checks label { display:flex;gap:5px;align-items:center;font-weight:500;color:var(--ink);font-size:12.5px }
+.crm .wf-btn { display:flex;gap:4px;align-items:center }
+.crm .wf-btn input[type=text], .crm .wf-btn > input { flex:1;min-width:0 }
+.crm .wf-btn > button { border:0;background:none;cursor:pointer;font-size:10px;color:var(--mute);padding:2px }
+
+/* Left menu collapsed to a strip of icons (button « / » at its top). */
+.crm .sb-mini { margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;width:28px;height:28px;cursor:pointer;color:var(--soft);font-size:15px;line-height:1 }
+.crm .sb-mini:hover { color:var(--brand);border-color:var(--brand) }
+.crm .app.mini { grid-template-columns:64px 1fr }
+.crm .app.mini .sb-top { flex-direction:column;padding:12px 6px;gap:8px }
+.crm .app.mini .sb-name, .crm .app.mini .nav .grp, .crm .app.mini .nav .c, .crm .app.mini .nav .chev, .crm .app.mini .nav .sub { display:none }
+.crm .app.mini .sb-mini { margin-left:0 }
+.crm .app.mini .nav a { justify-content:center;padding:10px 0;gap:0 }
+.crm .app.mini .nav a > span { display:none }
+.crm .app.mini .nav .dv { margin:4px 10px }
+@media (max-width: 860px) {
+  /* Phones keep the slide-in menu; the collapse is for wide screens only. */
+  .crm .app.mini { grid-template-columns:1fr }
+  .crm .sb-mini { display:none }
+}
+
+/* Workflow: a slim toolbar so the canvas starts near the top and is taller. */
+.crm .ph.wf-bar { margin:-12px 0 8px;align-items:center }
+.crm .ph.wf-bar h1 { font-size:17px }
+.crm .ph.wf-bar .pill, .crm .ph.wf-bar .btn { padding-top:6px;padding-bottom:6px }
+.crm .wf { height:calc(100vh - 118px) }
+/* A page can put its own buttons in the top bar (e.g. the Workflow canvas). */
+.crm .tb-slot { display:flex;align-items:center;margin-left:auto }
+.crm .tb-slot:empty { display:none }
+.crm .wf-actions { gap:8px;flex-wrap:nowrap }
+.crm .wf-actions .pill, .crm .wf-actions .btn { padding-top:6px;padding-bottom:6px;white-space:nowrap }
+.crm .wf { height:calc(100vh - 104px) }
+/* Smaller buttons in the top bar slot. */
+.crm .tb-slot { padding:4px 6px;border-radius:10px }
+.crm .wf-actions { gap:6px }
+.crm .wf-actions .pill, .crm .wf-actions .btn { font-size:12.5px;padding:4px 10px;min-height:0;border-radius:8px }
+.crm .wf-actions .badge { font-size:11px;padding:2px 8px }
+
+/* Compact top bar: smaller text and controls everywhere in it. */
+.crm .tb { padding:6px 16px;gap:8px;font-size:13px }
+.crm .tb .sel, .crm .tb .search input, .crm .tb .seg button, .crm .tb .btn, .crm .tb .pill { font-size:13px }
+.crm .tb .sel { padding:5px 8px }
+.crm .tb .search input { padding:6px 0 }
+.crm .tb .seg button { padding:5px 10px }
+.crm .tb .seg button svg { width:15px;height:15px }
+.crm .tb .btn { padding:6px 12px;color:#fff }
+.crm .tb .btn svg { width:15px;height:15px }
+.crm .tb .ib { width:32px;height:32px;border-radius:8px }
+.crm .tb .ib svg { width:16px;height:16px }
+.crm .tb .ib b { font-size:9.5px;padding:0 5px;top:-4px;right:-4px }
+.crm .tb .av { width:30px;height:30px;font-size:11.5px }
+.crm .tb .wf-actions .pill, .crm .tb .wf-actions .btn { font-size:12px;padding:3px 9px }
+.crm .tb .wf-actions .btn { color:#fff }
+.crm .tb .wf-actions .badge { font-size:10.5px;padding:1px 7px }
+.crm .wf { height:calc(100vh - 92px) }
+/* Shorter top bar. */
+.crm .tb { padding:4px 14px }
+.crm .tb .sel { padding:3px 6px }
+.crm .tb .search input { padding:4px 0 }
+.crm .tb .seg button { padding:3px 9px }
+.crm .tb .btn { padding:4px 10px }
+.crm .tb .ib { width:28px;height:28px }
+.crm .tb .av { width:28px;height:28px;font-size:11px }
+.crm .tb .wf-actions .pill, .crm .tb .wf-actions .btn { padding:2px 8px }
+.crm .tb-slot { padding:0 }
+.crm .wf { height:calc(100vh - 84px) }
+/* Workflow: easier to read blocks; button tags for buttons that do their own job. */
+.crm .wf-block { width:250px;font-size:12.5px }
+.crm .wf-title { font-size:14px }
+.crm .wf-text { font-size:11.5px }
+.crm .wf-exit { display:flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px 5px 0 }
+.crm .wf-exit > span { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.crm .wf-exit.off { opacity:.45 }
+.crm .wf-tag { font-style:normal;font-size:10px;font-weight:700;color:var(--soft);background:var(--panel);border-radius:999px;padding:1px 7px;white-space:nowrap }
+.crm .wf-btnbox { border:1px solid var(--line);border-radius:8px;padding:5px;display:flex;flex-direction:column;gap:4px }
+.crm .wf-btn select { font:inherit;font-size:12px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;max-width:150px }
+.crm .wf-btn input:not([type=checkbox]) { font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;flex:1;min-width:0 }
+/* Workflow: the right panel only when a block is open or the problems are shown. */
+.crm .wf.no-side { grid-template-columns:230px minmax(0,1fr) }
+.crm .wf-side { position:relative }
+.crm .wf-close { position:absolute;top:8px;right:8px;border:0;background:none;cursor:pointer;font-size:15px;color:var(--mute) }
+/* Narrower left menu. */
+.crm .app { grid-template-columns:205px 1fr }
+.crm .nav a { font-size:14px;padding:8px 14px;gap:10px }
+.crm .nav a svg { width:18px;height:18px }
+.crm .nav .grp { padding:10px 14px 4px }
+.crm .sb-top { padding:12px 14px;font-size:16px }
+.crm .wf-save { position:sticky;bottom:-10px;background:#fff;padding:10px 0 2px;margin-top:10px;border-top:1px solid var(--line);display:flex;justify-content:flex-end }
