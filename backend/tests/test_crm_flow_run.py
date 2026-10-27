@@ -229,3 +229,20 @@ def test_publish_checks_replay_saved_test_chats() -> None:
     assert not result["ok"] and "expected 'thanks'" in result["message"]
     unfinished = flow | {"checks": [check | {"steps": steps[:2], "expect_at": "book"}]}
     assert run_checks(unfinished, ctx())[0]["message"] == "the booking / call back was not finished"
+
+
+def test_medical_questions_are_never_answered() -> None:
+    kb = {"id": "kb", "type": "knowledge", "settings": {}}
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "reason"]}}
+    flow = {"nodes": [opening(("m1", "Ask")), kb, cb], "edges": [line("opening", "m1", "kb")]}
+    chat = Chat(flow, ctx(kb=lambda q: "Take two tablets."))  # even a Knowledge base answer is not given
+    chat(tap="m1")
+    texts = chat("which tablets should I take after the transplant?")
+    assert texts[0].startswith("I don't have a confirmed answer") and "Take two" not in " ".join(texts)
+    assert chat.labels() == ["Yes, call me back", "No, thanks"]
+    assert chat(tap="medical:yes") == ["May I know your full name?"]  # the reason is already known
+    assert chat.r["state"]["fields"]["reason"].startswith("which tablets")
+    chat("Asha Rao")
+    assert chat.labels() == ["Yes", "No"]  # consent next: the reason was not asked again
+    chat(tap="yes")
+    assert chat.r["lead"]["reason"].startswith("which tablets")

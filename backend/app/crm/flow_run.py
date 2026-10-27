@@ -12,8 +12,18 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from app.chat.engine import NO_ANSWER
 from app.chat.flows import EMAIL, normal_phone, valid_name
-from app.chat.understand import EMERGENCY, is_menu, is_yes, match_option, norm, parse_date, parse_time
+from app.chat.understand import (
+    EMERGENCY,
+    MEDICAL,
+    is_menu,
+    is_yes,
+    match_option,
+    norm,
+    parse_date,
+    parse_time,
+)
 from app.crm.flow import DAYS, DEFAULT_QUESTIONS, LEAD_TYPES, Flow, Node, settings_of
 
 AUTO = {"typed", "set_field", "goto", "condition", "clinic_open", "media"}  # go on by themselves
@@ -261,6 +271,8 @@ class Run:
         kind, _, name = button_id.partition(":")
         if b is None and name and kind in ("t", "book"):  # shown after a tap: a treatment, or Book it
             b = {"id": button_id, "action": "treatment" if kind == "t" else "book", "value": name}
+        if b is None and kind == "medical":  # the medical offer: a call back about the question, or the menu
+            b = {"id": button_id, "action": "callback" if name == "yes" else "menu", "value": ""}
         if b is None:
             self.say("Please choose one of the options.")
             self.render(node)
@@ -281,6 +293,8 @@ class Run:
         elif a == "list":  # a doctor's treatments, each to its card
             names = node.settings.get("treatments") or []
             self.say("", buttons=[self._treat({"name": n}) for n in names])
+        elif a == "menu":
+            self.enter(self.first("opening") or "")
         elif a in ("book", "callback"):
             target = self.first("book" if a == "book" else "callback")
             if value:
@@ -316,6 +330,15 @@ class Run:
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
+        # Medical questions are never answered (client rule), not even from the Knowledge base: the same
+        # offer as the live chat, a call back about the question. A booking answer is still taken as typed.
+        if MEDICAL.search(text.lower()) and (not self.ask or self.ask["kind"] == "knowledge"):
+            self.ask = None
+            self.fields["reason"] = text[:200]  # what the call back is about
+            offer = [{"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""}]
+            offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
+            self.say(NO_ANSWER, buttons=offer)
+            return self.reply()
         if self.ask:
             self.answer(node, text)
             return self.reply()
@@ -454,6 +477,8 @@ class Run:
         skip = {"doctor"} if s.get("doctor") else set()
         if s.get("treatment") or (node.type == "book" and self.fields.get("treatment")):
             skip.add("treatment")
+        if node.type == "callback" and self.fields.get("reason"):  # e.g. the medical question
+            skip.add("reason")
         return [f for f in s.get("fields", []) if f not in skip]
 
     def next_question(self, node: Node) -> None:
