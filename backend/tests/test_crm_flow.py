@@ -175,6 +175,36 @@ async def test_only_the_approve_action_approves_phrases(
         await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
 
 
+@needs_db
+async def test_test_chat_reads_the_knowledge_base_and_appointments(api: AsyncClient) -> None:
+    from app.api.v1.crm_console import _kb_answer, _save_test_lead, _upcoming
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    assert "10:00 AM" in (await _kb_answer("CL01", "what are your clinic timings") or "")
+    user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
+    saved = await _save_test_lead(
+        user, {"type": "book", "name": "Test Appt", "phone": "+91 9000000098"}, "desktop"
+    )
+    try:
+        lead = await pool.fetchval("select id from app.leads where lead_code = $1", saved["code"])
+        await pool.execute(
+            """insert into app.appointments (clinic_id, lead_id, type, preferred_date)
+               values ('CL99', $1, 'in_clinic', current_date + 1)""",
+            lead,
+        )
+        [line] = await _upcoming("CL99", "90000 00098")
+        assert "time to be confirmed" in line and line.endswith("in clinic · pending")
+        assert await _upcoming("CL99", "9000000097") == []
+    finally:
+        await pool.execute("delete from app.leads where lead_code = $1", saved["code"])
+
+
 def test_blocks_can_be_off_or_scheduled() -> None:
     line = {"source": "opening", "exit": "m1", "target": "book"}
     off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}

@@ -10,8 +10,9 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
+from app.chat import kb
 from app.chat.content import content
-from app.chat.flows import ist_now
+from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
 from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
@@ -676,10 +677,61 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
     ctx = _context(draft, body.device)
     if body.state is None:
         return start(draft["flow"], ctx)
+    # The engine is synchronous: what it may ask for this message is looked up first, live.
+    waiting = (body.state.get("ask") or {}).get("kind")
+    if waiting == "knowledge" and body.text:
+        found = await _kb_answer(clinic, body.text)
+        ctx.kb = lambda q: found
+    if waiting == "check" and body.text:
+        booked = await _upcoming(clinic, body.text)
+        ctx.appointments = lambda phone: booked
     reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
     if reply["lead"]:
         reply["saved"] = await _save_test_lead(user, reply["lead"], body.device)
     return reply
+
+
+async def _kb_answer(clinic: str, text: str) -> str | None:
+    """The clinic's approved Knowledge base, as the live chat searches it (no LLM): approved Q/A, then facts;
+    by words, then by meaning. Medical questions never get here (the engine's guard)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for find in (kb.search, kb.fact):
+            hit = await find(conn, clinic, text)
+            if hit:
+                return hit.answer
+        for near in (kb.semantic, kb.fact_semantic):
+            hit, _ = await near(conn, clinic, text)
+            if hit:
+                return hit.answer
+    return None
+
+
+async def _upcoming(clinic: str, typed: str) -> list[str]:
+    """The upcoming appointments of the lead with this phone (CRM → Appointments), as short lines."""
+    phone = normal_phone(typed.strip(), None)
+    if not phone:
+        return []
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """select a.type, a.status, d.name doctor,
+                  to_char(lower(a.slot) at time zone c.timezone, 'Dy DD Mon, HH12:MI AM') at_,
+                  to_char(a.preferred_date, 'Dy DD Mon') on_day
+           from app.appointments a join app.leads l on l.id = a.lead_id
+             join app.clinics c on c.id = a.clinic_id left join app.doctors d on d.id = a.doctor_id
+           where a.clinic_id = $1 and l.phone_e164 = $2 and l.deleted_at is null
+             and a.status in ('pending', 'confirmed')
+             and coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date)
+                 >= (now() at time zone c.timezone)::date
+           order by coalesce(lower(a.slot), a.preferred_date::timestamptz) limit 3""",
+        clinic, phone.replace(" ", ""),
+    )  # fmt: skip
+    return [
+        f"{r['at_'] or r['on_day'] + ' (time to be confirmed)'}"
+        f"{' with ' + r['doctor'] if r['doctor'] else ''}"
+        f" · {'online' if r['type'] == 'online' else 'in clinic'} · {r['status']}"
+        for r in rows
+    ]
 
 
 @router.delete("/{clinic}/flow/test-leads")
