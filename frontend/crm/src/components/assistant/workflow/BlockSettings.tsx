@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { Service } from "./WorkflowView";
 import {
   BUTTON_ACTIONS,
   buttonsOf,
@@ -30,7 +31,9 @@ export default function BlockSettings({
   block,
   onChange,
   onButtons,
+  services,
 }: {
+  services: Service[];
   block: FlowNode;
   onChange: (patch: Partial<FlowNode>) => void;
   onButtons: (buttons: FlowButton[]) => void;
@@ -95,6 +98,28 @@ export default function BlockSettings({
           600,
         )}
       {block.type === "call" && text("number", "Phone number", 1, 16)}
+      {block.type === "treatment_list" && (
+        <Row label="Category (its treatments come live from Clinic info → Services)">
+          <select
+            value={String(s.category ?? "")}
+            onChange={(e) => set({ category: e.target.value })}
+          >
+            <option value="">Choose…</option>
+            {[...new Set(services.map((t) => t.category).filter(Boolean))].map(
+              (c) => (
+                <option key={c}>{c}</option>
+              ),
+            )}
+          </select>
+          <span className="sub2" style={{ fontWeight: 400 }}>
+            {services
+              .filter((t) => t.show && t.category === s.category)
+              .map((t) => t.name)
+              .join(" · ") || "No treatments shown in this category."}{" "}
+            To change them, edit Clinic info → Services.
+          </span>
+        </Row>
+      )}
       {block.type === "treatment_card" &&
         text("treatment", "Treatment (from Clinic info → Services)", 1, 80)}
       {block.type === "doctor_card" && (

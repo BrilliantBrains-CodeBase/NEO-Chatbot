@@ -59,6 +59,15 @@ class ChoiceSettings(BaseModel):
     buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
 
 
+class TreatmentListSettings(BaseModel):
+    """The treatments of one category, live from Clinic info → Services (shown ones, in order); each opens its
+    card. Extra buttons (e.g. "Not sure, help me choose") are its own and lead on along their lines."""
+
+    message: str = Field(default="", max_length=1500)
+    category: str = Field(default="", max_length=40)  # a Services category, e.g. Hair transplant
+    buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+
+
 class AnswerSettings(BaseModel):
     """Fixed text, optionally with buttons."""
 
@@ -121,7 +130,7 @@ TYPES: dict[str, type[BaseModel]] = {
     "choice": ChoiceSettings,
     "appointment_menu": ChoiceSettings,  # Book / online / cancel / reschedule
     "treatment_categories": ChoiceSettings,  # main treatment list
-    "treatment_list": ChoiceSettings,  # sub list: the treatments of one category
+    "treatment_list": TreatmentListSettings,  # sub list: one category's treatments, live from Services
     "doctor_list": ChoiceSettings,
     "answer": AnswerSettings,
     "book": LeadSettings,
@@ -267,6 +276,7 @@ ROLE = {
     "hf": "treatment_list",
     "about": "doctor_list",
 }
+LIST_CATEGORY = {"ht": "Hair transplant", "hf": "Hair fall & scalp"}  # as Services' categories (GROUP)
 STEP_FIELDS: dict[str, list[str]] = {  # the chat's booking questions today (app/chat/flows.py)
     "book": ["name", "phone", "treatment", "date", "time"],
     "online": ["name", "phone", "email", "treatment", "date", "time"],
@@ -394,6 +404,14 @@ def import_content(c: dict[str, Any]) -> dict[str, Any]:
             nodes[nid]["settings"]["buttons"] = buttons_and_lines(nid, ui.get("options", []))
             continue
         kind = ROLE.get(key, "choice") if ui.get("options") else "answer"
+        if kind == "treatment_list":  # treatments come live from Services; keep only the other buttons
+            others = [o for o in ui.get("options", []) if o.get("action") != "treat"]
+            nodes[nid] = {"id": nid, "type": kind, "title": title, "settings": {}}
+            nodes[nid]["settings"] = {
+                "message": text, "category": LIST_CATEGORY.get(key, ""),
+                "buttons": buttons_and_lines(nid, others),
+            }  # fmt: skip
+            continue
         nodes[nid] = {"id": nid, "type": kind, "title": title, "settings": {}}
         btns = buttons_and_lines(nid, ui.get("options", []))
         nodes[nid]["settings"] = (
@@ -446,6 +464,7 @@ GAP_X, GAP_Y = 340.0, 40.0
 def _height(n: dict[str, Any]) -> float:
     """About how tall a block is drawn on the canvas: its header, then one row per button or exit."""
     rows = len(n["settings"].get("buttons", [])) + (1 if n["type"] in MENUS else 0)
+    rows += 12 if n["type"] == "treatment_list" else 0  # its treatments come live from Services
     rows += 1 if n["type"] in LEAD_TYPES or n["type"] == "typed" else 0
     return 90.0 + rows * 26.0
 

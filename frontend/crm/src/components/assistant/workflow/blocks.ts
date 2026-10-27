@@ -145,7 +145,11 @@ export const KINDS: Record<string, Kind> = {
     group: "Treatments",
     color: "#D97706",
     hint: "Sub list: the treatments of one category",
-    start: { message: "Pick a treatment to learn more.", buttons: [] },
+    start: {
+      message: "Pick a treatment to learn more.",
+      category: "",
+      buttons: [],
+    },
   },
   treatment_card: {
     label: "Treatment card",
@@ -281,7 +285,8 @@ const heightOf = (n: FlowNode) =>
   26 *
     (buttonsOf(n).length +
       (MENU_TYPES.includes(n.type) ? 1 : 0) +
-      (LEAD.has(n.type) || n.type === "typed" ? 1 : 0));
+      (LEAD.has(n.type) || n.type === "typed" ? 1 : 0) +
+      (n.type === "treatment_list" ? 12 : 0));
 
 /** One lane per trigger (as the backend's layout): each main button's flow, then each Typed trigger's, depth
  * left to right, blocks stacked by their real height; the lanes packed side by side so the whole flow is about

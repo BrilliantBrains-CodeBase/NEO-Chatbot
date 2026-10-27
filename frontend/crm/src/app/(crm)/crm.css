@@ -519,3 +519,5 @@
 .crm .nav .grp { padding:10px 14px 4px }
 .crm .sb-top { padding:12px 14px;font-size:16px }
 .crm .wf-save { position:sticky;bottom:-10px;background:#fff;padding:10px 0 2px;margin-top:10px;border-top:1px solid var(--line);display:flex;justify-content:flex-end }
+.crm .wf-exit.live > span { color:var(--soft);font-weight:500 }
+.crm .wf-row select { font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px }

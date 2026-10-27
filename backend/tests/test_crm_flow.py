@@ -23,7 +23,10 @@ def test_cl01_imports_completely_with_no_problems() -> None:
     assert {"book", "online", "cancel", "reschedule", "callback", "emergency"} <= set(types)
     # Simple buttons do their job by themselves (no line, no extra block): the 18 treatments, links, WhatsApp.
     actions = [b["action"] for n in flow["nodes"] for b in n["settings"].get("buttons", [])]
-    assert actions.count("treatment") == 18 and "whatsapp" in actions and "link" in actions
+    assert "whatsapp" in actions and "link" in actions
+    # Treatment lists take their treatments live from Clinic info → Services, by category.
+    lists = {n["settings"]["category"] for n in flow["nodes"] if n["type"] == "treatment_list"}
+    assert lists == {"Hair transplant", "Hair fall & scalp"}
     assert len(flow["nodes"]) < 35
     assert {n["settings"]["topic"] for n in flow["nodes"] if n["type"] == "typed"} >= {"cost", "clinic"}
     assert check(flow) == []  # every button leads somewhere, every block is reachable

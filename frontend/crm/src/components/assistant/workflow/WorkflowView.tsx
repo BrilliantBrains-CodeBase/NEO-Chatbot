@@ -51,12 +51,19 @@ import BlockSettings from "./BlockSettings";
 // each button or exit to the next block, the selected block's settings on the right. One draft per clinic:
 // Save keeps it, Publish makes it live (blocked while a button leads nowhere). Plan: WORKFLOW-CANVAS-PLAN.md.
 
+export type Service = {
+  name: string;
+  category: string;
+  price: number | null;
+  show_price: boolean;
+  show: boolean;
+};
 type Settings = {
-  draft: { flow: Flow };
+  draft: { flow: Flow; services: { items: Service[] } };
   changed: boolean;
   flow_problems: Problem[];
 };
-type BlockData = { block: FlowNode; problems: number };
+type BlockData = { block: FlowNode; problems: number; services: Service[] };
 
 function Block({ data, selected }: NodeProps<Node<BlockData>>) {
   const b = data.block;
@@ -95,6 +102,23 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
         <p className="wf-text">
           {b.settings.mode === "form" ? "Form" : "Step by step"}
         </p>
+      )}
+      {/* A treatment list's treatments, live from Clinic info → Services (each opens its card). */}
+      {b.type === "treatment_list" &&
+        data.services
+          .filter((t) => t.show && t.category === b.settings.category)
+          .map((t) => (
+            <div key={t.name} className="wf-exit live">
+              <span>{t.name}</span>
+              <i className="wf-tag">
+                {t.show_price && t.price != null
+                  ? `₹${t.price.toLocaleString("en-IN")}`
+                  : "card"}
+              </i>
+            </div>
+          ))}
+      {b.type === "treatment_list" && !b.settings.category && (
+        <p className="wf-text">Choose a category in the settings.</p>
       )}
       {/* Every button in order: one that leads on has a dot for its line; one that does its own job shows a tag. */}
       {buttonsOf(b).map((x) => (
@@ -136,6 +160,7 @@ export default function WorkflowView() {
 
 const noSubscription = () => () => {};
 const FIT = { padding: 0.04, maxZoom: 1 };
+const NONE: Service[] = [];
 
 function Canvas() {
   const { clinic, me, toast } = useCrm();
@@ -201,6 +226,7 @@ function Canvas() {
   }, [clinicId]);
 
   const s = loaded.clinic === clinicId ? loaded.s : undefined;
+  const services = useMemo(() => s?.draft.services?.items ?? NONE, [s]);
   const dirty =
     !!s && !!flow && JSON.stringify(flow) !== JSON.stringify(s.draft.flow);
   const problems = useMemo<Problem[]>(
@@ -225,12 +251,13 @@ function Canvas() {
         data: {
           block: n,
           problems: problems.filter((p) => p.node === n.id).length,
+          services: n.type === "treatment_list" ? services : NONE,
         },
         selected: n.id === selected,
         deletable: n.type !== "opening",
         measured: sizes[n.id],
       })),
-    [flow, problems, selected, sizes],
+    [flow, problems, selected, sizes, services],
   );
   const edges = useMemo<Edge[]>(
     () =>
@@ -544,6 +571,7 @@ function Canvas() {
                 <BlockSettings
                   key={block.id}
                   block={block}
+                  services={services}
                   onChange={setBlock}
                   onButtons={setButtons}
                 />
