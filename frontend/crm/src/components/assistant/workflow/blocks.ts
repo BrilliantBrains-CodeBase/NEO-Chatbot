@@ -212,6 +212,13 @@ export const KINDS: Record<string, Kind> = {
       profile_url: "",
     },
   },
+  question: {
+    label: "Question",
+    group: "Questions",
+    color: "#DB2777",
+    hint: "Asks one thing (text, number, date, choice, rating, yes/no, file) and saves it",
+    start: { question: "Your question?", kind: "text", field: "reason", options: [], required: true, retries: 2 },
+  },
   set_field: {
     label: "Set field",
     group: "Logic",
@@ -255,7 +262,7 @@ export const GROUPS = [
   "Treatments",
   "Information",
   "Contact & safety",
-  ,
+  "Questions",
   "Logic",
 ];
 const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
@@ -277,6 +284,8 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
   const out = buttonsOf(n)
     .filter((b) => !b.action)
     .map((b) => ({ id: b.id, label: b.label }));
+  if (n.type === "question")
+    out.push(...(n.settings.kind === "yes_no" ? [{ id: "yes", label: "yes" }, { id: "no", label: "no" }] : [{ id: "next", label: "next" }]));
   if (n.type === "typed" || n.type === "set_field")
     out.push({ id: "next", label: "next" });
   if (LEAD.has(n.type)) out.push({ id: "done", label: "done" });

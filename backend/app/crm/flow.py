@@ -191,7 +191,7 @@ class Node(BaseModel):
     type: Literal[
         "opening", "typed", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list",
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
-        "doctor_card", "link", "whatsapp", "call", "emergency", "set_field",
+        "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -248,6 +248,45 @@ class SetFieldSettings(BaseModel):
     value: str = Field(default="", max_length=200)  # may use other fields, e.g. {treatment}
 
 
+class Choice(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    image: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")  # picture choice
+
+
+class QuestionSettings(BaseModel):
+    """Asks one thing, checks the answer by its kind and saves it into a field, then goes on. Yes / no has
+    two exits (yes, no). A file upload is only asked with consent (e.g. a scalp photo)."""
+
+    question: str = Field(min_length=2, max_length=300)  # may use fields, e.g. {name}
+    kind: Literal[
+        "text",
+        "number",
+        "email",
+        "phone",
+        "date",
+        "time",
+        "choice",
+        "picture_choice",
+        "rating",
+        "yes_no",
+        "file",
+    ] = "text"
+    field: str = Field(pattern=FIELD)  # where the answer is saved
+    options: list[Choice] = Field(default=[], max_length=12)  # choice, picture choice
+    minimum: float | None = None  # number
+    maximum: float | None = None
+    required: bool = True  # off: the patient can skip it
+    retries: int = Field(default=2, ge=0, le=3)
+    consent_text: str = Field(default="", max_length=300)  # file: shown before the upload
+
+    @field_validator("options")
+    @classmethod
+    def _options(cls, v: list[Choice]) -> list[Choice]:
+        if len({c.label.strip().lower() for c in v}) != len(v):
+            raise ValueError("Two options have the same label.")
+        return v
+
+
 class Problem(BaseModel):
     level: Literal["error", "warning"]  # error: publish is blocked
     node: str
@@ -255,6 +294,7 @@ class Problem(BaseModel):
 
 
 TYPES["set_field"] = SetFieldSettings
+TYPES["question"] = QuestionSettings
 Flow.model_rebuild()
 _settings = {t: TypeAdapter(m) for t, m in TYPES.items()}
 
@@ -268,6 +308,8 @@ def settings_of(node: Node) -> BaseModel:
 def exits(node: Node) -> list[str]:
     s = settings_of(node)
     out = [b.id for b in getattr(s, "buttons", []) if not b.action]
+    if isinstance(s, QuestionSettings):
+        out += ["yes", "no"] if s.kind == "yes_no" else ["next"]
     if node.type in ("typed", "set_field"):
         out.append("next")
     if node.type in LEAD_TYPES:
@@ -298,8 +340,11 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         raise FlowError("Each field needs its own name, not one of the built-in fields.")
     known = BUILT_IN_FIELDS | set(keys)
     for n in flow.nodes:
-        if n.type == "set_field" and n.settings.get("field") not in known:
-            raise FlowError(f"Block '{n.title or n.id}' sets a field that does not exist.")
+        if n.type in ("set_field", "question") and n.settings.get("field") not in known:
+            raise FlowError(f"Block '{n.title or n.id}' saves into a field that does not exist.")
+        if n.type == "question" and n.settings.get("kind") in ("choice", "picture_choice"):
+            if len(n.settings.get("options") or []) < 2:
+                raise FlowError(f"Block '{n.title or n.id}' needs at least 2 options.")
     by_id = {n.id: n for n in flow.nodes}
     clean_nodes = []
     for n in flow.nodes:

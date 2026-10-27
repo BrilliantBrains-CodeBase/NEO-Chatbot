@@ -27,6 +27,19 @@ const FIELDS: [string, string][] = [
   ["reason", "Reason"],
 ];
 const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
+const QUESTION_KINDS: Record<string, string> = {
+  text: "Text",
+  number: "Number",
+  email: "Email",
+  phone: "Phone",
+  date: "Date",
+  time: "Time",
+  choice: "Choice (buttons)",
+  picture_choice: "Picture choice",
+  rating: "Rating",
+  yes_no: "Yes / No (two exits)",
+  file: "File upload",
+};
 // The chat's usual wording (backend: DEFAULT_QUESTIONS in app/crm/flow.py), shown when a block keeps it.
 const DEFAULT_QUESTIONS: Record<string, string> = {
   name: "May I know your full name?",
@@ -255,6 +268,134 @@ export default function BlockSettings({
             1,
             200,
           )}
+        </>
+      )}
+      {block.type === "question" && (
+        <>
+          {text("question", "Question", 2, 300)}
+          <Row label="Answer type">
+            <select
+              value={String(s.kind ?? "text")}
+              onChange={(e) => set({ kind: e.target.value })}
+            >
+              {Object.entries(QUESTION_KINDS).map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Save the answer in">
+            <select
+              value={String(s.field ?? "")}
+              onChange={(e) => set({ field: e.target.value })}
+            >
+              <option value="">Choose…</option>
+              {fields.map((f) => (
+                <option key={f}>{f}</option>
+              ))}
+            </select>
+          </Row>
+          {(s.kind === "choice" || s.kind === "picture_choice") && (
+            <Row label="Options (2 to 12)">
+              {((s.options as { label: string; image?: string }[]) ?? []).map(
+                (o, i, all) => (
+                  <div key={i} style={{ display: "flex", gap: 4 }}>
+                    <input
+                      value={o.label}
+                      maxLength={40}
+                      placeholder="Label"
+                      onChange={(e) =>
+                        set({
+                          options: all.map((x, j) =>
+                            j === i ? { ...x, label: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    {s.kind === "picture_choice" && (
+                      <input
+                        value={o.image ?? ""}
+                        maxLength={300}
+                        placeholder="Picture https://…"
+                        onChange={(e) =>
+                          set({
+                            options: all.map((x, j) =>
+                              j === i ? { ...x, image: e.target.value } : x,
+                            ),
+                          })
+                        }
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        set({ options: all.filter((_, j) => j !== i) })
+                      }
+                    >
+                      ×
+                    </button>
+                  </div>
+                ),
+              )}
+              {((s.options as unknown[]) ?? []).length < 12 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    set({
+                      options: [
+                        ...((s.options as unknown[]) ?? []),
+                        { label: "", image: "" },
+                      ],
+                    })
+                  }
+                >
+                  + Add option
+                </button>
+              )}
+            </Row>
+          )}
+          {(s.kind === "number" || s.kind === "rating") && (
+            <Row label="Lowest and highest">
+              <div style={{ display: "flex", gap: 4 }}>
+                {(["minimum", "maximum"] as const).map((k) => (
+                  <input
+                    key={k}
+                    type="number"
+                    placeholder={k}
+                    value={s[k] == null ? "" : String(s[k])}
+                    onChange={(e) =>
+                      set({
+                        [k]: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </Row>
+          )}
+          {s.kind === "file" &&
+            text("consent_text", "Consent shown before upload", 2, 300)}
+          <Row label="If the answer is not understood, ask again">
+            <select
+              value={String(s.retries ?? 2)}
+              onChange={(e) => set({ retries: Number(e.target.value) })}
+            >
+              {[0, 1, 2, 3].map((n) => (
+                <option key={n} value={n}>
+                  {n} times
+                </option>
+              ))}
+            </select>
+          </Row>
+          <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+            <input
+              type="checkbox"
+              checked={s.required !== false}
+              onChange={(e) => set({ required: e.target.checked })}
+            />
+            answer required (no skip)
+          </label>
         </>
       )}
       <span className="sub2" style={{ fontSize: 11 }}>

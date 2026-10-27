@@ -102,6 +102,21 @@ def test_appointment_block_settings() -> None:
         normalise({"nodes": [OPENING, BOOK | {"settings": {"retries": 9}}]})
 
 
+def test_question_block_kinds_and_exits() -> None:
+    base: dict[str, Any] = {"question": "Have you had a transplant before?"}
+
+    def ask(**settings: Any) -> dict[str, Any]:
+        return {"id": "q1", "type": "question", "settings": base | settings}
+
+    line_yes = {"source": "q1", "exit": "yes", "target": "book"}
+    saved = normalise({"nodes": [OPENING, ask(kind="yes_no", field="reason"), BOOK], "edges": [line_yes]})
+    assert saved["edges"] == [line_yes]  # yes / no are its two exits
+    with pytest.raises(FlowError, match="at least 2 options"):
+        normalise({"nodes": [OPENING, ask(kind="choice", field="reason", options=[{"label": "A"}])]})
+    with pytest.raises(FlowError, match="field that does not exist"):
+        normalise({"nodes": [OPENING, ask(field="nope")]})
+
+
 def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     welcome = OPENING | {"settings": {"welcome": "Hi {name}, about {interest}?", "buttons": []}}
     set_it = {
@@ -115,7 +130,7 @@ def test_fields_set_field_and_unknown_fields_in_messages() -> None:
     assert not [p for p in check(saved) if p.level == "error"]
     unknown = check(normalise(flow | {"fields": []} | {"nodes": [welcome]}))
     assert [p.message for p in unknown if p.level == "error"] == ["Uses {interest}, which is not a field."]
-    with pytest.raises(FlowError, match="sets a field that does not exist"):
+    with pytest.raises(FlowError, match="field that does not exist"):
         normalise(flow | {"fields": []})
     with pytest.raises(FlowError, match="own name"):
         normalise(flow | {"fields": [{"key": "name", "label": "Name"}]})
