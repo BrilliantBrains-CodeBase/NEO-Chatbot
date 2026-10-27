@@ -854,6 +854,98 @@ function ChecksPanel({
       <p className="sub2" style={{ margin: "4px 0 0", fontSize: 11 }}>
         They run as if the clinic is open at 11 AM.
       </p>
+      <TestSets clinicId={clinicId} dirty={dirty} />
+    </div>
+  );
+}
+
+type SetResult = {
+  name: string;
+  total: number;
+  passed: number;
+  failures: {
+    message: string;
+    expected: string;
+    got: string;
+    word: string;
+    reply: string;
+  }[];
+};
+
+/** The clinic's typed-message test sets, sent to the saved draft: the score and what failed. */
+function TestSets({
+  clinicId,
+  dirty,
+}: {
+  clinicId: string | undefined;
+  dirty: boolean;
+}) {
+  const [sets, setSets] = useState<SetResult[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        className="pill"
+        disabled={busy || dirty || !clinicId}
+        title={dirty ? "Save changes first" : ""}
+        onClick={async () => {
+          setBusy(true);
+          setErr("");
+          try {
+            setSets(
+              await api<SetResult[]>(
+                `/v1/crm/console/${clinicId}/flow/test-sets`,
+                { method: "POST" },
+              ),
+            );
+          } catch (e) {
+            setErr(
+              e instanceof ApiError
+                ? e.message
+                : "Could not run the test sets.",
+            );
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Running test sets… (about a minute)" : "Run test sets"}
+      </button>
+      {err && <p className="warnbox">{err}</p>}
+      {sets && !sets.length && (
+        <p className="sub2" style={{ fontSize: 11.5 }}>
+          This clinic has no test sets yet.
+        </p>
+      )}
+      {sets?.map((s) => (
+        <div key={s.name} style={{ marginTop: 6, fontSize: 12.5 }}>
+          <button
+            className="wf-btn"
+            style={{ width: "100%", textAlign: "left", cursor: "pointer" }}
+            onClick={() => setOpen(open === s.name ? null : s.name)}
+          >
+            <span className={`badge ${s.passed === s.total ? "b-vi" : "b-fu"}`}>
+              {s.passed}/{s.total}
+            </span>
+            <b style={{ flex: 1 }}>{s.name}</b>
+            {s.failures.length > 0 && (open === s.name ? "▾" : "▸")}
+          </button>
+          {open === s.name &&
+            s.failures.map((f, i) => (
+              <p
+                key={i}
+                className="sub2"
+                style={{ margin: "3px 0 0 8px", fontSize: 11.5 }}
+              >
+                “{f.message}” — expected {f.expected}
+                {f.word ? ` with “${f.word}”` : ""}, got {f.got}
+                {f.reply ? `: ${f.reply.slice(0, 90)}` : ""}
+              </p>
+            ))}
+        </div>
+      ))}
     </div>
   );
 }

@@ -18,6 +18,7 @@ from app.core.db import get_pool
 from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
 from app.crm.flow import check as check_flow
+from app.crm.flow_eval import passed
 from app.crm.flow_run import Context, run_checks, send, start
 
 router = APIRouter(prefix="/crm/console", tags=["crm"])
@@ -680,7 +681,7 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
         return start(draft["flow"], ctx)
     # The engine is synchronous: what it may ask for this message is looked up first, live.
     waiting = (body.state.get("ask") or {}).get("kind")
-    if waiting in ("knowledge", "lead", "question") and body.text:  # a side question mid-booking too
+    if body.text and waiting in (None, "knowledge", "lead", "question"):  # typed questions, mid-booking too
         found = await _kb_answer(clinic, body.text)
         ctx.kb = lambda q: found
     if waiting == "check" and body.text:
@@ -780,6 +781,49 @@ async def _upcoming(clinic: str, typed: str) -> list[str]:
         f" · {'online' if r['type'] == 'online' else 'in clinic'} · {r['status']}"
         for r in rows
     ]
+
+
+def _always(value: Any) -> Any:
+    """A lookup that returns what was already looked up for this message."""
+    return lambda _: value
+
+
+def _test_sets(clinic: str) -> dict[str, list[tuple[str, str, str]]]:
+    """The clinic's typed-message test sets (only CL01 has them so far)."""
+    if clinic != "CL01":
+        return {}
+    from scripts.eval_chat import CASES as SMALL
+    from scripts.eval_set_buttons_cl01 import CASES as BUTTONS
+    from scripts.eval_set_cl01 import CASES as BIG
+
+    return {"Buttons typed": BUTTONS, "Typed messages": BIG, "Small set": SMALL}
+
+
+@router.post("/{clinic}/flow/test-sets")
+async def run_test_sets(user: Annotated[Staff, Depends(staff)], clinic: str) -> list[dict[str, Any]]:
+    """Every message of the clinic's test sets, sent to the DRAFT flow (one new chat each, nothing saved):
+    the score per set and the messages that failed. The live chat's scores are the bar to reach."""
+    await _manager(user, clinic)
+    draft = (await _load(clinic)).draft
+    out = []
+    for name, cases in _test_sets(clinic).items():
+        failures = []
+        for message, expected, word in cases:
+            ctx = _context(draft, "desktop")
+            found, near = await _kb_answer(clinic, message), await _nearest_phrase(draft["flow"], message)
+            ctx.kb, ctx.meaning = _always(found), _always(near)
+            first = start(draft["flow"], ctx)
+            reply = send(draft["flow"], ctx, first["state"], text=message)
+            ok, got = passed(draft["flow"], reply, expected, word)
+            if not ok:
+                said = " / ".join(m["text"] for m in reply["messages"] if m["text"])[:160]
+                failures.append(
+                    {"message": message, "expected": expected, "got": got, "word": word, "reply": said}
+                )
+        out.append(
+            {"name": name, "total": len(cases), "passed": len(cases) - len(failures), "failures": failures}
+        )
+    return out
 
 
 @router.delete("/{clinic}/flow/test-leads")

@@ -19,6 +19,7 @@ from app.chat.flows import EMAIL, normal_phone, valid_name
 from app.chat.understand import (
     EMERGENCY,
     IDENTITY,
+    INTENTS,
     MEDICAL,
     is_menu,
     is_yes,
@@ -27,6 +28,7 @@ from app.chat.understand import (
     parse_date,
     parse_time,
     small_talk,
+    spelled,
 )
 from app.crm.flow import DAYS, DEFAULT_QUESTIONS, LEAD_TYPES, Flow, Node, settings_of
 
@@ -338,8 +340,10 @@ class Run:
     def text(self, raw: str) -> dict[str, Any]:
         text = raw.strip()
         g = {t.kind: t for t in self.flow.globals.triggers if t.enabled}
-        if EMERGENCY.search(text.lower()) and "emergency" in g:
-            self.enter(g["emergency"].target or self.first("emergency") or "")
+        # Emergency words always come first, from anywhere: the trigger's block, else the flow's Emergency.
+        sos = (g["emergency"].target if "emergency" in g else "") or self.first("emergency")
+        if EMERGENCY.search(text.lower()) and sos:
+            self.enter(sos)
             return self.reply()
         if "start_again" in g and norm(text) in ("start again", "restart", "start over"):
             self.fields = {}
@@ -388,6 +392,9 @@ class Run:
         elif treatment := self.named_treatment(low):
             self.matched = {"how": "treatment name", "text": treatment}
             self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
+        elif (kind := self.start_rule(low)) and self.first(kind):
+            self.matched = {"how": "rule", "text": kind}  # the live chat's keyword rules ("cancel my visit")
+            self.enter(self.first(kind) or "")
         elif not self.follow("no_match"):
             topic = next(
                 (
@@ -397,8 +404,13 @@ class Run:
                 ),
                 None,
             )
+            found = None if topic else self.ctx.kb(text)  # approved answers only; medical never gets here
             if topic:
                 self.enter(topic)
+            elif found:
+                self.matched = {"how": "knowledge base", "text": text}
+                self.say(found)
+                self.render(node)
             else:
                 fallback = next(
                     (n.settings.get("fallback") for n in self.flow.nodes if n.type == "opening"), ""
@@ -468,6 +480,12 @@ class Run:
                 return
         self.at = None
         self.enter(self.first("opening") or "")
+
+    def start_rule(self, low: str) -> str | None:
+        """The live chat's keyword rules that start a booking, online consult, cancel, reschedule or call
+        back (rules written by staff, never learnt)."""
+        text = spelled(low)
+        return next((t[1] for pattern, t in INTENTS if t[0] == "start" and pattern.search(text)), None)
 
     def named_treatment(self, low: str) -> str | None:
         """A treatment typed by name ("beard transplant", or a first word only one treatment has, "prp"):

@@ -293,7 +293,7 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
         {"id": "p1", "target": "opening:m1", "text": "I want to book", "status": "approved"},
         {"id": "p2", "target": "menu:b1", "text": "how much does it cost", "status": "approved"},
         {"id": "p3", "target": "t", "text": "when are you open", "status": "approved"},
-        {"id": "p4", "target": "opening:m1", "text": "appointment chahiye", "status": "pending"},
+        {"id": "p4", "target": "opening:m1", "text": "kab aa sakta hoon", "status": "pending"},
     ]
     flow = {
         "nodes": [opening(("m1", "Book"), ("m2", "More")), menu, cost, book, timing, hours],
@@ -316,7 +316,7 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
     chat = fresh()
     assert chat("when are you open") == ["10 to 7."]  # a Typed trigger
     chat = fresh()
-    assert chat("appointment chahiye")[0].startswith("Sorry")  # pending: never used
+    assert chat("kab aa sakta hoon")[0].startswith("Sorry")  # pending: never used
     near = {"target": "opening:m1", "text": "I want to book", "score": 88.0}
     chat = fresh(meaning=lambda t: near)
     assert chat("can i come in next week") == ["May I know your full name?"]  # by meaning
@@ -371,3 +371,23 @@ def test_typed_text_beside_the_flow() -> None:
     chat = Chat(flow, kb)
     assert chat("tell me about fue")[0].startswith("FUE")  # a treatment typed by name: its card
     assert chat.r["matched"] == {"how": "treatment name", "text": "FUE"}
+
+
+def test_test_set_scoring() -> None:
+    from app.crm.flow_eval import passed
+
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}
+    sos = {"id": "sos", "type": "emergency", "settings": {"text": "Call 108."}}
+    flow = normalise(
+        {"nodes": [opening(("m1", "Book")), book, sos], "edges": [line("opening", "m1", "book")]}
+    )
+
+    def score(message: str, expected: str, word: str = "") -> tuple[bool, str]:
+        r = start(flow, ctx())
+        return passed(flow, send(flow, ctx(), r["state"], text=message), expected, word)
+
+    assert score("i want to book an appointment", "start", "book your appointment") == (True, "start")
+    assert score("hello", "menu") == (True, "menu")
+    assert score("there is heavy bleeding", "emergency") == (True, "emergency")
+    assert score("which tablets should i take", "medical") == (True, "medical")
+    assert score("blah blah", "any") == (False, "lead")
