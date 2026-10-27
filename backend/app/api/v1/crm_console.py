@@ -564,15 +564,74 @@ def _context(draft: dict[str, Any], device: str) -> Context:
     )  # fmt: skip
 
 
+TEST_CLINIC, TEST_MARK = "CL99", "crm:test-chat"  # test leads: the hidden test clinic only, marked
+
+
+async def _save_test_lead(user: Staff, lead: dict[str, Any], device: str) -> dict[str, str]:
+    """A finished test booking / call back ... as a lead and an Inbox request in CL99, marked as a test.
+    No email, no task, no staff assigned (unlike a patient's lead); Delete test leads removes them."""
+    phone = (lead.get("phone") or "").replace(" ", "") or None
+    if not phone and not lead.get("email"):
+        return {"error": "Not saved: a test lead needs a phone number or an email."}
+    data = {k: v for k, v in lead.items() if k not in ("type", "block")}
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        lead_id = await conn.fetchval(
+            """select id from app.leads where clinic_id = $1 and deleted_at is null
+                 and (phone_e164 = $2 or ($2 is null and email = $3))""",
+            TEST_CLINIC, phone, lead.get("email"),
+        )  # fmt: skip
+        if lead_id is None:
+            lead_id = await conn.fetchval(
+                """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source,
+                     treatment, page_url, device)
+                   values ($1, $2, $3, $4, $5, 'chatbot', $6, $7, $8) returning id""",
+                TEST_CLINIC, lead.get("name") or "Test patient", phone, "+91" if phone else None,
+                lead.get("email"), lead.get("treatment"), TEST_MARK, device,
+            )  # fmt: skip
+        else:
+            await conn.execute(
+                """update app.leads set contact_count = contact_count + 1, last_contact_at = now()
+                   where id = $1""",
+                lead_id,
+            )
+        await conn.execute(
+            "insert into app.requests (clinic_id, lead_id, type, data) values ($1, $2, $3, $4::jsonb)",
+            TEST_CLINIC, lead_id, lead["type"], json.dumps(data),
+        )  # fmt: skip
+        code: str = await conn.fetchval("select lead_code from app.leads where id = $1", lead_id)
+    return {"code": code, "clinic": TEST_CLINIC}
+
+
 @router.post("/{clinic}/flow/test")
 async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: TestChat) -> dict[str, Any]:
-    """Runs the DRAFT flow, one message at a time, for the test chat on the canvas (patients see nothing)."""
+    """Runs the DRAFT flow, one message at a time, for the test chat on the canvas (patients see nothing).
+    A finished booking / call back ... is saved as a test lead in CL99 (never in the clinic itself)."""
     await _manager(user, clinic)
     draft = (await _load(clinic)).draft
     ctx = _context(draft, body.device)
     if body.state is None:
         return start(draft["flow"], ctx)
-    return send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
+    reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
+    if reply["lead"]:
+        reply["saved"] = await _save_test_lead(user, reply["lead"], body.device)
+    return reply
+
+
+@router.delete("/{clinic}/flow/test-leads")
+async def delete_test_leads(user: Annotated[Staff, Depends(staff)], clinic: str) -> dict[str, int]:
+    """Deletes the test chat's leads (CL99, marked as tests) with their requests and timeline."""
+    await _manager(user, clinic)
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        gone = await conn.fetch(
+            "delete from app.leads where clinic_id = $1 and page_url = $2 returning id",
+            TEST_CLINIC,
+            TEST_MARK,
+        )
+    return {"deleted": len(gone)}
 
 
 @router.post("/{clinic}/flow/rebuild", response_model=Settings)

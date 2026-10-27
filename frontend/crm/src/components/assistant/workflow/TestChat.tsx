@@ -13,12 +13,14 @@ type Msg = {
   media?: { kind: string; url: string };
   open?: { action: string; value: string };
   cards?: { title: string }[];
+  note?: boolean; // from the test chat itself, not the flow
 };
 type Reply = {
   messages: Msg[];
   at: string | null;
   lead: Record<string, string> | null;
-  state: Record<string, unknown>;
+  saved?: { code?: string; clinic?: string; error?: string };
+  state: Record<string, unknown> & { fields?: Record<string, string> };
 };
 type Line = { from: "bot" | "me"; msg: Msg };
 
@@ -40,7 +42,8 @@ export default function TestChat({
   onClose: () => void;
 }) {
   const [lines, setLines] = useState<Line[]>([]);
-  const [state, setState] = useState<Record<string, unknown> | null>(null);
+  const [state, setState] = useState<Reply["state"] | null>(null);
+  const [showFields, setShowFields] = useState(true);
   const [text, setText] = useState("");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [error, setError] = useState("");
@@ -58,14 +61,15 @@ export default function TestChat({
       setLines((l) => [
         ...l,
         ...r.messages.map((m) => ({ from: "bot" as const, msg: m })),
-        ...(r.lead
+        ...(r.saved
           ? [
               {
                 from: "bot" as const,
                 msg: {
-                  text: `Test lead (not saved yet): ${Object.entries(r.lead)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(", ")}`,
+                  text:
+                    r.saved.error ??
+                    `Test lead ${r.saved.code} saved in ${r.saved.clinic} (see CRM → Leads and Inbox under ${r.saved.clinic}).`,
+                  note: true,
                 },
               },
             ]
@@ -125,6 +129,38 @@ export default function TestChat({
           Restart
         </button>
         <button
+          className="pill"
+          title="Deletes the test chat's leads in CL99"
+          onClick={async () => {
+            if (
+              !window.confirm(
+                "Delete all test leads (CL99) made by the test chat?",
+              )
+            )
+              return;
+            try {
+              const r = await api<{ deleted: number }>(
+                `/v1/crm/console/${clinicId}/flow/test-leads`,
+                { method: "DELETE" },
+              );
+              setLines((l) => [
+                ...l,
+                {
+                  from: "bot",
+                  msg: {
+                    text: `${r.deleted} test lead(s) deleted.`,
+                    note: true,
+                  },
+                },
+              ]);
+            } catch (e) {
+              setError(e instanceof ApiError ? e.message : "Could not delete.");
+            }
+          }}
+        >
+          Delete test leads
+        </button>
+        <button
           aria-label="Close"
           onClick={() => {
             onAt(null);
@@ -139,9 +175,30 @@ export default function TestChat({
           Runs the saved draft: save your changes to test them.
         </p>
       )}
+      <div className="wf-test-fields">
+        <button onClick={() => setShowFields((v) => !v)}>
+          Saved answers {showFields ? "▾" : "▸"}
+        </button>
+        {showFields &&
+          (Object.keys(state?.fields ?? {}).length ? (
+            <dl>
+              {Object.entries(state?.fields ?? {}).map(([k, v]) => (
+                <div key={k}>
+                  <dt>{`{${k}}`}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="wf-test-note">Nothing saved yet.</p>
+          ))}
+      </div>
       <div className="wf-test-body">
         {lines.map((l, i) => (
-          <div key={i} className={`wf-test-msg ${l.from}`}>
+          <div
+            key={i}
+            className={`wf-test-msg ${l.from}${l.msg.note ? " note" : ""}`}
+          >
             {l.msg.text && <p>{l.msg.text}</p>}
             {l.msg.media && (
               <p className="wf-test-note">

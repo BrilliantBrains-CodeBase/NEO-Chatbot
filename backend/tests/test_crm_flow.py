@@ -96,6 +96,44 @@ async def test_test_chat_runs_the_draft(api: AsyncClient, monkeypatch: pytest.Mo
     assert nxt["at"] != "opening" and nxt["messages"]
 
 
+@needs_db
+async def test_test_leads_go_to_cl99_and_are_deleted(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.api.v1.crm_console import _save_test_lead
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
+    lead = {
+        "type": "book",
+        "block": "book",
+        "name": "Test Asha",
+        "phone": "+91 9000000099",
+        "date": "2026-11-02",
+    }
+    saved = await _save_test_lead(user, lead, "desktop")
+    assert saved["clinic"] == "CL99" and saved["code"].startswith("CL99")
+    again = await _save_test_lead(user, lead, "desktop")  # the same phone: one lead, two requests
+    assert again["code"] == saved["code"]
+    row = await pool.fetchrow(
+        """select l.page_url, count(r.id) n from app.leads l join app.requests r on r.lead_id = l.id
+           where l.lead_code = $1 group by l.page_url""",
+        saved["code"],
+    )
+    assert row["page_url"] == "crm:test-chat" and row["n"] == 2
+    assert (await _save_test_lead(user, {"type": "callback", "name": "No contact"}, "desktop"))["error"]
+    r = await api.delete("/v1/crm/console/CL01/flow/test-leads", headers=headers)
+    assert r.status_code == 200 and r.json()["deleted"] >= 1
+    assert await pool.fetchval("select count(*) from app.leads where lead_code = $1", saved["code"]) == 0
+
+
 def test_blocks_can_be_off_or_scheduled() -> None:
     line = {"source": "opening", "exit": "m1", "target": "book"}
     off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}
