@@ -717,7 +717,7 @@ function Canvas() {
 const TRIGGER_LABEL: Record<string, string> = {
   main_menu: "Main menu",
   start_again: "Start again (clears the fields)",
-  talk_to_person: "Talk to a person",
+  talk_to_person: "Get a call back (to your Call back block)",
   emergency: "Emergency",
 };
 

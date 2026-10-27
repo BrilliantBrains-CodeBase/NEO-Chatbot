@@ -176,7 +176,7 @@ Ideas that fit the rules (no LLM, staff approval); AI-written replies and AI rou
 | **Richer messages** | Image, video, card, carousel (treatments, doctors), file / PDF, map, typing delay | W5 |
 | **More question types** | Number, date picker, time slots, picture choice, rating 1-5, file upload (with consent), yes / no, consent tick | W4 |
 | **Components** | Save a group of blocks (e.g. "Full booking"), reuse it in many flows, edit once | W8 |
-| **Hand-over to a person** | Urgent / normal, confirmation message, outside-hours message; lands in the Inbox with the transcript | W5 |
+| **Hand-over to a person** | Dropped (2026-10-27): "talk to a person" is a Call back (global trigger → Call back block) | — |
 | **Test chat with fields** | See the saved values while clicking through; test link before going live | W6 |
 | **Path stats** | Reach, drop-off and conversion to booking per block | W9 |
 | **Content helpers** | Search, unused blocks, duplicate a flow to another clinic, translations per block (when languages are decided) | W8 |
@@ -193,7 +193,7 @@ also needs its own buttons, like a menu block, each with a dot for its line or a
 - **View treatments**: this doctor's treatments (from Clinic info → Services), each to its card.
 - More to be listed by the user.
 
-## 9. To do: Webhook blocks (noted 2026-10-27)
+## 9. To do: Webhooks, in Dashboard → Integrations, not on the canvas (noted 2026-10-27)
 
 - **Webhook (send)** block: when the chat reaches it, the backend sends the conversation's data as JSON to an
   address the clinic sets (e.g. another system, Google Sheet, Zapier / Make). Settings: https address, method

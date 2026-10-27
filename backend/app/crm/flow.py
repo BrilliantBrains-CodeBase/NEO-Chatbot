@@ -572,6 +572,17 @@ class FlowError(ValueError):
     """The flow cannot be saved as it is (the message says where)."""
 
 
+PATTERN_WORDS = {
+    "url": "needs a web address starting with https://",
+    "photo": "the photo needs a web address starting with https://",
+    "image": "the picture needs a web address starting with https://",
+    "profile_url": "the profile link needs a web address starting with https://",
+    "number": "needs a phone number, e.g. +919731207940",
+    "target": "choose the block to go to.",
+    "field": "choose a field.",
+}
+
+
 def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     """Checks the flow's structure and each block's settings. Raises FlowError; returns the clean flow."""
     try:
@@ -617,7 +628,11 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
         try:
             s = settings_of(n)
         except ValueError as err:
-            msg = err.errors()[0]["msg"] if hasattr(err, "errors") else str(err)
+            first: dict[str, Any] = dict(err.errors()[0]) if isinstance(err, ValidationError) else {}
+            msg = str(first.get("msg", err)).removeprefix("Value error, ")
+            if first.get("type") == "string_pattern_mismatch":  # in words staff can act on
+                key = str(first["loc"][-1]) if first["loc"] else ""
+                msg = PATTERN_WORDS.get(key, f"'{key}' is not filled in correctly.")
             raise FlowError(f"Block '{n.title or n.id}': {msg}") from None
         buttons = [b.id for b in getattr(s, "buttons", [])]
         if len(buttons) != len(set(buttons)):
