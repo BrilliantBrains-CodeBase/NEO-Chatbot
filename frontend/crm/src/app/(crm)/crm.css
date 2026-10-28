@@ -470,32 +470,32 @@
 .crm .wf-actions .badge { font-size:11px;padding:2px 8px }
 
 /* Compact top bar: smaller text and controls everywhere in it. */
-.crm .tb { padding:6px 16px;gap:8px;font-size:13px }
-.crm .tb .sel, .crm .tb .search input, .crm .tb .seg button, .crm .tb .btn, .crm .tb .pill { font-size:13px }
-.crm .tb .sel { padding:5px 8px }
-.crm .tb .search input { padding:6px 0 }
-.crm .tb .seg button { padding:5px 10px }
-.crm .tb .seg button svg { width:15px;height:15px }
-.crm .tb .btn { padding:6px 12px;color:#fff }
-.crm .tb .btn svg { width:15px;height:15px }
-.crm .tb .ib { width:32px;height:32px;border-radius:8px }
-.crm .tb .ib svg { width:16px;height:16px }
-.crm .tb .ib b { font-size:9.5px;padding:0 5px;top:-4px;right:-4px }
-.crm .tb .av { width:30px;height:30px;font-size:11.5px }
-.crm .tb .wf-actions .pill, .crm .tb .wf-actions .btn { font-size:12px;padding:3px 9px }
-.crm .tb .wf-actions .btn { color:#fff }
-.crm .tb .wf-actions .badge { font-size:10.5px;padding:1px 7px }
+.crm .tb.tb-compact { padding:6px 16px;gap:8px;font-size:13px }
+.crm .tb.tb-compact .sel, .crm .tb.tb-compact .search input, .crm .tb.tb-compact .seg button, .crm .tb.tb-compact .btn, .crm .tb.tb-compact .pill { font-size:13px }
+.crm .tb.tb-compact .sel { padding:5px 8px }
+.crm .tb.tb-compact .search input { padding:6px 0 }
+.crm .tb.tb-compact .seg button { padding:5px 10px }
+.crm .tb.tb-compact .seg button svg { width:15px;height:15px }
+.crm .tb.tb-compact .btn { padding:6px 12px;color:#fff }
+.crm .tb.tb-compact .btn svg { width:15px;height:15px }
+.crm .tb.tb-compact .ib { width:32px;height:32px;border-radius:8px }
+.crm .tb.tb-compact .ib svg { width:16px;height:16px }
+.crm .tb.tb-compact .ib b { font-size:9.5px;padding:0 5px;top:-4px;right:-4px }
+.crm .tb.tb-compact .av { width:30px;height:30px;font-size:11.5px }
+.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { font-size:12px;padding:3px 9px }
+.crm .tb.tb-compact .wf-actions .btn { color:#fff }
+.crm .tb.tb-compact .wf-actions .badge { font-size:10.5px;padding:1px 7px }
 .crm .wf { height:calc(100vh - 92px) }
 /* Shorter top bar. */
-.crm .tb { padding:4px 14px }
-.crm .tb .sel { padding:3px 6px }
-.crm .tb .search input { padding:4px 0 }
-.crm .tb .seg button { padding:3px 9px }
-.crm .tb .btn { padding:4px 10px }
-.crm .tb .ib { width:28px;height:28px }
-.crm .tb .av { width:28px;height:28px;font-size:11px }
-.crm .tb .wf-actions .pill, .crm .tb .wf-actions .btn { padding:2px 8px }
-.crm .tb-slot { padding:0 }
+.crm .tb.tb-compact { padding:4px 14px }
+.crm .tb.tb-compact .sel { padding:3px 6px }
+.crm .tb.tb-compact .search input { padding:4px 0 }
+.crm .tb.tb-compact .seg button { padding:3px 9px }
+.crm .tb.tb-compact .btn { padding:4px 10px }
+.crm .tb.tb-compact .ib { width:28px;height:28px }
+.crm .tb.tb-compact .av { width:28px;height:28px;font-size:11px }
+.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { padding:2px 8px }
+.crm .tb.tb-compact .tb-slot { padding:0 }
 .crm .wf { height:calc(100vh - 84px) }
 /* Workflow: easier to read blocks; button tags for buttons that do their own job. */
 .crm .wf-block { width:250px;font-size:12.5px }
@@ -555,3 +555,8 @@
 .crm .wf-block.note.green { background:#DCFCE7 }
 .crm .wf-block.note.pink { background:#FCE7F3 }
 .crm .wf-block.note .wf-text { white-space:pre-wrap }
+/* The top bar's bottom line meets the left menu's line under "NEO CRM": one height for both
+   (the workflow canvas keeps its compact bar). */
+.crm { --head:56px }
+.crm .sb-top { height:var(--head);box-sizing:border-box;padding:0 14px;border-bottom:1px solid var(--line) }
+.crm .tb:not(.tb-compact) { min-height:var(--head);box-sizing:border-box;padding-top:0;padding-bottom:0 }

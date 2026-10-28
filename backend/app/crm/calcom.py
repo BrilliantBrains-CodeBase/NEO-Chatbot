@@ -1,7 +1,9 @@
-"""Cal.com: books an approved online consult and returns its Google Meet link (API v2).
+"""Cal.com: books an approved online consult and returns its Google Meet link (API v2); connects a clinic's
+own account (its API key, kept in Vault) and the webhook that syncs its bookings back.
 
-The event type (CALCOM_EVENT_TYPE_ID) has Google Meet as its location and the clinic's hours; Cal.com
-emails the patient the confirmation, the link and reminders."""
+Without a clinic's own key, the backend's CALCOM_API_KEY and CALCOM_EVENT_TYPE_ID are used (as before).
+The event type has Google Meet as its location; Cal.com emails the patient the confirmation, link and
+reminders."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -25,25 +27,59 @@ class Booking:
     meet_link: str | None
 
 
-def _headers() -> dict[str, str]:
-    key = get_settings().calcom_api_key
+def _headers(key: str | None = None, version: str = VERSION) -> dict[str, str]:
+    key = key or get_settings().calcom_api_key
     if not key:
         raise CalcomError("Online consults are not connected to Cal.com yet (CALCOM_API_KEY is missing).")
-    return {"Authorization": f"Bearer {key}", "cal-api-version": VERSION}
+    return {"Authorization": f"Bearer {key}", "cal-api-version": version}
 
 
-async def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+async def _call(
+    method: str,
+    path: str,
+    body: dict[str, Any] | None = None,
+    key: str | None = None,
+    what: str = "the booking",
+    version: str = VERSION,
+) -> dict[str, Any]:
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            r = await client.post(API + path, json=body, headers=_headers())
+            r = await client.request(method, API + path, json=body, headers=_headers(key, version))
     except httpx.HTTPError:
         raise CalcomError("Cal.com could not be reached. Please try again.") from None
     data: dict[str, Any] = r.json() if r.content else {}
     if r.status_code >= 400 or data.get("status") != "success":
         err = data.get("error")
         msg = err.get("message") if isinstance(err, dict) else err
-        raise CalcomError(f"Cal.com did not accept the booking: {msg or r.status_code}.")
+        if r.status_code in (401, 403):
+            raise CalcomError("Cal.com did not accept the API key. Please check it and try again.")
+        raise CalcomError(f"Cal.com did not accept {what}: {msg or r.status_code}.")
     return data
+
+
+async def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
+    return await _call("POST", path, body)
+
+
+# ---------- a clinic's own account ----------
+TRIGGERS = ["BOOKING_CREATED", "BOOKING_RESCHEDULED", "BOOKING_CANCELLED"]
+
+
+async def account(key: str) -> str:
+    """Checks the API key with Cal.com; returns the account's name (shown to staff)."""
+    data = (await _call("GET", "/me", key=key, what="the API key"))["data"]
+    return str(data.get("name") or data.get("username") or data.get("email") or "Cal.com account")
+
+
+async def add_webhook(key: str, url: str, secret: str) -> str:
+    """Creates the webhook that tells us when a booking is made, moved or cancelled; returns its id."""
+    body = {"active": True, "subscriberUrl": url, "triggers": TRIGGERS, "secret": secret}
+    data = (await _call("POST", "/webhooks", body, key=key, what="the webhook"))["data"]
+    return str(data["id"])
+
+
+async def remove_webhook(key: str, webhook_id: str) -> None:
+    await _call("DELETE", f"/webhooks/{webhook_id}", key=key, what="removing the webhook")
 
 
 async def book(start: datetime, name: str, email: str, phone: str | None, note: dict[str, str]) -> Booking:
@@ -83,3 +119,49 @@ async def reschedule(uid: str, start: datetime, reason: str) -> Booking:
 
 async def cancel(uid: str, reason: str) -> None:
     await _post(f"/bookings/{uid}/cancel", {"cancellationReason": reason[:500]})
+
+
+# ---------- a doctor's online consults: a schedule (hours, holidays blocked) and an event ----------
+SCHEDULES, EVENTS = "2024-06-11", "2024-06-14"  # the API versions of these endpoints
+DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]  # 0 = Sunday (CRM)
+
+
+async def save_schedule(
+    key: str, schedule_id: int | None, name: str, hours: list[tuple[int, str, str]], blocked: list[str]
+) -> int:
+    """Creates or updates the doctor's schedule: weekly hours (weekday 0 = Sunday, "HH:MM") and the days
+    blocked (holidays, leave: "YYYY-MM-DD"). Returns its id."""
+    body = {
+        "name": name[:100],
+        "timeZone": "Asia/Kolkata",
+        "availability": [{"days": [DAYS[d]], "startTime": a, "endTime": b} for d, a, b in hours],
+        "overrides": [{"date": day, "startTime": "00:00", "endTime": "00:00"} for day in blocked],
+    }
+    if schedule_id:
+        data = await _call("PATCH", f"/schedules/{schedule_id}", body, key, "the schedule", SCHEDULES)
+    else:
+        data = await _call("POST", "/schedules", body | {"isDefault": False}, key, "the schedule", SCHEDULES)
+    return int(data["data"]["id"])
+
+
+async def save_event(
+    key: str, event_id: int | None, title: str, slug: str, minutes: int, schedule_id: int
+) -> int:
+    """Creates or updates the doctor's online consult (Google Meet, on that schedule). Returns its id."""
+    body: dict[str, Any] = {"title": title[:100], "lengthInMinutes": minutes, "scheduleId": schedule_id}
+    if event_id:
+        data = await _call("PATCH", f"/event-types/{event_id}", body, key, "the consult", EVENTS)
+    else:
+        body |= {"slug": slug, "locations": [{"type": "integration", "integration": "google-meet"}]}
+        data = await _call("POST", "/event-types", body, key, "the consult", EVENTS)
+    return int(data["data"]["id"])
+
+
+async def remove_doctor(key: str, event_id: int | None, schedule_id: int | None) -> None:
+    """Removes a doctor's consult and schedule from Cal.com (best effort: they may be gone already)."""
+    for path, version in ((f"/event-types/{event_id}", EVENTS), (f"/schedules/{schedule_id}", SCHEDULES)):
+        if path.rsplit("/", 1)[1] not in ("None", ""):
+            try:
+                await _call("DELETE", path, key=key, what="removing it", version=version)
+            except CalcomError:
+                pass

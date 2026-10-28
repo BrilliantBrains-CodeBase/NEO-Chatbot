@@ -5,7 +5,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import chat, crm, crm_console, crm_inbox, crm_websites, health, integrations, widget
+from app.api.v1 import (
+    chat,
+    crm,
+    crm_console,
+    crm_inbox,
+    crm_integrations,
+    crm_online,
+    crm_websites,
+    health,
+    integrations,
+    widget,
+)
 from app.chat import kb
 from app.core.cache import close_redis
 from app.core.config import get_settings
@@ -53,6 +64,8 @@ def create_app() -> FastAPI:
     app.include_router(crm_inbox.router, prefix="/v1")
     app.include_router(crm_console.router, prefix="/v1")
     app.include_router(crm_websites.router, prefix="/v1")
+    app.include_router(crm_integrations.router, prefix="/v1")
+    app.include_router(crm_online.router, prefix="/v1")
     app.include_router(widget.router, prefix="/v1")
     app.include_router(integrations.router, prefix="/v1")
     return app

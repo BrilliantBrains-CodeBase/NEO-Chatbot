@@ -31,7 +31,9 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const pending = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const role = crm.me?.clinics.find((c) => c.name === crm.clinic)?.role;
-  const inConsole = usePathname().startsWith("/assistant");
+  const path = usePathname();
+  const inConsole = path.startsWith("/assistant");
+  const compact = path === "/assistant/menu"; // the workflow canvas needs the whole page
   const router = useRouter();
   const [open, setOpen] = useState<"profile" | "bell" | null>(null);
   const menu = open === "profile";
@@ -58,7 +60,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const latest = [...crm.inboxItems].reverse().slice(0, 8);
 
   return (
-    <header className="tb">
+    <header className={`tb${compact ? " tb-compact" : ""}`}>
       <button className="ham" aria-label="Open menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
@@ -163,24 +165,27 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </button>
         </div>
       </div>
-      <button
-        className="btn"
-        onClick={() =>
-          crm.openModal({
-            title: "Add lead",
-            body: clinicId ? (
-              <AddLeadForm clinicId={clinicId} onDone={crm.closeModal} />
-            ) : (
-              <p className="sub2" style={{ margin: 0 }}>
-                Loading your clinics…
-              </p>
-            ),
-          })
-        }
-      >
-        <Icon name="plus" />
-        <span className="hide-m">Add lead</span>
-      </button>
+      {/* Leads belong to the CRM: not shown in the Dashboard (the chatbot console). */}
+      {!inConsole && (
+        <button
+          className="btn"
+          onClick={() =>
+            crm.openModal({
+              title: "Add lead",
+              body: clinicId ? (
+                <AddLeadForm clinicId={clinicId} onDone={crm.closeModal} />
+              ) : (
+                <p className="sub2" style={{ margin: 0 }}>
+                  Loading your clinics…
+                </p>
+              ),
+            })
+          }
+        >
+          <Icon name="plus" />
+          <span className="hide-m">Add lead</span>
+        </button>
+      )}
       <div ref={menuRef} style={{ position: "relative" }}>
         <button
           className="av"

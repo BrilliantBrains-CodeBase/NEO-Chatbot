@@ -110,3 +110,122 @@ async def test_widget_shows_only_on_approved_sites_and_pages(
     finally:
         await pool.execute("delete from app.clinic_websites where clinic_id = 'CL99'")
         await pool.execute("update app.clinics set allowed_origins = '{}' where id = 'CL99'")
+
+
+@needs_db
+async def test_integrations_status_never_shows_keys(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import get_settings
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    r = await api.get("/v1/crm/console/CL01/integrations", headers=headers)
+    assert r.status_code == 200
+    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "whatsapp", "email"]
+    s = get_settings()
+    for key in (s.calcom_api_key, s.sheet_webhook_secret, s.interakt_api_key):
+        assert not key or key not in r.text  # keys are never sent
+
+
+@needs_db
+async def test_connect_calcom_keeps_the_key_in_vault(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import get_settings
+    from app.crm import vault
+
+    key = get_settings().calcom_api_key
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None or not key:
+        pytest.skip("no BB Admin or no Cal.com key in this setup")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99/integrations/calcom"
+    try:
+        bad = await api.post(url, json={"api_key": "cal_live_wrong_key"}, headers=headers)
+        assert bad.status_code == 422 and "API key" in bad.json()["detail"]
+        r = await api.post(url, json={"api_key": key}, headers=headers)
+        assert r.status_code == 200 and key not in r.text  # the key is never sent back
+        [cal] = [i for i in r.json() if i["id"] == "calcom"]
+        assert cal["state"] == "connected" and cal["detail"][0].startswith("Account: ")
+        row = await pool.fetchrow(
+            "select key_secret, webhook_id from app.calcom_accounts where clinic_id = 'CL99'"
+        )
+        async with pool.acquire() as conn:
+            assert await vault.read(conn, row["key_secret"]) == key  # in Vault, readable by the backend only
+        assert row["webhook_id"] is None  # the test backend is not online over https
+        await api.delete(url, headers=headers)
+        async with pool.acquire() as conn:
+            assert await vault.read(conn, row["key_secret"]) is None  # deleted from Vault
+    finally:
+        old = await pool.fetchval(
+            "delete from app.calcom_accounts where clinic_id = 'CL99' returning key_secret"
+        )
+        if old:
+            async with pool.acquire() as conn:
+                await vault.delete(conn, old)
+
+
+@needs_db
+async def test_online_consult_setup_goes_to_calcom(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import httpx
+
+    from app.core.config import get_settings
+    from app.crm import calcom, vault
+
+    key = get_settings().calcom_api_key
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None or not key:
+        pytest.skip("no BB Admin or no Cal.com key in this setup")
+    headers = signed_in_as(monkeypatch, str(admin))
+    base = "/v1/crm/console/CL99/integrations/calcom"
+    try:
+        await api.post(base, json={"api_key": key}, headers=headers)
+        setup = (await api.post(f"{base}/doctors", json={"name": "Dr Test Online"}, headers=headers)).json()
+        [doc] = [d for d in setup["doctors"] if d["name"] == "Dr Test Online"]
+        doc |= {
+            "online": True,
+            "consult_minutes": 15,
+            "hours": [{"weekday": 1, "start": "10:00", "end": "13:00"}],
+            "leave": [{"from_date": "2030-01-01", "to_date": "2030-01-02", "reason": "Test"}],
+        }
+        body = {"doctors": [doc], "holidays": [{"day": "2030-01-26", "reason": "Republic Day"}]}
+        r = (await api.put(f"{base}/setup", json=body, headers=headers)).json()
+        assert r["problems"] == []
+        [saved] = [d for d in r["doctors"] if d["name"] == "Dr Test Online"]
+        assert saved["online"] and saved["consult_minutes"] == 15 and saved["hours"][0]["start"] == "10:00"
+        row = await pool.fetchrow(
+            "select event_type_id, schedule_id from app.calcom_doctors where clinic_id = 'CL99'"
+        )
+        h = {"Authorization": f"Bearer {key}", "cal-api-version": calcom.EVENTS}
+        async with httpx.AsyncClient() as c:
+            event = (await c.get(f"{calcom.API}/event-types/{row['event_type_id']}", headers=h)).json()[
+                "data"
+            ]
+        assert event["lengthInMinutes"] == 15 and event["title"] == "Online consult with Dr Test Online"
+        body["doctors"][0]["online"] = False  # off: removed from Cal.com
+        await api.put(f"{base}/setup", json=body, headers=headers)
+        async with httpx.AsyncClient() as c:
+            gone = await c.get(f"{calcom.API}/event-types/{row['event_type_id']}", headers=h)
+        assert gone.status_code == 404
+    finally:
+        await pool.execute("delete from app.calcom_doctors where clinic_id = 'CL99'")
+        await pool.execute("delete from app.doctors where clinic_id = 'CL99' and name = 'Dr Test Online'")
+        await pool.execute("delete from app.clinic_holidays where clinic_id = 'CL99' and day = '2030-01-26'")
+        old = await pool.fetchval(
+            "delete from app.calcom_accounts where clinic_id = 'CL99' returning key_secret"
+        )
+        if old:
+            async with pool.acquire() as conn:
+                await vault.delete(conn, old)

@@ -7,6 +7,7 @@ import ClinicInfoView from "./ClinicInfoView";
 import WorkflowView from "./workflow/WorkflowView";
 import TemplatesView from "./TemplatesView";
 import WebsiteInstallView from "./WebsiteInstallView";
+import IntegrationsView from "./IntegrationsView";
 import { canUseConsole, type Section } from "@/lib/assistant";
 
 /** One console section. Each is built in its stage; until then it shows the design's header. */
@@ -26,6 +27,7 @@ export default function AssistantSection({ section }: { section: Section }) {
   if (section.id === "menu") return <WorkflowView />;
   if (section.id === "content") return <ClinicInfoView />;
   if (section.id === "install") return <WebsiteInstallView />;
+  if (section.id === "integrations") return <IntegrationsView />;
   return (
     <Placeholder
       title={section.label}
