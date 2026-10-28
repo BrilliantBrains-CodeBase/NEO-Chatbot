@@ -19,8 +19,8 @@ API = "https://api.interakt.ai/v1/public/message/"
 # The messages the CRM sends, and when.
 PURPOSES = {
     "request_received": "Request received (a booking or call back from the chat)",
-    "inclinic_confirmed": "In-clinic appointment confirmed (date, time, doctor, address, map)",
-    "online_confirmed": "Online consult confirmed (date, time, Google Meet link)",
+    "inclinic_confirmed": "Appointment booked, in-clinic (sent when staff confirm it in the CRM)",
+    "online_confirmed": "Online consult booked (sent when staff confirm it in the CRM)",
     "reminder": "Reminder before the appointment",
     "otp": "OTP (Check my appointment)",
 }
@@ -36,7 +36,7 @@ VALUES = {
     "maps_link": "Map link",
     "clinic_phone": "Clinic phone",
     "meet_link": "Google Meet link",
-    "lead_code": "Lead code",
+    "lead_code": "Booking ID (lead code)",
     "otp": "OTP code",
 }
 log = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ async def send(clinic: str, purpose: str, phone: str, data: dict[str, Any]) -> N
     elif not tpl.get("name") or not tpl.get("on", True):
         error = f"No template is set (or it is off) for: {PURPOSES.get(purpose, purpose)}."
     else:
-        body = {
+        body: dict[str, Any] = {
             "countryCode": cc,
             "phoneNumber": number,
             "callbackData": str(data.get("lead_code") or purpose),
@@ -122,6 +122,11 @@ async def send(clinic: str, purpose: str, phone: str, data: dict[str, Any]) -> N
                 "bodyValues": [values.get(v, "") or "-" for v in tpl.get("values", [])],
             },
         }
+        buttons = [b for b in tpl.get("buttons", []) if b]
+        if buttons:  # each URL button's {{1}}: what it opens, through /v1/r/
+            code = str(data.get("lead_code") or "")
+            keys = [f"{clinic}/meet/{code}" if b == "meet" else f"{clinic}/{b}" for b in buttons]
+            body["template"]["buttonValues"] = {str(i): [k] for i, k in enumerate(keys)}
         try:
             async with httpx.AsyncClient(timeout=15) as client:
                 r = await client.post(API, json=body, headers={"Authorization": f"Basic {key}"})
@@ -135,3 +140,72 @@ async def send(clinic: str, purpose: str, phone: str, data: dict[str, Any]) -> N
     )  # fmt: skip
     if error:
         raise WhatsAppError(error)
+
+
+# ---------- template buttons ----------
+# WhatsApp allows only the buttons of the approved template. A "Visit website" button there points to
+# <backend>/v1/r/{{1}}; we fill {{1}} with what it opens (the clinic's map, its website, a menu button's link,
+# the patient's Meet link), and /v1/r/ sends the patient on. Change a link in the CRM: every button follows.
+async def link_options(conn: Any, clinic: str) -> dict[str, str]:
+    """What a template button can open: key -> label for staff."""
+    out = {
+        "map": "Location (Google Maps)",
+        "website": "Clinic website",
+        "meet": "Google Meet link (the patient's)",
+    }
+    for node, button, label in await _menu_links(conn, clinic):
+        out[f"menu/{node}/{button}"] = f"Menu button: {label}"
+    return out
+
+
+async def _menu_links(conn: Any, clinic: str) -> list[tuple[str, str, str]]:
+    """The chat's menu buttons that open a link (Dashboard → Menu buttons), published flow first."""
+    flow = _obj(
+        await conn.fetchval(
+            """select coalesce(nullif(published->'flow', 'null'::jsonb), draft->'flow')
+               from app.clinic_settings where clinic_id = $1""",
+            clinic,
+        )
+    )
+    return [
+        (n["id"], b["id"], b["label"])
+        for n in flow.get("nodes", [])
+        for b in (n.get("settings") or {}).get("buttons") or []
+        if b.get("action") in ("link", "whatsapp") and str(b.get("value", "")).startswith("https://")
+    ]
+
+
+async def resolve(conn: Any, clinic: str, key: str) -> str | None:
+    """The address a button opens (https only), or None."""
+    url: Any
+    if key == "map":
+        url = (await clinic_values(conn, clinic))["maps_link"]
+    elif key == "website":
+        url = await conn.fetchval("select website from app.clinics where id = $1", clinic)
+    elif key.startswith("meet/"):  # the patient's latest online consult
+        url = await conn.fetchval(
+            """select a.meet_link from app.appointments a join app.leads l on l.id = a.lead_id
+               where a.clinic_id = $1 and l.lead_code = $2 and a.meet_link is not null
+               order by a.created_at desc limit 1""",
+            clinic, key[5:],
+        )  # fmt: skip
+    elif key.startswith("menu/"):
+        _, node, button = (key.split("/") + ["", ""])[:3]
+        flow = _obj(
+            await conn.fetchval(
+                """select coalesce(nullif(published->'flow', 'null'::jsonb), draft->'flow')
+                   from app.clinic_settings where clinic_id = $1""",
+                clinic,
+            )
+        )
+        url = next(
+            (
+                b.get("value")
+                for n in flow.get("nodes", []) if n["id"] == node
+                for b in (n.get("settings") or {}).get("buttons") or [] if b["id"] == button
+            ),
+            None,
+        )  # fmt: skip
+    else:
+        url = None
+    return url if url and str(url).startswith("https://") else None

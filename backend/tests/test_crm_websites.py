@@ -583,11 +583,106 @@ async def test_whatsapp_templates_and_test_message(api: AsyncClient, monkeypatch
         assert body["template"]["bodyValues"][:3] == ["Test Patient", "Thu 29 Oct", "11:00 AM"]
         assert body["template"]["bodyValues"][3] == "Test Clinic"  # filled from the clinic itself
         assert sent[0].headers["authorization"] == "Basic interakt-test-key-123"
+        tpl["inclinic_confirmed"]["buttons"] = ["map", "website"]
+        await api.put(f"{url}/templates", json=tpl, headers=headers)
+        test = {"purpose": "inclinic_confirmed", "phone": "9000000091"}
+        await api.post(f"{url}/test", json=test, headers=headers)
+        assert json.loads(sent[-1].content)["template"]["buttonValues"] == {
+            "0": ["CL99/map"],
+            "1": ["CL99/website"],
+        }
         none = await api.post(
             f"{url}/test", json={"purpose": "reminder", "phone": "9000000091"}, headers=headers
         )
         assert none.status_code == 422 and "No template" in none.json()["detail"]
     finally:
+        old = await pool.fetchval(
+            "delete from app.whatsapp_accounts where clinic_id = 'CL99' returning key_secret"
+        )
+        await pool.execute("delete from app.whatsapp_log where clinic_id = 'CL99'")
+        if old:
+            async with pool.acquire() as conn:
+                await vault.delete(conn, old)
+
+
+@needs_db
+async def test_button_links_open_the_right_page(api: AsyncClient) -> None:
+    pool = await get_pool()
+    maps = await pool.fetchval(
+        "select coalesce(nullif(published->'contact', 'null'::jsonb), draft->'contact')->>'maps_link' "
+        "from app.clinic_settings where clinic_id = 'CL01'"
+    )
+    if not maps:
+        pytest.skip("CL01 has no map link in this database")
+    r = await api.get("/v1/r/CL01/map", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == maps
+    menu = await api.get("/v1/r/CL01/menu/page-clinic/b1", follow_redirects=False)
+    assert menu.status_code == 302 and menu.headers["location"].startswith("https://")
+    assert (await api.get("/v1/r/CL01/nothing", follow_redirects=False)).status_code == 404
+
+
+@needs_db
+async def test_whatsapp_send_to_a_contact(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    import httpx
+
+    from app.api.v1.crm_console import _save_test_lead
+    from app.crm import vault
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    sent: list[httpx.Request] = []
+    real = httpx.AsyncClient
+
+    def answer(r: httpx.Request) -> httpx.Response:
+        sent.append(r)
+        return httpx.Response(201)
+
+    monkeypatch.setattr(
+        "app.crm.whatsapp.httpx.AsyncClient", lambda **kw: real(transport=httpx.MockTransport(answer))
+    )
+    user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
+    saved = await _save_test_lead(
+        user, {"type": "book", "name": "Asha Rao", "phone": "+91 9000000089"}, "desktop"
+    )
+    url = "/v1/crm/console/CL99/integrations/whatsapp"
+    try:
+        lead = await pool.fetchval("select id from app.leads where lead_code = $1", saved["code"])
+        await pool.execute(
+            "insert into app.appointments (clinic_id, lead_id, type, preferred_date) "
+            "values ('CL99', $1, 'in_clinic', '2030-01-02')",
+            lead,
+        )
+        await api.post(url, json={"api_key": "interakt-test-key-123"}, headers=headers)
+        tpl = {
+            "inclinic_confirmed": {"name": "app_booked_ut", "values": ["name", "date", "time", "lead_code"]}
+        }
+        await api.put(f"{url}/templates", json=tpl, headers=headers)
+        r = await api.post(
+            f"{url}/send", json={"purpose": "inclinic_confirmed", "lead_code": saved["code"]}, headers=headers
+        )
+        assert r.status_code == 200
+        body = json.loads(sent[0].content)
+        assert body["phoneNumber"] == "9000000089"  # the contact's own phone
+        assert body["template"]["bodyValues"] == [
+            "Asha Rao",
+            "Wed 02 Jan",
+            "time to be confirmed",
+            saved["code"],
+        ]
+        nobody = await api.post(
+            f"{url}/send", json={"purpose": "inclinic_confirmed", "lead_code": "CL99-99999"}, headers=headers
+        )
+        assert nobody.status_code == 404
+    finally:
+        await pool.execute("delete from app.leads where lead_code = $1", saved["code"])
         old = await pool.fetchval(
             "delete from app.whatsapp_accounts where clinic_id = 'CL99' returning key_secret"
         )
