@@ -104,6 +104,7 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
 
   // Shown only where the clinic allows it: its approved website, and the pages set in the Dashboard.
   const ready = () => {
+    if (import.meta.env.DEV) return start(); // dev playground: no approved website to check
     fetch(`${apiBase}/v1/widget/show?clinic=${clinicId}&path=${encodeURIComponent(location.pathname)}`)
       .then((r) => r.json())
       .then((r: { show?: boolean }) => r.show && start())
