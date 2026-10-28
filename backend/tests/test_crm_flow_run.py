@@ -391,3 +391,25 @@ def test_test_set_scoring() -> None:
     assert score("there is heavy bleeding", "emergency") == (True, "emergency")
     assert score("which tablets should i take", "medical") == (True, "medical")
     assert score("blah blah", "any") == (False, "lead")
+
+
+def test_helper_blocks_known_patient_follow_up_and_tag() -> None:
+    nodes = [
+        opening(("m1", "Book")),
+        {"id": "tag", "type": "lead_tag", "settings": {"campaign": "Diwali offer"}},
+        {"id": "known", "type": "known_patient", "settings": {}},
+        {"id": "again", "type": "follow_up", "settings": {"fields": ["phone", "date"], "consent": False}},
+        {"id": "new", "type": "book", "settings": {"fields": ["name"], "consent": False}},
+    ]
+    edges = [line("opening", "m1", "tag"), line("tag", "next", "known"), line("known", "known", "again")]
+    edges.append(line("known", "new", "new"))
+    flow = {"nodes": nodes, "edges": edges}
+    chat = Chat(flow, ctx(returning=True))
+    assert chat(tap="m1") == ["What is your contact number?"] and chat.at == "again"  # no "Thanks, ."
+    chat("9876543210")
+    chat("tomorrow")
+    lead = chat.r["lead"]
+    assert lead["type"] == "book" and lead["follow_up"] == "yes" and lead["campaign"] == "Diwali offer"
+    new = Chat(flow, ctx(returning=False))
+    new(tap="m1")
+    assert new.at == "new"

@@ -636,10 +636,10 @@ async def _save_test_lead(user: Staff, lead: dict[str, Any], device: str) -> dic
         if lead_id is None:
             lead_id = await conn.fetchval(
                 """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source,
-                     treatment, page_url, device)
-                   values ($1, $2, $3, $4, $5, 'chatbot', $6, $7, $8) returning id""",
+                     treatment, page_url, device, campaign)
+                   values ($1, $2, $3, $4, $5, 'chatbot', $6, $7, $8, $9) returning id""",
                 TEST_CLINIC, lead.get("name") or "Test patient", phone, "+91" if phone else None,
-                lead.get("email"), lead.get("treatment"), TEST_MARK, device,
+                lead.get("email"), lead.get("treatment"), TEST_MARK, device, lead.get("campaign"),
             )  # fmt: skip
         else:
             await conn.execute(
@@ -691,7 +691,16 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
         near = await _nearest_phrase(draft["flow"], body.text)
         ctx.meaning = lambda t: near
     at = next((n for n in draft["flow"]["nodes"] if n["id"] == body.state.get("at")), None)
-    if at and at["type"] in ("book", "online", "reschedule"):
+    # Known patient / returning: a lead with the phone given so far (or typed now) exists in this clinic.
+    phone = (body.state.get("fields") or {}).get("phone") or normal_phone((body.text or "").strip(), None)
+    if phone:
+        ctx.returning = bool(
+            await (await get_pool()).fetchval(
+                "select 1 from app.leads where clinic_id = $1 and phone_e164 = $2 and deleted_at is null",
+                clinic, phone.replace(" ", ""),
+            )
+        )  # fmt: skip
+    if at and at["type"] in ("book", "online", "reschedule", "follow_up"):
         ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
     reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
     if reply["lead"]:

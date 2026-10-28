@@ -163,6 +163,16 @@ class DoctorSettings(BaseModel):
         return self
 
 
+class NoSettings(BaseModel):
+    pass
+
+
+class TagSettings(BaseModel):
+    """Lead tag / source: the campaign saved on the lead made in this chat (e.g. "Diwali offer"), then on."""
+
+    campaign: str = Field(min_length=1, max_length=60)
+
+
 class LinkSettings(BaseModel):
     url: str = Field(max_length=600, pattern=r"^https://\S+$")
 
@@ -360,6 +370,9 @@ TYPES: dict[str, type[BaseModel]] = {
     "cancel": LeadSettings,
     "reschedule": LeadSettings,
     "callback": LeadSettings,
+    "follow_up": LeadSettings,  # an existing patient books again: phone, date, time (no name)
+    "known_patient": NoSettings,  # duplicate check: exits known / new
+    "lead_tag": TagSettings,
     "treatment_card": TreatmentSettings,
     "doctor_card": DoctorSettings,
     "link": LinkSettings,
@@ -377,7 +390,7 @@ TYPES: dict[str, type[BaseModel]] = {
     "media": MediaSettings,
     "carousel": CarouselSettings,
 }
-LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback"}
+LEAD_TYPES = {"book", "online", "cancel", "reschedule", "callback", "follow_up"}
 MENUS = {"opening", "choice", "appointment_menu", "treatment_categories", "treatment_list", "doctor_list"}
 
 
@@ -388,7 +401,7 @@ class Node(BaseModel):
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
         "location", "reviews", "faq", "knowledge", "check_appointment", "clinic_open", "goto",
-        "condition", "media", "carousel",
+        "condition", "media", "carousel", "follow_up", "known_patient", "lead_tag",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -575,7 +588,9 @@ def exits(node: Node) -> list[str]:
     out = [b.id for b in getattr(s, "buttons", []) if not b.action]
     if isinstance(s, QuestionSettings):
         out += ["yes", "no"] if s.kind == "yes_no" else ["next"]
-    if node.type in ("typed", "set_field", "media"):
+    if node.type == "known_patient":
+        out += ["known", "new"]
+    if node.type in ("typed", "set_field", "media", "lead_tag"):
         out.append("next")
     if node.type == "knowledge":
         out += ["answered", "not_found"]

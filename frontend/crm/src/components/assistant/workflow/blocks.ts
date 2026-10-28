@@ -210,6 +210,13 @@ export const KINDS: Record<string, Kind> = {
     hint: "Name, phone and what it is about",
     start: { mode: "steps", fields: ["name", "phone", "reason"] },
   },
+  follow_up: {
+    label: "Follow-up booking",
+    group: "Appointments",
+    color: "#0E9F6E",
+    hint: "An existing patient books again: phone, date, time",
+    start: { mode: "steps", fields: ["phone", "date", "time"] },
+  },
   check_appointment: {
     label: "Check my appointment",
     group: "Appointments",
@@ -320,6 +327,20 @@ export const KINDS: Record<string, Kind> = {
       required: true,
       retries: 2,
     },
+  },
+  known_patient: {
+    label: "Known patient?",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "Duplicate check: a lead with this phone exists (known) or not (new)",
+    start: {},
+  },
+  lead_tag: {
+    label: "Lead tag / source",
+    group: "Logic",
+    color: "#6366F1",
+    hint: "Saves a campaign on the lead (e.g. Diwali offer)",
+    start: { campaign: "Website chat" },
   },
   clinic_open: {
     label: "Clinic open / closed",
@@ -432,7 +453,14 @@ export const GROUPS = [
   "Questions",
   "Logic",
 ];
-const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
+const LEAD = new Set([
+  "book",
+  "online",
+  "cancel",
+  "reschedule",
+  "callback",
+  "follow_up",
+]);
 /** Blocks that are a message with buttons (each button its own exit). */
 export const MENUS = new Set([
   "opening",
@@ -464,6 +492,8 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
       ),
       { id: "else", label: "else" },
     );
+  if (n.type === "known_patient")
+    out.push({ id: "known", label: "known" }, { id: "new", label: "new" });
   if (n.type === "clinic_open")
     out.push({ id: "open", label: "open" }, { id: "closed", label: "closed" });
   if (n.type === "knowledge")
@@ -480,7 +510,7 @@ export function exitsOf(n: FlowNode): { id: string; label: string }[] {
           ]
         : [{ id: "next", label: "next" }]),
     );
-  if (n.type === "typed" || n.type === "set_field" || n.type === "media")
+  if (["typed", "set_field", "media", "lead_tag"].includes(n.type))
     out.push({ id: "next", label: "next" });
   if (LEAD.has(n.type)) out.push({ id: "done", label: "done" });
   if (n.type === "doctor_card" && n.settings.book_label)

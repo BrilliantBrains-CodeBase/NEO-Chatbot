@@ -27,7 +27,14 @@ const FIELDS: [string, string][] = [
   ["booked_date", "Booked date"],
   ["reason", "Reason"],
 ];
-const LEAD = new Set(["book", "online", "cancel", "reschedule", "callback"]);
+const LEAD = new Set([
+  "book",
+  "online",
+  "cancel",
+  "reschedule",
+  "callback",
+  "follow_up",
+]);
 const QUESTION_KINDS: Record<string, string> = {
   text: "Text",
   number: "Number",
@@ -489,6 +496,14 @@ export default function BlockSettings({
             </select>
           )}
         </Row>
+      )}
+      {block.type === "lead_tag" &&
+        text("campaign", "Campaign saved on the lead (CRM → Leads)", 1, 60)}
+      {block.type === "known_patient" && (
+        <span className="sub2" style={{ fontSize: 11 }}>
+          Known: a lead with the phone given in this chat already exists (one
+          lead per phone). Put it after the phone question.
+        </span>
       )}
       {block.type === "clinic_open" && (
         <Row label="Hours to check (Clinic info → Contact & hours)">

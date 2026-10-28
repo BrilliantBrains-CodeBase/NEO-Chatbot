@@ -32,7 +32,16 @@ from app.chat.understand import (
 )
 from app.crm.flow import DAYS, DEFAULT_QUESTIONS, LEAD_TYPES, Flow, Node, settings_of
 
-AUTO = {"typed", "set_field", "goto", "condition", "clinic_open", "media"}  # go on by themselves
+AUTO = {
+    "typed",
+    "set_field",
+    "goto",
+    "condition",
+    "clinic_open",
+    "media",
+    "known_patient",
+    "lead_tag",
+}  # go on by themselves
 MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
 BACK = re.compile(r"back|go back|previous|undo")
@@ -232,6 +241,11 @@ class Run:
                 if all(hits) if b.get("match", "all") == "all" else any(hits):
                     return str(b["id"])
             return "else"
+        if node.type == "known_patient":  # a lead with this phone already exists (the caller looked it up)
+            return "known" if self.ctx.returning else "new"
+        if node.type == "lead_tag":
+            self.fields["campaign"] = s["campaign"]
+            return "next"
         if node.type == "clinic_open":
             return "open" if self.ctx.open_now.get(s.get("hours", "in_clinic"), True) else "closed"
         if node.type == "media":
@@ -696,7 +710,7 @@ class Run:
 
     def free(self, node: Node) -> dict[str, list[str]] | None:
         """Free slots, when this block books a time (a cancel or call back has no slot to check)."""
-        if self.ctx.slots is None or node.type not in ("book", "online", "reschedule"):
+        if self.ctx.slots is None or node.type not in ("book", "online", "reschedule", "follow_up"):
             return None
         return self.ctx.slots.get("online" if node.type == "online" else "in_clinic", {})
 
@@ -719,9 +733,10 @@ class Run:
         fields = self.lead_fields(node)
         if ask.get("i", 0) < len(fields):
             key = fields[ask["i"]]
-            self.say(
-                (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key], buttons=self.picks(node, key)
-            )
+            wording = (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key]
+            if "{name}" in wording and not self.fields.get("name"):  # no "Thanks, ." when no name was asked
+                wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
+            self.say(wording, buttons=self.picks(node, key))
             return
         if s.get("consent", True):
             self.ask = {"kind": "consent", "tries": 0}
@@ -743,10 +758,13 @@ class Run:
             self.fields["doctor"] = s["doctor"]
         if s.get("topic"):
             self.fields.setdefault("reason", s["topic"])
-        keys = set(s.get("fields", [])) | {"treatment", "doctor", "reason"}
-        self.lead = {"type": node.type, "block": node.id} | {
-            k: v for k, v in self.fields.items() if k in keys and v
-        }
+        keys = set(s.get("fields", [])) | {"treatment", "doctor", "reason", "campaign"}
+        kind = "book" if node.type == "follow_up" else node.type  # a follow-up is a booking on the same lead
+        self.lead = (
+            {"type": kind, "block": node.id}
+            | ({"follow_up": "yes"} if node.type == "follow_up" else {})
+            | {k: v for k, v in self.fields.items() if k in keys and v}
+        )
         self.ask = None
         self.say(s.get("final_message") or "Thank you, {name}. Our team will contact you shortly.")
         self.follow("done")
