@@ -206,7 +206,7 @@ async def test_test_chat_reads_the_knowledge_base_and_appointments(api: AsyncCli
 
 
 @needs_db
-async def test_stage_rule_and_emergency_alert_in_cl99() -> None:
+async def test_stage_rule_and_emergency_alert_in_cl99(api: AsyncClient) -> None:  # api: closes the pool
     from app.api.v1.crm_console import _save_test_lead, _test_alert
     from app.crm.auth import Staff
 
@@ -419,3 +419,34 @@ def test_sticky_notes_are_for_staff_only() -> None:
         normalise(
             {"nodes": [OPENING, note], "edges": [{"source": "opening", "exit": "m1", "target": "note-1"}]}
         )
+
+
+@needs_db
+async def test_publish_is_blocked_below_the_test_set_bar(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.api.v1.crm_console as cc
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    monkeypatch.setattr(cc, "TEST_SET_BARS", {"CL99": {"Typed messages": 317}})
+    monkeypatch.setattr("app.chat.embed.ready", lambda: True)
+
+    async def low(clinic: str, draft: dict[str, Any]) -> list[dict[str, Any]]:
+        return [{"name": "Typed messages", "total": 319, "passed": 300, "bar": 317, "failures": []}]
+
+    monkeypatch.setattr(cc, "_score_sets", low)
+    flow = {"nodes": [OPENING, BOOK], "edges": [{"source": "opening", "exit": "m1", "target": "book"}]}
+    await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
+    try:
+        await api.put("/v1/crm/console/CL99/settings/flow", json=flow, headers=headers)
+        r = await api.post("/v1/crm/console/CL99/publish", headers=headers)
+        assert r.status_code == 409 and "Typed messages 300/319 (needs 317)" in r.json()["detail"]
+        assert await pool.fetchval("select version from app.clinic_settings where clinic_id = 'CL99'") == 0
+    finally:
+        await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")

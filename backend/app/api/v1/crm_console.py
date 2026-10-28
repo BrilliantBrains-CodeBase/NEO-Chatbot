@@ -629,6 +629,19 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             status.HTTP_409_CONFLICT,
             f"A publish check failed ({len(failed)}): '{failed[0]['name']}' {failed[0]['message']}.",
         )
+    if clinic in TEST_SET_BARS:  # the test sets must not score below their bar
+        if not embed.ready():
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "The meaning model is still loading. Please publish in a minute."
+            )
+        low = [r for r in await _score_sets(clinic, current.draft) if r["passed"] < r["bar"]]
+        if low:
+            r = low[0]
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Test sets below the bar: {r['name']} {r['passed']}/{r['total']} (needs {r['bar']}). "
+                "Run test sets to see what fails.",
+            )
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
@@ -903,9 +916,17 @@ def _test_sets(clinic: str) -> dict[str, list[tuple[str, str, str]]]:
 @router.post("/{clinic}/flow/test-sets")
 async def run_test_sets(user: Annotated[Staff, Depends(staff)], clinic: str) -> list[dict[str, Any]]:
     """Every message of the clinic's test sets, sent to the DRAFT flow (one new chat each, nothing saved):
-    the score per set and the messages that failed. The live chat's scores are the bar to reach."""
+    the score per set, its bar, and the messages that failed."""
     await _manager(user, clinic)
-    draft = (await _load(clinic)).draft
+    return await _score_sets(clinic, (await _load(clinic)).draft)
+
+
+# Publish needs at least these scores (the canvas flow's scores on 28 Oct 2026, with the live chat's approved
+# phrases). Raise them as the flow gets better; never lower them.
+TEST_SET_BARS = {"CL01": {"Buttons typed": 70, "Typed messages": 317, "Small set": 80}}
+
+
+async def _score_sets(clinic: str, draft: dict[str, Any]) -> list[dict[str, Any]]:
     out = []
     for name, cases in _test_sets(clinic).items():
         failures = []
@@ -921,9 +942,9 @@ async def run_test_sets(user: Annotated[Staff, Depends(staff)], clinic: str) -> 
                 failures.append(
                     {"message": message, "expected": expected, "got": got, "word": word, "reply": said}
                 )
-        out.append(
-            {"name": name, "total": len(cases), "passed": len(cases) - len(failures), "failures": failures}
-        )
+        bar = TEST_SET_BARS.get(clinic, {}).get(name, 0)
+        score = len(cases) - len(failures)
+        out.append({"name": name, "total": len(cases), "passed": score, "bar": bar, "failures": failures})
     return out
 
 

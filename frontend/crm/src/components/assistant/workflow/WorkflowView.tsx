@@ -960,6 +960,7 @@ type SetResult = {
   name: string;
   total: number;
   passed: number;
+  bar: number; // Publish needs at least this
   failures: {
     message: string;
     expected: string;
@@ -1023,10 +1024,19 @@ function TestSets({
             style={{ width: "100%", textAlign: "left", cursor: "pointer" }}
             onClick={() => setOpen(open === s.name ? null : s.name)}
           >
-            <span className={`badge ${s.passed === s.total ? "b-vi" : "b-fu"}`}>
+            <span className={`badge ${s.passed >= s.bar ? "b-vi" : "b-in"}`}>
               {s.passed}/{s.total}
             </span>
-            <b style={{ flex: 1 }}>{s.name}</b>
+            <b style={{ flex: 1 }}>
+              {s.name}{" "}
+              {s.bar > 0 && (
+                <span className="sub2">
+                  {s.passed >= s.bar
+                    ? "· publish OK"
+                    : `· below the bar (${s.bar})`}
+                </span>
+              )}
+            </b>
             {s.failures.length > 0 && (open === s.name ? "▾" : "▸")}
           </button>
           {open === s.name &&
