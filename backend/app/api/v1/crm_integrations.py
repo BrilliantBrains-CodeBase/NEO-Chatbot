@@ -44,6 +44,7 @@ async def integrations(
         clinic,
     )
     sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
+    wa = await pool.fetchval("select 1 from app.whatsapp_accounts where clinic_id = $1", clinic)
     hooks = await pool.fetchrow(
         """select count(*) filter (where direction = 'send') sends,
              count(*) filter (where direction = 'receive') gets,
@@ -82,8 +83,8 @@ async def integrations(
         Integration(
             id="whatsapp", name="WhatsApp (Interakt)", does="Confirmations, reminders and the OTP for Check "
             "my appointment.",
-            state="not_built" if not s.interakt_api_key else "not_connected",
-            detail=["Sending is not built yet: it needs the Interakt account."],
+            state="connected" if wa else "not_connected",
+            detail=["Interakt connected" if wa else "Connect the clinic's Interakt and set its templates"],
             last=None,
         ),
         Integration(

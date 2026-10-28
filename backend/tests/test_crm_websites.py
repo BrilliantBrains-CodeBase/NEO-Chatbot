@@ -536,3 +536,62 @@ async def test_webhooks_send_and_receive(api: AsyncClient, monkeypatch: pytest.M
         for s in await pool.fetch("delete from app.webhooks where clinic_id = 'CL99' returning secret"):
             async with pool.acquire() as conn:
                 await vault.delete(conn, s["secret"])
+
+
+@needs_db
+async def test_whatsapp_templates_and_test_message(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    import httpx
+
+    from app.crm import vault
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    sent: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(201, json={"result": True})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.crm.whatsapp.httpx.AsyncClient", lambda **kw: real(transport=httpx.MockTransport(answer))
+    )
+    url = "/v1/crm/console/CL99/integrations/whatsapp"
+    try:
+        r = await api.post(url, json={"api_key": "interakt-test-key-123"}, headers=headers)
+        assert r.json()["connected"] and "interakt-test-key-123" not in r.text  # never sent back
+        tpl = {"inclinic_confirmed": {"name": "appt_confirmed_v1", "language": "en",
+                                      "values": ["name", "date", "time", "clinic_name"]}}  # fmt: skip
+        r = await api.put(f"{url}/templates", json=tpl, headers=headers)
+        assert r.json()["templates"]["inclinic_confirmed"]["name"] == "appt_confirmed_v1"
+        bad = {"inclinic_confirmed": {"name": "x", "values": ["password"]}}
+        assert (await api.put(f"{url}/templates", json=bad, headers=headers)).status_code == 422
+        r = await api.post(
+            f"{url}/test", json={"purpose": "inclinic_confirmed", "phone": "+91 90000 00091"}, headers=headers
+        )
+        assert r.status_code == 200 and r.json()["log"][0]["ok"]
+        body = json.loads(sent[0].content)
+        assert body["countryCode"] == "+91" and body["phoneNumber"] == "9000000091"
+        assert body["template"]["name"] == "appt_confirmed_v1"
+        assert body["template"]["bodyValues"][:3] == ["Test Patient", "Thu 29 Oct", "11:00 AM"]
+        assert body["template"]["bodyValues"][3] == "Test Clinic"  # filled from the clinic itself
+        assert sent[0].headers["authorization"] == "Basic interakt-test-key-123"
+        none = await api.post(
+            f"{url}/test", json={"purpose": "reminder", "phone": "9000000091"}, headers=headers
+        )
+        assert none.status_code == 422 and "No template" in none.json()["detail"]
+    finally:
+        old = await pool.fetchval(
+            "delete from app.whatsapp_accounts where clinic_id = 'CL99' returning key_secret"
+        )
+        await pool.execute("delete from app.whatsapp_log where clinic_id = 'CL99'")
+        if old:
+            async with pool.acquire() as conn:
+                await vault.delete(conn, old)

@@ -14,7 +14,7 @@ from app.api.v1.crm import Count, Option, _event, can_edit, can_see
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.core.db import get_pool
-from app.crm import calcom, vault, webhooks
+from app.crm import calcom, vault, webhooks, whatsapp
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -376,6 +376,20 @@ async def approve(
                 })  # fmt: skip
             if kind == "online" and r["a_id"]:
                 await _online(conn, r, data)
+            if r["a_id"]:
+                appt = await conn.fetchrow(
+                    """select to_char(lower(a.slot) at time zone c.timezone, 'Dy DD Mon') d,
+                         to_char(lower(a.slot) at time zone c.timezone, 'HH12:MI AM') t, a.meet_link
+                       from app.appointments a join app.clinics c on c.id = a.clinic_id where a.id = $1""",
+                    r["a_id"],
+                )  # fmt: skip
+                whatsapp.notify(r["clinic_id"], f"{'online' if kind == 'online' else 'inclinic'}_confirmed",
+                                r["phone_e164"], {
+                    "lead_code": r["lead_code"], "name": r["full_name"], "doctor": r["a_doctor"],
+                    "treatment": data.get("treatment"), "date": appt["d"] if appt else data.get("date"),
+                    "time": appt["t"] if appt else data.get("time"),
+                    "meet_link": appt["meet_link"] if appt else None,
+                })  # fmt: skip
             await conn.execute(
                 """update app.leads set stage = 'booked', stage_reason = null, updated_at = now()
                    where id = $1 and stage in ('new', 'follow_up', 'lost')""",

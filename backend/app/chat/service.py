@@ -13,7 +13,7 @@ from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
 from app.chat.slots import Mode, free_slots_range
 from app.core.db import get_pool
-from app.crm import webhooks
+from app.crm import webhooks, whatsapp
 
 
 async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
@@ -42,6 +42,10 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
                         "phone": done.get("phone"), "email": done.get("email"),
                         "treatment": done.get("treatment"),
                         "date": done.get("date"), "time": done.get("time"), "reason": done.get("reason"),
+                    })  # fmt: skip
+                    whatsapp.notify(req.client_id, "request_received", done.get("phone"), {
+                        "lead_code": code, "name": done.get("name"), "treatment": done.get("treatment"),
+                        "date": done.get("date"), "time": done.get("time"),
                     })  # fmt: skip
             except leads.SlotTaken:
                 again = {"flow": turn.completed}
