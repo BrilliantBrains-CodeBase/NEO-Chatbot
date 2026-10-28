@@ -35,6 +35,7 @@ class WhatsApp(BaseModel):
     purposes: dict[str, str]
     values: dict[str, str]
     log: list[dict[str, Any]]  # the last 15 messages
+    sample: dict[str, str]  # what each blank would be (the clinic's real details, a sample patient)
 
 
 class Key(BaseModel):
@@ -60,13 +61,25 @@ async def _state(clinic: str) -> WhatsApp:
         "order by at desc limit 15",
         clinic,
     )
+    async with pool.acquire() as conn:
+        clinic_values = await whatsapp.clinic_values(conn, clinic)
     return WhatsApp(
+        sample=SAMPLE
+        | {"lead_code": f"{clinic}-TEST"}
+        | {k: v or "(not set in Clinic info)" for k, v in clinic_values.items()},
         connected=acc is not None,
         templates={p: Template.model_validate(saved.get(p) or {}) for p in whatsapp.PURPOSES},
         purposes=whatsapp.PURPOSES,
         values=whatsapp.VALUES,
         log=[dict(x) | {"at": x["at"].isoformat()} for x in log],
     )
+
+
+# A sample patient and appointment, for the preview and the test message.
+SAMPLE = {
+    "name": "Test Patient", "date": "Thu 29 Oct", "time": "11:00 AM", "doctor": "Dr. Test",
+    "treatment": "PRP", "meet_link": "https://meet.google.com/abc-defg-hij", "otp": "123456",
+}  # fmt: skip
 
 
 @router.get("/{clinic}/integrations/whatsapp", response_model=WhatsApp)
@@ -133,11 +146,7 @@ async def save_templates(
 async def send_test(user: Annotated[Staff, Depends(staff)], clinic: str, body: Test) -> WhatsApp:
     """Sends that message now to a number staff choose, with sample values (the answer is in the log)."""
     _manager(user, clinic)
-    sample = {
-        "name": "Test Patient", "date": "Thu 29 Oct", "time": "11:00 AM", "doctor": "Dr. Test",
-        "treatment": "PRP", "meet_link": "https://meet.google.com/abc-defg-hij",
-        "lead_code": f"{clinic}-TEST", "otp": "123456",
-    }  # fmt: skip
+    sample = SAMPLE | {"lead_code": f"{clinic}-TEST"}
     try:
         await whatsapp.send(clinic, body.purpose, body.phone, sample)
     except whatsapp.WhatsAppError as e:

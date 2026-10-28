@@ -18,6 +18,7 @@ type State = {
   templates: Record<string, Template>;
   purposes: Record<string, string>;
   values: Record<string, string>;
+  sample: Record<string, string>; // what each blank would be
   log: {
     purpose: string;
     to_phone: string;
@@ -159,33 +160,88 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
         <>
           <h3 style={{ margin: "14px 0 4px" }}>Messages</h3>
           <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
-            For each message: the template&apos;s name exactly as approved in
-            Interakt, its language, and what fills each blank in order (
-            {"{{1}}"}, {"{{2}}"} …).
+            For each message: the template&apos;s <b>name</b> as approved in
+            Interakt (e.g. request_received_v1, not its text), its language, and
+            what fills each blank in order. The preview shows what each blank
+            will be: compare it with the template&apos;s text in Interakt.
           </p>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            Test phone
+            <input
+              className="f"
+              placeholder="+91 98765 43210"
+              maxLength={20}
+              value={test.phone}
+              onChange={(e) => setTest({ ...test, phone: e.target.value })}
+            />
+          </div>
           {Object.entries(state.purposes).map(([p, label]) => {
             const t = tpl[p];
+            const ready = !!t.name.trim();
             return (
               <div
                 key={p}
                 className="card"
                 style={{ marginBottom: 8, padding: 10 }}
               >
-                <label
+                <div
                   style={{
                     display: "flex",
-                    gap: 6,
+                    gap: 8,
                     alignItems: "center",
-                    fontWeight: 600,
+                    flexWrap: "wrap",
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={t.on && !!t.name}
-                    onChange={(e) => put(p, { on: e.target.checked })}
-                  />
-                  {label}
-                </label>
+                  <b style={{ flex: 1 }}>{label}</b>
+                  <div className="wf-seg">
+                    <button
+                      className={t.on ? "on" : ""}
+                      onClick={() => put(p, { on: true })}
+                    >
+                      On
+                    </button>
+                    <button
+                      className={!t.on ? "on" : ""}
+                      onClick={() => put(p, { on: false })}
+                    >
+                      Off
+                    </button>
+                  </div>
+                  <button
+                    className="btn g"
+                    disabled={
+                      busy ||
+                      !!draft ||
+                      !ready ||
+                      !t.on ||
+                      test.phone.replace(/\D/g, "").length < 10
+                    }
+                    title={
+                      draft
+                        ? "Save the messages first"
+                        : !test.phone
+                          ? "Type the test phone above"
+                          : "Send this one now"
+                    }
+                    onClick={() =>
+                      call(
+                        "/test",
+                        "POST",
+                        { purpose: p, phone: test.phone },
+                        "Test sent: check that phone",
+                      )
+                    }
+                  >
+                    Send test
+                  </button>
+                </div>
                 <div
                   style={{
                     display: "flex",
@@ -197,10 +253,10 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                   <input
                     className="f"
                     style={{ flex: 2, minWidth: 180 }}
-                    placeholder="Template name in Interakt"
+                    placeholder="Template name in Interakt, e.g. request_received_v1"
                     maxLength={120}
                     value={t.name}
-                    onChange={(e) => put(p, { name: e.target.value })}
+                    onChange={(e) => put(p, { name: e.target.value.trim() })}
                   />
                   <input
                     className="f"
@@ -262,6 +318,21 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                     </button>
                   )}
                 </div>
+                {t.values.length > 0 && (
+                  <p
+                    className="sub2"
+                    style={{
+                      margin: "6px 0 0",
+                      fontSize: 12,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    Preview:{" "}
+                    {t.values
+                      .map((v, i) => `{{${i + 1}}} = ${state.sample[v] || "—"}`)
+                      .join("  ·  ")}
+                  </p>
+                )}
               </div>
             );
           })}
@@ -274,40 +345,6 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
               Save messages
             </button>
           )}
-
-          <h3 style={{ margin: "14px 0 4px" }}>Send a test</h3>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <select
-              className="sel"
-              value={test.purpose}
-              onChange={(e) => setTest({ ...test, purpose: e.target.value })}
-            >
-              {Object.entries(state.purposes).map(([p, l]) => (
-                <option key={p} value={p}>
-                  {l.split(" (")[0]}
-                </option>
-              ))}
-            </select>
-            <input
-              className="f"
-              placeholder="+91 98765 43210"
-              maxLength={20}
-              value={test.phone}
-              onChange={(e) => setTest({ ...test, phone: e.target.value })}
-            />
-            <button
-              className="btn g"
-              disabled={
-                busy || !!draft || test.phone.replace(/\D/g, "").length < 10
-              }
-              title={draft ? "Save the messages first" : ""}
-              onClick={() =>
-                call("/test", "POST", test, "Test sent: check that phone")
-              }
-            >
-              Send test
-            </button>
-          </div>
 
           <h3 style={{ margin: "14px 0 4px" }}>Last messages</h3>
           {state.log.length ? (
