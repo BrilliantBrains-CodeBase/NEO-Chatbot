@@ -13,6 +13,7 @@ from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
 from app.chat.slots import Mode, free_slots_range
 from app.core.db import get_pool
+from app.crm import webhooks
 
 
 async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
@@ -32,7 +33,16 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
-                    await leads.save_completed(conn, req, turn.completed)
+                    code = await leads.save_completed(conn, req, turn.completed)
+                done = turn.completed
+                kind = "callback_request" if done["kind"] == "callback" else "booking_request"
+                if done["kind"] in ("book", "online", "callback"):
+                    webhooks.emit(req.client_id, kind, {
+                        "lead_code": code, "type": done["kind"], "name": done.get("name"),
+                        "phone": done.get("phone"), "email": done.get("email"),
+                        "treatment": done.get("treatment"),
+                        "date": done.get("date"), "time": done.get("time"), "reason": done.get("reason"),
+                    })  # fmt: skip
             except leads.SlotTaken:
                 again = {"flow": turn.completed}
                 turn = engine.slot_taken(req, turn.completed, await _slots(conn, req, again))

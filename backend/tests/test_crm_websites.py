@@ -127,7 +127,7 @@ async def test_integrations_status_never_shows_keys(
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/console/CL01/integrations", headers=headers)
     assert r.status_code == 200
-    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "whatsapp", "email"]
+    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "webhooks", "whatsapp", "email"]
     s = get_settings()
     for key in (s.calcom_api_key, s.sheet_webhook_secret, s.interakt_api_key):
         assert not key or key not in r.text  # keys are never sent
@@ -463,3 +463,76 @@ async def test_calcom_direct_bookings_are_cancelled(
         await pool.execute("delete from app.calcom_accounts where clinic_id = 'CL99'")
         async with pool.acquire() as conn:
             await vault.delete(conn, key, hook)
+
+
+@needs_db
+async def test_webhooks_send_and_receive(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+    import hashlib
+    import hmac
+    import json
+    from urllib.parse import urlsplit
+
+    import httpx
+
+    from app.crm import vault, webhooks
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    got: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        got.append(request)
+        return httpx.Response(500 if len(got) == 1 else 200)  # fails once, then accepts
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        "app.crm.webhooks.httpx.AsyncClient", lambda **kw: real(transport=httpx.MockTransport(answer))
+    )
+    monkeypatch.setattr(webhooks, "WAITS", (0, 0, 0))
+    url = "/v1/crm/console/CL99/integrations/webhooks"
+    try:
+        send = {
+            "direction": "send",
+            "name": "Zapier",
+            "url": "https://hooks.example.com/x",
+            "events": ["lead_new"],
+        }
+        assert (await api.post(url, json=send | {"url": "http://x.com"}, headers=headers)).status_code == 422
+        hooks = (await api.post(url, json=send, headers=headers)).json()
+        hooks = (
+            await api.post(url, json={"direction": "receive", "name": "Website form"}, headers=headers)
+        ).json()
+        [out] = [h for h in hooks if h["direction"] == "send"]
+        [inbox] = [h for h in hooks if h["direction"] == "receive"]
+        parts = urlsplit(inbox["url"])
+        assert (await api.post(f"{parts.path}?key=wrong", json={"name": "X"})).status_code == 403
+        lead = {"name": "Web Form Test", "phone": "9000000092", "treatment": "PRP", "budget": "50k"}
+        r = await api.post(f"{parts.path}?{parts.query}", json=lead)
+        assert r.status_code == 200 and r.json()["lead_code"].startswith("CL99-")
+        notes = await pool.fetchval("select notes from app.leads where lead_code = $1", r.json()["lead_code"])
+        assert "budget: 50k" in notes  # extra keys kept
+        for _ in range(50):  # the send runs in the background
+            if len(got) >= 2:
+                break
+            await asyncio.sleep(0.1)
+        assert len(got) == 2  # failed once (500), retried, accepted
+        body = json.loads(got[1].content)
+        assert body["event"] == "lead_new" and body["lead_code"] == r.json()["lead_code"]
+        secret_id = await pool.fetchval("select secret from app.webhooks where id = $1::uuid", out["id"])
+        async with pool.acquire() as conn:
+            secret = await vault.read(conn, secret_id) or ""
+        sig = "sha256=" + hmac.new(secret.encode(), got[1].content, hashlib.sha256).hexdigest()
+        assert got[1].headers["x-neo-signature"] == sig
+        [listed] = [h for h in (await api.get(url, headers=headers)).json() if h["direction"] == "send"]
+        assert [(x["attempt"], x["ok"]) for x in listed["log"]] == [(2, True), (1, False)]
+    finally:
+        await pool.execute("delete from app.leads where clinic_id = 'CL99' and phone_e164 = '+919000000092'")
+        for s in await pool.fetch("delete from app.webhooks where clinic_id = 'CL99' returning secret"):
+            async with pool.acquire() as conn:
+                await vault.delete(conn, s["secret"])

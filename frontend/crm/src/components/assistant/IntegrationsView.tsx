@@ -5,6 +5,7 @@ import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
 import OnlineSetup from "./OnlineSetup";
 import SheetsPanel from "./SheetsPanel";
+import WebhooksPanel from "./WebhooksPanel";
 
 // Dashboard → Integrations: which outside services are connected and what they did lately. Keys stay in the
 // backend's settings and are never shown here: only "Connected" or not.
@@ -99,6 +100,9 @@ export default function IntegrationsView() {
                   ? `Last used ${new Date(i.last).toLocaleString("en-IN")}`
                   : "Not used yet"}
               </p>
+              {i.id === "webhooks" && clinicId && (
+                <WebhooksPanel clinicId={clinicId} />
+              )}
               {i.id === "sheet" && clinicId && (
                 <SheetsPanel clinicId={clinicId} />
               )}

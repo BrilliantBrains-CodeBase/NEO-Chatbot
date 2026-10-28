@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.chat.content import content
 from app.chat.flows import EMAIL, normal_phone
 from app.core.db import get_pool
+from app.crm import webhooks
 from app.crm.auth import ROLE_LABEL, Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -537,4 +538,8 @@ async def add_lead(user: Annotated[Staff, Depends(staff)], body: NewLead) -> Lea
             body.treatment or None, body.doctor_id or None, body.type, user.id, body.note.strip(),
         )  # fmt: skip
         await _event(conn, r, user, "contact", {"source": body.source, "by_staff": True})
+    webhooks.emit(r["clinic_id"], "lead_new", {
+        "lead_code": r["lead_code"], "name": " ".join(body.name.split()), "phone": e164, "email": email,
+        "treatment": body.treatment or None, "campaign": body.campaign or None, "source": body.source,
+    })  # fmt: skip
     return await lead_detail(user, r["lead_code"])

@@ -14,7 +14,7 @@ from app.api.v1.crm import Count, Option, _event, can_edit, can_see
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.core.db import get_pool
-from app.crm import calcom, vault
+from app.crm import calcom, vault, webhooks
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -370,6 +370,10 @@ async def approve(
         if kind in ("book", "online"):
             if r["a_id"]:
                 await _set_appt(conn, r["a_id"], user, "confirmed")
+                webhooks.emit(r["clinic_id"], "appointment_confirmed", {
+                    "lead_code": r["lead_code"], "name": r["full_name"], "phone": r["phone_e164"],
+                    "type": kind, "date": data.get("date"), "time": data.get("time"), "doctor": r["a_doctor"],
+                })  # fmt: skip
             if kind == "online" and r["a_id"]:
                 await _online(conn, r, data)
             await conn.execute(

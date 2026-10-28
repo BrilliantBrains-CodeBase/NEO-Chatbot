@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from app.chat.leads import _assignee
 from app.core.config import get_settings
 from app.core.db import get_pool
-from app.crm import vault
+from app.crm import vault, webhooks
 from app.crm.auth import Staff, staff
 from app.crm.sheet_values import now_utc, phone, shown, when
 
@@ -265,7 +265,9 @@ async def from_sheet(sheet: str, key: str, body: Incoming) -> dict[str, Any]:
     return {"ok": True, "active_tabs": [a["tab"] for a in active], "results": results}
 
 
-async def _lead_from_row(conn: Any, clinic: Any, sheet_name: str, tab: Any, r: dict[str, Any]) -> str:
+async def _lead_from_row(
+    conn: Any, clinic: Any, sheet_name: str, tab: Any, r: dict[str, Any], source: str = "meta_ads"
+) -> str:
     """One sheet row as a lead (source Meta Ads), by the tab's mapping and shown the CRM's way. One lead per
     phone (or email) per clinic: a repeat counts up. Unmapped columns go in the notes. Returns the lead code;
     ValueError (the reason, written in the sheet's CRM column) when the row cannot be a lead."""
@@ -316,14 +318,18 @@ async def _lead_from_row(conn: Any, clinic: Any, sheet_name: str, tab: Any, r: d
         lead = await conn.fetchrow(
             """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source, campaign,
                  treatment, assigned_to, notes, first_contact_at, last_contact_at)
-               values ($1, $2, $3, nullif($4, ''), $5, 'meta_ads', $6, $7, $8, $9, coalesce($10, now()),
+               values ($1, $2, $3, nullif($4, ''), $5, $11, $6, $7, $8, $9, coalesce($10, now()),
                  greatest(coalesce($10, now()), now())) returning id, lead_code""",
             clinic["id"], name, e164, cc, email or None, campaign, treatment, await _assignee(conn, clinic),
-            note[:2000], came,
+            note[:2000], came, source,
         )  # fmt: skip
+        webhooks.emit(clinic["id"], "lead_new", {
+            "lead_code": lead["lead_code"], "name": name, "phone": tel, "email": email or None,
+            "treatment": treatment, "campaign": campaign, "source": source,
+        })  # fmt: skip
     data = {
-        "source": "meta_ads",
-        "via": "google_sheet",
+        "source": source,
+        "via": "google_sheet" if source == "meta_ads" else "webhook",
         "sheet": sheet_name,
         "tab": tab["tab"],
         "row": r.get("row"),

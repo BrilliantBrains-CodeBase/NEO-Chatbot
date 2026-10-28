@@ -44,6 +44,13 @@ async def integrations(
         clinic,
     )
     sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
+    hooks = await pool.fetchrow(
+        """select count(*) filter (where direction = 'send') sends,
+             count(*) filter (where direction = 'receive') gets,
+             (select max(at) from app.webhook_log where clinic_id = $1) last
+           from app.webhooks where clinic_id = $1""",
+        clinic,
+    )
     return [
         Integration(
             id="calcom", name="Cal.com",
@@ -63,6 +70,14 @@ async def integrations(
             state="connected" if sheets_added else "not_connected",
             detail=[f"{sheets_added} sheet(s) added", f"{sheet['n']} leads received in the last 7 days"],
             last=sheet["last"].isoformat() if sheet["last"] else None,
+        ),
+        Integration(
+            id="webhooks", name="Webhooks",
+            does="Send CRM events (new lead, booking, call back, confirmed) as JSON to another system, and "
+            "receive leads as JSON from one.",
+            state="connected" if hooks["sends"] or hooks["gets"] else "not_connected",
+            detail=[f"{hooks['sends']} sending, {hooks['gets']} receiving"],
+            last=hooks["last"].isoformat() if hooks["last"] else None,
         ),
         Integration(
             id="whatsapp", name="WhatsApp (Interakt)", does="Confirmations, reminders and the OTP for Check "
