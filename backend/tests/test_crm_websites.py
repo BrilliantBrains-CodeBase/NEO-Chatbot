@@ -62,3 +62,51 @@ async def test_embed_code(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> 
     assert js.status_code == 200 and js.headers["content-type"].startswith("application/javascript")
     assert (await api.get("/v1/widget/..%2F.env")).status_code == 404  # only widget files, by name
     assert (await api.get("/v1/crm/console/CL99/websites/embed", headers=headers)).json()["code"] == ""
+
+
+def test_pages_rule() -> None:
+    from app.api.v1.widget import page_shown
+
+    assert page_shown("all", [], "/careers")
+    assert page_shown("only", ["/hair-transplant/*"], "/hair-transplant/fue")
+    assert not page_shown("only", ["/hair-transplant/*"], "/careers")
+    assert not page_shown("except", ["/careers", "/blog/*"], "/careers/")
+    assert page_shown("except", ["/careers"], "/contact")
+
+
+@needs_db
+async def test_widget_shows_only_on_approved_sites_and_pages(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.chat import guard
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99/websites"
+    site = "https://www.clinic-test.example.com"
+
+    async def shown(origin: str, path: str) -> bool:
+        guard._clinics.clear()
+        r = await api.get(f"/v1/widget/show?clinic=CL99&path={path}", headers={"Origin": origin})
+        return bool(r.json()["show"])
+
+    try:
+        [s] = (await api.post(url, json={"address": site}, headers=headers)).json()
+        assert not await shown(site, "/")  # pending: not shown
+        await api.post(f"{url}/{s['id']}/decision", json={"status": "approved"}, headers=headers)
+        assert await shown(site, "/")
+        assert await shown("https://clinic-test.example.com", "/")  # with or without www
+        assert not await shown("https://other-site.example.com", "/")  # not approved: refused
+        rule = {"pages_mode": "except", "pages": ["/careers"]}
+        await api.put(f"{url}/{s['id']}/pages", json=rule, headers=headers)
+        assert not await shown(site, "/careers") and await shown(site, "/contact")
+        check = (await api.post(f"{url}/{s['id']}/check", headers=headers)).json()
+        assert check["found"] is False  # the example site does not exist
+    finally:
+        await pool.execute("delete from app.clinic_websites where clinic_id = 'CL99'")
+        await pool.execute("update app.clinics set allowed_origins = '{}' where id = 'CL99'")

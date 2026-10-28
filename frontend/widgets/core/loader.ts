@@ -102,6 +102,13 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
     launcher.addEventListener('click', () => handle.setOpen(!handle.isOpen));
   };
 
-  if (document.body) start();
-  else document.addEventListener('DOMContentLoaded', start);
+  // Shown only where the clinic allows it: its approved website, and the pages set in the Dashboard.
+  const ready = () => {
+    fetch(`${apiBase}/v1/widget/show?clinic=${clinicId}&path=${encodeURIComponent(location.pathname)}`)
+      .then((r) => r.json())
+      .then((r: { show?: boolean }) => r.show && start())
+      .catch((err) => console.warn('[neo-widget]', err));
+  };
+  if (document.body) ready();
+  else document.addEventListener('DOMContentLoaded', ready);
 }

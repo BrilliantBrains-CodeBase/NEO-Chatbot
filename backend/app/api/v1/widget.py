@@ -4,14 +4,17 @@ the same backend, which runs it only on the clinic's approved websites. Nothing 
 loader file says which clinic it is for (its clinic ID), and that is read from the built files.
 """
 
+import fnmatch
 import re
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse
 
+from app.chat import guard
 from app.core.config import get_settings
+from app.core.db import get_pool
 
 router = APIRouter(prefix="/widget", tags=["widget"])
 
@@ -39,6 +42,33 @@ def loaders() -> dict[str, str]:
             out[ids.pop()] = f.stem
     _found = (time.monotonic(), out)
     return out
+
+
+def page_shown(mode: str, pages: list[str], path: str) -> bool:
+    """The site's pages rule: every page, only these paths, or every page except these ("*" = anything)."""
+    if mode == "all":
+        return True
+    hit = any(fnmatch.fnmatchcase(path, p) or path.rstrip("/") == p.rstrip("/") for p in pages)
+    return hit if mode == "only" else not hit
+
+
+@router.get("/show")
+async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool]:
+    """Should the chatbot show on this page? Only on the clinic's approved website (the page's own Origin)
+    and on the pages its rule allows. The loader asks once per page."""
+    origin = (request.headers.get("origin") or "").rstrip("/")
+    known = await guard.get_clinic(clinic)
+    if known is None or not guard.origin_allowed(known, origin):
+        return {"show": False}
+    host = origin.replace("://www.", "://")
+    site = await (await get_pool()).fetchrow(
+        """select pages_mode, pages from app.clinic_websites where clinic_id = $1 and status = 'approved'
+             and replace(origin, '://www.', '://') = $2""",
+        clinic, host,
+    )  # fmt: skip
+    if site is None:  # e.g. a local test page in development
+        return {"show": True}
+    return {"show": page_shown(site["pages_mode"], list(site["pages"]), path[:300])}
 
 
 @router.get("/{name}")

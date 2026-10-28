@@ -169,6 +169,9 @@ export default function WebsiteInstallView() {
                 Reject
               </button>
             )}
+            {s.status === "approved" && (
+              <CheckInstall clinicId={clinicId} site={s.id} />
+            )}
             <button
               className="btn g"
               disabled={busy}
@@ -279,6 +282,64 @@ function EmbedCode({ clinicId, sites }: { clinicId: string; sites: Site[] }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Looks for the widget code on the approved website's home page. */
+function CheckInstall({
+  clinicId,
+  site,
+}: {
+  clinicId: string | undefined;
+  site: string;
+}) {
+  const [result, setResult] = useState<{
+    found: boolean;
+    message: string;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <button
+        className="btn g"
+        disabled={busy || !clinicId}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setResult(
+              await api(`/v1/crm/console/${clinicId}/websites/${site}/check`, {
+                method: "POST",
+              }),
+            );
+          } catch (e) {
+            setResult({
+              found: false,
+              message: e instanceof ApiError ? e.message : "Could not check.",
+            });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {busy ? "Checking…" : "Check install"}
+      </button>
+      {result && (
+        <span
+          className={`badge ${result.found ? "b-vi" : "b-in"}`}
+          title={result.message}
+        >
+          {result.found ? "Installed" : "Not found"}
+        </span>
+      )}
+      {result && !result.found && (
+        <p
+          className="sub2"
+          style={{ width: "100%", margin: "4px 0 0", fontSize: 12 }}
+        >
+          {result.message}
+        </p>
+      )}
+    </>
   );
 }
 

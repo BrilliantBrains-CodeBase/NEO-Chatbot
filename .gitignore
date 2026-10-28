@@ -1,6 +1,9 @@
 # dependencies and builds
 node_modules/
 dist/
+# The widget build IS kept: the backend serves it as is (Dashboard → Website install gives the code to paste).
+# Rebuild it (npm run build in frontend/widgets) before committing a widget change.
+!frontend/widgets/dist/
 dist-preview/
 .next/
 out/

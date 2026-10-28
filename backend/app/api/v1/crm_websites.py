@@ -8,6 +8,7 @@ Every change is in the audit log.
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
@@ -175,6 +176,34 @@ async def website_pages(
         "update app.clinic_websites set pages_mode = $3, pages = $4 where clinic_id = $1 and id = $2::uuid",
         clinic, site, body.pages_mode, body.pages,
     )  # fmt: skip
+
+
+@router.post("/{clinic}/websites/{site}/check")
+async def check_install(user: Annotated[Staff, Depends(staff)], clinic: str, site: str) -> dict[str, Any]:
+    """Opens the approved website's home page and looks for this clinic's widget code on it."""
+    await _manager(user, clinic)
+    origin = await (await get_pool()).fetchval(
+        "select origin from app.clinic_websites "
+        "where clinic_id = $1 and id = $2::uuid and status = 'approved'",
+        clinic, site,
+    )  # fmt: skip
+    if origin is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Approve the website first.")
+    name = widget.loaders().get(clinic)
+    if not name:
+        return {"found": False, "message": "This clinic has no widget yet."}
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True, max_redirects=3) as client:
+            res = await client.get(origin + "/", headers={"User-Agent": "NEO-Chatbot install check"})
+        html = res.text[:2_000_000]
+    except httpx.HTTPError:
+        return {"found": False, "message": f"Could not open {origin}. Is the website online?"}
+    if f"/v1/widget/{name}.js" in html:
+        return {"found": True, "message": f"The widget code is on {origin}."}
+    return {
+        "found": False,
+        "message": f"The widget code was not found on {origin}'s home page. Paste it just before </body>.",
+    }
 
 
 @router.delete("/{clinic}/websites/{site}", response_model=list[Website])
