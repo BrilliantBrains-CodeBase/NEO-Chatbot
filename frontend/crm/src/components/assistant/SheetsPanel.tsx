@@ -340,6 +340,57 @@ function TabMapping({
         <span className="sub2" style={{ fontSize: 12 }}>
           {on.length ? `Importing: ${on.join(", ")}` : "No tab is imported yet"}
         </span>
+        {edit && tab && (
+          <>
+            <button
+              className="btn"
+
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  onSaved(
+                    await api<Sheet[]>(`${url}/${tab.id}`, {
+                      method: "PUT",
+                      body: JSON.stringify({
+                        active: edit.active,
+                        mapping: edit.mapping,
+                      }),
+                    }),
+                  );
+                  setDraft(null);
+                  toast(
+                    edit.active
+                      ? `${tab.tab}: saved, importing`
+                      : `${tab.tab}: saved`,
+                  );
+                } catch (e) {
+                  setError(
+                    e instanceof ApiError
+                      ? e.message
+                      : "Could not save. Please try again.",
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Save changes
+            </button>
+            <button
+              className="btn g"
+
+              onClick={() => {
+                setTabId("");
+                setDraft(null);
+                setError("");
+              }}
+            >
+              Close
+            </button>
+          </>
+        )}
       </label>
       {edit && tab && (
         <div style={{ marginTop: 10 }}>
@@ -459,53 +510,6 @@ function TabMapping({
               {error}
             </p>
           )}
-          <button
-            className="btn"
-            style={{ marginTop: 8 }}
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                onSaved(
-                  await api<Sheet[]>(`${url}/${tab.id}`, {
-                    method: "PUT",
-                    body: JSON.stringify({
-                      active: edit.active,
-                      mapping: edit.mapping,
-                    }),
-                  }),
-                );
-                setDraft(null);
-                toast(
-                  edit.active
-                    ? `${tab.tab}: saved, importing`
-                    : `${tab.tab}: saved`,
-                );
-              } catch (e) {
-                setError(
-                  e instanceof ApiError
-                    ? e.message
-                    : "Could not save. Please try again.",
-                );
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            Save
-          </button>
-          <button
-            className="btn g"
-            style={{ marginTop: 8, marginLeft: 8 }}
-            onClick={() => {
-              setTabId("");
-              setDraft(null);
-              setError("");
-            }}
-          >
-            Close
-          </button>
         </div>
       )}
     </div>
