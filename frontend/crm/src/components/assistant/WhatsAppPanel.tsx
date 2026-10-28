@@ -189,6 +189,9 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
           {Object.entries(state.purposes).map(([p, label]) => {
             const t = tpl[p];
             const ticked = (k: string) => t.values.indexOf(k);
+            // The template's blanks ({{1}} … {{n}}) in the pasted text: the ticks must be exactly that many.
+            const blanks = new Set((t.text || "").match(/\{\{\d+\}\}/g) ?? [])
+              .size;
             const preview = (t.text || "").replace(
               /\{\{(\d+)\}\}/g,
               (all, n) => {
@@ -324,6 +327,13 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                   value={t.text}
                   onChange={(e) => put(p, { text: e.target.value })}
                 />
+                {t.text && blanks !== t.values.length && (
+                  <p className="warnbox" style={{ marginTop: 6 }}>
+                    The template has {blanks} blank(s) but {t.values.length} are
+                    ticked: WhatsApp refuses it. Tick exactly
+                    {blanks}.
+                  </p>
+                )}
                 {t.text ? (
                   <div
                     style={{
