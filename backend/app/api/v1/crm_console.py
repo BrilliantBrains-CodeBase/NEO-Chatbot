@@ -3,6 +3,7 @@ edit, then publish (migration 0019). Every value is checked here; the browser ne
 Clinic managers and BB Admin only. The live chatbot does not read these settings until it is switched over."""
 
 import json
+import re
 from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -540,6 +541,73 @@ async def approve_phrases(user: Annotated[Staff, Depends(staff)], clinic: str, b
             clinic, json.dumps(flow), user.id,
         )  # fmt: skip
     return await _load(clinic)
+
+
+def _add_live_phrases(flow: dict[str, Any], rows: list[tuple[str, str]]) -> int:
+    """Adds the live chat's approved (topic, phrase) rows to the flow's phrases; returns how many were new."""
+    ids = {n["id"] for n in flow["nodes"]}
+    have = {" ".join(re.sub(r"[^a-z0-9]+", " ", p["text"].lower()).split()) for p in flow["phrases"]}
+    added = 0
+    for topic, example in rows:
+        if topic in SMALL_TALK_TARGETS_BY_TOPIC:
+            target = SMALL_TALK_TARGETS_BY_TOPIC[topic]
+        elif topic.startswith("t_"):
+            target = "@treatment:" + topic
+        elif topic in ids:
+            target = topic
+        elif "page-" + topic in ids:
+            target = "page-" + topic
+        else:
+            continue  # no block for this topic in the flow
+        key = " ".join(re.sub(r"[^a-z0-9]+", " ", example.lower()).split())
+        if not key or key in have:
+            continue
+        have.add(key)
+        added += 1
+        flow["phrases"].append(
+            {
+                "id": f"pl{added}",
+                "target": target,
+                "text": example[:100],
+                "status": "approved",
+                "approved_by": "live chat",
+            }  # fmt: skip
+        )
+    return added
+
+
+@router.post("/{clinic}/flow/phrases/import-live", response_model=Settings)
+async def import_live_phrases(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settings:
+    """The live chat's APPROVED phrases (app.intent_examples) into the draft flow, each to the block of its
+    topic ("cost" -> the cost page, "t_prp_treatment" -> the PRP card, "greeting" -> small talk). They were
+    approved by staff for the live chat, so they come in approved (marked "live chat"); a phrase already in
+    the flow is skipped, never changed."""
+    await _manager(user, clinic)
+    flow = (await _load(clinic)).draft["flow"]
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """select intent, example from app.intent_examples where clinic_id = $1 and status = 'approved'
+           order by intent, example""",
+        clinic,
+    )
+    added = _add_live_phrases(flow, [(r["intent"], r["example"]) for r in rows])
+    if added:
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+            await conn.execute(
+                """update app.clinic_settings set updated_by = $3::uuid,
+                     draft = draft || jsonb_build_object('flow', $2::jsonb) where clinic_id = $1""",
+                clinic, json.dumps(flow), user.id,
+            )  # fmt: skip
+    return await _load(clinic)
+
+
+SMALL_TALK_TARGETS_BY_TOPIC = {
+    "identity": "@identity",
+    "greeting": "@greeting",
+    "thanks": "@thanks",
+    "bye": "@bye",
+}
 
 
 @router.post("/{clinic}/publish", response_model=Settings)

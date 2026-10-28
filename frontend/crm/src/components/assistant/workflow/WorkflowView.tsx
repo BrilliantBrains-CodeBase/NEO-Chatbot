@@ -805,6 +805,44 @@ function Canvas() {
                   fields={flow.fields ?? []}
                   onChange={(fields) => setFlow({ ...flow, fields })}
                 />
+                <div style={{ marginTop: 14 }}>
+                  <h3 style={{ margin: "0 0 6px" }}>Typed phrases</h3>
+                  <p
+                    className="sub2"
+                    style={{ margin: "0 0 6px", fontSize: 11.5 }}
+                  >
+                    {
+                      (flow.phrases ?? []).filter(
+                        (p) => p.status === "approved",
+                      ).length
+                    }{" "}
+                    approved,{" "}
+                    {
+                      (flow.phrases ?? []).filter((p) => p.status === "pending")
+                        .length
+                    }{" "}
+                    pending.
+                  </p>
+                  <button
+                    className="pill"
+                    disabled={busy || dirty}
+                    title={
+                      dirty
+                        ? "Save changes first"
+                        : "Adds the phrases staff approved for the live chat; existing ones are not changed"
+                    }
+                    onClick={() =>
+                      call(
+                        "flow/phrases/import-live",
+                        "POST",
+                        undefined,
+                        "Live chat phrases imported",
+                      )
+                    }
+                  >
+                    Import live chat phrases
+                  </button>
+                </div>
                 <ChecksPanel
                   clinicId={clinicId}
                   checks={flow.checks ?? []}

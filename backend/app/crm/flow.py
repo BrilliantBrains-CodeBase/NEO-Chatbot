@@ -715,13 +715,17 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     return clean.model_dump(mode="json")
 
 
+# Phrases that lead to a reply rather than a block: small talk, and a treatment's card (live from Services).
+SMALL_TALK_TARGETS = {"@identity": "who are you", "@greeting": "greeting", "@thanks": "thanks", "@bye": "bye"}
+
+
 def phrase_targets(nodes: list[Node]) -> dict[str, str]:
-    """Where a typed phrase can lead: each button (block id:button id) and each Typed trigger (block id),
-    with a name for staff."""
-    out: dict[str, str] = {}
+    """Where a typed phrase can lead: each button (block id:button id), each block (block id: opened
+    directly), small talk (@greeting ...) and a treatment card (@treatment:name), with a name for staff."""
+    out: dict[str, str] = dict(SMALL_TALK_TARGETS)
     for n in nodes:
-        if n.type == "typed":
-            out[n.id] = f"{n.title or n.id} (typed)"
+        if n.type != "note":
+            out[n.id] = f"{n.title or n.id}" + (" (typed)" if n.type == "typed" else "")
         for b in n.settings.get("buttons") or []:
             out[f"{n.id}:{b['id']}"] = f"{n.title or n.id} → {b['label']}"
     return out
@@ -733,11 +737,11 @@ def phrases_kept(nodes: list[Node], phrases: list[Phrase]) -> list[Phrase]:
     seen: dict[str, str] = {}
     kept = []
     for p in phrases:
-        if p.target not in targets:
+        if p.target not in targets and not p.target.startswith("@treatment:"):
             continue
         key = re.sub(r"[^a-z0-9]+", " ", p.text.lower()).strip()
         if key in seen and seen[key] != p.target:
-            raise FlowError(f"The phrase '{p.text}' already leads to {targets[seen[key]]}.")
+            raise FlowError(f"The phrase '{p.text}' already leads to {targets.get(seen[key], seen[key])}.")
         if key in seen:
             continue  # the same phrase twice on one button
         seen[key] = p.target

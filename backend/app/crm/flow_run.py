@@ -16,7 +16,10 @@ from rapidfuzz.distance import Levenshtein
 
 from app.chat.engine import BYE, MAIN_MENU_TEXT, NO_ANSWER, NOTED, THANKS
 from app.chat.flows import EMAIL, normal_phone, valid_name
+from app.chat.intents import treatment_topic
+from app.chat.kb import GENERAL as KB_GENERAL
 from app.chat.understand import (
+    COST_OPTIONS,
     EMERGENCY,
     IDENTITY,
     INTENTS,
@@ -44,6 +47,8 @@ AUTO = {
 }  # go on by themselves
 MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
+# Too general to name one treatment by themselves ("hair" is in many names).
+GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "laser", "stem"}
 BACK = re.compile(r"back|go back|previous|undo")
 # Changing their mind mid-question ("actually I want to cancel"): the block type it switches to.
 SWITCH = [
@@ -407,18 +412,37 @@ class Run:
             return self.reply()
         options = self.buttons(node)
         hit = match_option(text, options)
-        phrase = None if hit else self.phrase(text)
+        # The live chat's order: buttons and the approved phrases by their words, the keyword rules, a
+        # treatment named, the approved Knowledge base; a phrase by meaning only when nothing else fits.
+        named = None if hit else self.named_treatment(low, full_only=True)  # a full name beats a phrase
+        if named:
+            self.matched = {"how": "treatment name", "text": named}
+            self.act(node, {"id": "t:" + named, "action": "treatment", "value": named})
+            return self.reply()
+        phrase = None if hit else self.phrase(text, meaning=False)
+        start = None if hit or phrase else self.start_rule(low)
+        start = self.first(start) if start else None
+        found = None if hit or phrase or start else self.ctx.kb(text)  # approved answers; never medical
         if hit:
             self.matched = {"how": "button", "text": hit["label"]}
             self.act(node, hit)
         elif phrase:
             self.go_to_phrase(phrase)
+        elif start:
+            self.matched = {"how": "rule", "text": start}  # the live chat's keyword rules ("cancel my visit")
+            self.enter(start)
+        elif found:
+            self.matched = {"how": "knowledge base", "text": text}
+            self.say(found)
+            self.render(node)
         elif treatment := self.named_treatment(low):
             self.matched = {"how": "treatment name", "text": treatment}
             self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
-        elif (kind := self.start_rule(low)) and self.first(kind):
-            self.matched = {"how": "rule", "text": kind}  # the live chat's keyword rules ("cancel my visit")
-            self.enter(self.first(kind) or "")
+        elif page := self.page_rule(low):
+            self.matched = {"how": "rule", "text": page}  # "price?" -> the cost page
+            self.enter(page)
+        elif near := self.phrase(text, meaning=True):
+            self.go_to_phrase(near)
         elif not self.follow("no_match"):
             topic = next(
                 (
@@ -428,13 +452,8 @@ class Run:
                 ),
                 None,
             )
-            found = None if topic else self.ctx.kb(text)  # approved answers only; medical never gets here
             if topic:
                 self.enter(topic)
-            elif found:
-                self.matched = {"how": "knowledge base", "text": text}
-                self.say(found)
-                self.render(node)
             else:
                 fallback = next(
                     (n.settings.get("fallback") for n in self.flow.nodes if n.type == "opening"), ""
@@ -505,28 +524,54 @@ class Run:
         self.at = None
         self.enter(self.first("opening") or "")
 
+    def page_rule(self, low: str) -> str | None:
+        """The page the live chat's keyword rules open ("price?" -> the cost page, "treatments" -> the
+        treatment list; a named cost pattern -> that cost option), when the flow has it."""
+        text = spelled(low)
+        for pattern, (what, key) in INTENTS:
+            if what == "node" and pattern.search(text) and self.shown(self.nodes.get("page-" + key)):
+                if key == "cost":
+                    exact = next(
+                        (k for k, p in COST_OPTIONS if p.search(text) and "page-" + k in self.nodes), None
+                    )
+                    return "page-" + (exact or key)
+                return "page-" + key
+        if re.search(r"\b(treatments?|explore|options|services)\b", text) and "page-treat" in self.nodes:
+            return "page-treat"
+        return None
+
     def start_rule(self, low: str) -> str | None:
         """The live chat's keyword rules that start a booking, online consult, cancel, reschedule or call
         back (rules written by staff, never learnt)."""
         text = spelled(low)
         return next((t[1] for pattern, t in INTENTS if t[0] == "start" and pattern.search(text)), None)
 
-    def named_treatment(self, low: str) -> str | None:
-        """A treatment typed by name ("beard transplant", or a first word only one treatment has, "prp"):
-        its card, live from Services."""
+    def treatment_shown(self, name: str) -> str | None:
+        """The shown treatment of that name (or that topic, e.g. t_prp_treatment), as named in Services."""
+        for t in self.ctx.services:
+            if t.get("show") and (t["name"] == name or treatment_topic(t["name"]) == name):
+                return str(t["name"])
+        return None
+
+    def named_treatment(self, low: str, full_only: bool = False) -> str | None:
+        """A treatment typed by name ("female hair transplant"), or by a first word only one treatment has
+        ("prp"; never a general word like "hair"): its card, live from Services."""
         names = [t["name"] for t in self.ctx.services if t.get("show")]
         t = f" {norm(low)} "
         for name in sorted(names, key=len, reverse=True):
             if f" {norm(name)} " in t:
                 return str(name)
+        if full_only:
+            return None
         firsts = [norm(n).split()[0] for n in names]
         for name, first in zip(names, firsts, strict=True):
-            if len(first) >= 3 and firsts.count(first) == 1 and f" {first} " in t:
+            unique = len(first) >= 3 and firsts.count(first) == 1 and first not in GENERAL_WORDS
+            if unique and f" {first} " in t:
                 return str(name)
         return None
 
     # ---------- approved typed phrases ----------
-    def phrase(self, text: str) -> dict[str, Any] | None:
+    def phrase(self, text: str, meaning: bool) -> dict[str, Any] | None:
         """The approved phrase the patient meant: the same words, a small typo (about 1 in 6 letters), or the
         phrase inside a longer message (2+ words); else the closest by meaning (from the caller). Phrases on
         the screen the patient is on come first. Pending phrases are never used."""
@@ -546,15 +591,19 @@ class Run:
             else:
                 continue
             ranked.append((rank, not p.target.startswith(here), -len(w), p))
-        if ranked:
+        if ranked and not meaning:
             rank, _, _, p = min(ranked, key=lambda r: r[:3])
             return {"target": p.target, "text": p.text, "how": ("phrase", "typo", "phrase in message")[rank]}
-        near = self.ctx.meaning(text)
+        near = self.ctx.meaning(text) if meaning else None
         if near and self.reachable(near["target"]):
             return near | {"how": "meaning"}
         return None
 
     def reachable(self, target: str) -> bool:
+        if target.startswith("@treatment:"):
+            return self.treatment_shown(target.removeprefix("@treatment:")) is not None
+        if target.startswith("@"):
+            return True  # small talk
         node_id, _, button = target.partition(":")
         node = self.nodes.get(node_id)
         if not self.shown(node) or node is None:
@@ -564,7 +613,21 @@ class Run:
     def go_to_phrase(self, p: dict[str, Any]) -> None:
         """As if the patient tapped that button (on its own screen), or reached that Typed trigger."""
         self.matched = {"how": p["how"], "text": p["text"]} | ({"score": p["score"]} if "score" in p else {})
-        node_id, _, button = p["target"].partition(":")
+        target = p["target"]
+        if target.startswith("@treatment:"):
+            name = self.treatment_shown(target.removeprefix("@treatment:")) or ""
+            here = self.nodes.get(self.at or "")
+            if here:
+                self.act(here, {"id": "t:" + name, "action": "treatment", "value": name})
+            return
+        if target.startswith("@"):  # small talk: the live chat's reply, then the same screen
+            small = {"@identity": "who are you", "@greeting": "hello", "@thanks": "thanks", "@bye": "bye"}
+            self.say(self.small(small[target]) or "")
+            here = self.nodes.get(self.at or "")
+            if here:
+                self.render(here)
+            return
+        node_id, _, button = target.partition(":")
         if not button:
             self.enter(node_id)
             return

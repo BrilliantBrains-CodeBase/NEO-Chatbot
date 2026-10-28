@@ -319,7 +319,7 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
     assert chat("kab aa sakta hoon")[0].startswith("Sorry")  # pending: never used
     near = {"target": "opening:m1", "text": "I want to book", "score": 88.0}
     chat = fresh(meaning=lambda t: near)
-    assert chat("can i come in next week") == ["May I know your full name?"]  # by meaning
+    assert chat("zxq soon please") == ["May I know your full name?"]  # by meaning (no rule, no answer)
     assert chat.r["matched"] == {"how": "meaning", "text": "I want to book", "score": 88.0}
 
 
