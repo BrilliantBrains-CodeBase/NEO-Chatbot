@@ -8,17 +8,19 @@ those tabs become leads (G3). Any number of sheets per clinic, several tabs on a
 
 import hmac
 import json
+import re
 import secrets
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from app.chat.leads import _assignee
 from app.core.config import get_settings
 from app.core.db import get_pool
 from app.crm import vault
 from app.crm.auth import Staff, staff
-from app.crm.sheet_values import shown
+from app.crm.sheet_values import now_utc, phone, shown, when
 
 router = APIRouter(tags=["crm"])
 
@@ -212,8 +214,9 @@ async def from_sheet(sheet: str, key: str, body: Incoming) -> dict[str, Any]:
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         row = await conn.fetchrow(
-            "select id, clinic_id, secret from app.lead_sheets where id::text = $1", sheet
+            "select id, clinic_id, secret, name from app.lead_sheets where id::text = $1", sheet
         )
+        sheet_name = row["name"] if row else ""
         real = await vault.read(conn, row["secret"]) if row else None
         if row is None or not real or not hmac.compare_digest(real, key):
             raise HTTPException(
@@ -224,7 +227,7 @@ async def from_sheet(sheet: str, key: str, body: Incoming) -> dict[str, Any]:
             cols = [str(h).strip()[:100] for h in (t.get("headers") or [])][:100]
             raw = [str(v)[:300] for v in (t.get("sample") or [])][: len(cols)]
             raw += [""] * (len(cols) - len(raw))
-            keep = [i for i, h in enumerate(cols) if h]  # blank header columns are skipped
+            keep = [i for i, h in enumerate(cols) if h and h != "CRM"]  # blank and our CRM column skipped
             headers, sample = [cols[i] for i in keep], [raw[i] for i in keep]
             if name:
                 await conn.execute(
@@ -236,10 +239,100 @@ async def from_sheet(sheet: str, key: str, body: Incoming) -> dict[str, Any]:
                     row["id"], row["clinic_id"], name, headers, sample,
                 )  # fmt: skip
         await conn.execute("update app.lead_sheets set last_seen_at = now() where id = $1", row["id"])
+        tabs = {
+            t["tab"]: t
+            for t in await conn.fetch(
+                "select tab, mapping, date_order from app.lead_sheet_tabs where sheet_id = $1 and active",
+                row["id"],
+            )
+        }
+        clinic = await conn.fetchrow(
+            "select id, lead_assignment from app.clinics where id = $1 and active", row["clinic_id"]
+        )
+        results = []
+        for r in body.rows[:50]:
+            tab = tabs.get(str(r.get("tab", "")))
+            if tab is None:
+                continue  # turned off meanwhile
+            try:
+                code = await _lead_from_row(conn, clinic, sheet_name, tab, r)
+                results.append({"tab": tab["tab"], "row": r.get("row"), "status": f"{code} ✓"})
+            except ValueError as e:
+                results.append({"tab": tab["tab"], "row": r.get("row"), "status": str(e)})
         active = await conn.fetch(
             "select tab from app.lead_sheet_tabs where sheet_id = $1 and active", row["id"]
         )
-    return {"ok": True, "active_tabs": [a["tab"] for a in active]}
+    return {"ok": True, "active_tabs": [a["tab"] for a in active], "results": results}
+
+
+async def _lead_from_row(conn: Any, clinic: Any, sheet_name: str, tab: Any, r: dict[str, Any]) -> str:
+    """One sheet row as a lead (source Meta Ads), by the tab's mapping and shown the CRM's way. One lead per
+    phone (or email) per clinic: a repeat counts up. Unmapped columns go in the notes. Returns the lead code;
+    ValueError (the reason, written in the sheet's CRM column) when the row cannot be a lead."""
+    mapping: dict[str, str] = dict(_json(tab["mapping"]))
+    values = {str(k).strip(): str(v).strip() for k, v in (r.get("values") or {}).items() if str(v).strip()}
+    got = {f: values.get(col, "") for col, f in mapping.items()}
+    name = " ".join(shown(got.get("name", "")).split())[:100]
+    tel = phone(got.get("phone", "")) if got.get("phone") else None
+    email = got.get("email", "").lower()
+    email = email if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}", email) else ""
+    if len(name) < 2 or not (tel or email):
+        raise ValueError("Not imported: needs a name and a valid phone or email")
+    e164 = tel.replace(" ", "") if tel else None
+    cc = "+91" if e164 and e164.startswith("+91") else ""
+    came = when(got["date"], tab["date_order"]) if got.get("date") else None
+    if came and came > now_utc():
+        came = None  # a date in the future is not when the lead came
+    extra = {f: shown(got[f]) for f in ("city", "ad_name", "notes") if got.get(f)}
+    unmapped = {k: shown(v) for k, v in values.items() if k not in mapping and k != "CRM"}
+    note = "\n".join(
+        [*(f"{FIELDS[k]}: {v}" for k, v in extra.items()), *(f"{k}: {v}" for k, v in unmapped.items())]
+    )
+    treatment = shown(got.get("treatment", ""))[:100] or None
+    campaign = shown(got.get("campaign", ""))[:100] or None
+    code = str(r.get("lead_code") or "").strip().rstrip(" ✓")
+    lead = None
+    if code:  # sent before (its CRM cell had the code): update that lead
+        lead = await conn.fetchrow(
+            "select id, lead_code from app.leads "
+            "where lead_code = $1 and clinic_id = $2 and deleted_at is null",
+            code, clinic["id"],
+        )  # fmt: skip
+    if lead is None:
+        lead = await conn.fetchrow(
+            """select id, lead_code from app.leads where clinic_id = $1 and deleted_at is null
+               and (phone_e164 = $2 or ($2::text is null and email = $3)) for update""",
+            clinic["id"], e164, email or None,
+        )  # fmt: skip
+    if lead is not None:
+        await conn.execute(
+            """update app.leads set phone_e164 = coalesce($2, phone_e164), email = coalesce($3, email),
+                 campaign = coalesce($4, campaign), treatment = coalesce(treatment, $5),
+                 contact_count = contact_count + 1, last_contact_at = now(), updated_at = now()
+               where id = $1""",
+            lead["id"], e164, email or None, campaign, treatment,
+        )  # fmt: skip
+    else:
+        lead = await conn.fetchrow(
+            """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source, campaign,
+                 treatment, assigned_to, notes, first_contact_at, last_contact_at)
+               values ($1, $2, $3, nullif($4, ''), $5, 'meta_ads', $6, $7, $8, $9, coalesce($10, now()),
+                 greatest(coalesce($10, now()), now())) returning id, lead_code""",
+            clinic["id"], name, e164, cc, email or None, campaign, treatment, await _assignee(conn, clinic),
+            note[:2000], came,
+        )  # fmt: skip
+    data = {
+        "source": "meta_ads",
+        "via": "google_sheet",
+        "sheet": sheet_name,
+        "tab": tab["tab"],
+        "row": r.get("row"),
+    }
+    await conn.execute(
+        "insert into app.lead_events (clinic_id, lead_id, kind, data) values ($1, $2, 'contact', $3::jsonb)",
+        clinic["id"], lead["id"], json.dumps(data),
+    )  # fmt: skip
+    return str(lead["lead_code"])
 
 
 # The Apps Script given to the clinic (one per sheet). Pasted in the sheet (Extensions → Apps Script) and run
@@ -259,6 +352,17 @@ function crmSetup() {
   crmSend();
 }
 
+function crmPost(body) {
+  const res = UrlFetchApp.fetch(CRM_LINK, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() >= 300) throw new Error("CRM: " + res.getContentText());
+  return JSON.parse(res.getContentText());
+}
+
 function crmSend() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return; // the previous run is still going
@@ -271,13 +375,36 @@ function crmSend() {
         sample: cols && last > 1 ? s.getRange(last, 1, 1, cols).getDisplayValues()[0] : [], // the newest row
       };
     });
-    const res = UrlFetchApp.fetch(CRM_LINK, {
-      method: "post",
-      contentType: "application/json",
-      payload: JSON.stringify({ tabs: tabs }),
-      muteHttpExceptions: true,
-    });
-    if (res.getResponseCode() >= 300) throw new Error("CRM: " + res.getContentText());
+    const first = crmPost({ tabs: tabs });
+    // Rows of the tabs turned on in the Dashboard: each row without a lead code in its CRM column (at most
+    // 50 a run). The CRM column (added at the end) then shows the lead code, or why the row was not taken.
+    const book = SpreadsheetApp.getActiveSpreadsheet();
+    const rows = [], cells = [];
+    for (const name of first.active_tabs || []) {
+      const s = book.getSheetByName(name);
+      if (!s || s.getLastRow() < 2) continue;
+      let head = s.getRange(1, 1, 1, s.getLastColumn()).getDisplayValues()[0];
+      let crm = head.indexOf("CRM");
+      if (crm < 0) {
+        crm = head.length;
+        s.getRange(1, crm + 1).setValue("CRM");
+        head = head.concat(["CRM"]);
+      }
+      const data = s.getRange(2, 1, s.getLastRow() - 1, head.length).getDisplayValues();
+      for (let i = 0; i < data.length && rows.length < 50; i++) {
+        const status = data[i][crm];
+        if (status && status.endsWith("✓")) continue; // already a lead
+        if (data[i].every((v, j) => j === crm || !v)) continue; // an empty row
+        const values = {};
+        head.forEach((h, j) => { if (h && j !== crm) values[h] = data[i][j]; });
+        rows.push({ tab: name, row: i + 2, values: values });
+        cells.push(s.getRange(i + 2, crm + 1));
+      }
+    }
+    if (rows.length) {
+      const done = crmPost({ rows: rows }).results || [];
+      done.forEach((r, k) => cells[k] && cells[k].setValue(r.status));
+    }
   } finally {
     lock.releaseLock();
   }

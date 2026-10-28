@@ -232,6 +232,19 @@ const FIELDS: [string, string][] = [
 ];
 
 /** A first guess from the column's name (staff correct the rest). */
+/** First guesses for a tab: each of our fields goes to one column only (the first that fits). */
+function guessAll(headers: string[]): Record<string, string> {
+  const used = new Set<string>();
+  return Object.fromEntries(
+    headers.map((h) => {
+      const f = guess(h);
+      if (f === "skip" || used.has(f)) return [h, "skip"];
+      used.add(f);
+      return [h, f];
+    }),
+  );
+}
+
 function guess(col: string): string {
   const c = col.toLowerCase();
   if (/^(full[ _]?)?name$|patient name|lead name/.test(c)) return "name";
@@ -276,13 +289,11 @@ function TabMapping({
         ? {
             id: tab.id,
             active: tab.active,
-            mapping: Object.fromEntries(
-              tab.headers.map((h) => [
-                h,
-                tab.mapping[h] ??
-                  (Object.keys(tab.mapping).length ? "skip" : guess(h)),
-              ]),
-            ),
+            mapping: Object.keys(tab.mapping).length
+              ? Object.fromEntries(
+                  tab.headers.map((h) => [h, tab.mapping[h] ?? "skip"]),
+                )
+              : guessAll(tab.headers),
           }
         : null;
   const on = sheet.tabs.filter((t) => t.active).map((t) => t.tab);
@@ -483,6 +494,17 @@ function TabMapping({
             }}
           >
             Save
+          </button>
+          <button
+            className="btn g"
+            style={{ marginTop: 8, marginLeft: 8 }}
+            onClick={() => {
+              setTabId("");
+              setDraft(null);
+              setError("");
+            }}
+          >
+            Close
           </button>
         </div>
       )}

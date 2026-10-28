@@ -300,3 +300,48 @@ async def test_sheet_tab_mapping(api: AsyncClient, monkeypatch: pytest.MonkeyPat
         assert r.json()["active_tabs"] == ["Lead"]  # the script now knows which tabs to send
     finally:
         await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")
+
+
+@needs_db
+async def test_sheet_rows_become_leads(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import urlsplit
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99/integrations/sheets"
+    cols = ["id", "created_time", "platform", "question", "full_name", "phone_number", "email", "notes"]
+    raw = ["l:1016149801463045", "2026-08-26T01:26:17-05:00", "fb", "yes,_i_have", "himavanth",
+           "p:+919000000094", "himavanthkb@example.com", "Visit in september"]  # fmt: skip
+    try:
+        [sheet] = (await api.post(url, json={"name": "Rows test"}, headers=headers)).json()
+        parts = urlsplit((await api.get(f"{url}/{sheet['id']}/script", headers=headers)).json()["link"])
+        link = f"{parts.path}?{parts.query}"
+        await api.post(link, json={"tabs": [{"tab": "Leads", "headers": cols}]})
+        tab = (await api.get(url, headers=headers)).json()[0]["tabs"][0]
+        mapping = {"full_name": "name", "phone_number": "phone", "email": "email", "created_time": "date"}
+        await api.put(
+            f"{url}/{sheet['id']}/tabs/{tab['id']}",
+            json={"active": True, "mapping": mapping},
+            headers=headers,
+        )
+        row = {"tab": "Leads", "row": 2, "values": dict(zip(cols, raw, strict=True))}
+        bad = {"tab": "Leads", "row": 3, "values": {"full_name": "No Phone"}}
+        [ok, refused] = (await api.post(link, json={"rows": [row, bad]})).json()["results"]
+        assert ok["status"].startswith("CL99-") and ok["status"].endswith("✓")
+        assert refused["status"].startswith("Not imported")
+        lead = await pool.fetchrow("select * from app.leads where lead_code = $1", ok["status"][:-2])
+        assert lead["phone_e164"] == "+919000000094" and lead["source"] == "meta_ads"
+        assert lead["first_contact_at"].isoformat().startswith("2026-08-26T06:26:17")  # 11:56 AM in India
+        assert "Facebook" in lead["notes"] and "yes, I have" in lead["notes"] and "l:" not in lead["notes"]
+        again = (await api.post(link, json={"rows": [row | {"lead_code": ok["status"]}]})).json()["results"][
+            0
+        ]
+        assert again["status"] == ok["status"]  # the same lead, counted again
+    finally:
+        await pool.execute("delete from app.leads where clinic_id = 'CL99' and phone_e164 = '+919000000094'")
+        await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")
