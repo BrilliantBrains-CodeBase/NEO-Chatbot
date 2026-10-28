@@ -261,3 +261,42 @@ async def test_sheet_link_reports_tabs(api: AsyncClient, monkeypatch: pytest.Mon
         assert (await api.post(f"{parts.path}?key={key}", json=tabs)).status_code == 403  # deleted: link dead
     finally:
         await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")
+
+
+@needs_db
+async def test_sheet_tab_mapping(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import urlsplit
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99/integrations/sheets"
+    try:
+        [sheet] = (await api.post(url, json={"name": "Mapping test"}, headers=headers)).json()
+        link = (await api.get(f"{url}/{sheet['id']}/script", headers=headers)).json()["link"]
+        parts = urlsplit(link)
+        cols = ["Name", "Contact Number", "Email Address", "Date", "Remark"]
+        await api.post(f"{parts.path}?{parts.query}", json={"tabs": [{"tab": "Lead", "headers": cols}]})
+        tab = (await api.get(url, headers=headers)).json()[0]["tabs"][0]
+        put = f"{url}/{sheet['id']}/tabs/{tab['id']}"
+        good = {"Name": "name", "Contact Number": "phone", "Date": "date", "Remark": "skip"}
+        r = await api.put(put, json={"active": True, "mapping": good}, headers=headers)
+        saved = r.json()[0]["tabs"][0]
+        assert saved["active"] and saved["mapping"] == {
+            "Name": "name",
+            "Contact Number": "phone",
+            "Date": "date",
+        }
+        no_phone = await api.put(put, json={"active": True, "mapping": {"Name": "name"}}, headers=headers)
+        assert no_phone.status_code == 422 and "Phone" in no_phone.json()["detail"]
+        twice = {"Name": "name", "Remark": "name"}
+        assert (await api.put(put, json={"mapping": twice}, headers=headers)).status_code == 422
+        assert (await api.put(put, json={"mapping": {"Nope": "name"}}, headers=headers)).status_code == 422
+        r = await api.post(f"{parts.path}?{parts.query}", json={"tabs": []})
+        assert r.json()["active_tabs"] == ["Lead"]  # the script now knows which tabs to send
+    finally:
+        await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")

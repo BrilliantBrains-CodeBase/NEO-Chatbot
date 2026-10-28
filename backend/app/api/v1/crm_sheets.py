@@ -9,7 +9,7 @@ those tabs become leads (G3). Any number of sheets per clinic, several tabs on a
 import hmac
 import json
 import secrets
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -18,6 +18,7 @@ from app.core.config import get_settings
 from app.core.db import get_pool
 from app.crm import vault
 from app.crm.auth import Staff, staff
+from app.crm.sheet_values import shown
 
 router = APIRouter(tags=["crm"])
 
@@ -29,6 +30,8 @@ class Tab(BaseModel):
     active: bool
     mapping: dict[str, str]  # sheet column -> our field
     date_order: str | None
+    hidden: bool  # not shown in the list of tabs to set up
+    sample: list[str]  # one example row, shown the CRM's way (the sheet keeps its own values)
 
 
 class Sheet(BaseModel):
@@ -59,7 +62,8 @@ async def _list(clinic: str) -> list[Sheet]:
             last_seen_at=s["last_seen_at"].isoformat() if s["last_seen_at"] else None,
             tabs=[
                 Tab(id=str(t["id"]), tab=t["tab"], headers=list(t["headers"]), active=t["active"],
-                    mapping=dict(_json(t["mapping"])), date_order=t["date_order"])
+                    mapping=dict(_json(t["mapping"])), date_order=t["date_order"], hidden=t["hidden"],
+                    sample=[shown(v) for v in t["sample"]])
                 for t in tabs if t["sheet_id"] == s["id"]
             ],
         )
@@ -114,6 +118,64 @@ async def delete_sheet(user: Annotated[Staff, Depends(staff)], clinic: str, shee
     return await _list(clinic)
 
 
+# Our fields a sheet column can go to (more are added later). "date": when the lead came (any format; G3).
+FIELDS = {
+    "name": "Name", "phone": "Phone", "email": "Email", "city": "City", "treatment": "Treatment",
+    "campaign": "Campaign", "ad_name": "Ad name", "notes": "Notes", "date": "Lead date",
+}  # fmt: skip
+
+
+class TabSettings(BaseModel):
+    hidden: bool = False  # hidden tabs are never imported
+    active: bool = False
+    mapping: dict[str, str] = Field(default={}, max_length=100)  # sheet column -> our field
+    date_order: Literal["dmy", "mdy"] | None = None  # how the tab writes dates (None: worked out)
+
+
+@router.get("/crm/console/integrations/sheet-fields")
+async def sheet_fields(user: Annotated[Staff, Depends(staff)]) -> dict[str, str]:
+    """Our fields, for the mapping boxes."""
+    return FIELDS
+
+
+@router.put("/crm/console/{clinic}/integrations/sheets/{sheet}/tabs/{tab}", response_model=list[Sheet])
+async def save_tab(
+    user: Annotated[Staff, Depends(staff)], clinic: str, sheet: str, tab: str, body: TabSettings
+) -> list[Sheet]:
+    """Turns a tab on or off and saves its columns -> our fields. On needs Name and Phone or Email."""
+    _manager(user, clinic)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "select headers from app.lead_sheet_tabs "
+        "where id = $1::uuid and sheet_id = $2::uuid and clinic_id = $3",
+        tab, sheet, clinic,
+    )  # fmt: skip
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tab not found.")
+    if body.hidden:
+        body.active = False
+    mapping = {col: f for col, f in body.mapping.items() if f and f != "skip"}
+    for col, f in mapping.items():
+        if col not in row["headers"] or f not in FIELDS:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"'{col}' cannot go to '{f}'.")
+    used = list(mapping.values())
+    twice = sorted({FIELDS[f] for f in used if used.count(f) > 1})
+    if twice:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Two columns go to {', '.join(twice)}.")
+    if body.active and not ("name" in used and ("phone" in used or "email" in used)):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "To import this tab, choose its Name and Phone (or Email)."
+        )
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await conn.execute(
+            "update app.lead_sheet_tabs set active = $2, mapping = $3::jsonb, date_order = $4, hidden = $5 "
+            "where id = $1::uuid",
+            tab, body.active, json.dumps(mapping), body.date_order, body.hidden,
+        )  # fmt: skip
+    return await _list(clinic)
+
+
 class Script(BaseModel):
     link: str
     script: str
@@ -159,13 +221,19 @@ async def from_sheet(sheet: str, key: str, body: Incoming) -> dict[str, Any]:
             )
         for t in body.tabs:
             name = str(t.get("tab") or "").strip()[:100]
-            headers = [str(h).strip()[:100] for h in (t.get("headers") or []) if str(h).strip()][:100]
+            cols = [str(h).strip()[:100] for h in (t.get("headers") or [])][:100]
+            raw = [str(v)[:300] for v in (t.get("sample") or [])][: len(cols)]
+            raw += [""] * (len(cols) - len(raw))
+            keep = [i for i, h in enumerate(cols) if h]  # blank header columns are skipped
+            headers, sample = [cols[i] for i in keep], [raw[i] for i in keep]
             if name:
                 await conn.execute(
-                    """insert into app.lead_sheet_tabs (sheet_id, clinic_id, tab, headers)
-                       values ($1, $2, $3, $4)
-                       on conflict (sheet_id, tab) do update set headers = $4""",
-                    row["id"], row["clinic_id"], name, headers,
+                    """insert into app.lead_sheet_tabs (sheet_id, clinic_id, tab, headers, sample)
+                       values ($1, $2, $3, $4, $5)
+                       on conflict (sheet_id, tab) do update set headers = $4,
+                         sample = case when cardinality($5::text[]) > 0 then $5
+                                       else lead_sheet_tabs.sample end""",
+                    row["id"], row["clinic_id"], name, headers, sample,
                 )  # fmt: skip
         await conn.execute("update app.lead_sheets set last_seen_at = now() where id = $1", row["id"])
         active = await conn.fetch(
@@ -195,10 +263,14 @@ function crmSend() {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return; // the previous run is still going
   try {
-    const tabs = SpreadsheetApp.getActiveSpreadsheet().getSheets().map((s) => ({
-      tab: s.getName(),
-      headers: s.getLastColumn() ? s.getRange(1, 1, 1, s.getLastColumn()).getDisplayValues()[0] : [],
-    }));
+    const tabs = SpreadsheetApp.getActiveSpreadsheet().getSheets().map((s) => {
+      const cols = s.getLastColumn(), last = s.getLastRow();
+      return {
+        tab: s.getName(),
+        headers: cols ? s.getRange(1, 1, 1, cols).getDisplayValues()[0] : [],
+        sample: cols && last > 1 ? s.getRange(last, 1, 1, cols).getDisplayValues()[0] : [], // the newest row
+      };
+    });
     const res = UrlFetchApp.fetch(CRM_LINK, {
       method: "post",
       contentType: "application/json",
