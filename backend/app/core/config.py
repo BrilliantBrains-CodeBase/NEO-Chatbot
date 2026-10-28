@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     # Comma separated, so it reads naturally in .env.
     allowed_origins: str = ""
+    # The built widget files the backend serves (empty: frontend/widgets/dist next to the backend).
+    widget_dir: str = ""
+    # This backend's public address, when it runs behind a proxy (empty: the address it is called on).
+    public_url: str = ""
 
     groq_api_key: str = ""
     gemini_api_key: str = ""

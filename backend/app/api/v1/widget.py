@@ -1,0 +1,51 @@
+"""The chatbot widget's files (frontend/widgets build), served by the backend itself. A clinic's website
+includes <backend>/v1/widget/<file>.js (Dashboard → Website install gives the line); the widget then talks to
+the same backend, which runs it only on the clinic's approved websites. Nothing here names a clinic: each
+loader file says which clinic it is for (its clinic ID), and that is read from the built files.
+"""
+
+import re
+import time
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import FileResponse
+
+from app.core.config import get_settings
+
+router = APIRouter(prefix="/widget", tags=["widget"])
+
+FILE = re.compile(r"^[a-z0-9-]+(\.app)?\.js$")  # a loader (neo-follicle.js) or its full widget (.app.js)
+_found: tuple[float, dict[str, str]] = (0.0, {})
+
+
+def folder() -> Path:
+    """The built widget files: WIDGET_DIR, else frontend/widgets/dist next to the backend."""
+    configured = get_settings().widget_dir
+    return Path(configured) if configured else Path(__file__).resolve().parents[4] / "frontend/widgets/dist"
+
+
+def loaders() -> dict[str, str]:
+    """Clinic ID -> its loader's name, read from the built loaders (checked again after a minute)."""
+    global _found
+    if time.monotonic() - _found[0] < 60:
+        return _found[1]
+    out: dict[str, str] = {}
+    for f in sorted(folder().glob("*.js")):
+        if f.name.endswith(".app.js"):
+            continue
+        ids = set(re.findall(r"\bCL\d{2}\b", f.read_text(encoding="utf-8", errors="ignore")))
+        if len(ids) == 1:  # a loader is for exactly one clinic
+            out[ids.pop()] = f.stem
+    _found = (time.monotonic(), out)
+    return out
+
+
+@router.get("/{name}")
+async def widget_file(name: str) -> FileResponse:
+    path = folder() / name
+    if not FILE.fullmatch(name) or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such widget file.")
+    return FileResponse(
+        path, media_type="application/javascript", headers={"Cache-Control": "public, max-age=300"}
+    )
