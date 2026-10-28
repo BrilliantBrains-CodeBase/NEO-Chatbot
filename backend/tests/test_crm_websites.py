@@ -229,3 +229,35 @@ async def test_online_consult_setup_goes_to_calcom(api: AsyncClient, monkeypatch
         if old:
             async with pool.acquire() as conn:
                 await vault.delete(conn, old)
+
+
+@needs_db
+async def test_sheet_link_reports_tabs(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    url = "/v1/crm/console/CL99/integrations/sheets"
+    try:
+        [sheet] = (await api.post(url, json={"name": "Meta leads test"}, headers=headers)).json()
+        got = (await api.get(f"{url}/{sheet['id']}/script", headers=headers)).json()
+        assert got["link"] in got["script"] and "crmSetup" in got["script"]
+        parts = urlsplit(got["link"])
+        key = parse_qs(parts.query)["key"][0]
+        tabs = {"tabs": [{"tab": "Form A", "headers": ["Full Name", "Phone", " ", "Created Time"]}]}
+        r = await api.post(f"{parts.path}?key={key}", json=tabs)
+        assert r.status_code == 200 and r.json()["active_tabs"] == []
+        [listed] = (await api.get(url, headers=headers)).json()
+        assert (
+            listed["tabs"][0]["headers"] == ["Full Name", "Phone", "Created Time"] and listed["last_seen_at"]
+        )
+        assert (await api.post(f"{parts.path}?key=wrong", json=tabs)).status_code == 403
+        await api.delete(f"{url}/{sheet['id']}", headers=headers)
+        assert (await api.post(f"{parts.path}?key={key}", json=tabs)).status_code == 403  # deleted: link dead
+    finally:
+        await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")

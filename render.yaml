@@ -1,0 +1,42 @@
+# Render blueprint for the backend (FastAPI), deployed from the `saas` branch for testing.
+# Render gives it a fixed https address (https://<name>.onrender.com), so Google Sheets' Apps Script and
+# Cal.com's webhook can reach it. No secret is written here: each `sync: false` value is entered once in
+# Render (Dashboard → the service → Environment), copied from backend/.env.
+services:
+  - type: web
+    name: neo-chatbot-api
+    runtime: python
+    branch: saas
+    rootDir: backend # the whole repo is checked out, so the widget build (frontend/widgets/dist) is served too
+    plan: free
+    region: singapore # nearest to the Supabase project (Mumbai)
+    buildCommand: pip install uv && uv sync --frozen --no-dev
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_ENV
+        value: staging # not "production" while testing: the CRM on localhost may still call it
+      - key: PUBLIC_URL # this service's https address, e.g. https://neo-chatbot-api.onrender.com
+        sync: false
+      - key: ALLOWED_ORIGINS # the CRM's address(es), comma separated, e.g. http://localhost:3000
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: INTERAKT_API_KEY
+        sync: false
+      - key: CALCOM_API_KEY
+        sync: false
+      - key: CALCOM_EVENT_TYPE_ID
+        sync: false
+      - key: SHEET_WEBHOOK_SECRET
+        sync: false
+      - key: EMBED_MODEL
+        sync: false

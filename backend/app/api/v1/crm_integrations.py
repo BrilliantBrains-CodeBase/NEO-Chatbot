@@ -43,7 +43,7 @@ async def integrations(
            from app.lead_events where clinic_id = $1 and kind = 'contact' and data->>'source' = 'meta_ads'""",
         clinic,
     )
-    base = (s.public_url or str(request.base_url)).rstrip("/")
+    sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
     return [
         Integration(
             id="calcom", name="Cal.com",
@@ -60,9 +60,8 @@ async def integrations(
         Integration(
             id="sheet", name="Google Sheet leads", does="Meta lead ads: each new row in the clinic's sheet "
             "becomes a lead (source Meta Ads).",
-            state="connected" if s.sheet_webhook_secret else "not_connected",
-            detail=[f"Webhook address: {base}/v1/integrations/sheet-leads", f"Clinic code: {clinic}",
-                    f"{sheet['n']} leads received in the last 7 days"],
+            state="connected" if sheets_added else "not_connected",
+            detail=[f"{sheets_added} sheet(s) added", f"{sheet['n']} leads received in the last 7 days"],
             last=sheet["last"].isoformat() if sheet["last"] else None,
         ),
         Integration(
