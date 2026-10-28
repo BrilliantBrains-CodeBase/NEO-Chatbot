@@ -413,3 +413,14 @@ def test_helper_blocks_known_patient_follow_up_and_tag() -> None:
     new = Chat(flow, ctx(returning=False))
     new(tap="m1")
     assert new.at == "new"
+
+
+def test_emergency_raises_a_staff_alert() -> None:
+    sos = {"id": "sos", "type": "emergency", "settings": {"text": "Call 108 now."}}
+    flow = {"nodes": [opening(("m1", "Hi")), sos]}
+    chat = Chat(flow)
+    chat("there is heavy bleeding")
+    assert chat.r["alert"] == {"kind": "emergency", "said": "there is heavy bleeding", "phone": ""}
+    quiet = Chat(flow | {"globals": {"emergency_alert": False}})
+    quiet("there is heavy bleeding")
+    assert quiet.at == "sos" and quiet.r["alert"] is None  # the alert is a setting; the reply is not

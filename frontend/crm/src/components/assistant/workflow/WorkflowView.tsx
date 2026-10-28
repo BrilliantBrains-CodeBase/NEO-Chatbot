@@ -94,10 +94,10 @@ function Block({ data, selected }: NodeProps<Node<BlockData>>) {
   );
   return (
     <div
-      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}${b.enabled === false ? " off" : ""}${data.live ? " live-at" : ""}`}
+      className={`wf-block${selected ? " on" : ""}${data.problems ? " bad" : ""}${b.enabled === false ? " off" : ""}${data.live ? " live-at" : ""}${b.type === "note" ? ` note ${String(b.settings.color ?? "yellow")}` : ""}`}
       style={{ borderTopColor: kind?.color }}
     >
-      {b.type !== "opening" && b.type !== "typed" && (
+      {b.type !== "opening" && b.type !== "typed" && b.type !== "note" && (
         <Handle type="target" position={Position.Left} />
       )}
       <div className="wf-kind" style={{ color: kind?.color }}>
@@ -457,6 +457,56 @@ function Canvas() {
     });
     setSelected(id);
   }
+  // Copy / paste / duplicate one block: its settings, not its lines or typed phrases (a phrase leads to
+  // one place only). Ctrl+C, Ctrl+V, Ctrl+D on the canvas (not while typing in a box).
+  const clipboard = useRef<FlowNode | null>(null);
+  function duplicate(source: FlowNode | null | undefined) {
+    if (!flow || !source) return;
+    if (source.type === "opening")
+      return toast("A flow has one Opening block.");
+    const id = newId(flow, source.type);
+    setFlow({
+      ...flow,
+      nodes: [
+        ...flow.nodes,
+        {
+          ...structuredClone(source),
+          id,
+          title:
+            `${source.title || KINDS[source.type]?.label || source.type} (copy)`.slice(
+              0,
+              60,
+            ),
+          x: source.x + 40,
+          y: source.y + 40,
+        },
+      ],
+    });
+    setSelected(id);
+  }
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement;
+      if (
+        !(e.ctrlKey || e.metaKey) ||
+        el.closest("input, textarea, select, [contenteditable]")
+      )
+        return;
+      const k = e.key.toLowerCase();
+      const current = flow?.nodes.find((n) => n.id === selected);
+      if (k === "c" && current) {
+        clipboard.current = structuredClone(current);
+        toast("Block copied");
+      } else if (k === "v" && clipboard.current) {
+        duplicate(clipboard.current);
+      } else if (k === "d" && current) {
+        e.preventDefault();
+        duplicate(current);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
   function onDrop(e: DragEvent) {
     e.preventDefault();
     const type = e.dataTransfer.getData("application/x-block");
@@ -714,6 +764,15 @@ function Canvas() {
                   >
                     {dirty ? "Save changes" : "Saved"}
                   </button>
+                  {block.type !== "opening" && (
+                    <button
+                      className="pill"
+                      title="Ctrl+D. A copy has no lines and no typed phrases."
+                      onClick={() => duplicate(block)}
+                    >
+                      Duplicate
+                    </button>
+                  )}
                 </div>
               </>
             ) : (
@@ -1007,6 +1066,30 @@ function GlobalsPanel({
           onChange={(e) => setNr({ message: e.target.value })}
         />
       )}
+      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+        <input
+          type="checkbox"
+          checked={(globals.request_stage ?? "follow_up") === "follow_up"}
+          onChange={(e) =>
+            onChange({
+              ...globals,
+              request_stage: e.target.checked ? "follow_up" : "new",
+            })
+          }
+        />
+        A booking request moves the lead to Follow Up
+      </label>
+      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+        <input
+          type="checkbox"
+          checked={globals.emergency_alert !== false}
+          onChange={(e) =>
+            onChange({ ...globals, emergency_alert: e.target.checked })
+          }
+        />
+        Emergency alerts the staff (urgent call back in the Inbox, email to the
+        manager)
+      </label>
       <p className="sub2" style={{ margin: "8px 0 4px", fontSize: 11.5 }}>
         Work from anywhere in the chat, typed or tapped:
       </p>

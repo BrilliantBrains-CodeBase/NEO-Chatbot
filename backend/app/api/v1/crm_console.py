@@ -618,7 +618,9 @@ def _context(draft: dict[str, Any], device: str) -> Context:
 TEST_CLINIC, TEST_MARK = "CL99", "crm:test-chat"  # test leads: the hidden test clinic only, marked
 
 
-async def _save_test_lead(user: Staff, lead: dict[str, Any], device: str) -> dict[str, str]:
+async def _save_test_lead(
+    user: Staff, lead: dict[str, Any], device: str, stage: str = "follow_up"
+) -> dict[str, str]:
     """A finished test booking / call back ... as a lead and an Inbox request in CL99, marked as a test.
     No email, no task, no staff assigned (unlike a patient's lead); Delete test leads removes them."""
     phone = (lead.get("phone") or "").replace(" ", "") or None
@@ -651,8 +653,27 @@ async def _save_test_lead(user: Staff, lead: dict[str, Any], device: str) -> dic
             "insert into app.requests (clinic_id, lead_id, type, data) values ($1, $2, $3, $4::jsonb)",
             TEST_CLINIC, lead_id, lead["type"], json.dumps(data),
         )  # fmt: skip
+        if lead["type"] in ("book", "online") and stage == "follow_up":  # the flow's stage rule
+            await conn.execute(
+                "update app.leads set stage = 'follow_up', updated_at = now() "
+                "where id = $1 and stage = 'new'",
+                lead_id,
+            )
         code: str = await conn.fetchval("select lead_code from app.leads where id = $1", lead_id)
     return {"code": code, "clinic": TEST_CLINIC}
+
+
+async def _test_alert(user: Staff, alert: dict[str, Any], device: str) -> str:
+    """A test chat's emergency alert. With the patient's phone: an urgent call back in CL99's Inbox (the
+    bell). No email is queued for a test (live, the clinic manager is emailed)."""
+    if not alert.get("phone"):
+        return "Staff alert (test): live, the clinic manager is emailed. No phone yet, so no Inbox call back."
+    said = alert.get("said") or "emergency words"
+    lead = {"type": "callback", "name": "Test patient", "phone": alert["phone"], "urgent": "yes",
+            "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip
+    saved = await _save_test_lead(user, lead, device)
+    code = saved.get("code", "")
+    return f"Staff alert (test): urgent call back {code} in CL99's Inbox; live, the manager is emailed."
 
 
 def _check_context(draft: dict[str, Any]) -> Context:
@@ -703,8 +724,11 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
     if at and at["type"] in ("book", "online", "reschedule", "follow_up"):
         ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
     reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
+    stage = draft["flow"].get("globals", {}).get("request_stage", "follow_up")
     if reply["lead"]:
-        reply["saved"] = await _save_test_lead(user, reply["lead"], body.device)
+        reply["saved"] = await _save_test_lead(user, reply["lead"], body.device, stage)
+    if reply["alert"]:
+        reply["alert_note"] = await _test_alert(user, reply["alert"], body.device)
     return reply
 
 

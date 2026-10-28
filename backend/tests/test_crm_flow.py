@@ -205,6 +205,43 @@ async def test_test_chat_reads_the_knowledge_base_and_appointments(api: AsyncCli
         await pool.execute("delete from app.leads where lead_code = $1", saved["code"])
 
 
+@needs_db
+async def test_stage_rule_and_emergency_alert_in_cl99() -> None:
+    from app.api.v1.crm_console import _save_test_lead, _test_alert
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
+    try:
+        saved = await _save_test_lead(
+            user, {"type": "book", "name": "Test Stage", "phone": "+91 9000000096"}, "desktop"
+        )
+        stage = await pool.fetchval("select stage from app.leads where lead_code = $1", saved["code"])
+        assert stage == "follow_up"  # a booking request: New -> Follow Up
+        note = await _test_alert(
+            user, {"kind": "emergency", "said": "heavy bleeding", "phone": "+91 9000000095"}, "desktop"
+        )
+        assert "urgent call back CL99" in note
+        data = await pool.fetchval(
+            """select r.data from app.requests r join app.leads l on l.id = r.lead_id
+               where l.phone_e164 = '+919000000095' and l.clinic_id = 'CL99'"""
+        )
+        assert "EMERGENCY in chat: heavy bleeding" in str(data) and "urgent" in str(data)
+        assert "No phone yet" in await _test_alert(
+            user, {"kind": "emergency", "said": "x", "phone": ""}, "desktop"
+        )
+        assert not await pool.fetchval(
+            "select count(*) from app.outbox where clinic_id = 'CL99' and kind like '%alert%'"
+        )
+    finally:
+        await pool.execute("delete from app.leads where clinic_id = 'CL99' and page_url = 'crm:test-chat'")
+
+
 def test_blocks_can_be_off_or_scheduled() -> None:
     line = {"source": "opening", "exit": "m1", "target": "book"}
     off = BOOK | {"enabled": False, "show_from": "2026-11-01", "show_until": "2026-11-30"}
@@ -372,3 +409,13 @@ def test_fields_set_field_and_unknown_fields_in_messages() -> None:
         normalise(flow | {"fields": []})
     with pytest.raises(FlowError, match="own name"):
         normalise(flow | {"fields": [{"key": "name", "label": "Name"}]})
+
+
+def test_sticky_notes_are_for_staff_only() -> None:
+    note = {"id": "note-1", "type": "note", "settings": {"text": "Ask Dr {who} about this", "color": "pink"}}
+    flow = normalise({"nodes": [OPENING | {"settings": {"buttons": []}}, note]})
+    assert check(flow) == []  # not "nothing leads here", not an unknown {field}
+    with pytest.raises(FlowError, match="sticky note"):
+        normalise(
+            {"nodes": [OPENING, note], "edges": [{"source": "opening", "exit": "m1", "target": "note-1"}]}
+        )

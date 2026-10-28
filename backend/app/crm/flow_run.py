@@ -94,6 +94,8 @@ class Run:
         self.out: list[dict[str, Any]] = []
         self.lead: dict[str, Any] | None = None  # a finished booking / call back ... (saved by the caller)
         self.matched: dict[str, Any] | None = None  # what typed text matched (shown in the test chat)
+        self.alert: dict[str, Any] | None = None  # a staff alert raised now (the caller sends it)
+        self.last_text = ""
 
     # ---------- the result ----------
     def reply(self) -> dict[str, Any]:
@@ -102,6 +104,7 @@ class Run:
             "at": self.at,
             "lead": self.lead,
             "matched": self.matched,
+            "alert": self.alert,
             "state": {"at": self.at, "fields": self.fields, "ask": self.ask, "back": self.back[-10:]},
         }
 
@@ -226,6 +229,12 @@ class Run:
             self.ask = {"kind": "check", "tries": 0}
             self.say(s["message"])
             return
+        if t == "emergency" and self.flow.globals.emergency_alert:
+            self.alert = {
+                "kind": "emergency",
+                "said": self.last_text[:300],
+                "phone": self.fields.get("phone", ""),
+            }
         self.render(node)
 
     def auto(self, node: Node) -> str | None:
@@ -353,6 +362,7 @@ class Run:
 
     def text(self, raw: str) -> dict[str, Any]:
         text = raw.strip()
+        self.last_text = text
         g = {t.kind: t for t in self.flow.globals.triggers if t.enabled}
         # Emergency words always come first, from anywhere: the trigger's block, else the flow's Emergency.
         sos = (g["emergency"].target if "emergency" in g else "") or self.first("emergency")

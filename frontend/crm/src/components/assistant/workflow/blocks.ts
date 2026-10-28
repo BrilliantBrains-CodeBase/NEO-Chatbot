@@ -88,6 +88,10 @@ export type Globals = {
     reminders: number;
   };
   triggers: GlobalTrigger[];
+  /** A booking request moves its lead from New to Follow Up (approving it in the Inbox sets Booked). */
+  request_stage?: "follow_up" | "new";
+  /** The Emergency block alerts the staff: an urgent call back in the Inbox, an email to the manager. */
+  emergency_alert?: boolean;
 };
 export const DEFAULT_GLOBALS: Globals = {
   no_reply: {
@@ -394,6 +398,13 @@ export const KINDS: Record<string, Kind> = {
     hint: "Jumps to another block (no long line)",
     start: { target: "" },
   },
+  note: {
+    label: "Sticky note",
+    group: "Notes",
+    color: "#CA8A04",
+    hint: "A note for staff on the canvas (patients never see it)",
+    start: { text: "", color: "yellow" },
+  },
   set_field: {
     label: "Set field",
     group: "Logic",
@@ -452,6 +463,7 @@ export const GROUPS = [
   "Contact & safety",
   "Questions",
   "Logic",
+  "Notes",
 ];
 const LEAD = new Set([
   "book",

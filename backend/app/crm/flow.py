@@ -167,6 +167,13 @@ class NoSettings(BaseModel):
     pass
 
 
+class NoteSettings(BaseModel):
+    """A sticky note for staff on the canvas: never shown to patients, no lines, ignored by the checks."""
+
+    text: str = Field(default="", max_length=1000)
+    color: Literal["yellow", "blue", "green", "pink"] = "yellow"
+
+
 class TagSettings(BaseModel):
     """Lead tag / source: the campaign saved on the lead made in this chat (e.g. "Diwali offer"), then on."""
 
@@ -373,6 +380,7 @@ TYPES: dict[str, type[BaseModel]] = {
     "follow_up": LeadSettings,  # an existing patient books again: phone, date, time (no name)
     "known_patient": NoSettings,  # duplicate check: exits known / new
     "lead_tag": TagSettings,
+    "note": NoteSettings,
     "treatment_card": TreatmentSettings,
     "doctor_card": DoctorSettings,
     "link": LinkSettings,
@@ -401,7 +409,7 @@ class Node(BaseModel):
         "choice", "answer", "book", "online", "cancel", "reschedule", "callback", "treatment_card",
         "doctor_card", "link", "whatsapp", "call", "emergency", "set_field", "question",
         "location", "reviews", "faq", "knowledge", "check_appointment", "clinic_open", "goto",
-        "condition", "media", "carousel", "follow_up", "known_patient", "lead_tag",
+        "condition", "media", "carousel", "follow_up", "known_patient", "lead_tag", "note",
     ]  # fmt: skip
     title: str = Field(default="", max_length=60)
     x: float = 0
@@ -442,6 +450,10 @@ class GlobalTrigger(BaseModel):
 
 class Globals(BaseModel):
     no_reply: NoReply = NoReply()
+    # CRM links: a booking request moves its lead from New to Follow Up (approving it sets Booked);
+    # the Emergency block alerts the staff (an urgent call back in the Inbox, an email to the manager).
+    request_stage: Literal["follow_up", "new"] = "follow_up"
+    emergency_alert: bool = True
     triggers: list[GlobalTrigger] = Field(
         default=[
             GlobalTrigger(kind="main_menu"),
@@ -689,6 +701,8 @@ def normalise(raw: dict[str, Any]) -> dict[str, Any]:
     for e in flow.edges:
         if e.source not in by_id or e.target not in by_id:
             raise FlowError("A line joins a block that does not exist.")
+        if by_id[e.target].type == "note":
+            raise FlowError("A line cannot lead into a sticky note.")
         if e.exit not in exits(by_id[e.source]):
             raise FlowError(f"Block '{by_id[e.source].title or e.source}' has no exit '{e.exit}'.")
         if (e.source, e.exit) in seen:
@@ -749,6 +763,8 @@ def check(raw: dict[str, Any]) -> list[Problem]:
                 out.append(Problem(level="error", node=n.id, message=f"Button '{b.label}' leads nowhere."))
     known = BUILT_IN_FIELDS | {f.key for f in flow.fields}
     for n in flow.nodes:
+        if n.type == "note":
+            continue  # staff text, not shown to patients
         texts = [str(v) for k, v in n.settings.items() if isinstance(v, str)]
         for name in sorted({m for t in texts for m in re.findall(r"\{([a-z][a-z0-9_]*)\}", t)} - known):
             out.append(Problem(level="error", node=n.id, message=f"Uses {{{name}}}, which is not a field."))
@@ -767,7 +783,7 @@ def check(raw: dict[str, Any]) -> list[Problem]:
                 reached.add(t)
                 todo.append(t)
     for n in flow.nodes:
-        if n.id not in reached:
+        if n.id not in reached and n.type != "note":
             out.append(Problem(level="warning", node=n.id, message="Nothing leads to this block."))
     return out
 

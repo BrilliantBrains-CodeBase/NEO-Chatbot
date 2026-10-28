@@ -497,6 +497,21 @@ export default function BlockSettings({
           )}
         </Row>
       )}
+      {block.type === "note" && (
+        <>
+          {text("text", "Note (for staff; patients never see it)", 5, 1000)}
+          <Row label="Colour">
+            <select
+              value={String(s.color ?? "yellow")}
+              onChange={(e) => set({ color: e.target.value })}
+            >
+              {["yellow", "blue", "green", "pink"].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </Row>
+        </>
+      )}
       {block.type === "lead_tag" &&
         text("campaign", "Campaign saved on the lead (CRM → Leads)", 1, 60)}
       {block.type === "known_patient" && (

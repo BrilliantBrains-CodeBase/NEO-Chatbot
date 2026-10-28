@@ -549,3 +549,9 @@
 .crm .wf-test-head { flex-wrap:wrap }
 .crm .wf-state.typed { background:var(--accent) }
 .crm .wf-state.typed + .wf-state { margin-left:4px }
+.crm .wf-block.note { border-top-width:1px;box-shadow:none }
+.crm .wf-block.note.yellow { background:#FEF9C3 }
+.crm .wf-block.note.blue { background:#DBEAFE }
+.crm .wf-block.note.green { background:#DCFCE7 }
+.crm .wf-block.note.pink { background:#FCE7F3 }
+.crm .wf-block.note .wf-text { white-space:pre-wrap }

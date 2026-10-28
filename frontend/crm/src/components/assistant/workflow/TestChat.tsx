@@ -22,6 +22,7 @@ type Reply = {
   lead: Record<string, string> | null;
   saved?: { code?: string; clinic?: string; error?: string };
   matched?: { how: string; text: string; score?: number } | null;
+  alert_note?: string;
   state: Record<string, unknown> & { fields?: Record<string, string> };
 };
 type Line = { from: "bot" | "me"; msg: Msg };
@@ -88,6 +89,9 @@ export default function TestChat({
             ]
           : []),
         ...r.messages.map((m) => ({ from: "bot" as const, msg: m })),
+        ...(r.alert_note
+          ? [{ from: "bot" as const, msg: { text: r.alert_note, note: true } }]
+          : []),
         ...(r.saved
           ? [
               {
