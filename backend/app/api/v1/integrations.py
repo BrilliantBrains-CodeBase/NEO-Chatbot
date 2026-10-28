@@ -5,17 +5,20 @@ in the sheet, see docs/google-sheet-leads.gs). Each row becomes a New lead with 
 the lead it was sent as before (the code the script wrote in the sheet's CRM column) or the lead with the
 same phone. Protected by SHEET_WEBHOOK_SECRET."""
 
+import hashlib
 import hmac
 import json
 import re
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.chat.leads import _assignee
 from app.core.config import get_settings
 from app.core.db import get_pool
+from app.crm import calcom, vault
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -121,3 +124,66 @@ async def sheet_lead(body: SheetRow) -> SheetResult:
             body.clinic, lead["id"], json.dumps({"source": "meta_ads", **data}),
         )  # fmt: skip
     return SheetResult(lead_code=lead["lead_code"], created=created)
+
+
+# ---------- Cal.com: bookings changed in the clinic's Cal.com come back to the CRM ----------
+@router.post("/calcom/{clinic}")
+async def calcom_event(clinic: str, request: Request) -> dict[str, str]:
+    """Cal.com's webhook (created when the clinic connected its Cal.com). Signed with the webhook's secret
+    (Vault): X-Cal-Signature-256 = HMAC-SHA256 of the body. A booking cancelled or moved in Cal.com updates
+    its appointment; a booking made by the CRM is already known (the same uid)."""
+    raw = await request.body()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        secret_id = await conn.fetchval(
+            "select webhook_secret from app.calcom_accounts where clinic_id = $1", clinic
+        )
+        secret = await vault.read(conn, secret_id)
+    sent = request.headers.get("x-cal-signature-256", "")
+    good = hmac.new((secret or "").encode(), raw, hashlib.sha256).hexdigest()
+    if not secret or not hmac.compare_digest(sent, good):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong signature.")
+    event = json.loads(raw or b"{}")
+    kind, p = event.get("triggerEvent", ""), event.get("payload") or {}
+    uid = str(p.get("uid") or "")
+    async with pool.acquire() as conn, conn.transaction():
+        if kind == "BOOKING_CANCELLED":
+            done = await conn.execute(
+                """update app.appointments set status = 'cancelled', updated_at = now()
+                   where clinic_id = $1 and calendar_event_id = $2 and status in ('pending', 'confirmed')""",
+                clinic, uid,
+            )  # fmt: skip
+            return {"ok": "cancelled" if done.endswith(" 1") else "not ours"}
+        if kind == "BOOKING_RESCHEDULED":
+            old = str(p.get("rescheduleUid") or p.get("fromReschedule") or "")
+            link = (p.get("videoCallData") or {}).get("url") or (p.get("metadata") or {}).get("videoCallUrl")
+            done = await conn.execute(
+                """update app.appointments set slot = tstzrange($3::timestamptz, $4::timestamptz, '[)'),
+                     calendar_event_id = $5, meet_link = coalesce($6, meet_link), updated_at = now()
+                   where clinic_id = $1 and calendar_event_id = $2""",
+                clinic, old, _time(p.get("startTime")), _time(p.get("endTime")), uid, link,
+            )  # fmt: skip
+            return {"ok": "moved" if done.endswith(" 1") else "not ours"}
+        if kind == "BOOKING_CREATED" and not (p.get("metadata") or {}).get("lead"):
+            # Made in Cal.com, not by the chatbot / CRM (every CRM booking carries its lead code): cancelled,
+            # and Cal.com's own email tells the patient why.
+            key = await vault.read(
+                conn,
+                await conn.fetchval(
+                    "select key_secret from app.calcom_accounts where clinic_id = $1", clinic
+                ),
+            )
+            try:
+                await calcom.cancel(
+                    uid, "Please book your online consultation through the clinic's website chat.",
+                    calcom.Account(key=key),
+                )  # fmt: skip
+            except calcom.CalcomError:
+                return {"ok": "could not cancel"}
+            return {"ok": "cancelled: not booked through the chat or CRM"}
+    return {"ok": "ignored"}  # a booking the CRM made (its lead code is on it): already known
+
+
+def _time(text: Any) -> datetime | None:
+    """Cal.com's times ("2030-01-02T05:00:00Z") as real times."""
+    return datetime.fromisoformat(str(text).replace("Z", "+00:00")) if text else None

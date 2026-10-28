@@ -14,7 +14,7 @@ from app.api.v1.crm import Count, Option, _event, can_edit, can_see
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.core.db import get_pool
-from app.crm import calcom
+from app.crm import calcom, vault
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -289,10 +289,16 @@ async def _online(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, A
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "The patient chose Any time: enter the agreed time first."
         )
+    acc = await account(conn, r["clinic_id"], r["a_doctor_id"])
+    if acc.key and not acc.event:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "This doctor has no online consults in Cal.com yet (Dashboard → Integrations → Cal.com).",
+        )
     try:
         booked = await calcom.book(
             start, r["full_name"], r["email"], r["phone_e164"],
-            {"lead": r["lead_code"], "treatment": data.get("treatment") or ""},
+            {"lead": r["lead_code"], "treatment": data.get("treatment") or ""}, acc,
         )  # fmt: skip
     except calcom.CalcomError as e:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
@@ -300,6 +306,19 @@ async def _online(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, A
         "update app.appointments set meet_link = $2, calendar_event_id = $3 where id = $1",
         r["a_id"], booked.meet_link, booked.uid,
     )  # fmt: skip
+
+
+async def account(conn: asyncpg.Connection, clinic: str, doctor: Any) -> calcom.Account:
+    """The clinic's own Cal.com (key from Vault, that doctor's event), else the backend's (.env)."""
+    row = await conn.fetchrow(
+        """select a.key_secret, d.event_type_id from app.calcom_accounts a
+             left join app.calcom_doctors d on d.clinic_id = a.clinic_id and d.doctor_id = $2
+           where a.clinic_id = $1""",
+        clinic, doctor,
+    )  # fmt: skip
+    if row is None:
+        return calcom.Account()
+    return calcom.Account(key=await vault.read(conn, row["key_secret"]), event=row["event_type_id"])
 
 
 async def _calcom[T](call: Awaitable[T]) -> T:
@@ -361,7 +380,8 @@ async def approve(
         elif kind == "cancel" and r["a_id"]:
             await _set_appt(conn, r["a_id"], user, "cancelled")
             if r["a_cal"]:  # an online consult: Cal.com cancels it and emails the patient
-                await _calcom(calcom.cancel(r["a_cal"], "Cancelled at the patient's request"))
+                acc = await account(conn, r["clinic_id"], r["a_doctor_id"])
+                await _calcom(calcom.cancel(r["a_cal"], "Cancelled at the patient's request", acc))
         elif kind == "reschedule":
             if not data.get("date"):
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The new day is missing.")
@@ -375,7 +395,12 @@ async def approve(
             new, start = await _new_slot(conn, r, data, user)
             if r["a_cal"] and start:  # an online consult: Cal.com moves it and emails the new time
                 moved = await _calcom(
-                    calcom.reschedule(r["a_cal"], start, "Rescheduled at the patient's request")
+                    calcom.reschedule(
+                        r["a_cal"],
+                        start,
+                        "Rescheduled at the patient's request",
+                        await account(conn, r["clinic_id"], r["a_doctor_id"]),
+                    )
                 )
                 await conn.execute(
                     """update app.appointments set meet_link = coalesce($2, $3), calendar_event_id = $4

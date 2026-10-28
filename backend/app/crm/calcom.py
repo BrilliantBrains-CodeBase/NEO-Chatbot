@@ -57,8 +57,16 @@ async def _call(
     return data
 
 
-async def _post(path: str, body: dict[str, Any]) -> dict[str, Any]:
-    return await _call("POST", path, body)
+async def _post(path: str, body: dict[str, Any], key: str | None = None) -> dict[str, Any]:
+    return await _call("POST", path, body, key)
+
+
+@dataclass
+class Account:
+    """Which Cal.com to use: the clinic's own (key from Vault, the doctor's event) or the backend's."""
+
+    key: str | None = None  # None: CALCOM_API_KEY
+    event: int | None = None  # None: CALCOM_EVENT_TYPE_ID
 
 
 # ---------- a clinic's own account ----------
@@ -82,9 +90,17 @@ async def remove_webhook(key: str, webhook_id: str) -> None:
     await _call("DELETE", f"/webhooks/{webhook_id}", key=key, what="removing the webhook")
 
 
-async def book(start: datetime, name: str, email: str, phone: str | None, note: dict[str, str]) -> Booking:
-    """Books the consult at `start` (a timezone-aware time)."""
-    event = get_settings().calcom_event_type_id
+async def book(
+    start: datetime,
+    name: str,
+    email: str,
+    phone: str | None,
+    note: dict[str, str],
+    acc: Account | None = None,
+) -> Booking:
+    """Books the consult at `start` (a timezone-aware time), in the clinic's Cal.com when it has one."""
+    acc = acc or Account()
+    event = acc.event or get_settings().calcom_event_type_id
     if not event:
         raise CalcomError(
             "Online consults are not connected to Cal.com yet (CALCOM_EVENT_TYPE_ID is missing)."
@@ -97,18 +113,20 @@ async def book(start: datetime, name: str, email: str, phone: str | None, note: 
     }
     if phone:
         body["attendee"]["phoneNumber"] = phone
-    data = (await _post("/bookings", body))["data"]
+    data = (await _post("/bookings", body, acc.key))["data"]
     link = data.get("meetingUrl") or data.get("location")
     return Booking(
         uid=data["uid"], meet_link=link if str(link).startswith("https://meet.google.com/") else None
     )
 
 
-async def reschedule(uid: str, start: datetime, reason: str) -> Booking:
+async def reschedule(uid: str, start: datetime, reason: str, acc: Account | None = None) -> Booking:
     """Moves the booking. Cal.com gives it a new uid, emails the patient the new time, may change the link."""
     data = (
         await _post(
-            f"/bookings/{uid}/reschedule", {"start": start.isoformat(), "reschedulingReason": reason[:500]}
+            f"/bookings/{uid}/reschedule",
+            {"start": start.isoformat(), "reschedulingReason": reason[:500]},
+            (acc or Account()).key,
         )
     )["data"]
     link = data.get("meetingUrl") or data.get("location")
@@ -117,8 +135,8 @@ async def reschedule(uid: str, start: datetime, reason: str) -> Booking:
     )
 
 
-async def cancel(uid: str, reason: str) -> None:
-    await _post(f"/bookings/{uid}/cancel", {"cancellationReason": reason[:500]})
+async def cancel(uid: str, reason: str, acc: Account | None = None) -> None:
+    await _post(f"/bookings/{uid}/cancel", {"cancellationReason": reason[:500]}, (acc or Account()).key)
 
 
 # ---------- a doctor's online consults: a schedule (hours, holidays blocked) and an event ----------
@@ -148,7 +166,13 @@ async def save_event(
     key: str, event_id: int | None, title: str, slug: str, minutes: int, schedule_id: int
 ) -> int:
     """Creates or updates the doctor's online consult (Google Meet, on that schedule). Returns its id."""
-    body: dict[str, Any] = {"title": title[:100], "lengthInMinutes": minutes, "scheduleId": schedule_id}
+    # Hidden: not listed on the clinic's Cal.com page; consults are booked through the chatbot / CRM only.
+    body: dict[str, Any] = {
+        "title": title[:100],
+        "lengthInMinutes": minutes,
+        "scheduleId": schedule_id,
+        "hidden": True,
+    }
     if event_id:
         data = await _call("PATCH", f"/event-types/{event_id}", body, key, "the consult", EVENTS)
     else:

@@ -80,7 +80,7 @@ async def test_online_approve_books_calcom_and_keeps_the_link(
 
     booked: list[tuple[str, str]] = []
 
-    async def book(start, name, email, phone, note):  # type: ignore[no-untyped-def]
+    async def book(start, name, email, phone, note, acc=None):  # type: ignore[no-untyped-def]
         booked.append((start.isoformat(), email))
         return calcom.Booking(uid="test-uid", meet_link="https://meet.google.com/abc-defg-hij")
 
@@ -155,10 +155,10 @@ async def test_online_cancel_and_reschedule_update_calcom(
 
     calls: list[tuple[str, str]] = []
 
-    async def cancel(uid, reason):  # type: ignore[no-untyped-def]
+    async def cancel(uid, reason, acc=None):  # type: ignore[no-untyped-def]
         calls.append(("cancel", uid))
 
-    async def reschedule(uid, start, reason):  # type: ignore[no-untyped-def]
+    async def reschedule(uid, start, reason, acc=None):  # type: ignore[no-untyped-def]
         calls.append(("reschedule", uid))
         return calcom.Booking(uid="moved-uid", meet_link=None)  # the link stays the same
 
@@ -262,10 +262,10 @@ async def test_appointment_move_visit_and_cancel(api: AsyncClient, monkeypatch: 
 
     calls: list[str] = []
 
-    async def cancel(uid, reason):  # type: ignore[no-untyped-def]
+    async def cancel(uid, reason, acc=None):  # type: ignore[no-untyped-def]
         calls.append("cancel " + uid)
 
-    async def reschedule(uid, start, reason):  # type: ignore[no-untyped-def]
+    async def reschedule(uid, start, reason, acc=None):  # type: ignore[no-untyped-def]
         calls.append("move " + uid)
         return calcom.Booking(uid="uid-moved", meet_link=None)
 

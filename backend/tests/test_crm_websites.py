@@ -345,3 +345,121 @@ async def test_sheet_rows_become_leads(api: AsyncClient, monkeypatch: pytest.Mon
     finally:
         await pool.execute("delete from app.leads where clinic_id = 'CL99' and phone_e164 = '+919000000094'")
         await pool.execute("delete from app.lead_sheets where clinic_id = 'CL99'")
+
+
+@needs_db
+async def test_calcom_webhook_moves_and_cancels(api: AsyncClient) -> None:
+    import hashlib
+    import hmac
+    import json
+
+    from app.api.v1.crm_console import _save_test_lead
+    from app.crm import vault
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
+    saved = await _save_test_lead(
+        user, {"type": "online", "name": "Cal Test", "phone": "+91 9000000093"}, "desktop"
+    )
+    async with pool.acquire() as conn:
+        key = await vault.save(conn, "unused", "calcom key CL99 test")
+        hook = await vault.save(conn, "hook-secret", "calcom webhook CL99 test")
+    try:
+        await pool.execute(
+            "insert into app.calcom_accounts (clinic_id, key_secret, webhook_secret) values ('CL99', $1, $2)",
+            key,
+            hook,
+        )
+        lead = await pool.fetchval("select id from app.leads where lead_code = $1", saved["code"])
+        await pool.execute(
+            """insert into app.appointments (clinic_id, lead_id, type, preferred_date, calendar_event_id)
+               values ('CL99', $1, 'online', current_date + 1, 'uid-old')""",
+            lead,
+        )
+
+        async def send(event: dict[str, object], secret: str = "hook-secret") -> int:
+            body = json.dumps(event).encode()
+            sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+            r = await api.post(
+                "/v1/integrations/calcom/CL99", content=body, headers={"x-cal-signature-256": sig}
+            )
+            return r.status_code
+
+        new: dict[str, object] = {
+            "uid": "uid-new",
+            "rescheduleUid": "uid-old",
+            "startTime": "2030-01-02T05:00:00Z",
+        }
+        new |= {
+            "endTime": "2030-01-02T05:30:00Z",
+            "videoCallData": {"url": "https://meet.google.com/abc-defg-hij"},
+        }
+        moved: dict[str, object] = {"triggerEvent": "BOOKING_RESCHEDULED", "payload": new}
+        assert await send(moved, "wrong") == 401
+        assert await send(moved) == 200
+        row = await pool.fetchrow("select * from app.appointments where lead_id = $1", lead)
+        assert row["calendar_event_id"] == "uid-new" and row["meet_link"].startswith(
+            "https://meet.google.com/"
+        )
+        assert row["slot"].lower.isoformat().startswith("2030-01-02T05:00")
+        assert await send({"triggerEvent": "BOOKING_CANCELLED", "payload": {"uid": "uid-new"}}) == 200
+        assert (
+            await pool.fetchval("select status from app.appointments where lead_id = $1", lead) == "cancelled"
+        )
+    finally:
+        await pool.execute("delete from app.leads where lead_code = $1", saved["code"])
+        await pool.execute("delete from app.calcom_accounts where clinic_id = 'CL99'")
+        async with pool.acquire() as conn:
+            await vault.delete(conn, key, hook)
+
+
+@needs_db
+async def test_calcom_direct_bookings_are_cancelled(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hashlib
+    import hmac
+    import json
+
+    from app.crm import calcom, vault
+
+    cancelled: list[tuple[str, str]] = []
+
+    async def cancel(uid: str, reason: str, acc: object = None) -> None:
+        cancelled.append((uid, reason))
+
+    monkeypatch.setattr(calcom, "cancel", cancel)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        key = await vault.save(conn, "unused", "calcom key CL99 test")
+        hook = await vault.save(conn, "hook-secret", "calcom webhook CL99 test")
+    try:
+        await pool.execute(
+            "insert into app.calcom_accounts (clinic_id, key_secret, webhook_secret) values ('CL99', $1, $2)",
+            key,
+            hook,
+        )
+
+        async def send(payload: dict[str, object]) -> str:
+            body = json.dumps({"triggerEvent": "BOOKING_CREATED", "payload": payload}).encode()
+            sig = hmac.new(b"hook-secret", body, hashlib.sha256).hexdigest()
+            r = await api.post(
+                "/v1/integrations/calcom/CL99", content=body, headers={"x-cal-signature-256": sig}
+            )
+            return str(r.json()["ok"])
+
+        assert (await send({"uid": "made-by-crm", "metadata": {"lead": "CL99-00001"}})) == "ignored"
+        assert (await send({"uid": "made-in-calcom", "metadata": {}})).startswith("cancelled")
+        assert cancelled == [
+            ("made-in-calcom", "Please book your online consultation through the clinic's website chat.")
+        ]
+    finally:
+        await pool.execute("delete from app.calcom_accounts where clinic_id = 'CL99'")
+        async with pool.acquire() as conn:
+            await vault.delete(conn, key, hook)
