@@ -15,6 +15,7 @@ type Msg = {
   open?: { action: string; value: string };
   cards?: { title: string }[];
   note?: boolean; // from the test chat itself, not the flow
+  input?: { mode: string }; // the answer box (phone: with the country picker)
 };
 type Reply = {
   messages: Msg[];
@@ -26,6 +27,25 @@ type Reply = {
   state: Record<string, unknown> & { fields?: Record<string, string> };
 };
 type Line = { from: "bot" | "me"; msg: Msg };
+
+// The widget's country codes (frontend/widgets/core/countries.ts): India first.
+const COUNTRIES: [string, string][] = [
+  ["IN", "+91"],
+  ["AE", "+971"],
+  ["SA", "+966"],
+  ["QA", "+974"],
+  ["OM", "+968"],
+  ["KW", "+965"],
+  ["BH", "+973"],
+  ["US", "+1"],
+  ["CA", "+1"],
+  ["GB", "+44"],
+  ["AU", "+61"],
+  ["SG", "+65"],
+  ["NP", "+977"],
+  ["BD", "+880"],
+  ["LK", "+94"],
+];
 
 const MATCH: Record<string, string> = {
   phrase: "approved phrase",
@@ -62,6 +82,7 @@ export default function TestChat({
   const [state, setState] = useState<Reply["state"] | null>(null);
   const [showFields, setShowFields] = useState(true);
   const [text, setText] = useState("");
+  const [dial, setDial] = useState("+91"); // the country picker, as in the widget
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [error, setError] = useState("");
   const [run, setRun] = useState(0); // a new number starts the chat again
@@ -142,9 +163,17 @@ export default function TestChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicId, run]);
 
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [lines]);
+  // Braces: newer browsers return a Promise from scrollIntoView, and React must get no cleanup back.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [lines]);
 
   const last = lines.length - 1;
+  // The question being asked: a phone number gets the country picker beside the box.
+  const asked = [...lines]
+    .reverse()
+    .find((l) => l.from === "bot" && !l.msg.note);
+  const phone = asked?.msg.input?.mode === "phone";
   return (
     <div className="wf-test">
       <div className="wf-test-head">
@@ -296,14 +325,29 @@ export default function TestChat({
         onSubmit={(e) => {
           e.preventDefault();
           if (!text.trim() || !state) return;
-          void send({ state, text }, text);
+          const typed = phone ? `${dial} ${text.trim()}` : text;
+          void send({ state, text: typed }, typed);
           setText("");
         }}
       >
+        {phone && (
+          <select
+            value={dial}
+            onChange={(e) => setDial(e.target.value)}
+            aria-label="Country code"
+          >
+            {COUNTRIES.map(([iso, code]) => (
+              <option key={iso} value={code}>
+                {iso} {code}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           value={text}
           maxLength={500}
-          placeholder="Type like a patient…"
+          inputMode={phone ? "tel" : undefined}
+          placeholder={phone ? "Mobile number" : "Type like a patient…"}
           onChange={(e) => setText(e.target.value)}
         />
         <button className="btn" disabled={!text.trim()}>

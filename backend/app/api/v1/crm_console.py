@@ -689,6 +689,7 @@ def _context(draft: dict[str, Any], device: str) -> Context:
     return Context(
         today=today, minutes=minutes, device=device,
         services=draft["services"]["items"],
+        booking_options=draft["services"]["booking_options"],
         open_now={"in_clinic": open_now, "online": open_now},
         location="\n".join(x for x in where if x),
         phone=contact["phone"],

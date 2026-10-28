@@ -49,6 +49,8 @@ MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
 # Too general to name one treatment by themselves ("hair" is in many names).
 GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "laser", "stem"}
+# The answer box the widget shows for each question (phone: with the country picker).
+INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
 BACK = re.compile(r"back|go back|previous|undo")
 # Changing their mind mid-question ("actually I want to cancel"): the block type it switches to.
 SWITCH = [
@@ -74,6 +76,7 @@ class Context:
     services: list[dict[str, Any]] = field(default_factory=list)  # Clinic info → Services
     open_now: dict[str, bool] = field(default_factory=lambda: {"in_clinic": True, "online": True})
     location: str = ""  # Contact & hours, as text
+    booking_options: list[str] = field(default_factory=list)  # Services → booking list ("Which treatment?")
     phone: str = ""  # the clinic's number: a call button with no number calls it
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
@@ -746,8 +749,9 @@ class Run:
         t = text.strip()
         if kind == "name":
             return t if valid_name(t) else None
-        if kind == "phone":
-            return normal_phone(t, None)
+        if kind == "phone":  # "+971 501234567" from the country picker, or a number alone (India)
+            m = re.fullmatch(r"(\+\d{1,4})\s+(.+)", t)
+            return normal_phone(m[2], m[1]) if m else normal_phone(t, None)
         if kind == "email":
             return t.lower() if EMAIL.match(t) else None
         if kind in ("date", "booked_date"):
@@ -788,7 +792,9 @@ class Run:
         return self.ctx.slots.get("online" if node.type == "online" else "in_clinic", {})
 
     def picks(self, node: Node, key: str) -> list[dict[str, Any]]:
-        """Tap answers for a date or a time: the next free days, or that day's free times."""
+        """Tap answers: the booking list for the treatment, the next free days, or that day's free times."""
+        if key == "treatment":
+            return [{"id": t, "label": t, "action": "answer"} for t in self.ctx.booking_options]
         free = self.free(node)
         if free is None:
             return []
@@ -809,8 +815,23 @@ class Run:
             wording = (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key]
             if "{name}" in wording and not self.fields.get("name"):  # no "Thanks, ." when no name was asked
                 wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
-            self.say(wording, buttons=self.picks(node, key))
+            self.say(wording, buttons=self.picks(node, key), input={"mode": INPUT_MODE.get(key, "text")})
             return
+        if s.get("read_back", True):  # the patient checks their details, as in the live chat
+            labels = {"name": "Name", "phone": "Phone", "email": "Email", "treatment": "Treatment",
+                      "doctor": "Doctor", "date": "Date", "time": "Time", "booked_date": "Booked date",
+                      "reason": "About"}  # fmt: skip
+            lines = []
+            for k in s.get("fields", []):
+                v = self.fields.get(k, "")
+                if k in ("date", "booked_date") and v:
+                    v = _day(v)
+                elif k == "time" and v:
+                    v = "Any time" if v == "any" else _time(v)
+                if v:
+                    lines.append(f"{labels.get(k, k)}: {v}")
+            if lines:
+                self.say("Please check your details:\n" + "\n".join(lines))
         if s.get("consent", True):
             self.ask = {"kind": "consent", "tries": 0}
             self.say(s.get("consent_text") or "May we save your details?", buttons=self.yes_no())

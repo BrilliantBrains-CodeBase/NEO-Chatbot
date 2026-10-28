@@ -424,3 +424,20 @@ def test_emergency_raises_a_staff_alert() -> None:
     quiet = Chat(flow | {"globals": {"emergency_alert": False}})
     quiet("there is heavy bleeding")
     assert quiet.at == "sos" and quiet.r["alert"] is None  # the alert is a setting; the reply is not
+
+
+def test_booking_steps_like_the_live_chat() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone", "treatment"]}}
+    chat = Chat({"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]},
+                ctx(booking_options=["Hair Transplant for Men", "Not sure yet"]))  # fmt: skip
+    chat(tap="m1")
+    chat("Asha Rao")
+    assert chat.r["messages"][0]["input"] == {"mode": "phone"}  # the country picker's box
+    chat("+971 501234567")  # a UAE number from the picker
+    assert chat.r["state"]["fields"]["phone"] == "+971 501234567"
+    assert chat.labels() == ["Hair Transplant for Men", "Not sure yet"]  # the booking list
+    texts = chat(tap="Not sure yet")
+    assert (
+        texts[0]
+        == "Please check your details:\nName: Asha Rao\nPhone: +971 501234567\nTreatment: Not sure yet"
+    )
