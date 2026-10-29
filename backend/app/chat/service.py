@@ -7,7 +7,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import context, embed, engine, flows, intents, kb, leads, store, understand
+from app.chat import canvas, context, embed, engine, flows, intents, kb, leads, store, understand
 from app.chat.content import live, refresh
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
@@ -22,6 +22,9 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
         await refresh(conn, req.client_id)  # Dashboard → Menu buttons, as published
+        pub = await canvas.published(conn, req.client_id)
+        if pub is not None:  # the clinic's chat runs on its published workflow canvas
+            return await _canvas_turn(conn, req, state, pub)
         said = store.patient_text(req, state)
         req = context.as_text(req)  # a button that asks a question: as if typed
         started = time.perf_counter()
@@ -69,6 +72,20 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         )
         await _trace(conn, req, turn, hit, steps, started)
     return turn.reply
+
+
+async def _canvas_turn(
+    conn: asyncpg.Connection, req: ChatRequest, state: store.State, pub: dict[str, Any]
+) -> ChatResponse:
+    """One message on the canvas: the reply, the buttons shown (so the transcript can name a tap), saved."""
+    said = store.patient_text(req, state)
+    reply, new_state, answered = await canvas.turn(conn, req, state, pub)
+    new = engine.shown_choices(reply.ui)
+    keep = [c for c in state.get("shown", []) if c not in new]
+    new_state["shown"] = (new + keep)[:60]
+    new_state["last_shown"] = new
+    await store.save_turn(conn, req, said, [m.text for m in reply.messages], answered, new_state)
+    return reply
 
 
 async def _slots(

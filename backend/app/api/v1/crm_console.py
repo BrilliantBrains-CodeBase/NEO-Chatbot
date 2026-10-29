@@ -386,6 +386,13 @@ def kb_file(clinic: str) -> dict[str, Any] | None:
 
 
 # The sections of the settings; each later screen (Menu buttons, ...) adds its own.
+class Chat(BaseModel):
+    """Which engine answers patients. canvas: the published workflow canvas (Menu buttons); off: the chatbot
+    as before (the clinic's file and the simple Menu buttons). Live after Publish, like everything else."""
+
+    canvas: bool = False
+
+
 SECTIONS: dict[str, type[BaseModel]] = {
     "appearance": Appearance,
     "template": Template,
@@ -394,6 +401,7 @@ SECTIONS: dict[str, type[BaseModel]] = {
     "services": Services,
     "reviews": Reviews,
     "flow": Flow,  # the workflow canvas; checked by app.crm.flow.normalise on save
+    "chat": Chat,
 }
 
 
@@ -623,9 +631,8 @@ SMALL_TALK_TARGETS_BY_TOPIC = {
 }
 
 
-# On hold: the workflow canvas (the live chat does not run it yet). Publish keeps its published copy and its
-# draft; its checks and test sets run only when it is published again (remove it from here).
-ON_HOLD = {"flow"}
+# Sections Publish leaves as published (none now: the workflow canvas is published with the rest).
+ON_HOLD: set[str] = set()
 
 
 def _to_publish(draft: dict[str, Any], published: dict[str, Any]) -> dict[str, Any]:
@@ -664,19 +671,8 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             status.HTTP_409_CONFLICT,
             f"A publish check failed ({len(failed)}): '{failed[0]['name']}' {failed[0]['message']}.",
         )
-    if clinic in TEST_SET_BARS and flow:  # the test sets must not score below their bar
-        if not embed.ready():
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, "The meaning model is still loading. Please publish in a minute."
-            )
-        low = [r for r in await _score_sets(clinic, current.draft) if r["passed"] < r["bar"]]
-        if low:
-            r = low[0]
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"Test sets below the bar: {r['name']} {r['passed']}/{r['total']} (needs {r['bar']}). "
-                "Run test sets to see what fails.",
-            )
+    # The test sets (slow: hundreds of messages) no longer block Publish; staff run them on the canvas
+    # ("Run test sets"), which shows any set below its bar.
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)

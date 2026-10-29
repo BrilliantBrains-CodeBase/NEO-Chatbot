@@ -422,7 +422,7 @@ def test_sticky_notes_are_for_staff_only() -> None:
 
 
 @needs_db
-async def test_publish_is_blocked_below_the_test_set_bar(
+async def test_publish_is_not_blocked_by_the_test_sets(
     api: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import app.api.v1.crm_console as cc
@@ -438,7 +438,7 @@ async def test_publish_is_blocked_below_the_test_set_bar(
     monkeypatch.setattr("app.chat.embed.ready", lambda: True)
 
     async def low(clinic: str, draft: dict[str, Any]) -> list[dict[str, Any]]:
-        return [{"name": "Typed messages", "total": 319, "passed": 300, "bar": 317, "failures": []}]
+        raise AssertionError("Publish must not run the test sets (they run from the canvas)")
 
     monkeypatch.setattr(cc, "_score_sets", low)
     flow = {"nodes": [OPENING, BOOK], "edges": [{"source": "opening", "exit": "m1", "target": "book"}]}
@@ -446,7 +446,9 @@ async def test_publish_is_blocked_below_the_test_set_bar(
     try:
         await api.put("/v1/crm/console/CL99/settings/flow", json=flow, headers=headers)
         r = await api.post("/v1/crm/console/CL99/publish", headers=headers)
-        assert r.status_code == 409 and "Typed messages 300/319 (needs 317)" in r.json()["detail"]
-        assert await pool.fetchval("select version from app.clinic_settings where clinic_id = 'CL99'") == 0
+        assert r.status_code == 200, r.text
+        sql = "select published->'flow' from app.clinic_settings where clinic_id = 'CL99'"
+        published = await pool.fetchval(sql)
+        assert published and "book" in published  # the canvas is published with the rest
     finally:
         await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")

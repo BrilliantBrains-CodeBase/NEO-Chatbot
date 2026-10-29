@@ -65,7 +65,12 @@ export type Service = {
   show: boolean;
 };
 type Settings = {
-  draft: { flow: Flow; services: { items: Service[] } };
+  draft: {
+    flow: Flow;
+    services: { items: Service[] };
+    chat?: { canvas: boolean }; // the chatbot runs on this canvas (after Publish)
+  };
+  published?: { chat?: { canvas: boolean } };
   changed: boolean;
   flow_problems: Problem[];
 };
@@ -609,6 +614,33 @@ function Canvas() {
           <button className="pill" onClick={() => setTesting((t) => !t)}>
             Test chat
           </button>
+          <label
+            className="pill"
+            style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
+            title={
+              dirty
+                ? "Save changes first (switching reloads the saved canvas)."
+                : "On: patients get this canvas's buttons and flow (after Publish). Off: the chatbot as before."
+            }
+          >
+            <input
+              type="checkbox"
+              disabled={busy || dirty}
+              checked={!!s.draft.chat?.canvas}
+              onChange={(e) =>
+                call(
+                  "settings/chat",
+                  "PUT",
+                  { canvas: e.target.checked },
+                  e.target.checked
+                    ? "Chatbot will run on this canvas after Publish"
+                    : "Chatbot will run as before after Publish",
+                )
+              }
+            />
+            Chatbot runs on this canvas
+            {s.published?.chat?.canvas ? " (live)" : ""}
+          </label>
           <button
             className="pill"
             disabled={busy || !dirty}

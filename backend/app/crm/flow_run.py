@@ -168,7 +168,8 @@ class Run:
         for b in getattr(s, "buttons", []):
             if not b.visible or (not b.action and not self._leads(node.id, b.id)):
                 continue  # hidden, or its line leads nowhere / to a block that is off
-            out.append({"id": b.id, "label": b.label, "action": b.action or "go", "value": b.value})
+            out.append({"id": b.id, "label": b.label, "action": b.action or "go", "value": b.value,
+                        "icon": b.icon, "variant": b.variant})  # fmt: skip
         return out
 
     def _treat(self, t: dict[str, Any]) -> dict[str, Any]:
