@@ -9,7 +9,6 @@ import { api, ApiError } from "@/lib/api";
 
 type Look = {
   name: string;
-  status_line: string;
   enabled: boolean;
   logo: string;
   avatar_letter: string;

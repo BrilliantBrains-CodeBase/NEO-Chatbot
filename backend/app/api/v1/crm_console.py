@@ -29,7 +29,6 @@ COLOR = r"^#[0-9A-Fa-f]{6}$"
 
 class Look(BaseModel):
     name: str = Field(default="Arya", min_length=2, max_length=40)
-    status_line: str = Field(default="Instant Reply", max_length=13)
     enabled: bool = True
     logo: str = Field(default="", max_length=300_000)  # https URL or a small data:image (upload)
     avatar_letter: str = Field(default="A", min_length=1, max_length=2)
