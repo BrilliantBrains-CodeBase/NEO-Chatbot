@@ -1,16 +1,9 @@
 "use client";
 
-import Placeholder from "@/components/crm/Placeholder";
-import { useCrm } from "@/components/crm/CrmProvider";
+import TeamView from "@/components/assistant/TeamView";
 
-// Sub-step 2 (CRM frame): the screen's header from the design; its content is built in a later step.
+// CRM → Team: your own profile; Clinic Managers and BB Admin see everyone in the clinic. Access is managed in
+// Dashboard → Team & access.
 export default function TeamPage() {
-  const { clinic } = useCrm();
-  return (
-    <Placeholder
-      title={"Team"}
-      description={`People who can sign in to ${clinic}, their roles and access.`}
-      next={["Members, access requests, roles and permissions", "Invite, edit, disable and password reset", "New lead assignment (round robin among Front Desk)"]}
-    />
-  );
+  return <TeamView manage={false} />;
 }

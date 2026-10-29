@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     # Cloud Supabase Postgres through the Supavisor pooler (transaction mode). Required.
     database_url: str = ""
     supabase_url: str = ""
+    # The project's secret key (sb_secret_...): Team & access only (invite, create a requested login, remove a
+    # rejected one, password reset). Server only; never sent to a browser.
+    supabase_secret_key: str = ""
+    # The CRM's address: invite and reset emails link back to it (its /set-password page).
+    crm_url: str = "http://localhost:3000"
     # Empty = Redis off (Phase 2). Sessions, slot holds and rate limits then use Postgres and memory.
     redis_url: str = ""
 

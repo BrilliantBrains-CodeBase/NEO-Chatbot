@@ -8,6 +8,7 @@ import WorkflowView from "./workflow/WorkflowView";
 import TemplatesView from "./TemplatesView";
 import WebsiteInstallView from "./WebsiteInstallView";
 import IntegrationsView from "./IntegrationsView";
+import TeamView from "./TeamView";
 import { canUseConsole, type Section } from "@/lib/assistant";
 
 /** One console section. Each is built in its stage; until then it shows the design's header. */
@@ -28,6 +29,7 @@ export default function AssistantSection({ section }: { section: Section }) {
   if (section.id === "content") return <ClinicInfoView />;
   if (section.id === "install") return <WebsiteInstallView />;
   if (section.id === "integrations") return <IntegrationsView />;
+  if (section.id === "team") return <TeamView manage />;
   return (
     <Placeholder
       title={section.label}
