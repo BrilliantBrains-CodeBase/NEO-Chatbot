@@ -308,19 +308,6 @@ export default function AppearanceView() {
                   </div>
                 </Field>
                 <Field
-                  label="Status line"
-                  hint='Up to 13 characters, for example "Instant Reply".'
-                >
-                  <input
-                    className="f"
-                    maxLength={13}
-                    value={form.look.status_line}
-                    onChange={(e) =>
-                      set("look", { status_line: e.target.value })
-                    }
-                  />
-                </Field>
-                <Field
                   label="Avatar letter"
                   hint="Used when no logo is uploaded."
                 >
@@ -1143,9 +1130,7 @@ function Preview({ a }: { a: Appearance }) {
                   <span
                     style={{ display: "block", fontSize: 10.5, opacity: 0.9 }}
                   >
-                    {a.look.tagline ||
-                      a.widget.header_text ||
-                      a.look.status_line}
+                    {a.look.tagline || a.widget.header_text}
                   </span>
                 </div>
                 <button

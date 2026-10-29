@@ -86,7 +86,7 @@ export interface ChatResponse {
 
 // Dashboard → Appearance as the clinic published it (GET /v1/widget/config/<clinic>; null: the built-in look).
 export interface Appearance {
-  look: { name: string; status_line: string; avatar_letter: string };
+  look: { name: string; avatar_letter: string; logo: string; location: string; tagline: string };
   colours: Record<
     | 'main'
     | 'main_dark'

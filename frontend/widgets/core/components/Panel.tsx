@@ -64,12 +64,23 @@ export function Panel({ botName, appearance, onClose, onRestart, composer, child
         <div class="nb-head" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <span class="nb-grip" />
           <div class="nb-ava" aria-hidden="true">
-            {appearance?.look.avatar_letter || 'N'}
+            {appearance?.look.logo ? (
+              <img
+                src={appearance.look.logo}
+                alt=""
+                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              appearance?.look.avatar_letter || 'N'
+            )}
           </div>
           <div class="nb-title">
             <b>{botName}</b>
             {appearance ? (
-              <span>{appearance.widget.header_text}</span>
+              <>
+                {appearance.look.location && <span>{appearance.look.location}</span>}
+                <span>{appearance.look.tagline || appearance.widget.header_text}</span>
+              </>
             ) : (
               <span>
                 {t.subtitle}

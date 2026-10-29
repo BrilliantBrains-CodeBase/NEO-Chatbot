@@ -4,15 +4,19 @@ the same backend, which runs it only on the clinic's approved websites. Nothing 
 loader file says which clinic it is for (its clinic ID), and that is read from the built files.
 """
 
+import base64
+import binascii
 import fnmatch
 import json
 import re
 import time
+import zlib
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote_to_bytes
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.api.v1.crm_console import Appearance
 from app.chat import guard
@@ -74,19 +78,43 @@ async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool
     return {"show": page_shown(site["pages_mode"], list(site["pages"]), path[:300])}
 
 
-@router.get("/config/{clinic}")
-async def config(clinic: str) -> dict[str, Any]:
-    """The clinic's published Dashboard → Appearance, for the widget (None until it is first published:
-    the widget keeps its built-in look). Nothing private: the same as any visitor sees."""
-    if await guard.get_clinic(clinic) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
+async def _published_look(clinic: str) -> dict[str, Any] | None:
     saved = await (await get_pool()).fetchval(
         "select published->'appearance' from app.clinic_settings where clinic_id = $1", clinic
     )
     if not saved or saved == "null":
-        return {"appearance": None}
-    data = json.loads(saved) if isinstance(saved, str) else saved
-    return {"appearance": Appearance.model_validate(data).model_dump()}
+        return None
+    return Appearance.model_validate(json.loads(saved) if isinstance(saved, str) else saved).model_dump()
+
+
+@router.get("/config/{clinic}")
+async def config(request: Request, clinic: str) -> dict[str, Any]:
+    """The clinic's published Dashboard → Appearance, for the widget (None until it is first published:
+    the widget keeps its built-in look). Nothing private: the same as any visitor sees."""
+    if await guard.get_clinic(clinic) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
+    look = await _published_look(clinic)
+    if look and look["look"]["logo"].startswith("data:"):  # an upload: its own file, not in every page view
+        base = (get_settings().public_url or str(request.base_url)).rstrip("/")
+        version = zlib.crc32(look["look"]["logo"].encode())
+        look["look"]["logo"] = f"{base}/v1/widget/logo/{clinic}?v={version:x}"
+    return {"appearance": look}
+
+
+@router.get("/logo/{clinic}")
+async def logo(clinic: str) -> Response:
+    """The clinic's uploaded logo (Dashboard → Appearance), as an image file."""
+    look = await _published_look(clinic)
+    url = look["look"]["logo"] if look else ""
+    head, _, data = url.partition(",")
+    kind = head[5:].split(";")[0]
+    if not url.startswith("data:image/") or not data:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No uploaded logo.")
+    try:
+        body = base64.b64decode(data) if head.endswith(";base64") else unquote_to_bytes(data)
+    except binascii.Error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No uploaded logo.") from None
+    return Response(body, media_type=kind, headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/{name}")
