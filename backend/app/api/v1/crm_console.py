@@ -35,8 +35,13 @@ class Look(BaseModel):
     avatar_letter: str = Field(default="A", min_length=1, max_length=2)
     # Header, as in the clinic designs: clinic name, then the location line and the tagline.
     location: str = Field(default="Marathahalli, Whitefield", max_length=60)
-    tagline: str = Field(default="", max_length=60)  # e.g. "Best Fertility and IVF Clinic"
+    tagline: str = Field(default="", max_length=13)  # e.g. "Instant Reply", then " · Powered by ..."
     header_arc: bool = True  # the soft arc in the light accent colour behind the header
+
+    @field_validator("tagline", mode="before")
+    @classmethod
+    def _short(cls, v: Any) -> str:  # older drafts allowed 60
+        return str(v or "")[:13]
 
     @field_validator("logo")
     @classmethod
@@ -74,15 +79,20 @@ class WidgetStyle(BaseModel):
     border: Literal["none", "subtle", "strong"] = "subtle"
     shadow: Literal["none", "soft", "strong"] = "soft"  # tinted with the main colour
     font: Literal["Figtree", "Inter", "System"] = "Figtree"
-    header_text: str = Field(default="Instant Reply · Powered by Brilliant Brains", max_length=80)
     footer_on: bool = True
-    footer_text: str = Field(default="Not For Medical Advice · Powered By Brilliant Brains", max_length=80)
-    footer_link: str = Field(
+    # The clinic's part, before " · Powered By Brilliant Brains" (always shown, with BB's link).
+    footer_text: str = Field(default="Not For Medical Advice", max_length=25)
+    footer_link: str = Field(  # footer_on and footer_link: BB Admin only
         default="https://brilliantbrains.ai", max_length=300, pattern=r"^(https://\S+)?$"
     )
     # Mobile: a contact row at the bottom of the chat.
     mobile_contact_row: bool = True
     contact_buttons: list[Literal["call", "book", "whatsapp"]] = ["call", "book", "whatsapp"]
+
+    @field_validator("footer_text", mode="before")
+    @classmethod
+    def _own_part(cls, v: Any) -> str:  # older drafts kept the whole line
+        return str(v or "").split("Powered")[0].strip(" ·")[:25]
 
 
 class Launcher(BaseModel):
@@ -487,6 +497,9 @@ async def save_draft(
         err = e.errors()[0]
         field = " → ".join(str(x) for x in err["loc"])
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{field}: {err['msg']}") from None
+    if section == "appearance" and not user.bb_admin:  # the "Powered by" footer and its link: BB only
+        widget = (await _load(clinic)).draft["appearance"]["widget"]
+        value["widget"] |= {k: widget[k] for k in ("footer_on", "footer_link")}
     if section == "flow":
         value["phrases"] = _phrase_status(value["phrases"], (await _load(clinic)).draft["flow"])
     pool = await get_pool()

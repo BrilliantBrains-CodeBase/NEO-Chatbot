@@ -40,7 +40,6 @@ type Widget = {
   border: string;
   shadow: string;
   font: string;
-  header_text: string;
   footer_on: boolean;
   footer_text: string;
   footer_link: string;
@@ -333,11 +332,11 @@ export default function AppearanceView() {
                 </Field>
                 <Field
                   label="Tagline"
-                  hint='E.g. "Best Fertility and IVF Clinic". Empty: the header text shows instead.'
+                  hint='Up to 13 characters, shown as "… · Powered by Brilliant Brains". Empty: "Instant Reply".'
                 >
                   <input
                     className="f"
-                    maxLength={60}
+                    maxLength={13}
                     value={form.look.tagline}
                     onChange={(e) => set("look", { tagline: e.target.value })}
                   />
@@ -381,7 +380,7 @@ export default function AppearanceView() {
                         onChange={(e) => {
                           const f = e.target.files?.[0];
                           if (!f) return;
-                          if (f.size > 200_000)
+                          if (f.size > 200 * 1024)
                             return setError("The logo must be under 200 KB.");
                           const r = new FileReader();
                           r.onload = () =>
@@ -501,16 +500,6 @@ export default function AppearanceView() {
                   options={["Figtree", "Inter", "System"]}
                   onChange={(v) => set("widget", { font: v })}
                 />
-                <Field label="Header text" hint="Shown when no tagline is set.">
-                  <input
-                    className="f"
-                    maxLength={80}
-                    value={form.widget.header_text}
-                    onChange={(e) =>
-                      set("widget", { header_text: e.target.value })
-                    }
-                  />
-                </Field>
                 <Field label="On mobile" group full>
                   <span className="sub2" style={{ fontWeight: 400 }}>
                     The chat covers the whole screen (no corners), so nothing
@@ -564,6 +553,7 @@ export default function AppearanceView() {
                     <input
                       type="checkbox"
                       checked={form.widget.footer_on}
+                      disabled={!me?.bb_admin}
                       onChange={(e) =>
                         set("widget", { footer_on: e.target.checked })
                       }
@@ -573,19 +563,23 @@ export default function AppearanceView() {
                 </Field>
                 {form.widget.footer_on && (
                   <>
-                    <Field label="Footer text">
+                    <Field
+                      label="Footer text"
+                      hint='Up to 25 characters, shown as "… · Powered By Brilliant Brains".'
+                    >
                       <input
                         className="f"
-                        maxLength={80}
+                        maxLength={25}
                         value={form.widget.footer_text}
                         onChange={(e) =>
                           set("widget", { footer_text: e.target.value })
                         }
                       />
                     </Field>
-                    <Field label="Footer link">
+                    <Field label="Footer link" hint="Set by BB Admin.">
                       <input
                         className="f"
+                        disabled={!me?.bb_admin}
                         placeholder="https://…"
                         value={form.widget.footer_link}
                         onChange={(e) =>
@@ -1130,7 +1124,8 @@ function Preview({ a }: { a: Appearance }) {
                   <span
                     style={{ display: "block", fontSize: 10.5, opacity: 0.9 }}
                   >
-                    {a.look.tagline || a.widget.header_text}
+                    {a.look.tagline || "Instant Reply"} · Powered by Brilliant
+                    Brains
                   </span>
                 </div>
                 <button
@@ -1300,7 +1295,7 @@ function Preview({ a }: { a: Appearance }) {
                   borderTop: `1px solid ${line}`,
                 }}
               >
-                {a.widget.footer_text}
+                {a.widget.footer_text} · Powered By Brilliant Brains
               </div>
             )}
           </div>

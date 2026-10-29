@@ -23,6 +23,7 @@ interface Props {
 // tapping the backdrop, swiping the header down, or Escape.
 export function Panel({ botName, appearance, onClose, onRestart, composer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
+  const brandLink = appearance?.widget.footer_link || 'https://brilliantbrains.ai/';
   const startY = useRef<number | null>(null);
   // Mobile: the sheet goes full height when the patient starts typing and stays so until the chat is
   // closed. Shrinking it again on blur would move the buttons mid-tap and the tap would miss.
@@ -76,23 +77,17 @@ export function Panel({ botName, appearance, onClose, onRestart, composer, child
           </div>
           <div class="nb-title">
             <b>{botName}</b>
-            {appearance ? (
-              <>
-                {appearance.look.location && <span>{appearance.look.location}</span>}
-                <span>{appearance.look.tagline || appearance.widget.header_text}</span>
-              </>
-            ) : (
-              <span>
-                {t.subtitle}
-                <span class="nb-pw">
-                  {' · '}
-                  {t.header_powered_by}{' '}
-                  <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
-                    {t.footer_brand}
-                  </a>
-                </span>
+            {appearance?.look.location && <span>{appearance.look.location}</span>}
+            <span>
+              {appearance?.look.tagline || t.subtitle}
+              <span class="nb-pw">
+                {' · '}
+                {t.header_powered_by}{' '}
+                <a href={brandLink} target="_blank" rel="noopener noreferrer">
+                  {t.footer_brand}
+                </a>
               </span>
-            )}
+            </span>
           </div>
           <button
             type="button"
@@ -111,24 +106,12 @@ export function Panel({ botName, appearance, onClose, onRestart, composer, child
           {children}
         </div>
         {composer}
-        {appearance ? (
-          appearance.widget.footer_on && (
-            <div class="nb-legal">
-              {appearance.widget.footer_link ? (
-                <a href={appearance.widget.footer_link} target="_blank" rel="noopener noreferrer">
-                  {appearance.widget.footer_text}
-                </a>
-              ) : (
-                appearance.widget.footer_text
-              )}
-            </div>
-          )
-        ) : (
+        {(appearance?.widget.footer_on ?? true) && (
           <div class="nb-legal">
-            {t.footer_disclaimer}
+            {appearance?.widget.footer_text || t.footer_disclaimer}
             {' · '}
             {t.footer_powered_by}{' '}
-            <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
+            <a href={brandLink} target="_blank" rel="noopener noreferrer">
               {t.footer_brand}
             </a>
           </div>

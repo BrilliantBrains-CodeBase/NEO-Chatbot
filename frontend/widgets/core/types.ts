@@ -100,7 +100,7 @@ export interface Appearance {
     | 'whatsapp',
     string
   >;
-  widget: { header_text: string; footer_on: boolean; footer_text: string; footer_link: string };
+  widget: { footer_on: boolean; footer_text: string; footer_link: string };
   launcher: {
     position: 'bottom_right' | 'bottom_left';
     offset_x: number;
