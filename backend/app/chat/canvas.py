@@ -158,8 +158,9 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
     """The canvas's reply in the widget's blocks: its texts, then the last buttons it offered (the opening's
     as the menu, in the chosen Template), and the typing mode it asked for."""
     phone = pub["contact"].get("phone") or ""
-    msgs = [m for m in reply["messages"] if m.get("text")]
-    texts = [BotMessage(text=m["text"]) for m in msgs] + ([BotMessage(text=note)] if note else [])
+    said = [m["text"] for m in reply["messages"] if m.get("text")]
+    said = [t for i, t in enumerate(said) if i == 0 or t != said[i - 1]]  # greeting, then the opening
+    texts = [BotMessage(text=t) for t in said] + ([BotMessage(text=note)] if note else [])
     last = next((m for m in reversed(reply["messages"]) if m.get("buttons") or m.get("open")), None)
     choices: list[dict[str, Any]] = []
     if last and last.get("open"):  # a link / call block: one button to open it
