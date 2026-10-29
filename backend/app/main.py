@@ -14,6 +14,7 @@ from app.api.v1 import (
     crm_inbox,
     crm_integrations,
     crm_online,
+    crm_permissions,
     crm_security,
     crm_sheets,
     crm_team,
@@ -79,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_security.router, prefix="/v1")
     app.include_router(crm_security.codes, prefix="/v1")
     app.include_router(crm_email.router, prefix="/v1")
+    app.include_router(crm_permissions.router, prefix="/v1")
     app.include_router(crm_webhooks.router, prefix="/v1")
     app.include_router(crm_whatsapp.router, prefix="/v1")
     app.include_router(crm_whatsapp.links, prefix="/v1")

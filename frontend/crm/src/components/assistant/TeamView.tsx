@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
+import PermissionsCard from "./PermissionsCard";
 
 // Team & access. Dashboard (manage): access requests (approve as a role, or reject), members (role, access
 // on/off, password reset) and invites; only BB Admin approves, invites or changes Clinic Managers.
@@ -338,9 +339,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                       </td>
                       <td className="sub2">{when(m.last_seen_at)}</td>
                       {managing && (
-                        <td
-                          style={{ whiteSpace: "nowrap", textAlign: "right" }}
-                        >
+                        <td style={{ textAlign: "right", minWidth: 150 }}>
                           {!locked && (
                             <>
                               <button
@@ -411,6 +410,13 @@ export default function TeamView({ manage }: { manage: boolean }) {
         </section>
       )}
 
+      {managing && clinicId && (
+        <PermissionsCard
+          clinicId={clinicId}
+          clinic={clinic}
+          people={t?.members ?? []}
+        />
+      )}
       {managing && (
         <section className="card">
           <h3 style={{ margin: "0 0 8px" }}>Invite someone</h3>
