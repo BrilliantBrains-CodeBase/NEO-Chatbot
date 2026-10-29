@@ -49,6 +49,7 @@ export default function PermissionsCard({
   const { toast } = useCrm();
   const [r, setR] = useState<Rules | null>(null);
   const [scope, setScope] = useState<"clinic" | "defaults">("clinic");
+  const [open, setOpen] = useState(false);
   const [table, setTable] = useState<Table | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -167,194 +168,202 @@ export default function PermissionsCard({
   const groups = ["CRM", "Dashboard"];
   return (
     <section className="card" style={{ marginBottom: 14 }}>
-      <h3 style={{ margin: "0 0 4px" }}>Who sees what</h3>
-      <p className="sub2" style={{ margin: "0 0 8px" }}>
-        Hidden: not in the menu and refused. View: can look, cannot change.
-        Edit: can change. BB Admin always has everything.
-      </p>
-      {r.can_edit_defaults && (
-        <div className="row" style={{ gap: 14, marginBottom: 8, fontSize: 13 }}>
-          {(["clinic", "defaults"] as const).map((s) => (
-            <label
-              key={s}
-              className="row"
-              style={{ gap: 6, cursor: "pointer" }}
-            >
-              <input
-                type="radio"
-                name="perm-scope"
-                checked={scope === s}
-                onChange={() => pick(s)}
-              />
-              {s === "clinic" ? `${clinic} only` : "Default for all clinics"}
-            </label>
-          ))}
-        </div>
-      )}
-      <div style={{ overflowX: "auto" }}>
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
-        >
-          <thead>
-            <tr className="sub2" style={{ textAlign: "left" }}>
-              <th style={{ padding: "4px 6px 4px 0" }}>Screen</th>
-              {r.roles.map((role) => (
-                <th key={role}>{ROLE[role]}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => [
-              <tr key={g}>
-                <td
-                  colSpan={4}
-                  style={{ padding: "10px 0 4px", fontWeight: 700 }}
-                >
-                  {g}
-                </td>
-              </tr>,
-              ...r.screens
-                .filter((s) => s.group === g)
-                .map((s) => (
-                  <tr
-                    key={s.key}
-                    style={{ borderTop: "1px solid var(--line)" }}
-                  >
-                    <td style={{ padding: "4px 6px 4px 0" }}>{s.label}</td>
-                    {r.roles.map((role) => (
-                      <td key={role} style={{ padding: "3px 4px" }}>
-                        <select
-                          className="sel"
-                          disabled={busy || !editable(role, s.key, "hidden")}
-                          value={table[role][s.key]}
-                          onChange={(e) =>
-                            setTable({
-                              ...table,
-                              [role]: {
-                                ...table[role],
-                                [s.key]: e.target.value as Level,
-                              },
-                            })
-                          }
-                        >
-                          {RANK.map((lv) => (
-                            <option
-                              key={lv}
-                              value={lv}
-                              disabled={!editable(role, s.key, lv)}
-                            >
-                              {lv === "hidden"
-                                ? "Hidden"
-                                : lv === "view"
-                                  ? "View"
-                                  : "Edit"}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    ))}
-                  </tr>
-                )),
-            ])}
-          </tbody>
-        </table>
-      </div>
-      <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() => void save(table)}
-        >
-          Save
-        </button>
-        {scope === "clinic" && Object.keys(r.own).length > 0 && (
-          <button
-            className="btn g"
-            disabled={busy}
-            onClick={() => {
-              if (
-                window.confirm(
-                  `Drop ${clinic}'s own rules and follow the defaults?`,
-                )
-              )
-                void save(null);
-            }}
+      <div
+        className="row"
+        style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}
+      >
+        <h3 style={{ margin: 0, flex: 1 }}>Who sees what</h3>
+        {open && r.can_edit_defaults && (
+          <select
+            className="sel"
+            value={scope}
+            onChange={(e) => pick(e.target.value as "clinic" | "defaults")}
           >
-            Use the defaults
-          </button>
+            <option value="clinic">{clinic} only</option>
+            <option value="defaults">Default for all clinics</option>
+          </select>
         )}
-      </div>
-      <h4 style={{ margin: "16px 0 4px" }}>Access for a limited time</h4>
-      <p className="sub2" style={{ margin: "0 0 8px" }}>
-        Give one person a screen until a date and time; it ends by itself (their
-        role&apos;s rule applies again).
-      </p>
-      {r.grants.map((g) => (
-        <p key={g.id} style={{ margin: "3px 0", fontSize: 13 }}>
-          <b>{g.name}</b> · {label(g.screen)} ·{" "}
-          {g.level === "edit" ? "Edit" : "View"} · until{" "}
-          {new Date(g.until).toLocaleString("en-IN")}
-          {g.given_by ? ` · given by ${g.given_by}` : ""}{" "}
-          <button
-            className="btn g"
-            disabled={busy}
-            onClick={() => void takeBack(g.id)}
-          >
-            End now
-          </button>
-        </p>
-      ))}
-      <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 6 }}>
-        <select
-          className="sel"
-          value={grant.user_id}
-          onChange={(e) => setGrant({ ...grant, user_id: e.target.value })}
-        >
-          <option value="">Person…</option>
-          {givable.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="sel"
-          value={grant.screen}
-          onChange={(e) => setGrant({ ...grant, screen: e.target.value })}
-        >
-          <option value="">Screen…</option>
-          {r.screens.map((x) => (
-            <option key={x.key} value={x.key}>
-              {x.group === "Dashboard" ? `Dashboard: ${x.label}` : x.label}
-            </option>
-          ))}
-        </select>
-        <select
-          className="sel"
-          value={grant.level}
-          onChange={(e) => setGrant({ ...grant, level: e.target.value })}
-        >
-          <option value="view">View</option>
-          <option value="edit">Edit</option>
-        </select>
-        <input
-          className="f"
-          type="datetime-local"
-          value={grant.until}
-          onChange={(e) => setGrant({ ...grant, until: e.target.value })}
-        />
-        <button
-          className="btn"
-          disabled={busy || !grant.user_id || !grant.screen || !grant.until}
-          onClick={() => void give()}
-        >
-          Give access
+        <button className="btn g" onClick={() => setOpen(!open)}>
+          {open ? "Close" : "Open"}
         </button>
       </div>
-      {error && (
-        <p className="warnbox" style={{ marginTop: 6 }}>
-          {error}
-        </p>
+      {open && (
+        <>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+              }}
+            >
+              <thead>
+                <tr className="sub2" style={{ textAlign: "left" }}>
+                  <th style={{ padding: "4px 6px 4px 0" }}>Screen</th>
+                  {r.roles.map((role) => (
+                    <th key={role}>{ROLE[role]}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => [
+                  <tr key={g}>
+                    <td
+                      colSpan={4}
+                      style={{ padding: "10px 0 4px", fontWeight: 700 }}
+                    >
+                      {g}
+                    </td>
+                  </tr>,
+                  ...r.screens
+                    .filter((s) => s.group === g)
+                    .map((s) => (
+                      <tr
+                        key={s.key}
+                        style={{ borderTop: "1px solid var(--line)" }}
+                      >
+                        <td style={{ padding: "4px 6px 4px 0" }}>{s.label}</td>
+                        {r.roles.map((role) => (
+                          <td key={role} style={{ padding: "3px 4px" }}>
+                            <select
+                              className="sel"
+                              disabled={
+                                busy || !editable(role, s.key, "hidden")
+                              }
+                              value={table[role][s.key]}
+                              onChange={(e) =>
+                                setTable({
+                                  ...table,
+                                  [role]: {
+                                    ...table[role],
+                                    [s.key]: e.target.value as Level,
+                                  },
+                                })
+                              }
+                            >
+                              {RANK.map((lv) => (
+                                <option
+                                  key={lv}
+                                  value={lv}
+                                  disabled={!editable(role, s.key, lv)}
+                                >
+                                  {lv === "hidden"
+                                    ? "Hidden"
+                                    : lv === "view"
+                                      ? "View"
+                                      : "Edit"}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        ))}
+                      </tr>
+                    )),
+                ])}
+              </tbody>
+            </table>
+          </div>
+          <div className="row" style={{ gap: 8, marginTop: 10 }}>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() => void save(table)}
+            >
+              Save
+            </button>
+            {scope === "clinic" && Object.keys(r.own).length > 0 && (
+              <button
+                className="btn g"
+                disabled={busy}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Drop ${clinic}'s own rules and follow the defaults?`,
+                    )
+                  )
+                    void save(null);
+                }}
+              >
+                Use the defaults
+              </button>
+            )}
+          </div>
+          <h4 style={{ margin: "16px 0 4px" }}>Access for a limited time</h4>
+          <p className="sub2" style={{ margin: "0 0 8px" }}>
+            Give one person a screen until a date and time; it ends by itself
+            (their role&apos;s rule applies again).
+          </p>
+          {r.grants.map((g) => (
+            <p key={g.id} style={{ margin: "3px 0", fontSize: 13 }}>
+              <b>{g.name}</b> · {label(g.screen)} ·{" "}
+              {g.level === "edit" ? "Edit" : "View"} · until{" "}
+              {new Date(g.until).toLocaleString("en-IN")}
+              {g.given_by ? ` · given by ${g.given_by}` : ""}{" "}
+              <button
+                className="btn g"
+                disabled={busy}
+                onClick={() => void takeBack(g.id)}
+              >
+                End now
+              </button>
+            </p>
+          ))}
+          <div
+            className="row"
+            style={{ gap: 8, flexWrap: "wrap", marginTop: 6 }}
+          >
+            <select
+              className="sel"
+              value={grant.user_id}
+              onChange={(e) => setGrant({ ...grant, user_id: e.target.value })}
+            >
+              <option value="">Person…</option>
+              {givable.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="sel"
+              value={grant.screen}
+              onChange={(e) => setGrant({ ...grant, screen: e.target.value })}
+            >
+              <option value="">Screen…</option>
+              {r.screens.map((x) => (
+                <option key={x.key} value={x.key}>
+                  {x.group === "Dashboard" ? `Dashboard: ${x.label}` : x.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="sel"
+              value={grant.level}
+              onChange={(e) => setGrant({ ...grant, level: e.target.value })}
+            >
+              <option value="view">View</option>
+              <option value="edit">Edit</option>
+            </select>
+            <input
+              className="f"
+              type="datetime-local"
+              value={grant.until}
+              onChange={(e) => setGrant({ ...grant, until: e.target.value })}
+            />
+            <button
+              className="btn"
+              disabled={busy || !grant.user_id || !grant.screen || !grant.until}
+              onClick={() => void give()}
+            >
+              Give access
+            </button>
+          </div>
+          {error && (
+            <p className="warnbox" style={{ marginTop: 6 }}>
+              {error}
+            </p>
+          )}
+        </>
       )}
     </section>
   );

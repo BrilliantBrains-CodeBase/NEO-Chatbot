@@ -56,6 +56,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
   const [team, setTeam] = useState<{ clinic: string; t: Team } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showMembers, setShowMembers] = useState(true);
   const [asRole, setAsRole] = useState<Record<string, string>>({});
   const [invite, setInvite] = useState({
     name: "",
@@ -128,7 +129,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
       {error && <div className="warnbox">{error}</div>}
       {!t && !error && <p className="sub2">Loading…</p>}
 
-      {managing && (
+      {managing && pending.length > 0 && (
         <section className="card" style={{ marginBottom: 14 }}>
           <h3 style={{ margin: "0 0 8px" }}>
             Requests to join{" "}
@@ -136,12 +137,6 @@ export default function TeamView({ manage }: { manage: boolean }) {
               <span className="badge b-fu">{pending.length} waiting</span>
             )}
           </h3>
-          {pending.length === 0 && (
-            <p className="sub2" style={{ margin: 0 }}>
-              No requests waiting. People ask from &quot;Create an account&quot;
-              on the sign-in page with the clinic code <b>{clinicId}</b>.
-            </p>
-          )}
           {pending.map((r) => {
             const mine = bb || r.role !== "clinic_manager";
             return (
@@ -240,173 +235,201 @@ export default function TeamView({ manage }: { manage: boolean }) {
 
       {t && (
         <section className="card" style={{ marginBottom: 14 }}>
-          <h3 style={{ margin: "0 0 8px" }}>
-            {t.can_manage ? `Members (${t.members.length})` : "My profile"}
-          </h3>
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
+          <div className="row" style={{ gap: 10, alignItems: "center" }}>
+            <h3 style={{ margin: 0, flex: 1 }}>
+              {t.can_manage ? `Members (${t.members.length})` : "My profile"}
+            </h3>
+            <button
+              className="btn g"
+              onClick={() => setShowMembers(!showMembers)}
             >
-              <thead>
-                <tr className="sub2" style={{ textAlign: "left" }}>
-                  <th style={{ padding: "4px 6px 4px 0" }}>Name</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Clinics</th>
-                  <th>Last sign-in</th>
-                  {managing && <th />}
-                </tr>
-              </thead>
-              <tbody>
-                {t.members.map((m) => {
-                  const locked =
-                    m.me ||
-                    m.role === "bb_admin" ||
-                    (m.role === "clinic_manager" && !bb);
-                  return (
-                    <tr
-                      key={m.id}
-                      style={{ borderTop: "1px solid var(--line)" }}
+              {showMembers ? "Close" : "Open"}
+            </button>
+          </div>
+          {showMembers &&
+            t.members.map((m) => {
+              const locked =
+                m.me ||
+                m.role === "bb_admin" ||
+                (m.role === "clinic_manager" && !bb);
+              const can = managing && !locked;
+              return (
+                <div
+                  key={m.id}
+                  style={{
+                    borderTop: "1px solid var(--line)",
+                    padding: "12px 0",
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div
+                    className="row"
+                    style={{ gap: 12, flexWrap: "wrap", alignItems: "center" }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        background: "#EEF2F8",
+                        display: "grid",
+                        placeItems: "center",
+                        fontWeight: 700,
+                        fontSize: 13,
+                        flex: "0 0 auto",
+                      }}
                     >
-                      <td style={{ padding: "6px 6px 6px 0" }}>
-                        <b>{m.name}</b>
-                        {m.me && <span className="sub2"> (you)</span>}
-                        <div className="sub2" style={{ fontSize: 12 }}>
-                          {m.email}
-                          {m.phone ? ` · ${m.phone}` : ""}
-                        </div>
-                      </td>
-                      <td>
-                        {managing && !locked ? (
-                          <select
-                            className="sel"
-                            disabled={busy}
-                            value={m.role}
-                            onChange={(e) =>
+                      {m.name
+                        .split(" ")
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()}
+                    </span>
+                    <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                      <b>{m.name}</b>
+                      {m.me && <span className="sub2"> (you)</span>}
+                      <div
+                        className="sub2"
+                        style={{ fontSize: 12.5, overflowWrap: "anywhere" }}
+                      >
+                        {m.email}
+                        {m.phone ? ` · ${m.phone}` : ""}
+                      </div>
+                    </div>
+                    {can ? (
+                      <select
+                        className="sel"
+                        disabled={busy}
+                        value={m.role}
+                        onChange={(e) =>
+                          void call(
+                            `/members/${m.id}`,
+                            { role: e.target.value },
+                            "Role changed",
+                            "PUT",
+                          )
+                        }
+                      >
+                        {roles.map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{m.role_label}</span>
+                    )}
+                    <span className={`badge ${m.active ? "b-vi" : "b-in"}`}>
+                      {m.active ? "Active" : "Disabled"}
+                    </span>
+                  </div>
+                  <div
+                    className="row"
+                    style={{
+                      gap: 16,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      paddingLeft: 48,
+                      fontSize: 13,
+                    }}
+                  >
+                    <div
+                      className="row"
+                      style={{ gap: 6, alignItems: "center" }}
+                    >
+                      <span className="sub2">Clinics</span>
+                      {can ? (
+                        <ClinicsPicker
+                          managed={t.managed}
+                          value={m.clinics}
+                          busy={busy}
+                          onChange={(clinics) =>
+                            void call(
+                              `/members/${m.id}/clinics`,
+                              { clinics },
+                              "Clinics saved",
+                              "PUT",
+                            )
+                          }
+                        />
+                      ) : (
+                        m.clinics.map((c) => (
+                          <span key={c} className="badge b-bk">
+                            {t.managed[c] ?? c}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <span className="sub2">
+                      Last sign-in: {when(m.last_seen_at)}
+                    </span>
+                    {can && (
+                      <span
+                        className="row"
+                        style={{ gap: 6, marginLeft: "auto", flexWrap: "wrap" }}
+                      >
+                        <button
+                          className="btn g"
+                          disabled={busy}
+                          onClick={() =>
+                            void call(
+                              `/members/${m.id}/reset`,
+                              undefined,
+                              `Password reset email sent to ${m.email}`,
+                            )
+                          }
+                        >
+                          Reset password
+                        </button>
+                        <button
+                          className="btn g"
+                          disabled={busy}
+                          onClick={() => {
+                            if (
+                              m.active &&
+                              !window.confirm(
+                                `Disable ${m.name}? They can no longer sign in to ${clinic}.`,
+                              )
+                            )
+                              return;
+                            void call(
+                              `/members/${m.id}`,
+                              { active: !m.active },
+                              m.active ? "Access disabled" : "Access enabled",
+                              "PUT",
+                            );
+                          }}
+                        >
+                          {m.active ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          className="btn g"
+                          disabled={busy}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Remove ${m.name} from ${clinic}? With no other clinic, their login is deleted too.`,
+                              )
+                            )
                               void call(
                                 `/members/${m.id}`,
-                                { role: e.target.value },
-                                "Role changed",
-                                "PUT",
-                              )
-                            }
-                          >
-                            {roles.map(([k, v]) => (
-                              <option key={k} value={k}>
-                                {v}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          m.role_label
-                        )}
-                      </td>
-                      <td>
-                        <span className={`badge ${m.active ? "b-vi" : "b-in"}`}>
-                          {m.active ? "Active" : "Disabled"}
-                        </span>
-                      </td>
-                      <td>
-                        {managing && !locked ? (
-                          <ClinicsPicker
-                            managed={t.managed}
-                            value={m.clinics}
-                            busy={busy}
-                            onChange={(clinics) =>
-                              void call(
-                                `/members/${m.id}/clinics`,
-                                { clinics },
-                                "Clinics saved",
-                                "PUT",
-                              )
-                            }
-                          />
-                        ) : (
-                          m.clinics.map((c) => (
-                            <span
-                              key={c}
-                              className="badge b-bk"
-                              style={{ marginRight: 4 }}
-                            >
-                              {t.managed[c] ?? c}
-                            </span>
-                          ))
-                        )}
-                      </td>
-                      <td className="sub2">{when(m.last_seen_at)}</td>
-                      {managing && (
-                        <td style={{ textAlign: "right", minWidth: 150 }}>
-                          {!locked && (
-                            <>
-                              <button
-                                className="btn g"
-                                disabled={busy}
-                                onClick={() =>
-                                  void call(
-                                    `/members/${m.id}/reset`,
-                                    undefined,
-                                    `Password reset email sent to ${m.email}`,
-                                  )
-                                }
-                              >
-                                Reset password
-                              </button>{" "}
-                              <button
-                                className="btn g"
-                                disabled={busy}
-                                onClick={() => {
-                                  if (
-                                    m.active &&
-                                    !window.confirm(
-                                      `Disable ${m.name}? They can no longer sign in to ${clinic}.`,
-                                    )
-                                  )
-                                    return;
-                                  void call(
-                                    `/members/${m.id}`,
-                                    { active: !m.active },
-                                    m.active
-                                      ? "Access disabled"
-                                      : "Access enabled",
-                                    "PUT",
-                                  );
-                                }}
-                              >
-                                {m.active ? "Disable" : "Enable"}
-                              </button>{" "}
-                              <button
-                                className="btn g"
-                                disabled={busy}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Remove ${m.name} from ${clinic}? With no other clinic, their login is deleted too.`,
-                                    )
-                                  )
-                                    void call(
-                                      `/members/${m.id}`,
-                                      undefined,
-                                      `${m.name} removed`,
-                                      "DELETE",
-                                    );
-                                }}
-                              >
-                                Remove
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                                undefined,
+                                `${m.name} removed`,
+                                "DELETE",
+                              );
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
         </section>
       )}
 
