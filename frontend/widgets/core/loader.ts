@@ -101,6 +101,7 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
     template: MenuTemplate | null = null,
     contact: ClinicContact | null = null,
   ) => {
+    if (appearance && !appearance.look.enabled) return; // switched off in the Dashboard
     const css = appearance ? lookCss(appearance) : '';
     const font = appearance ? FONTS[appearance.widget.font] : FONT_URL;
     if (font) loadFont(font);

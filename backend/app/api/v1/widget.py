@@ -62,10 +62,18 @@ def page_shown(mode: str, pages: list[str], path: str) -> bool:
 @router.get("/show")
 async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool]:
     """Should the chatbot show on this page? Only on the clinic's approved website (the page's own Origin)
-    and on the pages its rule allows. The loader asks once per page."""
+    and on the pages its rule allows, unless the clinic switched it off (Appearance → Enabled, as published).
+    The loader asks once per page."""
     origin = (request.headers.get("origin") or "").rstrip("/")
     known = await guard.get_clinic(clinic)
     if known is None or not guard.origin_allowed(known, origin):
+        return {"show": False}
+    off = await (await get_pool()).fetchval(
+        "select published->'appearance'->'look'->>'enabled' = 'false' from app.clinic_settings "
+        "where clinic_id = $1",
+        clinic,
+    )
+    if off:
         return {"show": False}
     host = origin.replace("://www.", "://")
     site = await (await get_pool()).fetchrow(

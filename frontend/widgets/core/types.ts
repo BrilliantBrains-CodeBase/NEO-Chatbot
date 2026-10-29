@@ -106,6 +106,7 @@ export interface Appearance {
     location: string;
     tagline: string;
     header_arc: boolean;
+    enabled: boolean;
   };
   colours: Record<
     | 'main'
