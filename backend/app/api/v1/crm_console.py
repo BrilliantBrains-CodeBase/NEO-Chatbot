@@ -131,6 +131,7 @@ class Template(BaseModel):
     id: Literal["tiles", "pills", "cards"] = "tiles"
     columns: Literal[2, 3] = 3  # tiles and cards per row
     filled_button: str = Field(default="Book Consultation", max_length=40)  # "" for none
+    use_colours: bool = True  # choosing a template also sets its colours in Appearance (No: the clinic's own)
 
 
 # What a button does. "page" opens one of the clinic's existing chat pages (e.g. a doctor's profile), so

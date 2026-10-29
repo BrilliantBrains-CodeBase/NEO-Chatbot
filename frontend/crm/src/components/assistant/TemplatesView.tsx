@@ -6,15 +6,22 @@ import Icon, { type IconName } from "@/components/crm/Icon";
 import { api, ApiError } from "@/lib/api";
 
 // Dashboard → Templates: how the chat menu looks (Tiles, Pills or Cards), previewed with the clinic's own
-// buttons. Choosing one saves the draft; patients see it after Publish.
+// buttons. Choosing one saves the draft; patients see it after Publish. "Use the template's colours: Yes" also
+// sets its colours in Appearance (the clinic can still change them there); "No" keeps the clinic's colours.
 
 type MenuItem = { label: string; icon: string | null; variant: string | null };
 type Settings = {
   draft: {
-    template: { id: string; columns: number; filled_button: string };
+    template: {
+      id: string;
+      columns: number;
+      filled_button: string;
+      use_colours: boolean;
+    };
     appearance: {
       look: { name: string };
       colours: { main: string; highlight: string };
+      launcher: object;
     };
   };
   published: { template?: { id: string } };
@@ -61,6 +68,28 @@ const ICON: Record<string, IconName> = {
   sos: "alert",
 };
 
+/** "#3E74D9" moved part of the way to another colour (black: darker, white: lighter). */
+function mix(hex: string, to: string, part: number): string {
+  const a = parseInt(hex.slice(1), 16);
+  const b = parseInt(to.slice(1), 16);
+  const ch = (shift: number) =>
+    Math.round(((a >> shift) & 255) * (1 - part) + ((b >> shift) & 255) * part)
+      .toString(16)
+      .padStart(2, "0");
+  return ("#" + ch(16) + ch(8) + ch(0)).toUpperCase();
+}
+
+/** A template's colours as the clinic's Appearance colours (the shades worked out from its main colour). */
+function templateColours(t: { main: string; highlight: string }) {
+  return {
+    main: t.main,
+    main_dark: mix(t.main, "#000000", 0.25),
+    accent: mix(t.main, "#FFFFFF", 0.45),
+    tint: mix(t.main, "#FFFFFF", 0.92),
+    highlight: t.highlight,
+  };
+}
+
 export default function TemplatesView() {
   const { clinic, me, toast } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
@@ -69,7 +98,6 @@ export default function TemplatesView() {
     s?: Settings;
     error?: string;
   }>({ clinic: "" });
-  const [ownColours, setOwnColours] = useState(true); // preview in the clinic's colours, or each template's
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -124,6 +152,24 @@ export default function TemplatesView() {
     done: string,
   ) => call("settings/template", "PUT", { ...tpl, ...patch }, done);
   const live = s.published.template?.id;
+  const useColours = tpl.use_colours;
+  // Yes: the template's colours go into Appearance (draft), then the template is saved.
+  const choose = async (t: (typeof TEMPLATES)[number], useIt: boolean) => {
+    if (useIt) {
+      const a = s.draft.appearance;
+      const colours = { ...a.colours, ...templateColours(t) };
+      await call(
+        "settings/appearance",
+        "PUT",
+        { ...a, colours, launcher: { ...a.launcher, background: t.main } },
+        `${t.name} colours set in Appearance.`,
+      );
+    }
+    await saveTpl(
+      { id: t.id, use_colours: useIt },
+      `${t.name} chosen. Publish to show it to patients.`,
+    );
+  };
 
   return (
     <>
@@ -139,20 +185,33 @@ export default function TemplatesView() {
           Publish
         </button>
       </div>
-      <label
-        className="row"
-        style={{ gap: 8, marginBottom: 14, cursor: "pointer" }}
-      >
-        <input
-          type="checkbox"
-          checked={!ownColours}
-          onChange={(e) => setOwnColours(!e.target.checked)}
-        />
-        Use each template&apos;s own colours{" "}
+      <div className="row" style={{ gap: 14, marginBottom: 14 }}>
+        <b>Use the template&apos;s colours?</b>
+        {[true, false].map((yes) => (
+          <label
+            key={String(yes)}
+            className="row"
+            style={{ gap: 6, cursor: "pointer" }}
+          >
+            <input
+              type="radio"
+              name="use-colours"
+              disabled={busy}
+              checked={useColours === yes}
+              onChange={() => {
+                const t = TEMPLATES.find((x) => x.id === current);
+                if (t) void choose(t, yes);
+              }}
+            />
+            {yes ? "Yes" : "No"}
+          </label>
+        ))}
         <span className="sub2">
-          (off: every template in {clinic}&apos;s colours)
+          {useColours
+            ? "Choosing a template sets its colours in Appearance; you can still change them there."
+            : `Every template uses ${clinic}'s colours from Appearance.`}
         </span>
-      </label>
+      </div>
       <div
         style={{
           display: "grid",
@@ -161,9 +220,9 @@ export default function TemplatesView() {
         }}
       >
         {TEMPLATES.map((t) => {
-          const colours = ownColours
-            ? s.draft.appearance.colours
-            : { main: t.main, highlight: t.highlight };
+          const colours = useColours
+            ? { main: t.main, highlight: t.highlight }
+            : s.draft.appearance.colours;
           return (
             <section
               key={t.id}
@@ -204,12 +263,7 @@ export default function TemplatesView() {
                 <button
                   className="btn"
                   disabled={busy}
-                  onClick={() =>
-                    saveTpl(
-                      { id: t.id },
-                      `${t.name} chosen. Publish to show it to patients.`,
-                    )
-                  }
+                  onClick={() => void choose(t, useColours)}
                 >
                   Use {t.name}
                 </button>
