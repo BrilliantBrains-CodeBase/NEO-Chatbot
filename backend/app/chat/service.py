@@ -29,8 +29,8 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         question = engine.asked(req, state)
         hit = await _kb(conn, req, steps, question)
         topic = await _intent(conn, req, state, question, steps, answered=hit is not None)
-        slots = await _slots(conn, req, state)
-        turn = engine.respond(req, state, slots, hit.answer if hit else None, topic)
+        slots, doctors = await _slots(conn, req, state)
+        turn = engine.respond(req, state, slots, hit.answer if hit else None, topic, doctors)
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
@@ -50,11 +50,11 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
                     })  # fmt: skip
             except leads.SlotTaken:
                 again = {"flow": turn.completed}
-                turn = engine.slot_taken(req, turn.completed, await _slots(conn, req, again))
+                turn = engine.slot_taken(req, turn.completed, *await _slots(conn, req, again))
         f = turn.state.get("flow")
         if f and f["step"] == "summary" and f["kind"] in ("book", "online") and f.get("time") != "any":
             if not await leads.hold_slot(conn, req, f):
-                turn = engine.slot_taken(req, f, await _slots(conn, req, turn.state))
+                turn = engine.slot_taken(req, f, *await _slots(conn, req, turn.state))
         # Recent buttons (newest first, at most 60) so the transcript can show the label of any tap.
         new = engine.shown_choices(turn.reply.ui)
         keep = [c for c in state.get("shown", []) if c not in new]
@@ -73,16 +73,35 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
 
 async def _slots(
     conn: asyncpg.Connection, req: ChatRequest, state: store.State
-) -> dict[str, list[str]] | None:
-    """Free slots for the booking window, loaded only while a booking or reschedule is open."""
+) -> tuple[dict[str, list[str]] | None, list[dict[str, str]] | None]:
+    """While a booking or reschedule is open: the free slots for the booking window (only the chosen
+    doctor's, when the patient picked one) and the doctors who see patients this way (in-clinic or online)."""
     flow = state.get("flow")
     c = live(req.client_id)
     if not flow or c is None or flow.get("kind") not in ("book", "online", "reschedule"):
-        return None
+        return None, None
     today, now = flows.ist_now()
     last = today + timedelta(days=c["config"]["bookingWindowDays"])
     mode: Mode = "online" if flow["kind"] == "online" else "in_clinic"
-    return await free_slots_range(conn, req.client_id, today, last, mode, today, now, req.session_id)
+    doctors = [
+        {"id": str(r["id"]), "name": r["name"]}
+        for r in await conn.fetch(
+            """select d.id, d.name from app.doctors d where d.clinic_id = $1 and d.active
+                 and exists (select 1 from app.doctor_availability a where a.doctor_id = d.id and a.mode = $2)
+               order by d.sort_order, d.name""",
+            req.client_id, mode,
+        )
+    ]  # fmt: skip
+    # The doctor this message picks (a tap, or the name typed at the doctor step), else the one picked before.
+    doctor = flow.get("doctor")
+    typed = (req.payload.text or "").lower()
+    if req.event == "button" and req.payload.action == "doctor":
+        doctor = req.payload.value
+    elif flow.get("step") == "doctor" and typed:
+        doctor = next((d["id"] for d in doctors if d["name"].lower() in typed), doctor)
+    one = doctor if doctor and doctor != "any" and any(d["id"] == doctor for d in doctors) else None
+    slots = await free_slots_range(conn, req.client_id, today, last, mode, today, now, req.session_id, one)
+    return slots, doctors
 
 
 Step = dict[str, Any]

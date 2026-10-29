@@ -130,6 +130,8 @@ def is_date(v: str | None) -> bool:
         return False
 
 
+ANY_DOCTOR = "Any available doctor"
+
 # ---------- replies ----------
 
 
@@ -192,6 +194,10 @@ def ask(f: Flow, cfg: dict[str, Any], lead: list[str] | None = None) -> ChatResp
             None,
             Input(placeholder="Reason for the call"),
         )
+    if step == "doctor":
+        opts = [{"label": d["name"], "action": "doctor", "value": d["id"]} for d in cfg.get("doctors", [])]
+        opts.append({"label": ANY_DOCTOR, "action": "doctor", "value": "any"})
+        return reply([*lead, "Which doctor would you like to see?"], {"type": "chips", "options": opts})
     if step == "booked_date":
         return reply(
             [*lead, "Which date is your appointment booked for?"], calendar(cfg, "booked_date", True)
@@ -229,11 +235,13 @@ def when_text(f: Flow) -> str:
 
 def summary(f: Flow, lead: list[str]) -> ChatResponse:
     visit = "Online video consultation (Google Meet)" if f["kind"] == "online" else "In-clinic visit"
+    doctor = [f.get("doctor_name") or ANY_DOCTOR] if f.get("doctor") else []
     lines = ["Please check your details:", f"**{f['name']}**", f["phone"], *([f["email"]] if f.get("email") else []), treatment_text(f), visit,
-             when_text(f), f"**{CONSENT}**"]  # fmt: skip
+             *doctor, when_text(f), f"**{CONSENT}**"]  # fmt: skip
     options = [
         {"label": "Confirm booking", "action": "confirm"},
         {"label": "Change treatment", "action": "change_treatment"},
+        *([{"label": "Change doctor", "action": "change_doctor"}] if doctor else []),
         {"label": "Change date and time", "action": "change_datetime"},
         *(
             [{"label": "Switch to in-clinic visit", "action": "switch_inclinic"}]
@@ -293,6 +301,14 @@ def start(
 
 
 def _advance(f: Flow, cfg: dict[str, Any], nxt: str) -> ChatResponse:
+    # Booking: which doctor, before the date (when the clinic has more than one for this kind of visit).
+    if (
+        nxt == "date"
+        and f["kind"] in ("book", "online")
+        and not f.get("doctor")
+        and len(cfg.get("doctors", [])) > 1
+    ):
+        nxt = "doctor"
     f["step"] = "summary" if f.get("back_to_summary") and nxt != "time" else nxt
     if f["step"] == "summary":
         f["back_to_summary"] = False
@@ -355,7 +371,16 @@ def button(f: Flow, cfg: dict[str, Any], action: str, value: str | None) -> tupl
     but only in the flows they belong to (a date tap never moves a call back into booking)."""
     booking = f["kind"] in ("book", "online")
     if (
-        action in ("treatment", "confirm", "change_treatment", "change_datetime", "switch_inclinic")
+        action
+        in (
+            "treatment",
+            "doctor",
+            "confirm",
+            "change_treatment",
+            "change_doctor",
+            "change_datetime",
+            "switch_inclinic",
+        )
         and not booking
     ) or (action in ("date", "time") and not (booking or f["kind"] == "reschedule")):
         return f, ask(f, cfg)
@@ -370,6 +395,13 @@ def button(f: Flow, cfg: dict[str, Any], action: str, value: str | None) -> tupl
         if value is None or value not in cfg["treatments"]:
             return f, ask(f, cfg)
         return f, _pick_treatment(f, cfg, value)
+    if action == "doctor":  # a doctor, or any free one; their free days and times come next
+        names = {d["id"]: d["name"] for d in cfg.get("doctors", [])}
+        if value != "any" and value not in names:
+            return f, ask(f, cfg)
+        f["doctor"], f["doctor_name"] = value, names.get(value or "")
+        f["date"], f["time"], f["step"], f["back_to_summary"] = None, None, "date", False
+        return f, ask(f, cfg)
     if action == "booked_date" and f["kind"] in ("cancel", "reschedule"):
         if not is_date(value) or not valid_booked_date(cfg, value or ""):
             return f, ask(f, cfg)
@@ -398,11 +430,16 @@ def button(f: Flow, cfg: dict[str, Any], action: str, value: str | None) -> tupl
     if action == "change_treatment" and f["step"] == "summary":
         f["step"], f["back_to_summary"] = "treatment", True
         return f, ask(f, cfg)
+    if action == "change_doctor" and f["step"] == "summary":
+        f["step"] = "doctor"
+        return f, ask(f, cfg)
     if action == "change_datetime" and f["step"] == "summary":
         f["step"], f["back_to_summary"] = "date", True
         return f, ask(f, cfg)
     if action == "switch_inclinic" and f["kind"] == "online":
         f["kind"] = "book"
+        if f.get("doctor"):  # the online doctor may not see patients in the clinic: any free one
+            f["doctor"], f["doctor_name"] = "any", None
         return f, _advance(f, cfg, "summary")
     if action == "start_again":
         return start(f["kind"])

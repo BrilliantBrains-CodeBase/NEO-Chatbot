@@ -82,16 +82,19 @@ def treatment_card(c: dict[str, Any], name: str) -> ChatResponse | None:
 
 def respond(
     req: ChatRequest, state: State, slots: dict[str, list[str]] | None = None, kb_answer: str | None = None,
-    intent: str | None = None,
+    intent: str | None = None, doctors: list[dict[str, str]] | None = None,
 ) -> Turn:  # fmt: skip
     """slots: free slots per day from the database; the service loads them while a booking is open.
     kb_answer: the approved knowledge base answer for typed text, if one matched (service).
-    intent: the topic of typed text from approved example phrases, when no rule or answer fitted (service)."""
+    intent: the topic of typed text from approved example phrases, when no rule or answer fitted (service).
+    doctors: the clinic's doctors for the open booking's kind of visit ({id, name}; service)."""
     c = live(req.client_id)
     if c is None:  # a clinic without content yet: greet, never fail
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
     if slots is not None:
         c = {**c, "config": {**c["config"], "slots_by_day": slots}}
+    if doctors is not None:
+        c = {**c, "config": {**c["config"], "doctors": doctors}}
     figures = [BotMessage(text=c["figures"])] if c.get("figures") else []  # Menu buttons: trust figures
     menu = ChatResponse(messages=[BotMessage(text=c["greeting"]), *figures], ui=c["menu"])
 
@@ -202,7 +205,7 @@ def _text(
         return tap
     if tap:
         tap_req = req.model_copy(update={"event": "button", "payload": Payload(**tap)})
-        return respond(tap_req, state, c["config"].get("slots_by_day"))
+        return respond(tap_req, state, c["config"].get("slots_by_day"), doctors=c["config"].get("doctors"))
     if state.get("pending_q") and not flow:  # typed answer to "would you like our team to call you back?"
         if understand.is_yes(text):
             yes = req.model_copy(update={"event": "button", "payload": Payload(action="ask_team")})
@@ -486,11 +489,16 @@ def _step(flow: flows.Flow, result: tuple[flows.Flow | None, ChatResponse]) -> T
 SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose another time."
 
 
-def slot_taken(req: ChatRequest, flow: flows.Flow, slots: dict[str, list[str]] | None) -> Turn:
+def slot_taken(
+    req: ChatRequest,
+    flow: flows.Flow,
+    slots: dict[str, list[str]] | None,
+    doctors: list[dict[str, str]] | None = None,
+) -> Turn:
     """The chosen time went to another patient while this one was confirming: pick again, fresh slots."""
     c = live(req.client_id)
     assert c is not None  # a flow only runs for a clinic with content
-    cfg = {**c["config"], "slots_by_day": slots or {}}
+    cfg = {**c["config"], "slots_by_day": slots or {}, "doctors": doctors or []}
     day_left = flow["date"] in cfg["slots_by_day"]
     again = {**flow, "time": None, "step": "time" if day_left else "date"}
     return _flow(again, flows.ask(again, cfg, [SLOT_TAKEN]))
