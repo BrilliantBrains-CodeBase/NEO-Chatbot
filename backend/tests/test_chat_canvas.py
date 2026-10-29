@@ -80,3 +80,14 @@ async def test_canvas_buttons_flow_and_a_saved_call_back(tx: asyncpg.Connection)
         "where l.clinic_id = 'CL99' and l.phone_e164 = '+919800000123'"
     )
     assert lead is not None and (lead["source"], lead["type"]) == ("chatbot", "callback")
+
+
+async def test_the_mobile_book_button_follows_the_canvas(tx: asyncpg.Connection) -> None:
+    """The contact row sends "start book"; on a canvas it taps the way to the booking block."""
+    assert canvas._path(FLOW, "callback") == ["m1"]
+    assert canvas._path(FLOW, "book") == []  # no booking block on this canvas: the menu stays
+    await publish(tx, on=True)
+    pub = await canvas.published(tx, "CL99")
+    assert pub is not None
+    reply, _, _ = await canvas.turn(tx, req("button", action="start", value="callback"), {}, pub)
+    assert "name" in reply.messages[-1].text.lower()  # straight into the call back's first question

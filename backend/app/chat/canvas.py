@@ -58,7 +58,12 @@ async def turn(
     run_state = state.get("canvas")
     tap = req.payload.value if req.event == "button" and req.payload.action == "canvas" else None
     text = req.payload.text if req.event == "text" else None
-    if req.event in ("start", "restart") or run_state is None or (tap is None and not text):
+    wants = req.payload.value if req.event == "button" and req.payload.action == "start" else None
+    if wants:  # the mobile contact row's Book: the taps from the opening to the canvas's booking block
+        reply = start(flow, ctx)
+        for exit_ in _path(flow, wants):
+            reply = send(flow, ctx, reply["state"], tap=exit_)
+    elif req.event in ("start", "restart") or run_state is None or (tap is None and not text):
         reply = start(flow, ctx)
     else:
         # As the canvas test chat: what this message may need is looked up first (the engine is synchronous).
@@ -93,6 +98,24 @@ async def turn(
                   "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip
         await _save(conn, req, urgent)
     return _widget(reply, pub, lead_note), {**state, "canvas": reply["state"]}, "flow"
+
+
+def _path(flow: dict[str, Any], kind: str) -> list[str]:
+    """The buttons to tap from the opening to the first block of this kind (at most 3 taps), or none."""
+    kinds = {n["id"]: n["type"] for n in flow["nodes"]}
+    start_id = next((n["id"] for n in flow["nodes"] if n["type"] == "opening"), None)
+    paths: list[tuple[str, list[str]]] = [(start_id, [])] if start_id else []
+    seen = {start_id}
+    while paths:
+        at, taps = paths.pop(0)
+        for e in flow["edges"]:
+            if e["source"] != at or e["target"] in seen or len(taps) >= 3:
+                continue
+            if kinds.get(e["target"]) == kind:
+                return [*taps, e["exit"]]
+            seen.add(e["target"])
+            paths.append((e["target"], [*taps, e["exit"]]))
+    return []
 
 
 async def _save(conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any]) -> str | None:
