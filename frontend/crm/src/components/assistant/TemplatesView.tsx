@@ -152,7 +152,7 @@ export default function TemplatesView() {
     done: string,
   ) => call("settings/template", "PUT", { ...tpl, ...patch }, done);
   const live = s.published.template?.id;
-  const useColours = tpl.use_colours;
+  const useColours = tpl.use_colours ?? true; // Yes unless the clinic chose No
   // Yes: the template's colours go into Appearance (draft), then the template is saved.
   const choose = async (t: (typeof TEMPLATES)[number], useIt: boolean) => {
     if (useIt) {
