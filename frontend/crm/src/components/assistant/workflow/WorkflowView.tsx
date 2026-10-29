@@ -402,7 +402,9 @@ function Canvas() {
           }
           if (c.type === "select" && c.selected) setSelected(c.id);
         }
-        return { nodes, edges };
+        // Keep the rest of the flow (phrases, checks, fields, settings); unchanged when only sizes or the
+        // selection changed, so drawing the canvas never counts as an unsaved change.
+        return nodes === f.nodes && edges === f.edges ? f : { ...f, nodes, edges };
       });
     },
     [],
@@ -561,6 +563,7 @@ function Canvas() {
   const setButtons = (buttons: FlowButton[]) => {
     const keep = new Set(buttons.map((b) => b.id));
     setFlow({
+      ...flow, // keep the phrases, checks, fields and settings
       nodes: flow.nodes.map((n) =>
         n.id === selected ? { ...n, settings: { ...n.settings, buttons } } : n,
       ),
@@ -615,31 +618,32 @@ function Canvas() {
             Test chat
           </button>
           <label
-            className="pill"
+            className={`pill${s.draft.chat?.canvas ? " on" : ""}`}
             style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
-            title={
-              dirty
-                ? "Save changes first (switching reloads the saved canvas)."
-                : "On: patients get this canvas's buttons and flow (after Publish). Off: the chatbot as before."
-            }
+            title="On: patients get this canvas's buttons and flow (after Publish). Off: the chatbot as before."
           >
             <input
               type="checkbox"
-              disabled={busy || dirty}
+              disabled={busy}
               checked={!!s.draft.chat?.canvas}
-              onChange={(e) =>
-                call(
+              onChange={(e) => {
+                if (dirty) {
+                  // Switching reloads the saved canvas, which would lose these edits.
+                  toast("Save changes first, then switch.");
+                  return;
+                }
+                void call(
                   "settings/chat",
                   "PUT",
                   { canvas: e.target.checked },
                   e.target.checked
-                    ? "Chatbot will run on this canvas after Publish"
-                    : "Chatbot will run as before after Publish",
-                )
-              }
+                    ? "On: Publish to make the chatbot run on this canvas"
+                    : "Off: Publish to go back to the chatbot as before",
+                );
+              }}
             />
             Chatbot runs on this canvas
-            {s.published?.chat?.canvas ? " (live)" : ""}
+            {s.published?.chat?.canvas ? " (live)" : " (not live)"}
           </label>
           <button
             className="pill"
