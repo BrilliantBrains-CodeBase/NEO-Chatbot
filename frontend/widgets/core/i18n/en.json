@@ -19,5 +19,9 @@
   "prev_month": "Previous month",
   "next_month": "Next month",
   "any_time": "Any time",
-  "more_times": "More times"
+  "more_times": "More times",
+  "contact_call": "Call",
+  "contact_book": "Book",
+  "contact_book_said": "Book appointment",
+  "contact_whatsapp": "WhatsApp"
 }

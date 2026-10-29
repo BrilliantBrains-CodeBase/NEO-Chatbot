@@ -5,7 +5,7 @@ import launcherCss from './styles/launcher.css?inline';
 import { launcher_label, open_chat, close_chat } from './i18n/en.json';
 import { createShadowHost, injectStyles, loadFont } from './shadow';
 import { getHandle, setHandle, type WidgetHandle } from './registry';
-import type { Appearance, MenuTemplate } from './types';
+import type { Appearance, ClinicContact, MenuTemplate } from './types';
 
 const FONT_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap';
 const LABEL_DELAY_MS = 8000;
@@ -40,11 +40,43 @@ function seen(set?: boolean): boolean {
 }
 
 // Dashboard → Appearance as CSS over the built-in look: the colours, the launcher's colour and place.
+const SIZES = { small: [340, 540, 48], medium: [380, 580, 54], large: [420, 640, 60] };
+const FONTS = {
+  Figtree: FONT_URL,
+  Inter: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  System: '',
+};
+
 function lookCss(a: Appearance): string {
   const c = a.colours;
   const l = a.launcher;
+  const w = a.widget;
   const [side, other] = l.position === 'bottom_left' ? ['left', 'right'] : ['right', 'left'];
+  const [width, height] = SIZES[w.size];
+  const orb = SIZES[l.size][2];
+  const font = w.font === 'System' ? 'system-ui' : `'${w.font}', system-ui`;
   return (
+    `:host{--font:${font},-apple-system,'Segoe UI',Roboto,sans-serif}` +
+    `@media (min-width:641px){.nb-panel{width:${width}px;height:${height}px;` +
+    `border-radius:${{ square: 8, rounded: 20, round: 28 }[w.radius]}px;` +
+    `border:${{ none: '0', subtle: '1px solid var(--line)', strong: '2px solid var(--rose)' }[w.border]};` +
+    `box-shadow:${{ none: 'none', soft: `0 24px 48px -20px ${c.main}66`, strong: `0 30px 60px -14px ${c.main}aa` }[w.shadow]}}` +
+    (l.opens_as === 'full'
+      ? '.nb-panel{inset:0;width:auto;height:auto;max-height:none;border-radius:0}'
+      : '') +
+    '}' +
+    (a.look.header_arc ? '' : '.nb-head::after{display:none}') +
+    `.nb-launch .orb{width:${l.shape === 'pill' ? orb * 1.6 : orb}px;height:${orb}px;` +
+    `border-radius:${l.shape === 'rounded' ? '30%' : '999px'};` +
+    `border:${{ none: '0', subtle: '2px solid #ffffff99', strong: '3px solid #fff' }[l.border]}}` +
+    '.nb-launch .orb img{width:62%;height:62%;border-radius:50%;object-fit:cover}' +
+    (l.notification_dot ? '' : '.nb-launch .dot{display:none}') +
+    (l.mobile_label ? '@media (max-width:640px){.nb-launch.show-label .lbl{display:block}}' : '') +
+    (c.dark_mode
+      ? `@media (prefers-color-scheme:dark){:host{--surface:${c.dark_card};--ink:${c.dark_text};` +
+        `--line:${c.dark_line};--mute:${c.dark_text}}.nb-panel{background:${c.dark_page}}` +
+        `.nb-chip,.nb-menu .nb-tile,.nb-launch .lbl{background:${c.dark_card};color:${c.dark_text}}}`
+      : '') +
     `:host{--rose:${c.main};--rose-d:${c.main_dark};--blush:${c.accent};--tint:${c.tint};--honey:${c.highlight};` +
     `--surface:${c.surface};--line:${c.line};--ink:${c.text};--mute:${c.muted};--wa:${c.whatsapp}}` +
     `.nb-launch .orb{background:${l.background};color:${l.icon_color}}` +
@@ -64,9 +96,14 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
   const apiBase = script?.dataset.api || (src ? new URL(src).origin : location.origin);
   const appUrl = src.replace(/\.js(\?.*)?$/, '.app.js$1');
 
-  const start = (appearance: Appearance | null, template: MenuTemplate | null = null) => {
+  const start = (
+    appearance: Appearance | null,
+    template: MenuTemplate | null = null,
+    contact: ClinicContact | null = null,
+  ) => {
     const css = appearance ? lookCss(appearance) : '';
-    loadFont(FONT_URL);
+    const font = appearance ? FONTS[appearance.widget.font] : FONT_URL;
+    if (font) loadFont(font);
     const { shadow } = createShadowHost(clinicId);
     // Clinic theme last, so it can override shared tokens such as --honey.
     injectStyles(shadow, launcherCss + themeCss + css);
@@ -80,12 +117,20 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
     launcher.setAttribute('aria-label', open_chat);
     launcher.setAttribute('aria-expanded', 'false');
     launcher.innerHTML =
-      `<span class="lbl">${appearance?.launcher.label_text || launcher_label}</span>` +
+      '<span class="lbl"></span>' +
       '<span class="orb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="dot"></span></span>';
+    // Text and the logo address from the Dashboard go in as text and an attribute, never as HTML.
+    launcher.querySelector('.lbl')!.textContent = appearance?.launcher.label_text || launcher_label;
+    if (appearance?.launcher.icon === 'logo' && appearance.look.logo) {
+      const img = document.createElement('img');
+      img.src = appearance.look.logo;
+      img.alt = '';
+      launcher.querySelector('svg')!.replaceWith(img);
+    }
     root.append(mountPoint, launcher);
     shadow.appendChild(root);
 
-    // Desktop: show the "Chat with us" label after 8 seconds. Never auto open the panel.
+    // Desktop: the "Chat with us" label after the set seconds (8 by default).
     const label = appearance?.launcher;
     if (!label || label.label_on) {
       setTimeout(
@@ -105,6 +150,7 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
       appearance,
       lookCss: css,
       template,
+      contact,
       setOpen(open) {
         handle.isOpen = open;
         root.classList.toggle('is-open', open);
@@ -128,6 +174,10 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
     };
     setHandle(handle);
     launcher.addEventListener('click', () => handle.setOpen(!handle.isOpen));
+    // Desktop only, the first visit in this browser session: opens by itself (Dashboard → Appearance).
+    if (appearance?.launcher.open_on_first_visit && !seen() && !matchMedia('(max-width: 640px)').matches) {
+      handle.setOpen(true);
+    }
   };
 
   // Shown only where the clinic allows it: its approved website, and the pages set in the Dashboard.
@@ -135,8 +185,9 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
   const look = (base: string) =>
     fetch(`${base}/v1/widget/config/${clinicId}`)
       .then((r) => r.json())
-      .then((r: { appearance?: Appearance | null; template?: MenuTemplate | null }) =>
-        start(r.appearance ?? null, r.template ?? null),
+      .then(
+        (r: { appearance?: Appearance | null; template?: MenuTemplate | null; contact?: ClinicContact }) =>
+          start(r.appearance ?? null, r.template ?? null, r.contact ?? null),
       )
       .catch(() => start(null));
   const ready = () => {

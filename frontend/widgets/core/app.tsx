@@ -11,6 +11,7 @@ import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
 import { Composer } from './components/Composer';
 import { setMenuTemplate } from './components/Blocks';
+import { ContactRow } from './components/ContactRow';
 import { loadHistory, saveHistory } from './history';
 import t from './i18n/en.json';
 
@@ -148,7 +149,18 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
       appearance={handle.appearance}
       onClose={close}
       onRestart={restart}
-      composer={<Composer mode={mode} placeholder={placeholder} busy={busy} onSend={type} />}
+      composer={
+        <>
+          {handle.appearance?.widget.mobile_contact_row && (
+            <ContactRow
+              buttons={handle.appearance.widget.contact_buttons}
+              contact={handle.contact}
+              onChoose={choose}
+            />
+          )}
+          <Composer mode={mode} placeholder={placeholder} busy={busy} onSend={type} />
+        </>
+      }
     >
       <Messages entries={entries} busy={busy} onRetry={retry} onChoose={choose} />
     </Panel>

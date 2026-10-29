@@ -13,7 +13,7 @@ import time
 import zlib
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote_to_bytes
+from urllib.parse import quote, unquote_to_bytes
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response
@@ -98,11 +98,25 @@ async def config(request: Request, clinic: str) -> dict[str, Any]:
         base = (get_settings().public_url or str(request.base_url)).rstrip("/")
         version = zlib.crc32(look["look"]["logo"].encode())
         look["look"]["logo"] = f"{base}/v1/widget/logo/{clinic}?v={version:x}"
-    tpl = await (await get_pool()).fetchval(
-        "select published->'template' from app.clinic_settings where clinic_id = $1", clinic
+    row = await (await get_pool()).fetchrow(
+        "select published->'template' tpl, published->'contact' contact from app.clinic_settings "
+        "where clinic_id = $1",
+        clinic,
     )
+    tpl = row["tpl"] if row else None
     template = Template.model_validate(json.loads(tpl)).model_dump() if tpl and tpl != "null" else None
-    return {"appearance": look, "template": template}
+    return {"appearance": look, "template": template, "contact": _contact(row["contact"] if row else None)}
+
+
+def _contact(saved: Any) -> dict[str, str]:
+    """The mobile contact row's Call and WhatsApp (Clinic info → Contact & hours, as published)."""
+    c = json.loads(saved) if isinstance(saved, str) and saved != "null" else {}
+    wa = re.sub(r"\D", "", c.get("whatsapp") or "")
+    text = c.get("whatsapp_message") or ""
+    return {
+        "phone": c.get("phone") or "",
+        "whatsapp": f"https://wa.me/{wa}" + (f"?text={quote(text)}" if text else "") if wa else "",
+    }
 
 
 @router.get("/logo/{clinic}")

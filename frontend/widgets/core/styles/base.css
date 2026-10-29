@@ -209,6 +209,47 @@
   text-decoration: underline;
 }
 
+/* Mobile contact row (Dashboard → Appearance): Call, Book, WhatsApp above the typing bar, phones only. */
+.nb-contact {
+  display: none;
+}
+@media (max-width: 640px) {
+  .nb-contact {
+    display: grid;
+    grid-template-columns: repeat(var(--n), 1fr);
+    gap: 6px;
+    padding: 8px 10px 0;
+    border-top: 1px solid var(--line);
+  }
+}
+.nb-cbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: 700 13px/1.2 var(--font);
+  text-decoration: none;
+  cursor: pointer;
+}
+.nb-cbtn .ic svg {
+  width: 15px;
+  height: 15px;
+}
+.nb-cbtn.book {
+  border-color: var(--rose);
+  background: var(--rose);
+  color: #fff;
+}
+.nb-cbtn.wa {
+  border-color: var(--wa);
+  color: var(--wa);
+}
+
 /* Mobile: bottom sheet at 88% height with a backdrop and grip. */
 @media (max-width: 640px) {
   .nb-backdrop {

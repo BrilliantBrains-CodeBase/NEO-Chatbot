@@ -92,7 +92,8 @@ def respond(
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
     if slots is not None:
         c = {**c, "config": {**c["config"], "slots_by_day": slots}}
-    menu = ChatResponse(messages=[BotMessage(text=c["greeting"])], ui=c["menu"])
+    figures = [BotMessage(text=c["figures"])] if c.get("figures") else []  # Menu buttons: trust figures
+    menu = ChatResponse(messages=[BotMessage(text=c["greeting"]), *figures], ui=c["menu"])
 
     if req.event in ("start", "restart"):
         return Turn(menu, "menu", {})
@@ -457,7 +458,7 @@ def _answer(
             return Turn(card, "rule", {})
     if kb_answer:
         return Turn(ChatResponse(messages=[BotMessage(text=kb_answer)], ui=AFTER_ANSWER), "kb", {})
-    offer = ChatResponse(messages=[BotMessage(text=NO_ANSWER)], ui=OFFER_UI)
+    offer = ChatResponse(messages=[BotMessage(text=c.get("fallback") or NO_ANSWER)], ui=OFFER_UI)
     return Turn(offer, "lead", {"pending_q": text[:500]})
 
 

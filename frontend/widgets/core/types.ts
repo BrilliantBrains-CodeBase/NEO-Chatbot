@@ -84,6 +84,12 @@ export interface ChatResponse {
   quick?: Choice[];
 }
 
+// The clinic's Call and WhatsApp for the mobile contact row ("" when not set).
+export interface ClinicContact {
+  phone: string;
+  whatsapp: string;
+}
+
 // Dashboard → Templates as published: how the main menu looks, and the one button filled in the main colour.
 export interface MenuTemplate {
   id: 'tiles' | 'pills' | 'cards';
@@ -93,7 +99,14 @@ export interface MenuTemplate {
 
 // Dashboard → Appearance as the clinic published it (GET /v1/widget/config/<clinic>; null: the built-in look).
 export interface Appearance {
-  look: { name: string; avatar_letter: string; logo: string; location: string; tagline: string };
+  look: {
+    name: string;
+    avatar_letter: string;
+    logo: string;
+    location: string;
+    tagline: string;
+    header_arc: boolean;
+  };
   colours: Record<
     | 'main'
     | 'main_dark'
@@ -104,10 +117,25 @@ export interface Appearance {
     | 'line'
     | 'text'
     | 'muted'
-    | 'whatsapp',
+    | 'whatsapp'
+    | 'dark_page'
+    | 'dark_card'
+    | 'dark_text'
+    | 'dark_line',
     string
-  >;
-  widget: { footer_on: boolean; footer_text: string; footer_link: string };
+  > & { dark_mode: boolean };
+  widget: {
+    size: 'small' | 'medium' | 'large';
+    radius: 'square' | 'rounded' | 'round';
+    border: Level;
+    shadow: 'none' | 'soft' | 'strong';
+    font: 'Figtree' | 'Inter' | 'System';
+    footer_on: boolean;
+    footer_text: string;
+    footer_link: string;
+    mobile_contact_row: boolean;
+    contact_buttons: ('call' | 'book' | 'whatsapp')[];
+  };
   launcher: {
     position: 'bottom_right' | 'bottom_left';
     offset_x: number;
@@ -119,5 +147,14 @@ export interface Appearance {
     label_after_s: number;
     mobile_offset_x: number;
     mobile_offset_y: number;
+    shape: 'pill' | 'rounded' | 'circle';
+    size: 'small' | 'medium' | 'large';
+    border: Level;
+    icon: 'chat' | 'logo';
+    notification_dot: boolean;
+    opens_as: 'panel' | 'full';
+    open_on_first_visit: boolean;
+    mobile_label: boolean;
   };
 }
+type Level = 'none' | 'subtle' | 'strong';

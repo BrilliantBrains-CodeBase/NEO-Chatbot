@@ -8,7 +8,7 @@ import { TimeGrid } from './TimeGrid';
 export type OnChoose = (choice: Choice) => void;
 
 // A tappable choice: a link when it has href (call, WhatsApp, website), otherwise a button that sends an event.
-function Tap({ choice, class: cls, onChoose }: { choice: Choice; class: string; onChoose: OnChoose }) {
+export function Tap({ choice, class: cls, onChoose }: { choice: Choice; class: string; onChoose: OnChoose }) {
   const body = (
     <>
       {choice.icon && (

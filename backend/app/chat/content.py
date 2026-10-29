@@ -81,6 +81,11 @@ def with_menu(base: dict[str, Any], menu: dict[str, Any]) -> dict[str, Any]:
     out = {**base, "nodes": nodes}
     if menu.get("welcome"):
         out["greeting"] = menu["welcome"]
+    if menu.get("fallback"):  # when no answer is found (with the call-back offer)
+        out["fallback"] = menu["fallback"]
+    shown = [f"{f['value']} {f['label']}".strip() for f in menu.get("figures", []) if f.get("value")]
+    if menu.get("show_figures", True) and shown:  # under the welcome, e.g. "4.8★ Google rating"
+        out["figures"] = " · ".join(shown)
     if items:
         out["menu"] = {**(base.get("menu") or {"type": "menu", "layout": "cards3"}), "items": items}
     return out
