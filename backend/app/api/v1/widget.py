@@ -5,13 +5,16 @@ loader file says which clinic it is for (its clinic ID), and that is read from t
 """
 
 import fnmatch
+import json
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse
 
+from app.api.v1.crm_console import Appearance
 from app.chat import guard
 from app.core.config import get_settings
 from app.core.db import get_pool
@@ -69,6 +72,21 @@ async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool
     if site is None:  # e.g. a local test page in development
         return {"show": True}
     return {"show": page_shown(site["pages_mode"], list(site["pages"]), path[:300])}
+
+
+@router.get("/config/{clinic}")
+async def config(clinic: str) -> dict[str, Any]:
+    """The clinic's published Dashboard → Appearance, for the widget (None until it is first published:
+    the widget keeps its built-in look). Nothing private: the same as any visitor sees."""
+    if await guard.get_clinic(clinic) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
+    saved = await (await get_pool()).fetchval(
+        "select published->'appearance' from app.clinic_settings where clinic_id = $1", clinic
+    )
+    if not saved or saved == "null":
+        return {"appearance": None}
+    data = json.loads(saved) if isinstance(saved, str) else saved
+    return {"appearance": Appearance.model_validate(data).model_dump()}
 
 
 @router.get("/{name}")

@@ -143,7 +143,8 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   if (!open) return null;
   return (
     <Panel
-      botName={face.botName}
+      botName={handle.appearance?.look.name || face.botName}
+      appearance={handle.appearance}
       onClose={close}
       onRestart={restart}
       composer={<Composer mode={mode} placeholder={placeholder} busy={busy} onSend={type} />}
@@ -179,9 +180,9 @@ export function mountApp(face: Face) {
     console.warn(`[neo-widget] loader for ${face.clinicId} not found`);
     return;
   }
-  injectStyles(handle.shadow, baseCss);
+  injectStyles(handle.shadow, baseCss + handle.lookCss);
   const params = new URLSearchParams(location.search);
   const apiBase = import.meta.env.DEV ? params.get('api') || DEV_API : handle.apiBase;
-  const api = createApi(apiBase, face.clinicId, { fetchImpl: devFetch(face.clinicId) });
+  const api = createApi(apiBase, { fetchImpl: devFetch(face.clinicId) });
   render(<Widget handle={handle} face={face} api={api} />, handle.mountPoint);
 }

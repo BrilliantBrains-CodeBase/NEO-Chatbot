@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../icons';
 import t from '../i18n/en.json';
+import type { Appearance } from '../types';
 
 const SWIPE_CLOSE_PX = 80;
 // Same breakpoint as the mobile rules in base.css.
@@ -9,6 +10,8 @@ const MOBILE_QUERY = '(max-width: 640px)';
 
 interface Props {
   botName: string;
+  // Dashboard → Appearance as published; null: the built-in header and footer.
+  appearance?: Appearance | null;
   onClose: () => void;
   onRestart: () => void;
   // The typing bar, shown between the messages and the footer text.
@@ -18,7 +21,7 @@ interface Props {
 
 // Desktop: floating panel. Mobile (640 px and below): bottom sheet with backdrop, closed by X,
 // tapping the backdrop, swiping the header down, or Escape.
-export function Panel({ botName, onClose, onRestart, composer, children }: Props) {
+export function Panel({ botName, appearance, onClose, onRestart, composer, children }: Props) {
   const panel = useRef<HTMLDivElement>(null);
   const startY = useRef<number | null>(null);
   // Mobile: the sheet goes full height when the patient starts typing and stays so until the chat is
@@ -61,20 +64,24 @@ export function Panel({ botName, onClose, onRestart, composer, children }: Props
         <div class="nb-head" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
           <span class="nb-grip" />
           <div class="nb-ava" aria-hidden="true">
-            N
+            {appearance?.look.avatar_letter || 'N'}
           </div>
           <div class="nb-title">
             <b>{botName}</b>
-            <span>
-              {t.subtitle}
-              <span class="nb-pw">
-                {' · '}
-                {t.header_powered_by}{' '}
-                <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
-                  {t.footer_brand}
-                </a>
+            {appearance ? (
+              <span>{appearance.widget.header_text}</span>
+            ) : (
+              <span>
+                {t.subtitle}
+                <span class="nb-pw">
+                  {' · '}
+                  {t.header_powered_by}{' '}
+                  <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
+                    {t.footer_brand}
+                  </a>
+                </span>
               </span>
-            </span>
+            )}
           </div>
           <button
             type="button"
@@ -93,14 +100,28 @@ export function Panel({ botName, onClose, onRestart, composer, children }: Props
           {children}
         </div>
         {composer}
-        <div class="nb-legal">
-          {t.footer_disclaimer}
-          {' · '}
-          {t.footer_powered_by}{' '}
-          <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
-            {t.footer_brand}
-          </a>
-        </div>
+        {appearance ? (
+          appearance.widget.footer_on && (
+            <div class="nb-legal">
+              {appearance.widget.footer_link ? (
+                <a href={appearance.widget.footer_link} target="_blank" rel="noopener noreferrer">
+                  {appearance.widget.footer_text}
+                </a>
+              ) : (
+                appearance.widget.footer_text
+              )}
+            </div>
+          )
+        ) : (
+          <div class="nb-legal">
+            {t.footer_disclaimer}
+            {' · '}
+            {t.footer_powered_by}{' '}
+            <a href="https://brilliantbrains.ai/" target="_blank" rel="noopener noreferrer">
+              {t.footer_brand}
+            </a>
+          </div>
+        )}
       </div>
     </>
   );

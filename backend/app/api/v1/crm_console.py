@@ -610,6 +610,10 @@ SMALL_TALK_TARGETS_BY_TOPIC = {
 }
 
 
+# Sections that change only how the chat looks, never what it answers.
+LOOK = {"appearance", "template"}
+
+
 @router.post("/{clinic}/publish", response_model=Settings)
 async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settings:
     """The draft becomes what the widget shows, as a new numbered version (kept for roll back)."""
@@ -629,7 +633,9 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
             status.HTTP_409_CONFLICT,
             f"A publish check failed ({len(failed)}): '{failed[0]['name']}' {failed[0]['message']}.",
         )
-    if clinic in TEST_SET_BARS:  # the test sets must not score below their bar
+    # The test sets must not score below their bar, when what the chat answers changed (not only its look).
+    look_only = all(current.draft[k] == current.published.get(k) for k in current.draft if k not in LOOK)
+    if clinic in TEST_SET_BARS and not look_only:
         if not embed.ready():
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "The meaning model is still loading. Please publish in a minute."

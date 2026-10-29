@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse, WidgetConfig } from './types';
+import type { ChatRequest, ChatResponse } from './types';
 
 export type ApiErrorKind = 'offline' | 'timeout' | 'server' | 'client' | 'bad_response';
 
@@ -20,7 +20,7 @@ export interface ApiOptions {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export function createApi(apiBase: string, clinicId: string, opts: ApiOptions = {}) {
+export function createApi(apiBase: string, opts: ApiOptions = {}) {
   const { timeoutMs = 10000, retries = 2, fetchImpl = fetch.bind(window) } = opts;
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -63,7 +63,6 @@ export function createApi(apiBase: string, clinicId: string, opts: ApiOptions = 
   }
 
   return {
-    getConfig: () => request<WidgetConfig>(`/v1/widget/config/${encodeURIComponent(clinicId)}`),
     send: (body: ChatRequest) =>
       request<ChatResponse>('/v1/chat/message', { method: 'POST', body: JSON.stringify(body) }),
   };

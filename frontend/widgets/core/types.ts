@@ -84,9 +84,33 @@ export interface ChatResponse {
   quick?: Choice[];
 }
 
-// Per-clinic settings served by the config API (dynamic JSON in Supabase). Filled in Step 7.
-export interface WidgetConfig {
-  client_id: string;
-  bot_name: string;
-  [key: string]: unknown;
+// Dashboard → Appearance as the clinic published it (GET /v1/widget/config/<clinic>; null: the built-in look).
+export interface Appearance {
+  look: { name: string; status_line: string; avatar_letter: string };
+  colours: Record<
+    | 'main'
+    | 'main_dark'
+    | 'accent'
+    | 'tint'
+    | 'highlight'
+    | 'surface'
+    | 'line'
+    | 'text'
+    | 'muted'
+    | 'whatsapp',
+    string
+  >;
+  widget: { header_text: string; footer_on: boolean; footer_text: string; footer_link: string };
+  launcher: {
+    position: 'bottom_right' | 'bottom_left';
+    offset_x: number;
+    offset_y: number;
+    background: string;
+    icon_color: string;
+    label_on: boolean;
+    label_text: string;
+    label_after_s: number;
+    mobile_offset_x: number;
+    mobile_offset_y: number;
+  };
 }
