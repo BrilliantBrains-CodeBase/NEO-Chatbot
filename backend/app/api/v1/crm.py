@@ -49,6 +49,13 @@ async def me(user: Annotated[Staff, Depends(staff)]) -> Me:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("select id, name from app.clinics where active and not is_test order by id")
+        # Team's "Last sign-in": asked on sign-in and when the CRM opens (written at most every 5 minutes).
+        await conn.execute(
+            """update app.profiles set last_seen_at = now()
+               where id = $1::uuid
+                 and (last_seen_at is null or last_seen_at < now() - interval '5 minutes')""",
+            user.id,
+        )
     clinics = []
     for r in rows:
         role = "bb_admin" if user.bb_admin else user.roles.get(r["id"])

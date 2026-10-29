@@ -26,6 +26,8 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const signedIn = !!data?.claims;
   const path = request.nextUrl.pathname;
+  // Invite and reset emails land here: the link signs the person in, so it is open signed in or not.
+  if (path === "/set-password") return response;
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(p + "/"));
 
   if (!signedIn && !isPublic) return redirect(request, response, "/sign-in");

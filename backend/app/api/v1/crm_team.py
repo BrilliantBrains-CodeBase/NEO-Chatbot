@@ -83,7 +83,7 @@ async def _team(user: Staff, clinic: str) -> Team:
     pool = await get_pool()
     rows = await pool.fetch(
         """select p.id, p.full_name, p.email, p.phone, p.last_seen_at, uc.role, uc.active and p.active active,
-             array(select c.clinic_id from app.user_clinics c where c.user_id = p.id and c.active) clinics
+             array(select c.clinic_id from app.user_clinics c where c.user_id = p.id) clinics  -- disabled too
            from app.user_clinics uc join app.profiles p on p.id = uc.user_id
            where uc.clinic_id = $1 and ($2 or p.id = $3::uuid)
            order by uc.active desc, uc.role, p.full_name""",
@@ -308,7 +308,7 @@ async def set_clinics(
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         now = {r["clinic_id"] for r in await conn.fetch(
-            "select clinic_id from app.user_clinics where user_id::text = $1 and active", member
+            "select clinic_id from app.user_clinics where user_id::text = $1", member  # disabled too
         )}  # fmt: skip
         for c in wanted - now:
             await _give(conn, member, c, role)

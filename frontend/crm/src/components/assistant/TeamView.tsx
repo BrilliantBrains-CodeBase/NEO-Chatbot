@@ -62,10 +62,6 @@ export default function TeamView({ manage }: { manage: boolean }) {
     role: "front_desk",
   });
   const [inviteClinics, setInviteClinics] = useState<string[] | null>(null); // null: this clinic
-  const [editing, setEditing] = useState<{
-    id: string;
-    clinics: string[];
-  } | null>(null);
   const url = `/v1/crm/team/${clinicId}`;
 
   useEffect(() => {
@@ -313,81 +309,31 @@ export default function TeamView({ manage }: { manage: boolean }) {
                           {m.active ? "Active" : "Disabled"}
                         </span>
                       </td>
-                      <td style={{ maxWidth: 220 }}>
-                        {editing?.id === m.id ? (
-                          <div style={{ fontSize: 12.5 }}>
-                            {Object.entries(t.managed).map(([id, name]) => (
-                              <label
-                                key={id}
-                                className="row"
-                                style={{ gap: 4 }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={editing.clinics.includes(id)}
-                                  onChange={(e) =>
-                                    setEditing({
-                                      id: m.id,
-                                      clinics: e.target.checked
-                                        ? [...editing.clinics, id]
-                                        : editing.clinics.filter(
-                                            (c) => c !== id,
-                                          ),
-                                    })
-                                  }
-                                />
-                                {name} ({id})
-                              </label>
-                            ))}
-                            <button
-                              className="btn"
-                              disabled={busy || !editing.clinics.length}
-                              onClick={async () => {
-                                if (
-                                  await call(
-                                    `/members/${m.id}/clinics`,
-                                    { clinics: editing.clinics },
-                                    "Clinics saved",
-                                    "PUT",
-                                  )
-                                )
-                                  setEditing(null);
-                              }}
-                            >
-                              Save
-                            </button>{" "}
-                            <button
-                              className="btn g"
-                              onClick={() => setEditing(null)}
-                            >
-                              Cancel
-                            </button>
-                          </div>
+                      <td>
+                        {managing && !locked ? (
+                          <ClinicsPicker
+                            managed={t.managed}
+                            value={m.clinics}
+                            busy={busy}
+                            onChange={(clinics) =>
+                              void call(
+                                `/members/${m.id}/clinics`,
+                                { clinics },
+                                "Clinics saved",
+                                "PUT",
+                              )
+                            }
+                          />
                         ) : (
-                          <>
-                            {m.clinics.map((c) => (
-                              <span
-                                key={c}
-                                className="badge b-bk"
-                                style={{ marginRight: 4 }}
-                              >
-                                {t.managed[c] ?? c}
-                              </span>
-                            ))}
-                            {managing &&
-                              !locked &&
-                              Object.keys(t.managed).length > 1 && (
-                                <button
-                                  className="btn g"
-                                  style={{ padding: "2px 8px", fontSize: 12 }}
-                                  onClick={() =>
-                                    setEditing({ id: m.id, clinics: m.clinics })
-                                  }
-                                >
-                                  Edit
-                                </button>
-                              )}
-                          </>
+                          m.clinics.map((c) => (
+                            <span
+                              key={c}
+                              className="badge b-bk"
+                              style={{ marginRight: 4 }}
+                            >
+                              {t.managed[c] ?? c}
+                            </span>
+                          ))
                         )}
                       </td>
                       <td className="sub2">{when(m.last_seen_at)}</td>
@@ -555,6 +501,69 @@ export default function TeamView({ manage }: { manage: boolean }) {
             </div>
           )}
         </section>
+      )}
+    </div>
+  );
+}
+
+/** The clinics a member can open: a chip for each (× takes it away; the last one stays, use Remove), and a
+ * drop-down like Role to add one. Only the clinics you manage are listed. Each change is saved at once. */
+function ClinicsPicker({
+  managed,
+  value,
+  busy,
+  onChange,
+}: {
+  managed: Record<string, string>;
+  value: string[];
+  busy: boolean;
+  onChange: (clinics: string[]) => void;
+}) {
+  const more = Object.entries(managed).filter(([id]) => !value.includes(id));
+  return (
+    <div
+      className="row"
+      style={{ gap: 4, flexWrap: "wrap", alignItems: "center" }}
+    >
+      {value.map((c) => (
+        <span key={c} className="badge b-bk" style={{ whiteSpace: "nowrap" }}>
+          {managed[c] ?? c}
+          {value.length > 1 && (
+            <button
+              type="button"
+              aria-label={`Take away ${managed[c] ?? c}`}
+              disabled={busy}
+              onClick={() => onChange(value.filter((x) => x !== c))}
+              style={{
+                border: 0,
+                background: "none",
+                cursor: "pointer",
+                marginLeft: 4,
+                padding: 0,
+                color: "inherit",
+              }}
+            >
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {more.length > 0 && (
+        <select
+          className="sel"
+          disabled={busy}
+          value=""
+          onChange={(e) =>
+            e.target.value && onChange([...value, e.target.value])
+          }
+        >
+          <option value="">+ Add clinic</option>
+          {more.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name} ({id})
+            </option>
+          ))}
+        </select>
       )}
     </div>
   );

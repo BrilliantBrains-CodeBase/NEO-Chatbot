@@ -10,13 +10,20 @@ import {
   passwordScore,
   type Errors,
 } from "@/lib/validation";
+import { ApiError } from "@/lib/api";
 import { FieldError, PasswordInput } from "./fields";
 import { CheckIcon, InfoIcon } from "./icons";
 
 type Field = "name" | "phone" | "email" | "clinic" | "role" | "password" | "confirm" | "terms";
 
-const CLINICS = ["Neo Fertility", "Neo Follicle", "Derma Solutions"];
-const ROLES = ["Front Desk", "Clinic Manager"];
+// The clinic is asked as its code (e.g. CL01, given by the clinic manager), so this public page never lists
+// the clinics that use the CRM. Only BB Admin approves a Clinic Manager request.
+const CLINIC_CODE = /^CL\d{2}$/;
+const ROLES: [string, string][] = [
+  ["front_desk", "Front Desk"],
+  ["doctor", "Doctor"],
+  ["clinic_manager", "Clinic Manager"],
+];
 
 export default function CreateAccountForm() {
   const [errors, setErrors] = useState<Errors<Field>>({});
@@ -25,7 +32,10 @@ export default function CreateAccountForm() {
   const [sent, setSent] = useState<{ clinic: string; role: string; email: string } | null>(null);
   const score = passwordScore(password);
 
-  function submit(e: FormEvent<HTMLFormElement>) {
+  const [banner, setBanner] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const v = (k: string) => String(f.get(k) ?? "").trim();
@@ -33,7 +43,9 @@ export default function CreateAccountForm() {
       name: v("name").length >= 2 ? undefined : "Enter your full name.",
       phone: INDIAN_MOBILE.test(phone) ? undefined : "Enter a 10 digit mobile number.",
       email: EMAIL.test(v("email")) ? undefined : "Enter a valid work email.",
-      clinic: v("clinic") ? undefined : "Select your clinic.",
+      clinic: CLINIC_CODE.test(v("clinic").toUpperCase())
+        ? undefined
+        : "Enter the clinic code your manager gave you, e.g. CL01.",
       role: v("role") ? undefined : "Select your role.",
       password: score >= 3 ? undefined : "Use 8+ characters with a number and a capital letter.",
       confirm: v("confirm") && f.get("confirm") === password ? undefined : "Passwords do not match.",
@@ -41,8 +53,27 @@ export default function CreateAccountForm() {
     };
     setErrors(next);
     if (Object.values(next).some(Boolean)) return;
-    // Sub-step 1 (screens only): nothing is sent yet. Connecting sends the request to the backend as JSON.
-    setSent({ clinic: v("clinic"), role: v("role"), email: v("email") });
+    setBanner("");
+    setBusy(true);
+    try {
+      const done = await requestAccess({
+        full_name: v("name"),
+        phone: "+91" + phone,
+        email: v("email").toLowerCase(),
+        password,
+        clinic: v("clinic").toUpperCase(),
+        role: v("role"),
+      });
+      setSent({ clinic: done.clinic, role: done.role, email: v("email") });
+    } catch (err) {
+      setBanner(
+        err instanceof ApiError
+          ? err.message
+          : "Could not send the request. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (sent) {
@@ -68,6 +99,11 @@ export default function CreateAccountForm() {
       <h2 id="t-signup">Create an account</h2>
       <p className="sub">Request access to your clinic&apos;s CRM.</p>
       <form onSubmit={submit} noValidate>
+        {banner && (
+          <div className="banner err" role="alert">
+            {banner}
+          </div>
+        )}
         <div className="row2">
           <label>
             Full name
@@ -96,22 +132,24 @@ export default function CreateAccountForm() {
         </label>
         <div className="row2">
           <label>
-            Clinic
-            <select name="clinic" defaultValue="" aria-invalid={!!errors.clinic}>
-              <option value="">Select clinic</option>
-              {CLINICS.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-              <option disabled>Clinic 4 (coming soon)</option>
-            </select>
+            Clinic code
+            <input
+              name="clinic"
+              placeholder="e.g. CL01"
+              maxLength={4}
+              autoCapitalize="characters"
+              aria-invalid={!!errors.clinic}
+            />
             <FieldError message={errors.clinic} />
           </label>
           <label>
             Role
             <select name="role" defaultValue="" aria-invalid={!!errors.role}>
               <option value="">Select role</option>
-              {ROLES.map((r) => (
-                <option key={r}>{r}</option>
+              {ROLES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
               ))}
             </select>
             <FieldError message={errors.role} />
@@ -152,8 +190,8 @@ export default function CreateAccountForm() {
           <InfoIcon />
           Your access starts after your clinic manager approves the request.
         </div>
-        <button className="btn" type="submit">
-          Request access
+        <button className="btn" type="submit" disabled={busy}>
+          {busy ? "Sending…" : "Request access"}
         </button>
       </form>
       <p className="alt">
@@ -164,4 +202,25 @@ export default function CreateAccountForm() {
       </p>
     </section>
   );
+}
+
+/** POST /v1/auth/request-access (no sign-in): the login is made, and waits for approval. */
+async function requestAccess(body: Record<string, string>): Promise<{ clinic: string; role: string }> {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  let res: Response;
+  try {
+    res = await fetch(`${base}/v1/auth/request-access`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, "The CRM server cannot be reached. Check your connection and try again.");
+  }
+  const data: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const detail = (data as { detail?: unknown } | null)?.detail;
+    throw new ApiError(res.status, typeof detail === "string" ? detail : "Please check the form and try again.");
+  }
+  return data as { clinic: string; role: string };
 }
