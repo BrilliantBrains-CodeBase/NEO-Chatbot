@@ -18,6 +18,7 @@ type Member = {
   active: boolean;
   last_seen_at: string | null;
   me: boolean;
+  clinics: string[];
 };
 type Request = {
   id: string;
@@ -30,7 +31,12 @@ type Request = {
   decided_by: string | null;
   decided_at: string | null;
 };
-type Team = { members: Member[]; requests: Request[]; can_manage: boolean };
+type Team = {
+  members: Member[];
+  requests: Request[];
+  can_manage: boolean;
+  managed: Record<string, string>; // clinics you give access to: id -> name
+};
 
 const ROLES: [string, string][] = [
   ["front_desk", "Front Desk"],
@@ -55,6 +61,11 @@ export default function TeamView({ manage }: { manage: boolean }) {
     email: "",
     role: "front_desk",
   });
+  const [inviteClinics, setInviteClinics] = useState<string[] | null>(null); // null: this clinic
+  const [editing, setEditing] = useState<{
+    id: string;
+    clinics: string[];
+  } | null>(null);
   const url = `/v1/crm/team/${clinicId}`;
 
   useEffect(() => {
@@ -248,6 +259,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                   <th style={{ padding: "4px 6px 4px 0" }}>Name</th>
                   <th>Role</th>
                   <th>Status</th>
+                  <th>Clinics</th>
                   <th>Last sign-in</th>
                   {managing && <th />}
                 </tr>
@@ -301,6 +313,83 @@ export default function TeamView({ manage }: { manage: boolean }) {
                           {m.active ? "Active" : "Disabled"}
                         </span>
                       </td>
+                      <td style={{ maxWidth: 220 }}>
+                        {editing?.id === m.id ? (
+                          <div style={{ fontSize: 12.5 }}>
+                            {Object.entries(t.managed).map(([id, name]) => (
+                              <label
+                                key={id}
+                                className="row"
+                                style={{ gap: 4 }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={editing.clinics.includes(id)}
+                                  onChange={(e) =>
+                                    setEditing({
+                                      id: m.id,
+                                      clinics: e.target.checked
+                                        ? [...editing.clinics, id]
+                                        : editing.clinics.filter(
+                                            (c) => c !== id,
+                                          ),
+                                    })
+                                  }
+                                />
+                                {name} ({id})
+                              </label>
+                            ))}
+                            <button
+                              className="btn"
+                              disabled={busy || !editing.clinics.length}
+                              onClick={async () => {
+                                if (
+                                  await call(
+                                    `/members/${m.id}/clinics`,
+                                    { clinics: editing.clinics },
+                                    "Clinics saved",
+                                    "PUT",
+                                  )
+                                )
+                                  setEditing(null);
+                              }}
+                            >
+                              Save
+                            </button>{" "}
+                            <button
+                              className="btn g"
+                              onClick={() => setEditing(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {m.clinics.map((c) => (
+                              <span
+                                key={c}
+                                className="badge b-bk"
+                                style={{ marginRight: 4 }}
+                              >
+                                {t.managed[c] ?? c}
+                              </span>
+                            ))}
+                            {managing &&
+                              !locked &&
+                              Object.keys(t.managed).length > 1 && (
+                                <button
+                                  className="btn g"
+                                  style={{ padding: "2px 8px", fontSize: 12 }}
+                                  onClick={() =>
+                                    setEditing({ id: m.id, clinics: m.clinics })
+                                  }
+                                >
+                                  Edit
+                                </button>
+                              )}
+                          </>
+                        )}
+                      </td>
                       <td className="sub2">{when(m.last_seen_at)}</td>
                       {managing && (
                         <td
@@ -343,6 +432,25 @@ export default function TeamView({ manage }: { manage: boolean }) {
                                 }}
                               >
                                 {m.active ? "Disable" : "Enable"}
+                              </button>{" "}
+                              <button
+                                className="btn g"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Remove ${m.name} from ${clinic}? With no other clinic, their login is deleted too.`,
+                                    )
+                                  )
+                                    void call(
+                                      `/members/${m.id}`,
+                                      undefined,
+                                      `${m.name} removed`,
+                                      "DELETE",
+                                    );
+                                }}
+                              >
+                                Remove
                               </button>
                             </>
                           )}
@@ -398,21 +506,54 @@ export default function TeamView({ manage }: { manage: boolean }) {
               disabled={
                 busy ||
                 invite.name.trim().length < 2 ||
-                !invite.email.includes("@")
+                !invite.email.includes("@") ||
+                inviteClinics?.length === 0
               }
               onClick={async () => {
                 const body = {
                   full_name: invite.name.trim(),
                   email: invite.email.trim(),
                   role: invite.role,
+                  clinics: inviteClinics ?? (clinicId ? [clinicId] : []),
                 };
-                if (await call("/invite", body, `Invite sent to ${body.email}`))
+                if (
+                  await call("/invite", body, `Invite sent to ${body.email}`)
+                ) {
                   setInvite({ name: "", email: "", role: "front_desk" });
+                  setInviteClinics(null);
+                }
               }}
             >
               Send invite
             </button>
           </div>
+          {t && Object.keys(t.managed).length > 1 && (
+            <div
+              className="row"
+              style={{ gap: 12, flexWrap: "wrap", marginTop: 8, fontSize: 13 }}
+            >
+              <b>Clinics:</b>
+              {Object.entries(t.managed).map(([id, name]) => {
+                const chosen = inviteClinics ?? (clinicId ? [clinicId] : []);
+                return (
+                  <label key={id} className="row" style={{ gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={chosen.includes(id)}
+                      onChange={(e) =>
+                        setInviteClinics(
+                          e.target.checked
+                            ? [...chosen, id]
+                            : chosen.filter((c) => c !== id),
+                        )
+                      }
+                    />
+                    {name} ({id})
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
     </div>
