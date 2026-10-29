@@ -6,6 +6,7 @@ import { useCrm } from "@/components/crm/CrmProvider";
 import OnlineSetup from "./OnlineSetup";
 import SheetsPanel from "./SheetsPanel";
 import FormsPanel from "./FormsPanel";
+import GmailPanel from "./GmailPanel";
 import WebhooksPanel from "./WebhooksPanel";
 import WhatsAppPanel from "./WhatsAppPanel";
 
@@ -107,6 +108,12 @@ export default function IntegrationsView() {
               )}
               {i.id === "webhooks" && clinicId && (
                 <WebhooksPanel clinicId={clinicId} />
+              )}
+              {i.id === "email" && clinicId && (
+                <GmailPanel
+                  url={`/v1/crm/console/${clinicId}/integrations/email`}
+                  fallbackNote="Until then, emails come from the BB Gmail (if BB connected one)."
+                />
               )}
               {i.id === "forms" && clinicId && (
                 <FormsPanel clinicId={clinicId} />

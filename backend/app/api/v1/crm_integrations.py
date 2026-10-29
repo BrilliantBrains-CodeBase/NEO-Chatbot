@@ -45,6 +45,7 @@ async def integrations(
     )
     sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
     wa = await pool.fetchval("select 1 from app.whatsapp_accounts where clinic_id = $1", clinic)
+    gmail = await pool.fetchval("select address from app.email_senders where clinic_id = $1", clinic)
     forms = await pool.fetchrow(
         """select count(*) added, count(*) filter (where active) on_, max(last_seen_at) last,
              (select count(*) from app.lead_form_log where clinic_id = $1 and ok
@@ -103,10 +104,10 @@ async def integrations(
             last=None,
         ),
         Integration(
-            id="email", name="Email (Gmail)", does="Patient emails (request received, confirmed) and staff "
-            "alerts.",
-            state="not_built",
-            detail=["Emails are queued but not sent yet: the sender is not built."],
+            id="email", name="Email (Gmail)", does="The clinic's own Gmail: staff login codes now; patient "
+            "emails and staff alerts next.",
+            state="connected" if gmail else "not_connected",
+            detail=[f"Sending from {gmail}" if gmail else "Connect the clinic's Gmail (App password)"],
             last=None,
         ),
     ]  # fmt: skip
