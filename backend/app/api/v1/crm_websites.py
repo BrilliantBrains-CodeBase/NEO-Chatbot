@@ -27,6 +27,7 @@ class Website(BaseModel):
     status: Literal["pending", "approved", "rejected"]
     pages_mode: Literal["all", "only", "except"]
     pages: list[str]
+    capture_forms: bool  # the chatbot script also sends this site's own form submissions as leads
     added_by: str | None
     decided_by: str | None
     decided_at: str | None
@@ -84,6 +85,7 @@ async def _list(clinic: str) -> list[Website]:
             status=r["status"],
             pages_mode=r["pages_mode"],
             pages=list(r["pages"]),
+            capture_forms=r["capture_forms"],
             added_by=r["added"],
             decided_by=r["decided"],
             decided_at=r["decided_at"].isoformat() if r["decided_at"] else None,
@@ -175,6 +177,23 @@ async def website_pages(
         user, clinic,
         "update app.clinic_websites set pages_mode = $3, pages = $4 where clinic_id = $1 and id = $2::uuid",
         clinic, site, body.pages_mode, body.pages,
+    )  # fmt: skip
+
+
+class Capture(BaseModel):
+    on: bool
+
+
+@router.put("/{clinic}/websites/{site}/capture", response_model=list[Website])
+async def website_capture(
+    user: Annotated[Staff, Depends(staff)], clinic: str, site: str, body: Capture
+) -> list[Website]:
+    """Auto-capture on or off: the chatbot script on this site also sends its form submissions as leads."""
+    await _manager(user, clinic)
+    return await _change(
+        user, clinic,
+        "update app.clinic_websites set capture_forms = $3 where clinic_id = $1 and id = $2::uuid",
+        clinic, site, body.on,
     )  # fmt: skip
 
 

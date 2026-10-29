@@ -13,12 +13,13 @@ import time
 import zlib
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, unquote_to_bytes
+from urllib.parse import quote, unquote_to_bytes, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response
 
 from app.api.v1.crm_console import Appearance, Template
+from app.api.v1.crm_sheets import _lead_from_row
 from app.chat import guard
 from app.core.config import get_settings
 from app.core.db import get_pool
@@ -61,20 +62,112 @@ def page_shown(mode: str, pages: list[str], path: str) -> bool:
 
 @router.get("/show")
 async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool]:
+    """Should the chatbot show on this page, and should the page's own forms be sent as leads (capture)?"""
+    shown = await _shown(request, clinic, path)
+    capture = await _capture_site(clinic, request.headers.get("origin") or "") is not None
+    return {"show": shown, "capture": capture}
+
+
+# Auto-capture: a form field's name (or label) -> our field. First match wins; the rest go in the notes.
+GUESS = [
+    ("email", re.compile(r"e-?mail", re.I)),
+    ("phone", re.compile(r"phone|mobile|tel\b|contact.?(no|num)|whats.?app|cell", re.I)),
+    ("name", re.compile(r"name", re.I)),
+    ("treatment", re.compile(r"treatment|service|department|special|doctor|concern|procedure", re.I)),
+    ("notes", re.compile(r"message|comment|query|question|note|description|detail|problem|reason", re.I)),
+]
+
+
+def guess(fields: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Which form field is the name, phone, email, treatment and message (by its name, else its value).
+    Returns (values, mapping) ready for a lead: a first and a last name become one Name."""
+    values = dict(fields)
+    first = next((k for k in values if re.search(r"first.?name|fname", k, re.I)), None)
+    last = next((k for k in values if re.search(r"last.?name|surname|lname", k, re.I)), None)
+    if first and last:
+        values["Name"] = f"{values.pop(first)} {values.pop(last)}"
+    mapping: dict[str, str] = {}
+    for field, rule in GUESS:
+        key = next((k for k in values if k not in mapping and rule.search(k)), None)
+        if key is None and field == "email":
+            key = next((k for k, v in values.items() if k not in mapping and EMAIL.fullmatch(v)), None)
+        if key is None and field == "phone":
+            key = next((k for k, v in values.items() if k not in mapping and PHONE.fullmatch(v)), None)
+        if key is not None:
+            mapping[key] = field
+    return values, mapping
+
+
+EMAIL = re.compile(r"[^\s@]+@[^\s@]+\.[^\s@]{2,}")
+PHONE = re.compile(r"\+?[\d\s()-]{10,18}")
+
+
+@router.post("/form")
+async def captured_form(request: Request, clinic: str) -> dict[str, bool]:
+    """A form submitted on the clinic's approved website (auto-capture on), sent by the chatbot script.
+    It becomes a lead (source Website form) when it has a name and a phone or email."""
+    origin = request.headers.get("origin") or ""
+    site = await _capture_site(clinic, origin)
+    ip = guard.client_ip(request.headers, request.client.host if request.client else None)
+    if site is None or not guard.limiter.allow(f"form:{ip}", 5):
+        return {"ok": False}
+    try:
+        sent = json.loads((await request.body())[:50_000] or b"{}")
+    except ValueError:
+        return {"ok": False}
+    raw = sent.get("fields") if isinstance(sent, dict) else None
+    if not isinstance(raw, dict):
+        return {"ok": False}
+    items = list(raw.items())[:60]
+    fields = {str(k).strip()[:100]: str(v).strip()[:1000] for k, v in items if str(v).strip()}
+    values, mapping = guess(fields)
+    page = str(sent.get("page") or "")[:300]
+    values |= {"Page": page} if page.startswith(site) else {}
+    utm = sent.get("utm") if isinstance(sent.get("utm"), dict) else {}
+    values |= {str(k)[:40]: str(v)[:200] for k, v in utm.items() if str(k).startswith("utm_")}
+    if values.get("utm_campaign"):
+        mapping["utm_campaign"] = "campaign"
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        sql = "select id, lead_assignment from app.clinics where id = $1 and active"
+        row = await conn.fetchrow(sql, clinic)
+        if row is None:
+            return {"ok": False}
+        tab = {"tab": "auto-capture", "mapping": mapping, "date_order": None}
+        name = "Website form: " + (urlsplit(page).path or "/") if page else "Website form"
+        try:
+            await _lead_from_row(conn, row, name[:80], tab, {"values": values}, "website_form")
+        except ValueError:
+            return {"ok": False}
+    return {"ok": True}
+
+
+async def _capture_site(clinic: str, origin: str) -> str | None:
+    """The approved website (its origin) whose own forms are sent as leads, if this page's site is one."""
+    host = origin.rstrip("/").replace("://www.", "://")
+    found = await (await get_pool()).fetchval(
+        """select origin from app.clinic_websites where clinic_id = $1 and status = 'approved'
+             and capture_forms and replace(origin, '://www.', '://') = $2""",
+        clinic, host,
+    )  # fmt: skip
+    return str(found) if found else None
+
+
+async def _shown(request: Request, clinic: str, path: str) -> bool:
     """Should the chatbot show on this page? Only on the clinic's approved website (the page's own Origin)
     and on the pages its rule allows, unless the clinic switched it off (Appearance → Enabled, as published).
     The loader asks once per page."""
     origin = (request.headers.get("origin") or "").rstrip("/")
     known = await guard.get_clinic(clinic)
     if known is None or not guard.origin_allowed(known, origin):
-        return {"show": False}
+        return False
     off = await (await get_pool()).fetchval(
         "select published->'appearance'->'look'->>'enabled' = 'false' from app.clinic_settings "
         "where clinic_id = $1",
         clinic,
     )
     if off:
-        return {"show": False}
+        return False
     host = origin.replace("://www.", "://")
     site = await (await get_pool()).fetchrow(
         """select pages_mode, pages from app.clinic_websites where clinic_id = $1 and status = 'approved'
@@ -82,8 +175,8 @@ async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool
         clinic, host,
     )  # fmt: skip
     if site is None:  # e.g. a local test page in development
-        return {"show": True}
-    return {"show": page_shown(site["pages_mode"], list(site["pages"]), path[:300])}
+        return True
+    return page_shown(site["pages_mode"], list(site["pages"]), path[:300])
 
 
 async def _published_look(clinic: str) -> dict[str, Any] | None:

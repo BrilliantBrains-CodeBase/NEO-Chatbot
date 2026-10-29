@@ -13,6 +13,7 @@ type Site = {
   status: "pending" | "approved" | "rejected";
   pages_mode: "all" | "only" | "except";
   pages: string[];
+  capture_forms: boolean;
   added_by: string | null;
   decided_by: string | null;
   decided_at: string | null;
@@ -199,6 +200,33 @@ export default function WebsiteInstallView() {
             busy={busy}
             onSave={(p) => call(`/${s.id}/pages`, "PUT", p, "Pages saved")}
           />
+          {s.status === "approved" && (
+            <label
+              className="row"
+              style={{ gap: 6, marginTop: 8, fontSize: 13, cursor: "pointer" }}
+            >
+              <input
+                type="checkbox"
+                disabled={busy}
+                checked={s.capture_forms}
+                onChange={(e) =>
+                  call(
+                    `/${s.id}/capture`,
+                    "PUT",
+                    { on: e.target.checked },
+                    e.target.checked
+                      ? "This site's forms now come in as leads"
+                      : "Form capture off",
+                  )
+                }
+              />
+              Also send this site&apos;s own forms to the CRM as leads
+              <span className="sub2">
+                (any form with a phone or email; passwords and card fields are
+                never sent)
+              </span>
+            </label>
+          )}
         </div>
       ))}
       {list && clinicId && <EmbedCode clinicId={clinicId} sites={list} />}

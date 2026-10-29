@@ -191,12 +191,54 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
           start(r.appearance ?? null, r.template ?? null, r.contact ?? null),
       )
       .catch(() => start(null));
+  // Website install → "Also send this site's own forms": each form submitted on the page that has a phone or
+  // email goes to the CRM as a lead (in the background; the site's form works as before). Never passwords,
+  // card fields, hidden fields or files.
+  const capture = () =>
+    document.addEventListener(
+      'submit',
+      (e) => {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        const fields: Record<string, string> = {};
+        for (const el of Array.from(form.elements) as HTMLInputElement[]) {
+          const type = (el.type || '').toLowerCase();
+          const key = (
+            el.name ||
+            el.id ||
+            el.getAttribute('aria-label') ||
+            el.placeholder ||
+            el.labels?.[0]?.textContent ||
+            ''
+          ).trim();
+          if (!key || !el.value || /password|hidden|file|submit|button|reset/.test(type)) continue;
+          if (
+            /card|cvv|cvc|otp|pass|pin\b/i.test(key) ||
+            ((type === 'checkbox' || type === 'radio') && !el.checked)
+          )
+            continue;
+          fields[key.slice(0, 100)] = el.value.slice(0, 1000);
+        }
+        if (!Object.values(fields).some((v) => v.includes('@') || v.replace(/\D/g, '').length >= 10)) return;
+        const utm: Record<string, string> = {};
+        new URLSearchParams(location.search).forEach((v, k) => k.startsWith('utm_') && (utm[k] = v));
+        const page = location.href.split('#')[0];
+        navigator.sendBeacon(
+          `${apiBase}/v1/widget/form?clinic=${clinicId}`,
+          JSON.stringify({ fields, page, utm }),
+        );
+      },
+      true,
+    );
   const ready = () => {
     // dev playground: no approved website to check; the look comes from the local backend (or ?api=)
     if (import.meta.env.DEV) return look(new URLSearchParams(location.search).get('api') || DEV_API);
     fetch(`${apiBase}/v1/widget/show?clinic=${clinicId}&path=${encodeURIComponent(location.pathname)}`)
       .then((r) => r.json())
-      .then((r: { show?: boolean }) => (r.show ? look(apiBase) : undefined))
+      .then((r: { show?: boolean; capture?: boolean }) => {
+        if (r.capture) capture();
+        return r.show ? look(apiBase) : undefined;
+      })
       .catch((err) => console.warn('[neo-widget]', err));
   };
   if (document.body) ready();
