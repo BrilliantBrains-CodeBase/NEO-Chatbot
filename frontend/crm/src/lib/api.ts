@@ -6,6 +6,9 @@ import { supabase } from "./supabase";
 // person's token. The backend checks the token and the person's role for that clinic on every call.
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
+/** The backend's answer when 2-step login needs this sign-in's emailed code (app/crm/auth.py CODE_NEEDED). */
+export const CODE_NEEDED = "Enter the sign-in code sent to your email.";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

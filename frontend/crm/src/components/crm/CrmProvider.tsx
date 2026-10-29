@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, ApiError, type Inbox, type InboxItem, type Me } from "@/lib/api";
+import { api, ApiError, CODE_NEEDED, type Inbox, type InboxItem, type Me } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
   CLINICS,
@@ -89,6 +89,10 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     api<Me>("/v1/crm/me")
       .then((m) => live && setMe(m))
       .catch(async (e: unknown) => {
+        if (e instanceof ApiError && e.message === CODE_NEEDED) {
+          router.replace("/verify"); // 2-step login: this sign-in still needs its emailed code
+          return;
+        }
         if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
           await supabase().auth.signOut();
           router.replace("/sign-in");

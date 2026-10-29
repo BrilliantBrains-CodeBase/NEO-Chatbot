@@ -25,6 +25,8 @@ ROLE_LABEL = {
     "doctor": "Doctor",
 }
 NO_ACCESS = "Your account has no CRM access yet. Your clinic manager or BB Admin must approve it."
+# 2-step login (migration 0031): the CRM shows its "Enter the code" page on this exact message.
+CODE_NEEDED = "Enter the sign-in code sent to your email."
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,7 @@ class Staff:
     email: str
     roles: dict[str, str]  # clinic id -> role
     bb_admin: bool  # sees and manages every clinic
+    session: str = ""  # Supabase's id of this sign-in (2-step login marks it verified)
 
 
 @lru_cache
@@ -58,7 +61,24 @@ def _unauthorized(message: str) -> HTTPException:
 
 
 async def staff(authorization: str = Header(default="")) -> Staff:
-    """FastAPI dependency for every CRM route: the signed-in staff member, or 401 / 403."""
+    """FastAPI dependency for every CRM route: the signed-in staff member, or 401 / 403. When 2-step login is
+    on for one of their roles, this sign-in's emailed code must have been verified (else 403 CODE_NEEDED)."""
+    user = await signed_in(authorization)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """select (select two_step_roles from app.platform where id = 1) roles,
+             exists (select 1 from app.login_sessions
+                     where session_id::text = $1 and user_id::text = $2) ok""",
+        user.session, user.id,
+    )  # fmt: skip
+    needed = set(row["roles"] or []) & set(user.roles.values()) if row else set()
+    if needed and not row["ok"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, CODE_NEEDED)
+    return user
+
+
+async def signed_in(authorization: str = Header(default="")) -> Staff:
+    """The password step only (valid sign-in, approved access): for sending and checking the 2-step code."""
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise _unauthorized("Sign in to use the CRM")
@@ -85,4 +105,5 @@ async def staff(authorization: str = Header(default="")) -> Staff:
         email=profile["email"],
         roles=by_clinic,
         bb_admin="bb_admin" in by_clinic.values(),
+        session=str(claims.get("session_id") or ""),
     )

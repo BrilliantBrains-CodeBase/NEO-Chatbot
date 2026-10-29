@@ -77,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_forms.router, prefix="/v1")
     app.include_router(crm_team.router, prefix="/v1")
     app.include_router(crm_security.router, prefix="/v1")
+    app.include_router(crm_security.codes, prefix="/v1")
     app.include_router(crm_email.router, prefix="/v1")
     app.include_router(crm_webhooks.router, prefix="/v1")
     app.include_router(crm_whatsapp.router, prefix="/v1")
