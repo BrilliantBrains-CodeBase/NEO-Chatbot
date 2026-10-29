@@ -235,6 +235,7 @@ class LeadDetail(LeadRow):
     chat: list[ChatLine]  # the latest chat, oldest first
 
 
+SOURCE_FILTER = "^(chatbot|meta_ads|google_ads|manual|whatsapp|website_form)$"
 LEAD_SELECT = """select l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
     d.name doctor, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to, l.contact_count,
     l.last_contact_at, l.created_at
@@ -258,7 +259,7 @@ async def leads(
     user: Annotated[Staff, Depends(staff)],
     clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
     stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,
-    source: Annotated[str | None, Query(pattern="^(chatbot|meta_ads|google_ads|manual|whatsapp)$")] = None,
+    source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
     q: Annotated[str, Query(max_length=100)] = "",
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,

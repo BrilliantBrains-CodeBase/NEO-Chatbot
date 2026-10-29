@@ -127,7 +127,7 @@ async def test_integrations_status_never_shows_keys(
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/console/CL01/integrations", headers=headers)
     assert r.status_code == 200
-    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "webhooks", "whatsapp", "email"]
+    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "forms", "webhooks", "whatsapp", "email"]
     s = get_settings()
     for key in (s.calcom_api_key, s.sheet_webhook_secret, s.interakt_api_key):
         assert not key or key not in r.text  # keys are never sent

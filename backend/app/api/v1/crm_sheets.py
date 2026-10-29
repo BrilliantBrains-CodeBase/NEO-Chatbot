@@ -329,7 +329,7 @@ async def _lead_from_row(
         })  # fmt: skip
     data = {
         "source": source,
-        "via": "google_sheet" if source == "meta_ads" else "webhook",
+        "via": {"meta_ads": "google_sheet", "website_form": "website_form"}.get(source, "webhook"),
         "sheet": sheet_name,
         "tab": tab["tab"],
         "row": r.get("row"),

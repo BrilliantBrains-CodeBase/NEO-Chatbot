@@ -9,6 +9,7 @@ from app.api.v1 import (
     chat,
     crm,
     crm_console,
+    crm_forms,
     crm_inbox,
     crm_integrations,
     crm_online,
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_integrations.router, prefix="/v1")
     app.include_router(crm_online.router, prefix="/v1")
     app.include_router(crm_sheets.router, prefix="/v1")
+    app.include_router(crm_forms.router, prefix="/v1")
     app.include_router(crm_webhooks.router, prefix="/v1")
     app.include_router(crm_whatsapp.router, prefix="/v1")
     app.include_router(crm_whatsapp.links, prefix="/v1")

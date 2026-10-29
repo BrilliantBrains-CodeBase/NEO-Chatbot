@@ -6,7 +6,7 @@ import Live, { Today } from "@/components/crm/Live";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type Count, type Dashboard } from "@/lib/api";
 
-const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp" };
+const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp", website_form: "Website form" };
 const STAGE: Record<string, [string, string]> = {
   new: ["New", "#2563EB"],
   follow_up: ["Follow Up", "#D97706"],

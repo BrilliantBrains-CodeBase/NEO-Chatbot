@@ -45,6 +45,13 @@ async def integrations(
     )
     sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
     wa = await pool.fetchval("select 1 from app.whatsapp_accounts where clinic_id = $1", clinic)
+    forms = await pool.fetchrow(
+        """select count(*) added, count(*) filter (where active) on_, max(last_seen_at) last,
+             (select count(*) from app.lead_form_log where clinic_id = $1 and ok
+              and at > now() - interval '7 days') n
+           from app.lead_forms where clinic_id = $1""",
+        clinic,
+    )
     hooks = await pool.fetchrow(
         """select count(*) filter (where direction = 'send') sends,
              count(*) filter (where direction = 'receive') gets,
@@ -71,6 +78,14 @@ async def integrations(
             state="connected" if sheets_added else "not_connected",
             detail=[f"{sheets_added} sheet(s) added", f"{sheet['n']} leads received in the last 7 days"],
             last=sheet["last"].isoformat() if sheet["last"] else None,
+        ),
+        Integration(
+            id="forms", name="Website forms", does="The clinic's own forms on its website and landing pages: "
+            "each submission comes straight in as a lead (source Website form).",
+            state="connected" if forms["on_"] else "not_connected",
+            detail=[f"{forms['added']} form(s) added, {forms['on_']} on",
+                    f"{forms['n']} leads received in the last 7 days"],
+            last=forms["last"].isoformat() if forms["last"] else None,
         ),
         Integration(
             id="webhooks", name="Webhooks",

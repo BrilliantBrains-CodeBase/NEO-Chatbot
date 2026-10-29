@@ -14,7 +14,7 @@ export const STAGE_LABEL: Record<string, [string, string]> = {
   lost: ["Lost", "b-lo"],
   invalid: ["Invalid", "b-in"],
 };
-const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp" };
+const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp", website_form: "Website form" };
 const EVENT: Record<string, string> = { contact: "Contacted", stage_change: "Stage changed", assigned: "Assigned", call: "Call", note: "Note", request: "Request", appointment: "Appointment" };
 
 const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
