@@ -10,6 +10,7 @@ import type { ChatEvent, ChatRequest, ChatResponse, Choice, InputMode } from './
 import { Panel } from './components/Panel';
 import { Messages, type Entry } from './components/Messages';
 import { Composer } from './components/Composer';
+import { setMenuTemplate } from './components/Blocks';
 import { loadHistory, saveHistory } from './history';
 import t from './i18n/en.json';
 
@@ -181,6 +182,7 @@ export function mountApp(face: Face) {
     return;
   }
   injectStyles(handle.shadow, baseCss + handle.lookCss);
+  setMenuTemplate(handle.template);
   const params = new URLSearchParams(location.search);
   const apiBase = import.meta.env.DEV ? params.get('api') || DEV_API : handle.apiBase;
   const api = createApi(apiBase, { fetchImpl: devFetch(face.clinicId) });

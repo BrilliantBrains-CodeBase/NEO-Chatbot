@@ -1,6 +1,6 @@
 // Shared handle between the loader (<id>.js) and the full widget (<id>.app.js).
 // The loader creates it; the widget picks it up from window.__neoWidgets when its file runs.
-import type { Appearance } from './types';
+import type { Appearance, MenuTemplate } from './types';
 
 export interface WidgetHandle {
   clinicId: string;
@@ -12,6 +12,7 @@ export interface WidgetHandle {
   // Dashboard → Appearance as published (null: the built-in look), and its CSS for the full widget.
   appearance: Appearance | null;
   lookCss: string;
+  template: MenuTemplate | null; // Dashboard → Templates as published
   setOpen(open: boolean): void;
   // Set by the widget once mounted, so the loader can tell it when the launcher is clicked.
   onOpenChange?: (open: boolean) => void;

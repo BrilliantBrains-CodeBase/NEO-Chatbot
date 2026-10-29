@@ -18,7 +18,7 @@ from urllib.parse import unquote_to_bytes
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import FileResponse, Response
 
-from app.api.v1.crm_console import Appearance
+from app.api.v1.crm_console import Appearance, Template
 from app.chat import guard
 from app.core.config import get_settings
 from app.core.db import get_pool
@@ -89,8 +89,8 @@ async def _published_look(clinic: str) -> dict[str, Any] | None:
 
 @router.get("/config/{clinic}")
 async def config(request: Request, clinic: str) -> dict[str, Any]:
-    """The clinic's published Dashboard → Appearance, for the widget (None until it is first published:
-    the widget keeps its built-in look). Nothing private: the same as any visitor sees."""
+    """The clinic's published Dashboard → Appearance and Templates (the menu's style), for the widget (None
+    until first published: the widget keeps its built-in look). Nothing private: what any visitor sees."""
     if await guard.get_clinic(clinic) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
     look = await _published_look(clinic)
@@ -98,7 +98,11 @@ async def config(request: Request, clinic: str) -> dict[str, Any]:
         base = (get_settings().public_url or str(request.base_url)).rstrip("/")
         version = zlib.crc32(look["look"]["logo"].encode())
         look["look"]["logo"] = f"{base}/v1/widget/logo/{clinic}?v={version:x}"
-    return {"appearance": look}
+    tpl = await (await get_pool()).fetchval(
+        "select published->'template' from app.clinic_settings where clinic_id = $1", clinic
+    )
+    template = Template.model_validate(json.loads(tpl)).model_dump() if tpl and tpl != "null" else None
+    return {"appearance": look, "template": template}
 
 
 @router.get("/logo/{clinic}")

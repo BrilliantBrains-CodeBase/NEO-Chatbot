@@ -5,7 +5,7 @@ import launcherCss from './styles/launcher.css?inline';
 import { launcher_label, open_chat, close_chat } from './i18n/en.json';
 import { createShadowHost, injectStyles, loadFont } from './shadow';
 import { getHandle, setHandle, type WidgetHandle } from './registry';
-import type { Appearance } from './types';
+import type { Appearance, MenuTemplate } from './types';
 
 const FONT_URL = 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap';
 const LABEL_DELAY_MS = 8000;
@@ -64,7 +64,7 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
   const apiBase = script?.dataset.api || (src ? new URL(src).origin : location.origin);
   const appUrl = src.replace(/\.js(\?.*)?$/, '.app.js$1');
 
-  const start = (appearance: Appearance | null) => {
+  const start = (appearance: Appearance | null, template: MenuTemplate | null = null) => {
     const css = appearance ? lookCss(appearance) : '';
     loadFont(FONT_URL);
     const { shadow } = createShadowHost(clinicId);
@@ -104,6 +104,7 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
       isOpen: false,
       appearance,
       lookCss: css,
+      template,
       setOpen(open) {
         handle.isOpen = open;
         root.classList.toggle('is-open', open);
@@ -134,7 +135,9 @@ export function boot({ clinicId, themeCss, loadApp }: LoaderOptions) {
   const look = (base: string) =>
     fetch(`${base}/v1/widget/config/${clinicId}`)
       .then((r) => r.json())
-      .then((r: { appearance?: Appearance | null }) => start(r.appearance ?? null))
+      .then((r: { appearance?: Appearance | null; template?: MenuTemplate | null }) =>
+        start(r.appearance ?? null, r.template ?? null),
+      )
       .catch(() => start(null));
   const ready = () => {
     // dev playground: no approved website to check; the look comes from the local backend (or ?api=)

@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import type { ChipsBlock, Choice, DoctorCardBlock, MenuBlock, UiBlock } from '../types';
+import type { ChipsBlock, Choice, DoctorCardBlock, MenuBlock, MenuTemplate, UiBlock } from '../types';
 import { Icon } from '../icons';
 import t from '../i18n/en.json';
 import { Calendar } from './Calendar';
@@ -39,15 +39,24 @@ function Tap({ choice, class: cls, onChoose }: { choice: Choice; class: string; 
   );
 }
 
-// Main menu. Arya: 3-column cards, Emergency across the full row.
+// The clinic's published Dashboard → Templates (set once when the widget mounts); null: the built-in menu.
+let menuTemplate: MenuTemplate | null = null;
+export const setMenuTemplate = (tpl: MenuTemplate | null) => (menuTemplate = tpl);
+
+// Main menu. Built in (Arya): 3-column cards, Emergency across the full row. With a template: tiles, pills or
+// cards, its columns, and its main button filled.
 function Menu({ block, onChoose }: { block: MenuBlock; onChoose: OnChoose }) {
+  const tpl = menuTemplate;
   return (
-    <div class={`nb-menu ${block.layout}`}>
+    <div
+      class={`nb-menu ${tpl ? 't-' + tpl.id : block.layout}`}
+      style={tpl ? { '--cols': tpl.columns } : undefined}
+    >
       {block.items.map((item) => (
         <Tap
           key={item.label}
           choice={item}
-          class={`nb-tile${item.variant ? ' ' + item.variant : ''}`}
+          class={`nb-tile${item.variant ? ' ' + item.variant : ''}${tpl && item.label === tpl.filled_button ? ' fill' : ''}`}
           onChoose={onChoose}
         />
       ))}

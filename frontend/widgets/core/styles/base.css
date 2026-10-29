@@ -460,6 +460,55 @@
   gap: 8px;
 }
 
+/* Dashboard → Templates. Tiles: the cards above, in its columns. Cards: white with an icon beside the label.
+   Pills: rounded quick replies that wrap. "fill": the one main button, in the main colour. */
+.nb-menu.t-tiles,
+.nb-menu.t-cards {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), 1fr);
+  gap: 6px;
+}
+.nb-menu.t-cards .nb-tile {
+  flex-direction: row;
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  text-align: left;
+}
+.nb-menu.t-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.nb-menu.t-pills .nb-tile {
+  flex-direction: row;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--rose);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--rose-d);
+  font-size: 12.5px;
+}
+.nb-menu.t-pills .nb-tile .ic {
+  display: none;
+}
+.nb-menu.t-pills .nb-tile.sos {
+  border-color: #e5484d;
+  color: #b42318;
+}
+.nb-menu .nb-tile.fill {
+  background: var(--rose);
+  border-color: var(--rose);
+  color: #fff;
+}
+.nb-menu .nb-tile.fill .ic {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 /* Sub buttons: pills (mockup). Solid when selected or primary; WhatsApp has a green border. */
 .nb-chips {
   display: flex;

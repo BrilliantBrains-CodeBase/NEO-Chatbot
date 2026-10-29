@@ -84,6 +84,13 @@ export interface ChatResponse {
   quick?: Choice[];
 }
 
+// Dashboard → Templates as published: how the main menu looks, and the one button filled in the main colour.
+export interface MenuTemplate {
+  id: 'tiles' | 'pills' | 'cards';
+  columns: 2 | 3;
+  filled_button: string;
+}
+
 // Dashboard → Appearance as the clinic published it (GET /v1/widget/config/<clinic>; null: the built-in look).
 export interface Appearance {
   look: { name: string; avatar_letter: string; logo: string; location: string; tagline: string };
