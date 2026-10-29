@@ -8,7 +8,7 @@ from typing import Any
 import asyncpg
 
 from app.chat import context, embed, engine, flows, intents, kb, leads, store, understand
-from app.chat.content import content
+from app.chat.content import live, refresh
 from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
 from app.chat.slots import Mode, free_slots_range
@@ -21,6 +21,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         state = await store.open_session(conn, req)
+        await refresh(conn, req.client_id)  # Dashboard → Menu buttons, as published
         said = store.patient_text(req, state)
         req = context.as_text(req)  # a button that asks a question: as if typed
         started = time.perf_counter()
@@ -59,7 +60,7 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         keep = [c for c in state.get("shown", []) if c not in new]
         turn.state["shown"] = (new + keep)[:60]
         turn.state["last_shown"] = new  # typed text is matched against these only
-        c = content(req.client_id)
+        c = live(req.client_id)
         if c is not None:
             bot = [m.text for m in turn.reply.messages]
             context.remember(state, turn.state, req, said, bot, turn.reply.ui, turn.answered_by, question, c)
@@ -75,7 +76,7 @@ async def _slots(
 ) -> dict[str, list[str]] | None:
     """Free slots for the booking window, loaded only while a booking or reschedule is open."""
     flow = state.get("flow")
-    c = content(req.client_id)
+    c = live(req.client_id)
     if not flow or c is None or flow.get("kind") not in ("book", "online", "reschedule"):
         return None
     today, now = flows.ist_now()
@@ -110,7 +111,7 @@ async def _kb(
     if context.is_vague(typed):  # "tell me more": the engine reads the chat, nothing to search
         steps.append({"step": "context", "result": "follow-up to the last reply"})
         return None
-    c = content(req.client_id)
+    c = live(req.client_id)
     if c is not None and understand.not_offered(typed, c):  # never a lookalike answer ("laser hair removal")
         steps.append({"step": "not_offered", "result": "matched"})
         return None
@@ -157,7 +158,7 @@ async def _intent(
         return None
     t = time.perf_counter()
     hit, score = await intents.find(conn, req.client_id, question)
-    c = content(req.client_id)
+    c = live(req.client_id)
     general = c is not None and understand.route(question, c) in intents.STRICT
     if hit and (answered or general) and hit.how == "meaning" and hit.score < intents.OVERRIDE_MIN * 100:
         # Over an approved answer or a general rule ("treatments"), only a very close phrase may name a more

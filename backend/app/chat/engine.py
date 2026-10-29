@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.chat import context, flows, intents, understand
-from app.chat.content import content
+from app.chat.content import live
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Payload
 from app.chat.store import State
 
@@ -87,7 +87,7 @@ def respond(
     """slots: free slots per day from the database; the service loads them while a booking is open.
     kb_answer: the approved knowledge base answer for typed text, if one matched (service).
     intent: the topic of typed text from approved example phrases, when no rule or answer fitted (service)."""
-    c = content(req.client_id)
+    c = live(req.client_id)
     if c is None:  # a clinic without content yet: greet, never fail
         return Turn(ChatResponse(messages=[BotMessage(text=MAIN_MENU_TEXT)]), "menu", {})
     if slots is not None:
@@ -115,6 +115,8 @@ def respond(
             return _step(flow, flows.button(flow, cfg, action, value))
         # Earlier buttons stay usable (approved mockups), so a tap is checked against the clinic's
         # content, not only the latest buttons: anything that is not a real answer gets the menu again.
+        if action == "go" and value == "treatments":  # Menu buttons: "All treatments"
+            return Turn(all_treatments(c), "flow", {})
         if action == "go" and value in c["nodes"]:
             return Turn(_response(c["nodes"][value]), "flow", {})
         if action == "treat" and value:
@@ -265,7 +267,7 @@ def wants_intent(req: ChatRequest, state: State, question: str, answered: bool =
     """Whether the service should look for the topic in the example phrases: typed text that no keyword rule,
     small talk or follow-up already covers (or only a general rule, which a phrase may make exact), and that
     is not a typed answer to a form step. answered: an approved KB answer was found."""
-    c = content(req.client_id)
+    c = live(req.client_id)
     text = (req.payload.text or "").strip()
     low = " ".join(text.lower().split())
     flow = state.get("flow")
@@ -285,7 +287,7 @@ def asked(req: ChatRequest, state: State) -> str:
     """The typed question as meant in this chat, for the knowledge base search (the service). A typed
     answer to a form step is taken as it is."""
     text = (req.payload.text or "").strip()
-    c = content(req.client_id)
+    c = live(req.client_id)
     flow = state.get("flow")
     in_form = flow and flow["step"] in INPUT_STEPS
     if req.event != "text" or c is None or (in_form and not understand.NOT_A_NAME.search(text.lower())):
@@ -485,7 +487,7 @@ SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose an
 
 def slot_taken(req: ChatRequest, flow: flows.Flow, slots: dict[str, list[str]] | None) -> Turn:
     """The chosen time went to another patient while this one was confirming: pick again, fresh slots."""
-    c = content(req.client_id)
+    c = live(req.client_id)
     assert c is not None  # a flow only runs for a clinic with content
     cfg = {**c["config"], "slots_by_day": slots or {}}
     day_left = flow["date"] in cfg["slots_by_day"]
