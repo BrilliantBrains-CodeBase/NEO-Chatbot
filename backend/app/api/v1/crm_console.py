@@ -455,8 +455,8 @@ async def _load(clinic: str) -> Settings:
         draft_saved["appearance"] = {"look": {"name": bot, "avatar_letter": bot[:1].upper()}}
     draft, published = _filled(draft_saved), _filled(published_saved) if published_saved else {}
     return Settings(
-        clinic=clinic, draft=draft, published=published, version=r["version"] if r else 0,
-        changed=draft != published,
+        clinic=clinic, draft=draft, published=_slim(published), version=r["version"] if r else 0,
+        changed=_to_publish(draft, published) != published,
         published_at=r["published_at"].isoformat() if r and r["published_at"] else None,
         updated_at=r["updated_at"].isoformat() if r else None,
         flow_problems=check_flow(draft["flow"]),
@@ -623,8 +623,23 @@ SMALL_TALK_TARGETS_BY_TOPIC = {
 }
 
 
-# Sections that change only how the chat looks, never what it answers.
-LOOK = {"appearance", "template"}
+# On hold: the workflow canvas (the live chat does not run it yet). Publish keeps its published copy and its
+# draft; its checks and test sets run only when it is published again (remove it from here).
+ON_HOLD = {"flow"}
+
+
+def _to_publish(draft: dict[str, Any], published: dict[str, Any]) -> dict[str, Any]:
+    """What Publish makes live: the draft, except the sections on hold (kept as published)."""
+    return draft | {k: published[k] for k in ON_HOLD if k in published}
+
+
+def _slim(published: dict[str, Any]) -> dict[str, Any]:
+    """The published copy for the Dashboard, without an uploaded logo's data (it is in the draft)."""
+    look = (published.get("appearance") or {}).get("look") or {}
+    if not str(look.get("logo", "")).startswith("data:"):
+        return published
+    appearance = published["appearance"] | {"look": look | {"logo": "(uploaded image)"}}
+    return published | {"appearance": appearance}
 
 
 @router.post("/{clinic}/publish", response_model=Settings)
@@ -634,21 +649,22 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
     current = await _load(clinic)
     if not current.changed:
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing new to publish.")
-    errors = [p for p in current.flow_problems if p.level == "error"]
+    live = _to_publish(current.draft, current.published)
+    flow = live["flow"] != current.published.get("flow")  # the workflow itself changes
+    errors = [p for p in current.flow_problems if p.level == "error"] if flow else []
     if errors:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"Fix the workflow first ({len(errors)} to fix): {errors[0].message}",
         )
-    failed = [c for c in run_checks(current.draft["flow"], _check_context(current.draft)) if not c["ok"]]
+    checks = run_checks(current.draft["flow"], _check_context(current.draft)) if flow else []
+    failed = [c for c in checks if not c["ok"]]
     if failed:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             f"A publish check failed ({len(failed)}): '{failed[0]['name']}' {failed[0]['message']}.",
         )
-    # The test sets must not score below their bar, when what the chat answers changed (not only its look).
-    look_only = all(current.draft[k] == current.published.get(k) for k in current.draft if k not in LOOK)
-    if clinic in TEST_SET_BARS and not look_only:
+    if clinic in TEST_SET_BARS and flow:  # the test sets must not score below their bar
         if not embed.ready():
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "The meaning model is still loading. Please publish in a minute."
@@ -672,15 +688,15 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
         await conn.execute(
             """insert into app.clinic_settings (clinic_id, draft, published, version, published_by,
                  published_at, updated_by)
-               values ($1, $2::jsonb, $2::jsonb, $4, $3::uuid, now(), $3::uuid)
-               on conflict (clinic_id) do update set draft = $2::jsonb, published = $2::jsonb,
+               values ($1, $2::jsonb, $5::jsonb, $4, $3::uuid, now(), $3::uuid)
+               on conflict (clinic_id) do update set draft = $2::jsonb, published = $5::jsonb,
                  version = $4, published_by = $3::uuid, published_at = now()""",
-            clinic, json.dumps(current.draft), user.id, version,
+            clinic, json.dumps(current.draft), user.id, version, json.dumps(live),
         )  # fmt: skip
         await conn.execute(
             """insert into app.clinic_setting_versions (clinic_id, version, settings, published_by)
                values ($1, $2, $3::jsonb, $4::uuid)""",
-            clinic, version, json.dumps(current.draft), user.id,
+            clinic, version, json.dumps(live), user.id,
         )  # fmt: skip
     return await _load(clinic)
 
