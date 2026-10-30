@@ -12,7 +12,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import leads
+from app.chat import leads, main_template
 from app.chat.flows import normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
 from app.crm import webhooks, whatsapp
@@ -35,6 +35,7 @@ async def published(conn: asyncpg.Connection, clinic: str) -> dict[str, Any] | N
     if row is None:
         return None
     raw = {k: json.loads(row[k]) for k in ("chat", "flow", "services", "contact", "reviews") if row[k]}
+    await main_template.apply(conn, clinic, raw)  # a followed canvas: the main's, in this clinic's names
     if not (raw.get("chat") or {}).get("canvas") or not (raw.get("flow") or {}).get("nodes"):
         return None
     pub = _filled(raw)

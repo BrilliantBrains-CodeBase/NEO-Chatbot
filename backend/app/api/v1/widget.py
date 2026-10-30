@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, Response
 
 from app.api.v1.crm_console import Appearance, Template
 from app.api.v1.crm_sheets import _lead_from_row
-from app.chat import guard
+from app.chat import guard, main_template
 from app.core.config import get_settings
 from app.core.db import get_pool
 
@@ -179,13 +179,22 @@ async def _shown(request: Request, clinic: str, path: str) -> bool:
     return page_shown(site["pages_mode"], list(site["pages"]), path[:300])
 
 
+async def _published(clinic: str) -> dict[str, Any]:
+    """The published Appearance, Templates and contact, a followed part being the main template's."""
+    async with (await get_pool()).acquire() as conn:
+        row = await conn.fetchrow(
+            """select published->'appearance' appearance, published->'template' template,
+                 published->'contact' contact from app.clinic_settings where clinic_id = $1""",
+            clinic,
+        )
+        saved = {k: json.loads(row[k]) for k in ("appearance", "template", "contact") if row and row[k]}
+        await main_template.apply(conn, clinic, saved)
+    return {k: v for k, v in saved.items() if v}
+
+
 async def _published_look(clinic: str) -> dict[str, Any] | None:
-    saved = await (await get_pool()).fetchval(
-        "select published->'appearance' from app.clinic_settings where clinic_id = $1", clinic
-    )
-    if not saved or saved == "null":
-        return None
-    return Appearance.model_validate(json.loads(saved) if isinstance(saved, str) else saved).model_dump()
+    saved = (await _published(clinic)).get("appearance")
+    return Appearance.model_validate(saved).model_dump() if saved else None
 
 
 @router.get("/config/{clinic}")
@@ -194,24 +203,19 @@ async def config(request: Request, clinic: str) -> dict[str, Any]:
     until first published: the widget keeps its built-in look). Nothing private: what any visitor sees."""
     if await guard.get_clinic(clinic) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
-    look = await _published_look(clinic)
+    saved = await _published(clinic)
+    look = Appearance.model_validate(saved["appearance"]).model_dump() if saved.get("appearance") else None
     if look and look["look"]["logo"].startswith("data:"):  # an upload: its own file, not in every page view
         base = (get_settings().public_url or str(request.base_url)).rstrip("/")
         version = zlib.crc32(look["look"]["logo"].encode())
         look["look"]["logo"] = f"{base}/v1/widget/logo/{clinic}?v={version:x}"
-    row = await (await get_pool()).fetchrow(
-        "select published->'template' tpl, published->'contact' contact from app.clinic_settings "
-        "where clinic_id = $1",
-        clinic,
-    )
-    tpl = row["tpl"] if row else None
-    template = Template.model_validate(json.loads(tpl)).model_dump() if tpl and tpl != "null" else None
-    return {"appearance": look, "template": template, "contact": _contact(row["contact"] if row else None)}
+    template = Template.model_validate(saved["template"]).model_dump() if saved.get("template") else None
+    return {"appearance": look, "template": template, "contact": _contact(saved.get("contact"))}
 
 
 def _contact(saved: Any) -> dict[str, str]:
     """The mobile contact row's Call and WhatsApp (Clinic info → Contact & hours, as published)."""
-    c = json.loads(saved) if isinstance(saved, str) and saved != "null" else {}
+    c = dict(saved or {})
     wa = re.sub(r"\D", "", c.get("whatsapp") or "")
     text = c.get("whatsapp_message") or ""
     return {

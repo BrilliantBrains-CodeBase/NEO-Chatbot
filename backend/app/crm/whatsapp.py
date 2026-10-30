@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from app.chat import main_template
 from app.core.db import get_pool
 from app.crm import vault
 
@@ -160,13 +161,7 @@ async def link_options(conn: Any, clinic: str) -> dict[str, str]:
 
 async def _menu_links(conn: Any, clinic: str) -> list[tuple[str, str, str]]:
     """The chat's menu buttons that open a link (Dashboard → Menu buttons), published flow first."""
-    flow = _obj(
-        await conn.fetchval(
-            """select coalesce(nullif(published->'flow', 'null'::jsonb), draft->'flow')
-               from app.clinic_settings where clinic_id = $1""",
-            clinic,
-        )
-    )
+    flow = await main_template.live_flow(conn, clinic)
     return [
         (n["id"], b["id"], b["label"])
         for n in flow.get("nodes", [])
@@ -191,13 +186,7 @@ async def resolve(conn: Any, clinic: str, key: str) -> str | None:
         )  # fmt: skip
     elif key.startswith("menu/"):
         _, node, button = (key.split("/") + ["", ""])[:3]
-        flow = _obj(
-            await conn.fetchval(
-                """select coalesce(nullif(published->'flow', 'null'::jsonb), draft->'flow')
-                   from app.clinic_settings where clinic_id = $1""",
-                clinic,
-            )
-        )
+        flow = await main_template.live_flow(conn, clinic)
         url = next(
             (
                 b.get("value")

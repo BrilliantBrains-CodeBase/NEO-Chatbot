@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
 from app.api.v1.crm_team import _give
+from app.chat import main_template
 from app.core.db import get_pool
 from app.crm import supabase_admin
 from app.crm.auth import Staff, staff
@@ -125,9 +126,13 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
         chat["chat"] = {"canvas": bool(chat.get("flow"))}  # runs on the copied canvas
         await conn.execute(
             """insert into app.clinic_settings (clinic_id, draft, published, version, published_by,
-                 published_at, updated_by) values ($1, $2::jsonb, $2::jsonb, 1, $3::uuid, now(), $3::uuid)""",
-            code, json.dumps(chat), user.id,
-        )  # fmt: skip
+                 published_at, updated_by, follows)
+               values ($1, $2::jsonb, $2::jsonb, 1, $3::uuid, now(), $3::uuid, $4)""",
+            code,
+            json.dumps(chat),
+            user.id,
+            list(main_template.PARTS) if body.copy_from == main_template.MAIN else [],
+        )  # fmt: skip  (a copy of the main follows it: canvas, Templates, Appearance)
         if manager_id:
             await _give(conn, str(manager_id), code, "clinic_manager")
     return await _list()

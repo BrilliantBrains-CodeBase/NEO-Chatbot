@@ -12,7 +12,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.chat import embed, kb, slots
+from app.chat import embed, kb, main_template, slots
 from app.chat.content import content
 from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
@@ -422,6 +422,8 @@ class Settings(BaseModel):
     updated_at: str | None
     flow_problems: list[Problem] = []  # loose ends (block a publish) and unreachable blocks (warnings)
     menu: list[MenuItem]  # the clinic's chat menu today, for the previews (Menu buttons edits it later)
+    follows: list[str] = []  # parts shown from the main template (Neo Follicle): flow, template, appearance
+    main_behind: bool = False  # the main only: its live canvas/Templates/Appearance are not yet for all
 
 
 def _filled(saved: dict[str, Any]) -> dict[str, Any]:
@@ -448,8 +450,10 @@ async def _load(clinic: str) -> Settings:
             clinic,
         )
         bot = info["bot_name"]
-    draft_saved = _json(r["draft"]) if r else {}
-    published_saved = _json(r["published"]) if r else {}
+        draft_saved = _json(r["draft"]) if r else {}
+        published_saved = _json(r["published"]) if r else {}
+        both = [draft_saved, published_saved] if published_saved else [draft_saved]
+        follows = await main_template.apply(conn, clinic, *both)  # followed parts: the main's, in our names
     if not draft_saved.get("contact"):  # start from the clinic's details today
         draft_saved["contact"] = contact_from_clinic(info, clinic)
     if not draft_saved.get("services"):  # start from the chat's treatments today
@@ -469,7 +473,10 @@ async def _load(clinic: str) -> Settings:
         published_at=r["published_at"].isoformat() if r and r["published_at"] else None,
         updated_at=r["updated_at"].isoformat() if r else None,
         flow_problems=check_flow(draft["flow"]),
-        menu=[MenuItem.model_validate(i) for i in _menu_items(clinic, draft)],
+        menu=[MenuItem.model_validate(i) for i in _menu_items(clinic, draft)], follows=follows,
+        main_behind=clinic == main_template.MAIN and any(
+            published_saved.get(k) != _json(r["shared"]).get(k) for k in main_template.PARTS
+        ),
     )  # fmt: skip
 
 
@@ -528,6 +535,7 @@ async def save_draft(
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who
+        await main_template.make_own(conn, clinic, [section])  # a changed part is the clinic's own
         await conn.execute(
             """insert into app.clinic_settings (clinic_id, draft, updated_by)
                values ($1, jsonb_build_object($2::text, $3::jsonb), $4::uuid)
@@ -568,6 +576,7 @@ async def approve_phrases(user: Annotated[Staff, Depends(staff)], clinic: str, b
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await main_template.make_own(conn, clinic, ["flow"])
         await conn.execute(
             """insert into app.clinic_settings (clinic_id, draft, updated_by)
                values ($1, jsonb_build_object('flow', $2::jsonb), $3::uuid)
@@ -630,6 +639,7 @@ async def import_live_phrases(user: Annotated[Staff, Depends(staff)], clinic: st
     if added:
         async with pool.acquire() as conn, conn.transaction():
             await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+            await main_template.make_own(conn, clinic, ["flow"])
             await conn.execute(
                 """update app.clinic_settings set updated_by = $3::uuid,
                      draft = draft || jsonb_build_object('flow', $2::jsonb) where clinic_id = $1""",
@@ -665,10 +675,21 @@ def _slim(published: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/{clinic}/publish", response_model=Settings)
-async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settings:
-    """The draft becomes what the widget shows, as a new numbered version (kept for roll back)."""
+async def publish(user: Annotated[Staff, Depends(staff)], clinic: str, for_all: bool = False) -> Settings:
+    """The draft becomes what the widget shows, as a new numbered version (kept for roll back). For the main
+    template (Neo Follicle), ``for_all`` also makes its canvas, Templates and Appearance what every following
+    clinic shows (BB Admin only); without it, only the main changes."""
     await _manager(user, clinic)
+    if for_all and clinic != main_template.MAIN:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only the main template is published for all.")
+    if for_all and not user.bb_admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Publishing for all clinics is for BB Admin.")
     current = await _load(clinic)
+    if not current.changed and for_all and current.main_behind:  # already live here: now for all too
+        async with (await get_pool()).acquire() as conn, conn.transaction():
+            await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+            await main_template.share(conn, current.published)
+        return await _load(clinic)
     if not current.changed:
         raise HTTPException(status.HTTP_409_CONFLICT, "Nothing new to publish.")
     live = _to_publish(current.draft, current.published)
@@ -709,6 +730,35 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str) -> Settin
                values ($1, $2, $3::jsonb, $4::uuid)""",
             clinic, version, json.dumps(live), user.id,
         )  # fmt: skip
+        if for_all:
+            await main_template.share(conn, live)
+    return await _load(clinic)
+
+
+class Follow(BaseModel):
+    part: Literal["flow", "template", "appearance"]
+    follow: bool
+
+
+@router.put("/{clinic}/main-template", response_model=Settings)
+async def set_follow(user: Annotated[Staff, Depends(staff)], clinic: str, body: Follow) -> Settings:
+    """Follow the main template (Neo Follicle) again for this part, or make it the clinic's own (starting
+    from the main's version). The main itself follows nothing."""
+    await _manager(user, clinic)
+    if clinic == main_template.MAIN:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This clinic is the main template.")
+    await _load(clinic)  # a known, active clinic
+    async with (await get_pool()).acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await conn.execute(
+            """insert into app.clinic_settings (clinic_id, updated_by) values ($1, $2::uuid)
+               on conflict do nothing""",
+            clinic, user.id,
+        )  # fmt: skip
+        if body.follow:
+            await main_template.follow(conn, clinic, [body.part])
+        else:
+            await main_template.make_own(conn, clinic, [body.part])
     return await _load(clinic)
 
 
@@ -1018,6 +1068,7 @@ async def rebuild_flow(user: Annotated[Staff, Depends(staff)], clinic: str) -> S
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await main_template.make_own(conn, clinic, ["flow"])
         await conn.execute(
             """insert into app.clinic_settings (clinic_id, draft, updated_by)
                values ($1, jsonb_build_object('flow', $2::jsonb), $3::uuid)

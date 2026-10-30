@@ -61,7 +61,9 @@ async def test_embed_code(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> 
     js = await api.get("/v1/widget/neo-follicle.js")
     assert js.status_code == 200 and js.headers["content-type"].startswith("application/javascript")
     assert (await api.get("/v1/widget/..%2F.env")).status_code == 404  # only widget files, by name
-    assert (await api.get("/v1/crm/console/CL99/websites/embed", headers=headers)).json()["code"] == ""
+    # every other clinic: the one shared script
+    code = (await api.get("/v1/crm/console/CL99/websites/embed", headers=headers)).json()["code"]
+    assert code == '<script src="http://test/v1/widget/clinic.js" data-clinic="CL99" defer></script>'
 
 
 def test_pages_rule() -> None:

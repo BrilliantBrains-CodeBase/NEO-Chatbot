@@ -100,7 +100,9 @@ async def test_dashboard_needs_access_to_the_clinic(
         """select u.user_id, c.id from app.user_clinics u join app.profiles p on p.id = u.user_id
            cross join app.clinics c
            where u.active and p.active and u.role <> 'bb_admin' and c.id not in
-             (select clinic_id from app.user_clinics where user_id = u.user_id) limit 1"""
+             (select clinic_id from app.user_clinics where user_id = u.user_id)
+             and u.user_id not in  -- a BB Admin anywhere has every clinic
+               (select user_id from app.user_clinics where role = 'bb_admin' and active) limit 1"""
     )
     if row is None:
         pytest.skip("no staff member without access to some clinic")
