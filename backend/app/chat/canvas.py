@@ -66,6 +66,10 @@ async def turn(
             reply = send(flow, ctx, reply["state"], tap=exit_)
     elif req.event in ("start", "restart") or run_state is None or (tap is None and not text):
         reply = start(flow, ctx)
+    elif tap in _menu_ids(flow) and run_state.get("at") != _menu_ids(flow)[tap]:
+        # A main menu tile (always on screen) tapped mid-way, e.g. while asked for a name or a time: that
+        # option from the menu, never an answer to the question waiting.
+        reply = send(flow, ctx, start(flow, ctx)["state"], tap=tap)
     else:
         # As the canvas test chat: what this message may need is looked up first (the engine is synchronous).
         waiting = (run_state.get("ask") or {}).get("kind")
@@ -99,6 +103,14 @@ async def turn(
                   "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip
         await _save(conn, req, urgent)
     return _widget(reply, pub, lead_note), {**state, "canvas": reply["state"]}, "flow"
+
+
+def _menu_ids(flow: dict[str, Any]) -> dict[str, str]:
+    """The opening's buttons (the widget's main menu tiles): button id -> the opening block's id."""
+    opening = next((n for n in flow["nodes"] if n["type"] == "opening"), None)
+    if opening is None:
+        return {}
+    return {b["id"]: opening["id"] for b in (opening.get("settings") or {}).get("buttons") or []}
 
 
 def _path(flow: dict[str, Any], kind: str) -> list[str]:

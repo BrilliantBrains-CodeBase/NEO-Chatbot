@@ -91,3 +91,18 @@ async def test_the_mobile_book_button_follows_the_canvas(tx: asyncpg.Connection)
     assert pub is not None
     reply, _, _ = await canvas.turn(tx, req("button", action="start", value="callback"), {}, pub)
     assert "name" in reply.messages[-1].text.lower()  # straight into the call back's first question
+
+
+async def test_a_menu_tile_mid_question_opens_that_option(tx: asyncpg.Connection) -> None:
+    """The menu tiles stay on screen: a tap while a question waits (a name, a time) opens that option from the
+    menu, never counts as the answer."""
+    await publish(tx, on=True)
+    pub = await canvas.published(tx, "CL99")
+    assert pub is not None
+    state: dict[str, Any] = {}
+    for r in (req("start"), req("button", action="canvas", value="m1")):
+        reply, state, _ = await canvas.turn(tx, r, state, pub)
+    assert "name" in reply.messages[-1].text.lower()  # waiting for a name
+    reply, state, _ = await canvas.turn(tx, req("button", action="canvas", value="m1"), state, pub)
+    assert "name" in reply.messages[-1].text.lower()  # the call back again from its start, not a "name"
+    assert "valid" not in " ".join(m.text or "" for m in reply.messages).lower()
