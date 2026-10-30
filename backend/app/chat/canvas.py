@@ -69,7 +69,12 @@ async def turn(
     elif tap in _menu_ids(flow) and run_state.get("at") != _menu_ids(flow)[tap]:
         # A main menu tile (always on screen) tapped mid-way, e.g. while asked for a name or a time: that
         # option from the menu, never an answer to the question waiting.
-        reply = send(flow, ctx, start(flow, ctx)["state"], tap=tap)
+        fresh = start(flow, ctx)["state"]
+        fresh["fields"] = {
+            **(run_state.get("fields") or {}),
+            **(fresh.get("fields") or {}),
+        }  # what was chosen
+        reply = send(flow, ctx, fresh, tap=tap)
     else:
         # As the canvas test chat: what this message may need is looked up first (the engine is synchronous).
         waiting = (run_state.get("ask") or {}).get("kind")

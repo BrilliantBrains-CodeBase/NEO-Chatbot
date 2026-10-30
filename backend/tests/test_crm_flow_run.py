@@ -441,3 +441,24 @@ def test_booking_steps_like_the_live_chat() -> None:
         texts[0]
         == "Please check your details:\nName: Asha Rao\nPhone: +971 501234567\nTreatment: Not sure yet"
     )
+
+
+def test_no_free_day_to_book_turns_into_a_call_back() -> None:
+    """No free day in the window (e.g. no doctor yet): no dead end, the team calls back; the name and phone
+    already given are not asked again."""
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone", "date", "time"]}}
+    cb = {
+        "id": "cb",
+        "type": "callback",
+        "settings": {"fields": ["name", "phone", "reason"], "consent": False},
+    }
+    chat = Chat(
+        {"nodes": [opening(("m1", "Book")), book, cb], "edges": [line("opening", "m1", "book")]},
+        ctx(slots={"in_clinic": {}, "online": {}}),
+    )
+    chat(tap="m1")
+    assert "contact number" in chat("Asha Rao")[-1]  # the next question, in order
+    said = chat("9800000123")
+    assert "no free times to book online" in said[0] and chat.at == "cb"
+    assert chat.r["lead"]["type"] == "callback" and chat.r["lead"]["reason"] == "Booking request"
+    assert chat.r["lead"]["name"] == "Asha Rao"  # not asked again

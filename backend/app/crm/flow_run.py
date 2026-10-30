@@ -213,7 +213,10 @@ class Run:
                 self.enter(target, steps + 1)
             return
         if t in LEAD_TYPES:
-            self.ask = {"kind": "lead", "i": 0, "tries": 0}
+            known = [
+                f for f in ("name", "phone", "email") if self.fields.get(f)
+            ]  # given earlier in this chat
+            self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": known}
             self.next_question(node)
             return
         if t == "question":
@@ -784,6 +787,7 @@ class Run:
             skip.add("treatment")
         if node.type == "callback" and self.fields.get("reason"):  # e.g. the medical question
             skip.add("reason")
+        skip |= set((self.ask or {}).get("known") or [])  # given before this block: not asked again
         return [f for f in s.get("fields", []) if f not in skip]
 
     def free(self, node: Node) -> dict[str, list[str]] | None:
@@ -813,6 +817,17 @@ class Run:
         fields = self.lead_fields(node)
         if ask.get("i", 0) < len(fields):
             key = fields[ask["i"]]
+            callback = self.first("callback")
+            if key == "date" and self.free(node) == {} and callback and callback != node.id:
+                # No free day to book (e.g. no doctor's hours yet): the team calls back to fix a time.
+                treatment = self.fields.get("treatment")
+                self.fields.setdefault("reason", "Booking request" + (f": {treatment}" if treatment else ""))
+                self.ask = None
+                self.say(
+                    "There are no free times to book online right now. Our team will call you to fix a time."
+                )
+                self.enter(callback)
+                return
             wording = (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key]
             if "{name}" in wording and not self.fields.get("name"):  # no "Thanks, ." when no name was asked
                 wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
