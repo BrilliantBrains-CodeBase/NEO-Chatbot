@@ -124,7 +124,7 @@ def can_see(user: Staff, clinic: str) -> None:
 @router.get("/dashboard", response_model=Dashboard)
 async def dashboard(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
     days: Annotated[int, Query(ge=1, le=90)] = 7,
 ) -> Dashboard:
     """The Dashboard numbers for one clinic over the last `days` days (today in clinic time)."""
@@ -272,7 +272,7 @@ def lead_row(r: Record) -> dict[str, object]:
 @router.get("/leads", response_model=LeadList)
 async def leads(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
     stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,
     source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
     q: Annotated[str, Query(max_length=100)] = "",
@@ -373,7 +373,7 @@ class StaffOption(BaseModel):
 
 @router.get("/staff", response_model=list[StaffOption])
 async def staff_list(
-    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")]
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
 ) -> list[StaffOption]:
     """People a lead can be assigned to: active staff of the clinic, not doctors."""
     can_see(user, clinic)
@@ -496,7 +496,7 @@ class LeadOptions(BaseModel):
 
 @router.get("/lead-options", response_model=LeadOptions)
 async def lead_options(
-    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")]
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
 ) -> LeadOptions:
     """Choices for the Add lead form: the clinic's treatments (as in the chatbot) and active doctors."""
     can_see(user, clinic)
@@ -513,7 +513,7 @@ async def lead_options(
 
 
 class NewLead(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2}$")
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
     name: str = Field(min_length=2, max_length=100)
     phone: str = Field(max_length=20)  # 10-digit Indian mobile, or digits with phone_cc
     phone_cc: str = Field(default="+91", pattern=r"^\+[1-9][0-9]{0,3}$")

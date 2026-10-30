@@ -45,7 +45,7 @@ def loaders() -> dict[str, str]:
     for f in sorted(folder().glob("*.js")):
         if f.name.endswith(".app.js"):
             continue
-        ids = set(re.findall(r"\bCL\d{2}\b", f.read_text(encoding="utf-8", errors="ignore")))
+        ids = set(re.findall(r"\bCL\d{2,3}\b", f.read_text(encoding="utf-8", errors="ignore")))
         if len(ids) == 1:  # a loader is for exactly one clinic
             out[ids.pop()] = f.stem
     _found = (time.monotonic(), out)

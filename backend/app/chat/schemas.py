@@ -30,7 +30,7 @@ class Context(Strict):
 
 
 class ChatRequest(Strict):
-    client_id: str = Field(pattern=r"^CL[0-9]{2}$")
+    client_id: str = Field(pattern=r"^CL[0-9]{2,3}$")
     session_id: str = Field(pattern=rf"^s_{ID_HEX}$")
     visitor_id: str = Field(pattern=rf"^v_{ID_HEX}$")
     event: Literal["start", "text", "button", "restart"]

@@ -355,7 +355,7 @@ class AccessRequest(BaseModel):
     phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
     email: str = Field(max_length=120, pattern=EMAIL)
     password: str = Field(min_length=8, max_length=72)
-    clinic: str = Field(pattern=r"^CL\d{2}$")  # the clinic code the manager gives, e.g. CL01
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")  # the clinic code the manager gives, e.g. CL01
     role: Role
 
     @field_validator("email")

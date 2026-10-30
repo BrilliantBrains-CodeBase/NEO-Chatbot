@@ -24,7 +24,7 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
 class SheetRow(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2}$")
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
     secret: str = Field(max_length=200)
     sheet: str = Field(default="", max_length=200)  # the sheet's name, for the timeline
     row_number: int = Field(default=0, ge=0)

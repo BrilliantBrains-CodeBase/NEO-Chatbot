@@ -95,7 +95,7 @@ def _item(r: asyncpg.Record) -> InboxItem:
 @router.get("/inbox", response_model=Inbox)
 async def inbox(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
     type: Annotated[
         Literal["book", "online", "cancel", "reschedule", "callback", "question"] | None, Query()
     ] = None,
@@ -216,7 +216,7 @@ class Slots(BaseModel):
 @router.get("/slots", response_model=Slots)
 async def free_times(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
     mode: Literal["in_clinic", "online"],
     doctor_id: str | None = None,
     days: Annotated[int, Query(ge=1, le=60)] = 14,
@@ -490,7 +490,7 @@ class Appointments(BaseModel):
 @router.get("/appointments", response_model=Appointments)
 async def appointments(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2}$")],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
     date_from: Annotated[date, Query(alias="from")],
     date_to: Annotated[date | None, Query(alias="to")] = None,
     status_: Annotated[str, Query(alias="status", pattern="^(active|all)$")] = "active",
