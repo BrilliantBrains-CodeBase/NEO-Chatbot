@@ -106,8 +106,8 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     await supabase().auth.signOut();
     router.replace("/sign-in");
   }, [router]);
-  // Clinic names match the screens' (still sample) data; only the clinics this person may see.
-  const clinics = useMemo(() => CLINICS.filter((c) => me?.clinics.some((x) => x.name === c)), [me]);
+  // Every clinic this person may see, as the backend lists them (any clinic added in Login & security).
+  const clinics = useMemo(() => (me?.clinics ?? []).map((c) => c.name as Clinic), [me]);
   const [chosen, setClinic] = useState<Clinic | null>(null);
   const clinic = chosen && clinics.includes(chosen) ? chosen : (clinics[0] ?? CLINICS[0]);
   // Sample data per clinic (replaced by backend data screen by screen). Made in the browser only, after the
@@ -115,8 +115,10 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const now = useBrowserNow();
   const { leads, requests } = useMemo(() => {
     if (!now) return { leads: [], requests: [] };
-    const l = sampleLeads(clinic, now);
-    return { leads: l, requests: sampleRequests(clinic, l, now) };
+    // The leftover sample data knows only its own clinic names; any other clinic uses one of them.
+    const sample = CLINICS.includes(clinic) ? clinic : CLINICS[2];
+    const l = sampleLeads(sample, now);
+    return { leads: l, requests: sampleRequests(sample, l, now) };
   }, [clinic, now]);
   const ready = now !== null;
 

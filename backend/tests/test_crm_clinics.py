@@ -52,3 +52,27 @@ async def test_add_a_clinic_copied_from_another(api: AsyncClient, monkeypatch: p
             await pool.execute("delete from app.clinic_settings where clinic_id = $1", new["id"])
             await pool.execute("delete from app.clinics where id = $1", new["id"])
         await close_pool()
+
+
+@needs_db
+async def test_delete_only_an_empty_clinic(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    before = {r["id"] for r in await pool.fetch("select id from app.clinics")}
+    try:
+        body = {"name": "Test Delete Clinic", "bot_name": "Zed", "copy_from": "CL01"}
+        r = await api.post("/v1/crm/clinics", json=body, headers=headers)
+        new = next(c["id"] for c in r.json() if c["id"] not in before)
+        r = await api.delete(f"/v1/crm/clinics/{new}", headers=headers)
+        assert r.status_code == 200 and all(c["id"] != new for c in r.json())
+        assert (await api.delete("/v1/crm/clinics/CL01", headers=headers)).status_code == 403
+    finally:
+        for c in {r["id"] for r in await pool.fetch("select id from app.clinics")} - before:
+            await pool.execute("delete from app.clinic_settings where clinic_id = $1", c)
+            await pool.execute("delete from app.clinics where id = $1", c)
+        await close_pool()

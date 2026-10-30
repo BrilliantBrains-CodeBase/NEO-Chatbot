@@ -170,7 +170,7 @@ export default function Sidebar({
             undefined,
             <>
               {subItem("/doctors", "All doctors", path === "/doctors" && !doc)}
-              {CLINIC_CONTENT[crm.clinic].docs.map((d) =>
+              {(CLINIC_CONTENT[crm.clinic]?.docs ?? []).map((d) =>
                 subItem(
                   `/doctors?doc=${encodeURIComponent(d)}`,
                   d,

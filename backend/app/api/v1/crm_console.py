@@ -469,11 +469,25 @@ async def _load(clinic: str) -> Settings:
         published_at=r["published_at"].isoformat() if r and r["published_at"] else None,
         updated_at=r["updated_at"].isoformat() if r else None,
         flow_problems=check_flow(draft["flow"]),
-        menu=[MenuItem.model_validate(i) for i in _menu_items(clinic)],
+        menu=[MenuItem.model_validate(i) for i in _menu_items(clinic, draft)],
     )  # fmt: skip
 
 
-def _menu_items(clinic: str) -> list[dict[str, Any]]:
+def _menu_items(clinic: str, draft: dict[str, Any]) -> list[dict[str, Any]]:
+    """The clinic's own main buttons, for the Templates previews: its canvas's opening buttons when it runs on
+    the canvas, else its Menu buttons, else (older clinics) its content file's menu."""
+
+    def item(b: dict[str, Any]) -> dict[str, Any]:
+        return {"label": b["label"], "icon": b.get("icon") or None, "variant": b.get("variant") or None}
+
+    if (draft.get("chat") or {}).get("canvas"):
+        opening = next((n for n in draft["flow"].get("nodes", []) if n["type"] == "opening"), None)
+        buttons = ((opening or {}).get("settings") or {}).get("buttons") or []
+        if buttons:
+            return [item(b) for b in buttons if b.get("visible", True)]
+    own = [b for b in (draft.get("menu") or {}).get("buttons", []) if b.get("visible", True)]
+    if own:
+        return [item(b) for b in own]
     items: list[dict[str, Any]] = ((content(clinic) or {}).get("menu") or {}).get("items", [])
     return items
 

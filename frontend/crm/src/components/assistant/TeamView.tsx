@@ -492,7 +492,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                   clinics: inviteClinics ?? (clinicId ? [clinicId] : []),
                 };
                 if (
-                  await call("/invite", body, `Invite sent to ${body.email}`)
+                  await call("/invite", body, `${body.email} added: a new person gets an invite email; an existing login has access now`)
                 ) {
                   setInvite({ name: "", email: "", role: "front_desk" });
                   setInviteClinics(null);

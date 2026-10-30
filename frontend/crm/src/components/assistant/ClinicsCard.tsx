@@ -35,6 +35,7 @@ export default function ClinicsCard() {
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [members, setMembers] = useState<string | null>(null); // the clinic whose members are open
 
   useEffect(() => {
     let live = true;
@@ -51,7 +52,7 @@ export default function ClinicsCard() {
   async function call(
     path: string,
     method: string,
-    body: object,
+    body: object | undefined,
     done: string,
   ) {
     setBusy(true);
@@ -60,7 +61,7 @@ export default function ClinicsCard() {
       setList(
         await api<Clinic[]>(`/v1/crm/clinics${path}`, {
           method,
-          body: JSON.stringify(body),
+          body: body ? JSON.stringify(body) : undefined,
         }),
       );
       toast(done);
@@ -81,7 +82,7 @@ export default function ClinicsCard() {
     form.name.trim().length >= 2 && form.bot_name.trim().length >= 2;
 
   return (
-    <section className="card" style={{ marginBottom: 14 }}>
+    <section className="card" style={{ margin: "14px 0" }}>
       <div className="row" style={{ gap: 10, alignItems: "center" }}>
         <h3 style={{ margin: 0, flex: 1 }}>
           Clinics {list ? `(${list.length})` : ""}
@@ -226,6 +227,32 @@ export default function ClinicsCard() {
             <span className={`badge ${c.active ? "b-vi" : "b-in"}`}>
               {c.active ? "Active" : "Inactive"}
             </span>
+            <button
+              className="btn g"
+              onClick={() => setMembers(members === c.id ? null : c.id)}
+            >
+              {members === c.id ? "Hide members" : "Members"}
+            </button>
+            {!c.is_test && c.id !== "CL01" && (
+              <button
+                className="btn g"
+                disabled={busy}
+                onClick={() => {
+                  const typed = window.prompt(
+                    `Delete ${c.name} for good? Only a clinic with no leads, chats, doctors or integrations can be deleted. Type ${c.id} to confirm.`,
+                  );
+                  if (typed?.trim().toUpperCase() === c.id)
+                    void call(
+                      `/${c.id}`,
+                      "DELETE",
+                      undefined,
+                      `${c.name} deleted`,
+                    );
+                }}
+              >
+                Delete
+              </button>
+            )}
             {!c.is_test && (
               <button
                 className="btn g"
@@ -251,11 +278,144 @@ export default function ClinicsCard() {
             )}
           </div>
         ))}
+      {open && members && <Members clinic={members} />}
       {error && (
         <p className="warnbox" style={{ marginTop: 6 }}>
           {error}
         </p>
       )}
     </section>
+  );
+}
+
+type Member = {
+  id: string;
+  name: string;
+  email: string;
+  role_label: string;
+  active: boolean;
+};
+const ROLES: [string, string][] = [
+  ["clinic_manager", "Clinic Manager"],
+  ["front_desk", "Front Desk"],
+  ["doctor", "Doctor"],
+];
+
+/** One clinic's members, and Add member (an invite email; someone with a login gets the role at once). BB Admins
+ * always have full access to every clinic, so they are not listed per clinic. */
+function Members({ clinic }: { clinic: string }) {
+  const { me, toast } = useCrm();
+  const [list, setList] = useState<Member[] | null>(null);
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    role: "clinic_manager",
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    api<{ members: Member[] }>(`/v1/crm/team/${clinic}`).then(
+      (t) => live && setList(t.members),
+      (e) =>
+        live && setError(e instanceof ApiError ? e.message : "Could not load."),
+    );
+    return () => {
+      live = false;
+    };
+  }, [clinic]);
+
+  async function add() {
+    setBusy(true);
+    setError("");
+    try {
+      const t = await api<{ members: Member[] }>(
+        `/v1/crm/team/${clinic}/invite`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            full_name: form.name.trim(),
+            email: form.email.trim(),
+            role: form.role,
+            clinics: [clinic],
+          }),
+        },
+      );
+      setList(t.members);
+      setForm({ name: "", email: "", role: "clinic_manager" });
+      toast(`${form.email.trim()} added: a new person gets an invite email; an existing login has access now`);
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not add. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 8, padding: 12 }}>
+      <b>Members of {clinic}</b>
+      <p className="sub2" style={{ margin: "4px 0 8px" }}>
+        {me?.name} (you, BB Admin) and every BB Admin: full access to this
+        clinic.
+      </p>
+      {list?.length === 0 && <p className="sub2">No members yet.</p>}
+      {list?.map((m) => (
+        <p key={m.id} style={{ margin: "3px 0", fontSize: 13 }}>
+          <b>{m.name}</b> · {m.email} · {m.role_label}
+          {!m.active && (
+            <span className="badge b-in" style={{ marginLeft: 6 }}>
+              Disabled
+            </span>
+          )}
+        </p>
+      ))}
+      <div className="row" style={{ gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <input
+          className="f"
+          style={{ flex: "1 1 160px" }}
+          placeholder="Full name"
+          maxLength={100}
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
+        <input
+          className="f"
+          style={{ flex: "1 1 200px" }}
+          type="email"
+          placeholder="name@clinic.com"
+          maxLength={120}
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+        />
+        <select
+          className="sel"
+          value={form.role}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
+        >
+          {ROLES.map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <button
+          className="btn"
+          disabled={
+            busy || form.name.trim().length < 2 || !form.email.includes("@")
+          }
+          onClick={() => void add()}
+        >
+          Add member
+        </button>
+      </div>
+      {error && (
+        <p className="warnbox" style={{ marginTop: 6 }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

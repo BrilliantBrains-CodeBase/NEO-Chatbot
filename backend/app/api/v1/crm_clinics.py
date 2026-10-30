@@ -9,6 +9,7 @@ deactivated, never deleted.
 import json
 from typing import Annotated, Any
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
@@ -144,6 +145,35 @@ async def set_active(user: Annotated[Staff, Depends(staff)], clinic: str, body: 
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         done = await conn.execute("update app.clinics set active = $2 where id = $1", clinic, body.active)
+    if done.endswith(" 0"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Clinic not found.")
+    return await _list()
+
+
+# A clinic's own setup, removed with it; anything else (leads, chats, doctors, integrations) keeps it.
+SETUP_TABLES = ("access_grants", "clinic_permissions", "access_requests", "user_clinics", "clinic_websites",
+                "clinic_setting_versions", "clinic_settings")  # fmt: skip
+
+
+@router.delete("/{clinic}", response_model=list[Clinic])
+async def delete_clinic(user: Annotated[Staff, Depends(staff)], clinic: str) -> list[Clinic]:
+    """Deletes a clinic that holds no patient or business data (e.g. added by mistake): its setup, its team
+    access, then the clinic. With leads, chats, doctors or integrations it is refused: deactivate it."""
+    _bb(user)
+    if clinic in ("CL01", "CL99"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This clinic cannot be deleted.")
+    pool = await get_pool()
+    try:
+        async with pool.acquire() as conn, conn.transaction():
+            await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+            for table in SETUP_TABLES:
+                await conn.execute(f"delete from app.{table} where clinic_id = $1", clinic)
+            done = await conn.execute("delete from app.clinics where id = $1", clinic)
+    except asyncpg.ForeignKeyViolationError:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This clinic has data (leads, chats, doctors or integrations). Deactivate it instead.",
+        ) from None
     if done.endswith(" 0"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Clinic not found.")
     return await _list()
