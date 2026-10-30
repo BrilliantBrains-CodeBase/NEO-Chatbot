@@ -56,7 +56,8 @@ export type Me = {
   initials: string;
   bb_admin: boolean;
   role_label: string;
-  clinics: { id: string; name: string; role: string; role_label: string }[];
+  // access: Who sees what, screen -> hidden / view / edit
+  clinics: { id: string; name: string; role: string; role_label: string; access?: Record<string, string> }[];
 };
 
 export type Count = { key: string; count: number };

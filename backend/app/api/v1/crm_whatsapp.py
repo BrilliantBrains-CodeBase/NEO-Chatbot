@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import get_settings
 from app.core.db import get_pool
+from app.crm import permissions as perm
 from app.crm import vault, whatsapp
 from app.crm.auth import Staff, staff
 
@@ -67,7 +68,7 @@ def _base(request: Request) -> str:
 
 
 def _manager(user: Staff, clinic: str) -> None:
-    if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager"):
+    if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Integrations are for clinic managers and BB Admin.")
 
 

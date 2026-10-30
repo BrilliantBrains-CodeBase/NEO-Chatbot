@@ -1,5 +1,6 @@
 "use client";
 
+import { level } from "@/lib/access";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type LeadDetail, type StaffOption } from "@/lib/api";
@@ -59,7 +60,7 @@ export default function LeadActions({
     api<StaffOption[]>(`/v1/crm/staff?clinic=${clinicId}`).then(setStaff, () => setStaff([]));
   }, [clinicId]);
 
-  if (!role || role === "doctor") return null;
+  if (!role || !clinicId || level(me, clinicId, "leads") !== "edit") return null; // Who sees what
 
   async function send(path: string, method: string, body: object) {
     setBusy(true);

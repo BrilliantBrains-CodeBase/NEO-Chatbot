@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.chat.content import content
 from app.chat.flows import EMAIL, normal_phone
 from app.core.db import get_pool
+from app.crm import permissions as perm
 from app.crm import webhooks
 from app.crm.auth import ROLE_LABEL, Staff, staff
 
@@ -23,6 +24,7 @@ class ClinicAccess(BaseModel):
     name: str  # Neo Follicle
     role: str  # bb_admin
     role_label: str  # BB Admin
+    access: dict[str, str] = {}  # Who sees what: screen -> hidden / view / edit (time-limited too)
 
 
 class Me(BaseModel):
@@ -60,7 +62,12 @@ async def me(user: Annotated[Staff, Depends(staff)]) -> Me:
     for r in rows:
         role = "bb_admin" if user.bb_admin else user.roles.get(r["id"])
         if role:
-            clinics.append(ClinicAccess(id=r["id"], name=r["name"], role=role, role_label=ROLE_LABEL[role]))
+            access = await perm.for_person(pool, r["id"], user.id, role)
+            clinics.append(
+                ClinicAccess(
+                    id=r["id"], name=r["name"], role=role, role_label=ROLE_LABEL[role], access=access
+                )
+            )
     top = min(user.roles.values(), key=RANK.index)
     return Me(
         id=user.id,
@@ -122,6 +129,7 @@ async def dashboard(
 ) -> Dashboard:
     """The Dashboard numbers for one clinic over the last `days` days (today in clinic time)."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "dashboard", "view")  # Who sees what
     since = f"now() - make_interval(days => {days})"
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -276,6 +284,7 @@ async def leads(
     """Leads of one clinic, newest contact first. `q` matches name, phone, email or lead code; `from` and
     `to` (days in clinic time, both included) keep leads created in that range."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
     where = "l.clinic_id = $1 and l.deleted_at is null and ($2::text is null or l.source = $2)"
     where += " and ($3 = '' or l.full_name ilike '%'||$3||'%' or l.phone_e164 like '%'||$3||'%'"
     where += " or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)"
@@ -317,6 +326,7 @@ async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> Lead
         if r is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
         can_see(user, r["clinic_id"])
+        await perm.require(await get_pool(), user, r["clinic_id"], "leads", "view")  # Who sees what
         events = await conn.fetch(
             """select e.kind, e.data, p.full_name, e.created_at from app.lead_events e
                left join app.profiles p on p.id = e.actor where e.lead_id = $1 order by e.created_at desc
@@ -367,6 +377,7 @@ async def staff_list(
 ) -> list[StaffOption]:
     """People a lead can be assigned to: active staff of the clinic, not doctors."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
     pool = await get_pool()
     rows = await pool.fetch(
         """select p.id, p.full_name, u.role from app.user_clinics u join app.profiles p on p.id = u.user_id
@@ -400,6 +411,7 @@ async def _lead_for_edit(conn: Connection, user: Staff, code: str) -> Record:
     if r is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
     can_edit(user, r["clinic_id"])
+    await perm.require(await get_pool(), user, r["clinic_id"], "leads", "edit")  # Who sees what
     await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who did it
     return r
 
@@ -488,6 +500,7 @@ async def lead_options(
 ) -> LeadOptions:
     """Choices for the Add lead form: the clinic's treatments (as in the chatbot) and active doctors."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
     c = content(clinic) or {}
     pool = await get_pool()
     rows = await pool.fetch(

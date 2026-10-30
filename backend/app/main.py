@@ -1,8 +1,9 @@
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import (
@@ -29,6 +30,7 @@ from app.chat import kb
 from app.core.cache import close_redis
 from app.core.config import get_settings
 from app.core.db import close_pool
+from app.crm.permissions import dash_guard
 
 
 @asynccontextmanager
@@ -41,6 +43,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     warming.cancel()
     await close_pool()
     await close_redis()
+
+
+def tab(name: str | None) -> list[Any]:
+    """A Dashboard tab's module: follows Who sees what (app.crm.permissions.dash_guard)."""
+    return [Depends(dash_guard(name))]
 
 
 def create_app() -> FastAPI:
@@ -70,19 +77,19 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/v1")
     app.include_router(crm.router, prefix="/v1")
     app.include_router(crm_inbox.router, prefix="/v1")
-    app.include_router(crm_console.router, prefix="/v1")
-    app.include_router(crm_websites.router, prefix="/v1")
-    app.include_router(crm_integrations.router, prefix="/v1")
-    app.include_router(crm_online.router, prefix="/v1")
-    app.include_router(crm_sheets.router, prefix="/v1")
-    app.include_router(crm_forms.router, prefix="/v1")
+    app.include_router(crm_console.router, prefix="/v1", dependencies=tab(None))
+    app.include_router(crm_websites.router, prefix="/v1", dependencies=tab("install"))
+    app.include_router(crm_integrations.router, prefix="/v1", dependencies=tab("integrations"))
+    app.include_router(crm_online.router, prefix="/v1", dependencies=tab("integrations"))
+    app.include_router(crm_sheets.router, prefix="/v1", dependencies=tab("integrations"))
+    app.include_router(crm_forms.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_team.router, prefix="/v1")
     app.include_router(crm_security.router, prefix="/v1")
     app.include_router(crm_security.codes, prefix="/v1")
-    app.include_router(crm_email.router, prefix="/v1")
+    app.include_router(crm_email.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_permissions.router, prefix="/v1")
-    app.include_router(crm_webhooks.router, prefix="/v1")
-    app.include_router(crm_whatsapp.router, prefix="/v1")
+    app.include_router(crm_webhooks.router, prefix="/v1", dependencies=tab("integrations"))
+    app.include_router(crm_whatsapp.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_whatsapp.links, prefix="/v1")
     app.include_router(widget.router, prefix="/v1")
     app.include_router(integrations.router, prefix="/v1")

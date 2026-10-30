@@ -1,5 +1,6 @@
 "use client";
 
+import { level } from "@/lib/access";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -409,7 +410,7 @@ export default function AppointmentsView() {
               )}
               {error && <div className="warnbox">{error}</div>}
               {!!role &&
-                role !== "doctor" &&
+                level(me, clinic, "appointments") === "edit" &&
                 ["pending", "confirmed"].includes(open.status) && (
                   <>
                     <div className="sec">

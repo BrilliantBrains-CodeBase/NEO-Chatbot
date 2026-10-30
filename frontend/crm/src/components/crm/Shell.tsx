@@ -1,11 +1,8 @@
 "use client";
 
-import {
-  Suspense,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { usePathname } from "next/navigation";
+import { canSee } from "@/lib/access";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import CrmProvider, { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 import Sidebar from "./Sidebar";
@@ -23,6 +20,7 @@ export default function Shell({ children }: { children: ReactNode }) {
 
 function Frame({ children }: { children: ReactNode }) {
   const crm = useCrm();
+  const path = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { drawer, closeDrawer, modal, closeModal } = crm;
 
@@ -45,7 +43,16 @@ function Frame({ children }: { children: ReactNode }) {
         </Suspense>
         <div className="main">
           <Topbar onMenu={() => setMenuOpen(!menuOpen)} />
-          <main className="page">{children}</main>
+          <main className="page">
+            {canSee(crm.me, crm.clinic, path) ? (
+              children
+            ) : (
+              <div className="empty">
+                <h2>No access</h2>
+                Your clinic manager has not given you this screen.
+              </div>
+            )}
+          </main>
         </div>
       </div>
 

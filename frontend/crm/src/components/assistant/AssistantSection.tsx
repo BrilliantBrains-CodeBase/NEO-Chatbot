@@ -10,13 +10,17 @@ import WebsiteInstallView from "./WebsiteInstallView";
 import IntegrationsView from "./IntegrationsView";
 import TeamView from "./TeamView";
 import SecurityView from "./SecurityView";
-import { canUseConsole, type Section } from "@/lib/assistant";
+import { type Section } from "@/lib/assistant";
+import { level } from "@/lib/access";
 
 /** One console section. Each is built in its stage; until then it shows the design's header. */
 export default function AssistantSection({ section }: { section: Section }) {
   const { clinic, me } = useCrm();
-  const role = me?.clinics.find((c) => c.name === clinic)?.role;
-  if (me && (!canUseConsole(role) || (section.bbOnly && !me.bb_admin))) {
+  if (
+    me &&
+    (level(me, clinic, `dash_${section.id}`) === "hidden" ||
+      (section.bbOnly && !me.bb_admin))
+  ) {
     return (
       <div className="empty">
         <h2>No access</h2>

@@ -16,6 +16,7 @@ from app.chat import embed, kb, slots
 from app.chat.content import content
 from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
+from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
 from app.crm.flow import check as check_flow
@@ -431,7 +432,7 @@ def _filled(saved: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _manager(user: Staff, clinic: str) -> None:
-    if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager"):
+    if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "The Dashboard is for clinic managers and BB Admin.")
 
 

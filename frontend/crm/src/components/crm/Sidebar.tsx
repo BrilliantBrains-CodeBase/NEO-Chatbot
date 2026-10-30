@@ -1,5 +1,6 @@
 "use client";
 
+import { canSee } from "@/lib/access";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -53,19 +54,20 @@ export default function Sidebar({
     label: string,
     on: boolean,
     count?: number,
-  ) => (
-    <Link
-      key={href}
-      href={href}
-      className={on ? "on" : ""}
-      onClick={onNavigate}
-      title={label}
-    >
-      <Icon name={icon} />
-      <span>{label}</span>
-      {count != null && <span className="c">{count}</span>}
-    </Link>
-  );
+  ) =>
+    !canSee(crm.me, crm.clinic, href) ? null : (
+      <Link
+        key={href}
+        href={href}
+        className={on ? "on" : ""}
+        onClick={onNavigate}
+        title={label}
+      >
+        <Icon name={icon} />
+        <span>{label}</span>
+        {count != null && <span className="c">{count}</span>}
+      </Link>
+    );
   const group = (
     g: Group,
     icon: IconName,
@@ -90,22 +92,18 @@ export default function Sidebar({
       {expanded[g] && <div className="sub">{sub}</div>}
     </>
   );
-  const subItem = (
-    href: string,
-    label: string,
-    on: boolean,
-    count?: number,
-  ) => (
-    <Link
-      key={href}
-      href={href}
-      className={on ? "on" : ""}
-      onClick={onNavigate}
-    >
-      {label}
-      {count != null && <span className="c">{count}</span>}
-    </Link>
-  );
+  const subItem = (href: string, label: string, on: boolean, count?: number) =>
+    !canSee(crm.me, crm.clinic, href) ? null : (
+      <Link
+        key={href}
+        href={href}
+        className={on ? "on" : ""}
+        onClick={onNavigate}
+      >
+        {label}
+        {count != null && <span className="c">{count}</span>}
+      </Link>
+    );
 
   return (
     <aside className={`sb${open ? " on" : ""}`} aria-label="Main menu">

@@ -15,6 +15,7 @@ from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.core.db import get_pool
 from app.crm import calcom, vault, webhooks, whatsapp
+from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -102,6 +103,7 @@ async def inbox(
 ) -> Inbox:
     """Pending requests (oldest first, so nobody waits longest), or the latest 100 handled ones."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
     pool = await get_pool()
     async with pool.acquire() as conn:
         counts = {
@@ -140,6 +142,7 @@ async def _pending(conn: asyncpg.Connection, user: Staff, request_id: str) -> as
     if r is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found.")
     can_edit(user, r["clinic_id"])
+    await perm.require(await get_pool(), user, r["clinic_id"], "inbox", "edit")  # Who sees what
     if r["status"] != "pending":
         raise HTTPException(status.HTTP_409_CONFLICT, "This request is already handled.")
     await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who did it
@@ -495,6 +498,7 @@ async def appointments(
     """Appointments of one clinic on the given days (clinic time), earliest first. `active` = pending and
     confirmed, plus visited and no-show (what happened that day); `all` adds cancelled, rejected, moved."""
     can_see(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "appointments", "view")  # Who sees what
     last = date_to or date_from
     if (last - date_from).days > 62:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose at most 2 months.")
@@ -570,6 +574,7 @@ async def _appt(conn: asyncpg.Connection, user: Staff, appt_id: str) -> asyncpg.
     if a is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Appointment not found.")
     can_edit(user, a["clinic_id"])
+    await perm.require(await get_pool(), user, a["clinic_id"], "appointments", "edit")  # Who sees what
     if a["status"] not in ("pending", "confirmed"):
         raise HTTPException(status.HTTP_409_CONFLICT, "This appointment is already closed.")
     await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)  # audit: who did it

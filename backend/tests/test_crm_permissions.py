@@ -2,14 +2,22 @@
 checks on access given for a time. Leaves the rules as it found them."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
 
-from app.core.db import get_pool
+from app.core.db import close_pool, get_pool
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
+
+
+@pytest.fixture(autouse=True)
+async def _own_pool() -> Any:
+    """These tests use the shared pool: close it with this test's event loop."""
+    yield
+    await close_pool()
 
 
 @needs_db
@@ -58,3 +66,31 @@ async def test_rules_stack_and_grants_are_checked(api: AsyncClient, monkeypatch:
         await pool.execute("update app.platform set permissions = $1 where id = 1", before or "{}")
         await pool.execute("delete from app.clinic_permissions where clinic_id = 'CL99'")
         await pool.execute("delete from app.access_grants where clinic_id = 'CL99'")
+
+
+@needs_db
+async def test_require_follows_the_rules_and_time_limited_access() -> None:
+    """Doctors only view Leads by default: viewing passes, changing is refused; a Hidden screen is refused;
+    access given for a time lifts the level until it ends."""
+    import uuid
+
+    from fastapi import HTTPException
+
+    from app.crm import permissions as perm
+    from app.crm.auth import Staff
+
+    pool = await get_pool()
+    doctor = Staff(id=str(uuid.uuid4()), name="Dr Test", email="d@example.com", roles={"CL99": "doctor"},
+                   bb_admin=False)  # fmt: skip
+    await perm.require(pool, doctor, "CL99", "leads", "view")
+    with pytest.raises(HTTPException) as no:
+        await perm.require(pool, doctor, "CL99", "leads", "edit")
+    assert no.value.status_code == 403 and "cannot change Leads" in str(no.value.detail)
+    with pytest.raises(HTTPException):
+        await perm.require(pool, doctor, "CL99", "reports", "view")  # Hidden for Doctors
+    with pytest.raises(HTTPException):
+        await perm.require(pool, doctor, "CL01", "leads", "view")  # not their clinic
+    desk = Staff(id=str(uuid.uuid4()), name="Desk", email="f@example.com", roles={"CL99": "front_desk"},
+                 bb_admin=False)  # fmt: skip
+    mine = await perm.for_person(pool, "CL99", desk.id, "front_desk")
+    assert mine["settings"] == "hidden" and mine["leads"] == "edit" and mine["dash_open"] == "hidden"

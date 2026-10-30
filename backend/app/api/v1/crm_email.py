@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.db import get_pool
 from app.crm import email, vault
+from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -57,7 +58,8 @@ def _who(user: Staff, clinic: str | None) -> None:
     """A clinic's Gmail: its Clinic Manager or BB Admin. The BB Gmail: BB Admin."""
     if clinic is None and not user.bb_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "The BB Gmail is for BB Admin.")
-    if clinic and not (user.bb_admin or user.roles.get(clinic) == "clinic_manager"):
+    allowed = user.bb_admin or user.roles.get(clinic or "") == "clinic_manager"
+    if clinic and not (allowed or perm.granted(user, clinic)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Email is for clinic managers and BB Admin.")
 
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { level } from "@/lib/access";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -133,7 +134,7 @@ export default function InboxView() {
 
   const d = list.key === key ? list.d : undefined;
   const item = d?.items.find((i) => i.id === openId);
-  const canAct = !!role && role !== "doctor" && item?.status === "pending";
+  const canAct = !!role && level(me, clinic, "inbox") === "edit" && item?.status === "pending";
   // An online consult for "Any time" needs the time agreed with the patient before Cal.com can book it.
   // An online consult needs an exact time for Cal.com: a request for "Any time" (new booking or reschedule)
   // opens the time picker.

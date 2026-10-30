@@ -4,7 +4,10 @@ clinic's own changes (app.clinic_permissions). Only changes are stored.
 """
 
 import json
+from contextvars import ContextVar
 from typing import Any, Literal
+
+from fastapi import Request
 
 Level = Literal["hidden", "view", "edit"]
 LEVELS: tuple[Level, ...] = ("hidden", "view", "edit")
@@ -98,3 +101,53 @@ async def for_person(conn: Any, clinic: str, user_id: str, role: str) -> dict[st
         if g["screen"] in SCREENS and rank(g["level"]) > rank(mine.get(g["screen"], "hidden")):
             mine[g["screen"]] = g["level"]
     return mine
+
+
+async def require(conn: Any, user: Any, clinic: str, screen: str, need: Level) -> None:
+    """Refuses (403) unless this person has at least `need` on the screen in this clinic (Who sees what)."""
+    from fastapi import HTTPException, status
+
+    role = "bb_admin" if user.bb_admin else user.roles.get(clinic)
+    if role is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You do not have access to this clinic.")
+    if rank((await for_person(conn, clinic, user.id, role)).get(screen, "hidden")) < rank(need):
+        what = "change" if need == "edit" else "see"
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"You cannot {what} {SCREENS[screen][0]} here.")
+
+
+# ---------- Dashboard tabs (their own modules) ----------
+# A router-level check on /crm/.../{clinic} addresses: Clinic Managers and BB Admin pass as before; anyone
+# else needs the tab's level (view to read, edit to save), and is then let through the module's own manager
+# check for this request (granted). Public addresses (forms, sheets, webhooks) have no clinic: untouched.
+_granted: ContextVar[tuple[str, str] | None] = ContextVar("dash_granted", default=None)
+SECTION_TAB = {
+    "appearance": "appearance", "template": "templates", "menu": "menu", "flow": "menu", "chat": "menu",
+    "contact": "content", "services": "content", "reviews": "content",
+}  # fmt: skip
+
+
+def granted(user: Any, clinic: str) -> bool:
+    """This request passed the Dashboard tab check for this person and clinic."""
+    return _granted.get() == (user.id, clinic)
+
+
+def dash_guard(tab: str | None) -> Any:
+    """The check for one Dashboard tab's module (None: the settings module; the tab comes from the path)."""
+
+    async def guard(request: Request) -> None:
+        clinic = request.path_params.get("clinic")
+        if not clinic or "/crm/" not in request.url.path:
+            return
+        from app.core.db import get_pool
+        from app.crm.auth import staff
+
+        user = await staff(request.headers.get("authorization", ""))
+        if user.bb_admin or user.roles.get(clinic) == "clinic_manager":
+            return
+        section = str(request.path_params.get("section") or "")
+        t = tab or SECTION_TAB.get(section) or ("menu" if "/flow" in request.url.path else "open")
+        need: Level = "view" if request.method == "GET" else "edit"
+        await require(await get_pool(), user, clinic, f"dash_{t}", need)
+        _granted.set((user.id, clinic))
+
+    return guard

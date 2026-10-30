@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Clinic } from "@/lib/sample-data";
 import AddLeadForm from "@/components/leads/AddLeadForm";
-import { canUseConsole } from "@/lib/assistant";
+import { level } from "@/lib/access";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 
@@ -30,7 +30,6 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
   const pending = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
-  const role = crm.me?.clinics.find((c) => c.name === crm.clinic)?.role;
   const path = usePathname();
   const inConsole = path.startsWith("/assistant");
   const compact = path === "/assistant/menu"; // the workflow canvas needs the whole page
@@ -87,7 +86,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           }}
         />
       </label>
-      {canUseConsole(role) && (
+      {level(crm.me, crm.clinic, "dash_open") !== "hidden" && (
         <div className="seg" role="tablist" aria-label="Workspace">
           <button
             role="tab"
@@ -166,7 +165,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         </div>
       </div>
       {/* Leads belong to the CRM: not shown in the Dashboard (the chatbot console). */}
-      {!inConsole && (
+      {!inConsole && level(crm.me, crm.clinic, "leads") === "edit" && (
         <button
           className="btn"
           onClick={() =>
