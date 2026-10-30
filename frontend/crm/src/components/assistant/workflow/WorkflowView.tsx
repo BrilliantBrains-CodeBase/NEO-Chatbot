@@ -52,6 +52,7 @@ import {
 } from "./blocks";
 import BlockSettings from "./BlockSettings";
 import TestChat from "./TestChat";
+import MainTemplateBar, { publishLabel } from "../MainTemplateBar";
 
 // Dashboard → Menu buttons: the workflow canvas (like n8n). Blocks from the library on the left, lines from
 // each button or exit to the next block, the selected block's settings on the right. One draft per clinic:
@@ -73,6 +74,8 @@ type Settings = {
   published?: { chat?: { canvas: boolean } };
   changed: boolean;
   flow_problems: Problem[];
+  follows?: string[];
+  main_behind?: boolean;
 };
 type BlockData = {
   block: FlowNode;
@@ -659,10 +662,20 @@ function Canvas() {
             disabled={busy || dirty || !s.changed || errors.length > 0}
             onClick={() => call("publish", "POST", undefined, "Published")}
           >
-            Publish
+            {publishLabel(clinicId)}
           </button>
         </div>,
       )}
+      <MainTemplateBar
+        clinicId={clinicId}
+        part="flow"
+        follows={s.follows}
+        mainBehind={s.main_behind}
+        changed={s.changed}
+        busy={busy}
+        blocked={dirty || errors.length > 0}
+        call={call}
+      />
       {error && <div className="warnbox">{error}</div>}
       {testing && clinicId && (
         <TestChat

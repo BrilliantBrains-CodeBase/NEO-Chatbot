@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon, { type IconName } from "@/components/crm/Icon";
 import { api, ApiError } from "@/lib/api";
+import MainTemplateBar, { publishLabel } from "./MainTemplateBar";
 
 // Dashboard → Templates: how the chat menu looks (Tiles, Pills or Cards), previewed with the clinic's own
 // buttons. Choosing one saves the draft; patients see it after Publish. "Use the template's colours: Yes" also
@@ -25,6 +26,8 @@ type Settings = {
     };
   };
   published: { template?: { id: string } };
+  follows?: string[];
+  main_behind?: boolean;
   changed: boolean;
   version: number;
   menu: MenuItem[];
@@ -182,9 +185,18 @@ export default function TemplatesView() {
           disabled={busy || !s.changed}
           onClick={() => call("publish", "POST", undefined, "Published")}
         >
-          Publish
+          {publishLabel(clinicId)}
         </button>
       </div>
+      <MainTemplateBar
+        clinicId={clinicId}
+        part="template"
+        follows={s.follows}
+        mainBehind={s.main_behind}
+        changed={s.changed}
+        busy={busy}
+        call={call}
+      />
       <div className="row" style={{ gap: 14, marginBottom: 14 }}>
         <b>Use the template&apos;s colours?</b>
         {[true, false].map((yes) => (

@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
+import MainTemplateBar, { publishLabel } from "./MainTemplateBar";
 
 // Dashboard → Appearance: Look (and header), Colours, Widget style (chat panel) and Launcher, one draft with a
 // live preview. Saving keeps a draft; patients see it only after Publish (backend: /v1/crm/console/{clinic}).
@@ -74,6 +75,8 @@ export type Appearance = {
 type Settings = {
   draft: { appearance: Appearance };
   changed: boolean;
+  follows?: string[];
+  main_behind?: boolean;
   version: number;
 };
 
@@ -252,10 +255,20 @@ export default function AppearanceView() {
             disabled={busy || dirty || !s.changed}
             onClick={() => call("publish", "POST", undefined, "Published")}
           >
-            Publish
+            {publishLabel(clinicId)}
           </button>
         </div>
       </div>
+      <MainTemplateBar
+        clinicId={clinicId}
+        part="appearance"
+        follows={s.follows}
+        mainBehind={s.main_behind}
+        changed={s.changed}
+        busy={busy}
+        blocked={dirty}
+        call={call}
+      />
       {error && <div className="warnbox">{error}</div>}
       <div
         style={{
