@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
 import GmailPanel from "./GmailPanel";
+import ClinicsCard from "./ClinicsCard";
 
 // Dashboard → Login & security (BB Admin). Main BB Admin: the one email with full power over every clinic;
 // nobody can disable, remove or demote it, and only the main BB Admin changes it (any BB Admin sets the first).
@@ -124,6 +125,7 @@ export default function SecurityView() {
           </p>
         </section>
       )}
+      <ClinicsCard />
       <TwoStep />
       <section className="card" style={{ marginTop: 14 }}>
         <h3 style={{ margin: "0 0 4px" }}>BB Gmail</h3>

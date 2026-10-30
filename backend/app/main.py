@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import (
     chat,
     crm,
+    crm_clinics,
     crm_console,
     crm_email,
     crm_forms,
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_security.codes, prefix="/v1")
     app.include_router(crm_email.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_permissions.router, prefix="/v1")
+    app.include_router(crm_clinics.router, prefix="/v1")
     app.include_router(crm_webhooks.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_whatsapp.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_whatsapp.links, prefix="/v1")
