@@ -7,6 +7,8 @@ export const CLINICS = [
   { id: 'neo-fertility', dir: 'neo-fertility' },
   { id: 'neo-follicle', dir: 'neo-follicle' },
   { id: 'derma-solutions', dir: 'derma-solutions' },
+  // The shared loader for every other clinic: clinic.js with data-clinic="CLxx" on the script line.
+  { id: 'clinic', dir: 'clinic' },
 ];
 
 // Compressed (gzip) size limits, from the README targets.

@@ -125,12 +125,13 @@ async def embed_code(user: Annotated[Staff, Depends(staff)], clinic: str, reques
     """The one line to paste on the clinic's website, just before </body>: this backend's address and the
     clinic's widget file (found in the built widget files, so nothing is fixed here)."""
     await _manager(user, clinic)
-    name = widget.loaders().get(clinic)
-    if not name:
-        return Embed(code="", file="")
     base = (get_settings().public_url or str(request.base_url)).rstrip("/")
-    url = f"{base}/v1/widget/{name}.js"
-    return Embed(code=f'<script src="{url}" defer></script>', file=url)
+    name = widget.loaders().get(clinic)
+    if name:  # a clinic with its own built file (e.g. CL01's neo-follicle.js) keeps its line
+        url = f"{base}/v1/widget/{name}.js"
+        return Embed(code=f'<script src="{url}" defer></script>', file=url)
+    url = f"{base}/v1/widget/clinic.js"  # the shared loader, told which clinic it is
+    return Embed(code=f'<script src="{url}" data-clinic="{clinic}" defer></script>', file=url)
 
 
 @router.get("/{clinic}/websites", response_model=list[Website])
