@@ -10,11 +10,14 @@ export type Section = {
   stage: number;
   desc: string;
   bbOnly?: boolean;
+  /** Turned off: hidden from everyone, its page returns 404. */
+  off?: boolean;
 };
 
 export const SECTIONS: Section[] = [
   {
     id: "overview",
+    off: true,
     icon: "dash",
     label: "Overview",
     group: "",
@@ -119,6 +122,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "privacy",
+    off: true,
     icon: "shield",
     label: "Privacy & data",
     group: "Security",
@@ -135,6 +139,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "activity",
+    off: true,
     icon: "clock",
     label: "Activity log",
     group: "Security",
@@ -143,6 +148,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "alerts",
+    off: true,
     icon: "bell",
     label: "Staff alerts",
     group: "Security",
@@ -158,6 +164,9 @@ export const SECTIONS: Section[] = [
     desc: "Each publish is saved so you can roll back.",
   },
 ];
+
+/** The sections in use (turned-off ones left out). */
+export const ON_SECTIONS = SECTIONS.filter((s) => !s.off);
 
 /** Who may open the console: BB Admin and clinic managers. */
 export const canUseConsole = (role: string | undefined) =>

@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import AssistantSection from "@/components/assistant/AssistantSection";
-import { SECTIONS } from "@/lib/assistant";
+import { ON_SECTIONS } from "@/lib/assistant";
 
 export function generateStaticParams() {
-  return SECTIONS.map((s) => ({ section: s.id }));
+  return ON_SECTIONS.map((s) => ({ section: s.id }));
 }
 
 export default function SectionPage({
@@ -22,7 +22,7 @@ export default function SectionPage({
 
 async function Section({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
-  const s = SECTIONS.find((x) => x.id === section);
+  const s = ON_SECTIONS.find((x) => x.id === section);
   if (!s) notFound();
   return <AssistantSection section={s} />;
 }

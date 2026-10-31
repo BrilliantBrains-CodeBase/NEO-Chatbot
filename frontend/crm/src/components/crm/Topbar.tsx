@@ -73,19 +73,6 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           <option key={c}>{c}</option>
         ))}
       </select>
-      <label className="search hide-m">
-        <Icon name="search" />
-        <input
-          placeholder="Search name or phone"
-          aria-label="Search name or phone"
-          onKeyDown={(e) => {
-            if (e.key === "Enter")
-              router.push(
-                `/leads?q=${encodeURIComponent(e.currentTarget.value.trim())}`,
-              );
-          }}
-        />
-      </label>
       {level(crm.me, crm.clinic, "dash_open") !== "hidden" && (
         <div className="seg" role="tablist" aria-label="Workspace">
           <button
@@ -102,7 +89,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
             role="tab"
             aria-selected={inConsole}
             className={inConsole ? "on" : ""}
-            onClick={() => router.push("/assistant/overview")}
+            onClick={() => router.push("/assistant/appearance")}
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <Icon name="dash" />

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { INBOX_TABS } from "@/lib/api";
-import { SECTIONS } from "@/lib/assistant";
+import { ON_SECTIONS } from "@/lib/assistant";
 import { CLINIC_CONTENT } from "@/lib/sample-data";
 import { useCrm } from "./CrmProvider";
 import Icon, { type IconName } from "./Icon";
@@ -114,10 +114,10 @@ export default function Sidebar({
       {path.startsWith("/assistant") ? (
         <nav className="nav">
           {/* The Assistant console's menu (design: Patient Assistant Console), grouped as in the design. */}
-          {[...new Set(SECTIONS.map((s) => s.group))].map((g) => (
+          {[...new Set(ON_SECTIONS.map((s) => s.group))].map((g) => (
             <div key={g || "top"}>
               {g && <div className="grp">{g.toUpperCase()}</div>}
-              {SECTIONS.filter(
+              {ON_SECTIONS.filter(
                 (s) => s.group === g && (!s.bbOnly || crm.me?.bb_admin),
               ).map((s) =>
                 item(

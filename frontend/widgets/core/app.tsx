@@ -48,12 +48,12 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   const add = (from: 'bot' | 'me', text: string, error?: boolean) =>
     setEntries((list) => [...list, { id: nextId.current++, from, text, error }]);
 
-  // A reply's block goes into the conversation too. The main menu sits above the greeting (approved mockups);
-  // every other block sits under the text it belongs to.
+  // A reply's block goes into the conversation too, under the text it belongs to
+  // (the greeting sits above the main menu).
   const addReply = (res: ChatResponse) => {
     const texts: Entry[] = res.messages.map((m) => ({ id: nextId.current++, from: 'bot', text: m.text }));
     const ui: Entry[] = res.ui ? [{ id: nextId.current++, from: 'ui', block: res.ui }] : [];
-    setEntries((list) => [...list, ...(res.ui?.type === 'menu' ? [...ui, ...texts] : [...texts, ...ui])]);
+    setEntries((list) => [...list, ...texts, ...ui]);
   };
 
   const send = useCallback(
