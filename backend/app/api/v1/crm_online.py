@@ -57,8 +57,8 @@ class DoctorSetup(BaseModel):
     @field_validator("consult_minutes")
     @classmethod
     def _minutes(cls, v: int) -> int:
-        if v not in (15, 30, 45, 60):
-            raise ValueError("A consult is 15, 30, 45 or 60 minutes.")
+        if v not in (5, 10, 15, 20, 30, 45, 60):
+            raise ValueError("A consult is 5, 10, 15, 20, 30, 45 or 60 minutes.")
         return v
 
 
@@ -252,4 +252,8 @@ async def sync(clinic: str, key: str, body: Setup) -> list[str]:
                  schedule_id = $5, consult_minutes = $6, synced_at = now()""",
             clinic, d.doctor_id, event, f"Online consult with {name}", schedule, d.consult_minutes,
         )  # fmt: skip
+        # The doctor's online length (Dashboard → Doctors) is the Cal.com event's length.
+        await pool.execute(
+            "update app.doctors set online_minutes = $2 where id = $1::uuid", d.doctor_id, d.consult_minutes
+        )
     return problems

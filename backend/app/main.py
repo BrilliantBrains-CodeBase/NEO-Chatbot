@@ -11,6 +11,7 @@ from app.api.v1 import (
     crm,
     crm_clinics,
     crm_console,
+    crm_doctors,
     crm_email,
     crm_forms,
     crm_inbox,
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_websites.router, prefix="/v1", dependencies=tab("install"))
     app.include_router(crm_integrations.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_online.router, prefix="/v1", dependencies=tab("integrations"))
+    app.include_router(crm_doctors.router, prefix="/v1", dependencies=tab("doctors"))
     app.include_router(crm_sheets.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_forms.router, prefix="/v1", dependencies=tab("integrations"))
     app.include_router(crm_team.router, prefix="/v1")

@@ -21,7 +21,8 @@ CRM = {
 }  # fmt: skip
 DASHBOARD = {
     "overview": "Overview", "appearance": "Appearance", "templates": "Templates", "menu": "Menu buttons",
-    "content": "Clinic info", "ai": "Answers", "legal": "Legal", "unanswered": "Unanswered questions",
+    "content": "Clinic info", "doctors": "Doctors", "ai": "Answers", "legal": "Legal",
+    "unanswered": "Unanswered questions",
     "chats": "Chat transcripts", "quality": "Test & quality", "install": "Website install",
     "integrations": "Integrations", "security": "Login & security", "privacy": "Privacy & data",
     "team": "Team & access", "activity": "Activity", "alerts": "Alerts", "versions": "Versions",
