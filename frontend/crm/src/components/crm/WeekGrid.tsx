@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { level } from "@/lib/access";
 import {
@@ -413,7 +414,7 @@ export default function WeekGrid({
                       className={c.cls}
                       title={
                         c.free && canBook
-                          ? `${c.title} · click to book`
+                          ? `${c.title} · click to add a patient`
                           : c.title
                       }
                       onClick={
@@ -585,8 +586,8 @@ function ScheduleCard({
   );
 }
 
-/** Book a free time: an existing patient (search) or a new one. In-clinic is confirmed at once; online goes
- * to Inbox → Online consults, where approving books Cal.com and sends the Meet link. */
+/** Add a patient at a free time: an existing patient (search) or a new one. Confirmed at once (online: booked
+ * in Cal.com, Meet link emailed), then Appointments opens on that day with the booking showing. */
 function BookCard({
   clinicId,
   doctorId,
@@ -601,6 +602,7 @@ function BookCard({
   onClose: (saved: boolean) => void;
 }) {
   const { toast } = useCrm();
+  const router = useRouter();
   const [type, setType] = useState<Kind>(slot.kinds[0]);
   const [mode, setMode] = useState<"find" | "new">("find");
   const [q, setQ] = useState("");
@@ -608,6 +610,7 @@ function BookCard({
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [cc, setCc] = useState("+91");
   const [treatments, setTreatments] = useState<string[]>([]);
   const [treatment, setTreatment] = useState("");
@@ -647,34 +650,33 @@ function BookCard({
     setBusy(true);
     setError("");
     try {
-      const r = await api<{ lead_code: string; status: string }>(
-        `/v1/crm/availability/${doctorId}/book?clinic=${clinicId}`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            date: slot.date,
-            time: slot.time,
-            type,
-            ...(mode === "find"
-              ? { lead_code: lead?.code }
-              : {
-                  patient: {
-                    name: name.trim(),
-                    phone: phone.trim(),
-                    phone_cc: cc,
-                  },
-                }),
-            treatment: treatment.trim() || null,
-            note,
-          }),
-        },
-      );
-      toast(
-        r.status === "confirmed"
-          ? `Booked (${r.lead_code})`
-          : `Online consult sent to Inbox for approval (${r.lead_code})`,
-      );
+      const r = await api<{
+        lead_code: string;
+        appointment_id: string;
+        date: string;
+      }>(`/v1/crm/availability/${doctorId}/book?clinic=${clinicId}`, {
+        method: "POST",
+        body: JSON.stringify({
+          date: slot.date,
+          time: slot.time,
+          type,
+          ...(mode === "find"
+            ? { lead_code: lead?.code }
+            : {
+                patient: {
+                  name: name.trim(),
+                  phone: phone.trim(),
+                  phone_cc: cc,
+                },
+              }),
+          email: needEmail ? email.trim() : null,
+          treatment: treatment.trim() || null,
+          note,
+        }),
+      });
+      toast(`Added (${r.lead_code}): confirmed`);
       onClose(true);
+      router.push(`/appointments?day=${r.date}&open=${r.appointment_id}`);
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not book. Please try again.",
@@ -684,6 +686,8 @@ function BookCard({
     }
   }
 
+  const needEmail =
+    type === "online" && (mode === "new" || (!!lead && !lead.email));
   const h = head(slot.date);
   const ready =
     mode === "find"
@@ -695,7 +699,7 @@ function BookCard({
       style={{ padding: 16, marginBottom: 12, maxWidth: 760 }}
     >
       <b>
-        Book {doctor} · {h.day} {h.date}, {label(mins(slot.time))}
+        Add a patient · {doctor} · {h.day} {h.date}, {label(mins(slot.time))}
       </b>
       <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
         {slot.kinds.length > 1 ? (
@@ -830,10 +834,21 @@ function BookCard({
           onChange={(e) => setNote(e.target.value)}
         />
       </div>
+      {needEmail && (
+        <input
+          className="f"
+          style={{ width: "100%", marginTop: 10 }}
+          type="email"
+          placeholder="Patient's email (the Google Meet link is sent here)"
+          maxLength={200}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      )}
       {type === "online" && (
         <p className="sub2" style={{ margin: "8px 0 0" }}>
-          Online consults go to Inbox → Online consults: approving there books
-          Cal.com and sends the Meet link. The time is held from now.
+          Confirmed at once: the consult is booked in Cal.com and the Google
+          Meet link is emailed to the patient.
         </p>
       )}
       {error && (
@@ -847,7 +862,7 @@ function BookCard({
           disabled={busy || !ready}
           onClick={() => void book()}
         >
-          {busy ? "Booking…" : type === "online" ? "Send to Inbox" : "Book"}
+          {busy ? "Adding…" : "Add"}
         </button>
         <button
           className="btn g"

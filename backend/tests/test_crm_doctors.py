@@ -175,7 +175,7 @@ async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.Monk
 
         r = await api.post(url, json=visit, headers=headers)
         assert r.status_code == 200, r.text
-        assert r.json()["status"] == "confirmed"
+        assert r.json()["date"] == "2030-01-07" and r.json()["appointment_id"]
         code = r.json()["lead_code"]
         a = await pool.fetchrow(
             """select a.status, upper(a.slot) - lower(a.slot) len, l.stage from app.appointments a
@@ -187,16 +187,30 @@ async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.Monk
         r = await api.post(url, json=visit | {"patient": None, "lead_code": code}, headers=headers)
         assert r.status_code == 409  # taken
 
+        # Online: confirmed at once and booked in Cal.com (a stand-in here), which needs an email.
+        from app.crm import calcom
+
+        sent: list[str] = []
+
+        async def fake_book(start: Any, name: str, email: str, *args: Any) -> calcom.Booking:
+            sent.append(email)
+            return calcom.Booking(uid="test-uid", meet_link="https://meet.google.com/abc-defg-hij")
+
+        monkeypatch.setattr(calcom, "book", fake_book)
         online = {"date": "2030-01-07", "time": "11:00", "type": "online", "lead_code": code}
         r = await api.post(url, json=online, headers=headers)
-        assert r.status_code == 200 and r.json()["status"] == "pending", r.text
-        req = await pool.fetchrow(
-            """select r.type, r.status, upper(a.slot) - lower(a.slot) len from app.requests r
-               join app.appointments a on a.request_id = r.id
-               join app.leads l on l.id = r.lead_id where l.lead_code = $1""",
-            code,
+        assert r.status_code == 422 and "email" in r.text  # no email yet
+        r = await api.post(url, json=online | {"email": "Test.Patient@Example.com"}, headers=headers)
+        assert r.status_code == 200, r.text
+        a = await pool.fetchrow(
+            """select a.status, a.meet_link, upper(a.slot) - lower(a.slot) len, a.request_id, l.email
+               from app.appointments a join app.leads l on l.id = a.lead_id
+               where a.id = $1::uuid""",
+            r.json()["appointment_id"],
         )
-        assert req["type"] == "online" and req["status"] == "pending" and req["len"].seconds == 1800
+        assert a["status"] == "confirmed" and a["meet_link"].startswith("https://meet.google.com/")
+        assert a["len"].seconds == 1800 and a["request_id"] is None  # no Inbox step
+        assert a["email"] == "test.patient@example.com" and sent == ["test.patient@example.com"]
         r = await api.post(
             url, json=visit | {"time": "11:10", "patient": None, "lead_code": code}, headers=headers
         )

@@ -2,6 +2,7 @@
 
 import { level } from "@/lib/access";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import SlotPicker, { type Pick } from "@/components/inbox/SlotPicker";
@@ -74,7 +75,9 @@ export default function AppointmentsView() {
   const { clinic, me, toast } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const today = useToday();
-  const [chosen, setDay] = useState(""); // "" = today
+  // ?day=YYYY-MM-DD&open=<id>: a booking just added opens on its day with its details showing.
+  const params = useSearchParams();
+  const [chosen, setDay] = useState(params.get("day") ?? ""); // "" = today
   const day = chosen || today;
   const [view, setView] = useState<"doctor" | "list">("doctor");
   const [all, setAll] = useState(false); // also cancelled, rejected and moved ones
@@ -94,7 +97,7 @@ export default function AppointmentsView() {
     d?: Appointments;
     error?: string;
   }>({ key: "" });
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(params.get("open"));
 
   useEffect(() => {
     if (!clinicId || !day) return;
