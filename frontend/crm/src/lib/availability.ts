@@ -14,6 +14,10 @@ export type Booking = {
   status: string;
   patient: string;
   lead_code: string;
+  phone: string | null;
+  treatment: string | null;
+  stage: string; // the lead's stage
+  request_id: string | null; // its Inbox request while still pending
 };
 export type Day = {
   date: string;

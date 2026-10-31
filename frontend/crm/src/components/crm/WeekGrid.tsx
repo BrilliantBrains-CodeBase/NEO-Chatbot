@@ -78,6 +78,7 @@ function cell(
   sub?: string;
   title?: string;
   free?: Kind[]; // the kinds of visit free at this time (a click books one)
+  booking?: Booking; // the booking here (a click shows its details)
 } {
   const b: Booking | undefined = day.bookings.find(
     (x) => x.start && x.end && mins(x.start) <= m && m < mins(x.end),
@@ -101,6 +102,7 @@ function cell(
         text: first ? b.patient : "",
         sub: first ? `Pending · ${kind}` : "",
         title,
+        booking: b,
       };
     return {
       cls: `c booked${b.type === "online" ? " onl" : ""}`,
@@ -109,6 +111,7 @@ function cell(
         ? `${kind}${b.status === "confirmed" ? "" : ` · ${b.status.replace("_", "-")}`}`
         : "",
       title,
+      booking: b,
     };
   }
   if (past) return { cls: "past", text: "" };
@@ -147,6 +150,10 @@ export default function WeekGrid({
   const canEdit = level(me, clinic, "doctors") === "edit";
   const [editing, setEditing] = useState(false);
   const canBook = level(me, clinic, "appointments") === "edit";
+  const [detail, setDetail] = useState<{
+    date: string;
+    booking: Booking;
+  } | null>(null);
   const [booking, setBooking] = useState<{
     date: string;
     time: string;
@@ -221,6 +228,17 @@ export default function WeekGrid({
   return (
     <>
       {header}
+      {detail && (
+        <DetailCard
+          doctor={w.doctor.name}
+          date={detail.date}
+          booking={detail.booking}
+          onClose={(saved) => {
+            setDetail(null);
+            if (saved) setVersion((v) => v + 1);
+          }}
+        />
+      )}
       {booking && (
         <BookCard
           clinicId={clinicId}
@@ -415,17 +433,29 @@ export default function WeekGrid({
                       title={
                         c.free && canBook
                           ? `${c.title} · click to add a patient`
-                          : c.title
+                          : c.booking && canBook
+                            ? `${c.title} · click for details`
+                            : c.title
                       }
                       onClick={
                         c.free && canBook
-                          ? () =>
+                          ? () => {
+                              setDetail(null);
                               setBooking({
                                 date: d.date,
                                 time: hm(m),
                                 kinds: c.free!,
-                              })
-                          : undefined
+                              });
+                            }
+                          : c.booking && canBook
+                            ? () => {
+                                setBooking(null);
+                                setDetail({
+                                  date: d.date,
+                                  booking: c.booking!,
+                                });
+                              }
+                            : undefined
                       }
                     >
                       {c.text && <b>{c.text}</b>}
@@ -870,6 +900,231 @@ function BookCard({
           onClick={() => onClose(false)}
         >
           Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const LOST: [string, string][] = [
+  ["not_reachable", "Not reachable"],
+  ["not_interested", "Not interested"],
+  ["price", "Price"],
+  ["chose_another_clinic", "Chose another clinic"],
+  ["other", "Other"],
+];
+const STATUS: Record<string, string> = {
+  pending: "Pending (waiting in the Inbox)",
+  confirmed: "Confirmed",
+  visited: "Visited",
+  no_show: "No show",
+  missed: "Missed",
+};
+
+/** A booking's details, with what staff can do with it: pending → confirm in the Inbox or reject; confirmed
+ * → visited, no show or cancel; and mark the lead Lost. */
+function DetailCard({
+  doctor,
+  date,
+  booking: b,
+  onClose,
+}: {
+  doctor: string;
+  date: string;
+  booking: Booking;
+  onClose: (saved: boolean) => void;
+}) {
+  const { toast } = useCrm();
+  const router = useRouter();
+  const [reason, setReason] = useState("");
+  const [lost, setLost] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function call(
+    path: string,
+    method: string,
+    body: object,
+    done: string,
+  ) {
+    setBusy(true);
+    setError("");
+    try {
+      await api(path, { method, body: JSON.stringify(body) });
+      toast(done);
+      onClose(true);
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not save. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const h = head(date);
+  const kind = b.type === "online" ? "Online consult" : "In-clinic visit";
+  const tab = b.type === "online" ? "online" : "book";
+  const open = b.status === "pending" || b.status === "confirmed";
+  const needReason = reason.trim().length < 3;
+  return (
+    <div
+      className="card"
+      style={{ padding: 16, marginBottom: 12, maxWidth: 760 }}
+    >
+      <b>
+        {b.patient} · {doctor} · {h.day} {h.date}, {b.start}–{b.end}
+      </b>
+      <p className="sub2" style={{ margin: "4px 0 0" }}>
+        {kind} · {STATUS[b.status] ?? b.status} · {b.lead_code}
+        {b.phone ? ` · ${b.phone}` : ""}
+        {b.treatment ? ` · ${b.treatment}` : ""} · Lead:{" "}
+        {b.stage.replace("_", " ")}
+      </p>
+
+      {open && (
+        <input
+          className="f"
+          style={{ width: "100%", marginTop: 12 }}
+          placeholder={
+            b.request_id
+              ? "Reason to reject (needed to reject)"
+              : "Reason to cancel (needed to cancel)"
+          }
+          maxLength={500}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      )}
+      <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        {b.request_id && (
+          <>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                router.push(`/inbox?tab=${tab}&open=${b.request_id}`)
+              }
+            >
+              Open in Inbox to confirm
+            </button>
+            <button
+              className="btn red"
+              disabled={busy || needReason}
+              onClick={() =>
+                void call(
+                  `/v1/crm/requests/${b.request_id}/reject`,
+                  "POST",
+                  { reason: reason.trim() },
+                  "Request rejected: the time is free again",
+                )
+              }
+            >
+              Reject
+            </button>
+          </>
+        )}
+        {open && !b.request_id && (
+          <>
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void call(
+                  `/v1/crm/appointments/${b.id}/status`,
+                  "POST",
+                  { status: "visited" },
+                  "Marked visited",
+                )
+              }
+            >
+              Visited
+            </button>
+            <button
+              className="btn g"
+              disabled={busy}
+              onClick={() =>
+                void call(
+                  `/v1/crm/appointments/${b.id}/status`,
+                  "POST",
+                  { status: "no_show" },
+                  "Marked no show",
+                )
+              }
+            >
+              No show
+            </button>
+            <button
+              className="btn red"
+              disabled={busy || needReason}
+              onClick={() =>
+                void call(
+                  `/v1/crm/appointments/${b.id}/status`,
+                  "POST",
+                  { status: "cancelled", reason: reason.trim() },
+                  "Booking cancelled: the time is free again",
+                )
+              }
+            >
+              Cancel booking
+            </button>
+          </>
+        )}
+      </div>
+
+      {b.stage !== "lost" && (
+        <div
+          className="row"
+          style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}
+        >
+          <select
+            className="sel"
+            aria-label="Lost reason"
+            value={lost}
+            onChange={(e) => setLost(e.target.value)}
+          >
+            <option value="">Mark lead as Lost: choose a reason</option>
+            {LOST.map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn g"
+            disabled={busy || !lost}
+            onClick={() =>
+              void call(
+                `/v1/crm/leads/${b.lead_code}`,
+                "PATCH",
+                { stage: "lost", stage_reason: lost },
+                "Lead marked Lost",
+              )
+            }
+          >
+            Mark Lost
+          </button>
+          <span className="sub2">
+            The booking itself stays until you cancel or reject it.
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" style={{ color: "var(--err)", margin: "10px 0 0" }}>
+          {error}
+        </p>
+      )}
+      <div className="row" style={{ gap: 8, marginTop: 14 }}>
+        <Link className="btn g" href={`/leads?open=${b.lead_code}`}>
+          Open lead
+        </Link>
+        <button
+          className="btn g"
+          disabled={busy}
+          onClick={() => onClose(false)}
+        >
+          Close
         </button>
       </div>
     </div>

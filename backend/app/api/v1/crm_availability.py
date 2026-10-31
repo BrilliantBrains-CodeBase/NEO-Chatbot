@@ -43,6 +43,10 @@ class Booking(BaseModel):
     status: str  # pending | confirmed | visited | no_show | missed
     patient: str
     lead_code: str
+    phone: str | None
+    treatment: str | None
+    stage: str  # the lead's stage
+    request_id: str | None  # its Inbox request, while that is still pending (confirm or reject there)
 
 
 class Day(BaseModel):
@@ -128,7 +132,8 @@ async def _days(conn: Any, clinic: str, doc: Doctor, first: date, last: date) ->
     )  # fmt: skip
     holidays = {r["day"]: r["reason"] for r in rows}
     appts = await conn.fetch(
-        """select a.id, a.type, a.status, l.full_name, l.lead_code,
+        """select a.id, a.type, a.status, l.full_name, l.lead_code, l.phone_e164, l.treatment, l.stage,
+                  (select r.id from app.requests r where r.id = a.request_id and r.status = 'pending') req,
                   coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) as day,
                   to_char(lower(a.slot) at time zone c.timezone, 'HH24:MI') s,
                   to_char(upper(a.slot) at time zone c.timezone, 'HH24:MI') e
@@ -163,7 +168,9 @@ async def _days(conn: Any, clinic: str, doc: Doctor, first: date, last: date) ->
                 free_in_clinic=free["in_clinic"].get(day.isoformat(), []),
                 free_online=free["online"].get(day.isoformat(), []),
                 bookings=[Booking(id=str(a["id"]), start=a["s"], end=a["e"], type=a["type"],
-                                  status=a["status"], patient=a["full_name"], lead_code=a["lead_code"])
+                                  status=a["status"], patient=a["full_name"], lead_code=a["lead_code"],
+                                  phone=a["phone_e164"], treatment=a["treatment"], stage=a["stage"],
+                                  request_id=str(a["req"]) if a["req"] else None)
                           for a in appts if a["day"] == day],
             )
         )  # fmt: skip
