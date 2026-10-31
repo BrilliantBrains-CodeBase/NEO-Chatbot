@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
+import { toImport } from "@/lib/kb-import";
+import { downloadOnboarding, downloadSample } from "@/lib/kb-sample";
 
 // Dashboard → Knowledge base: the clinic's facts and Q&A. One fact, many answers: an answer links a fact as
 // {key} and shows its approved value. Staff save drafts; a clinic manager or BB Admin approves; only approved
@@ -68,6 +70,12 @@ export default function KnowledgeView() {
   const [editQa, setEditQa] = useState<Partial<Qa> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The last upload's report: what was added, updated, left as it was, and the rows that were not saved.
+  const [report, setReport] = useState<{
+    file: string;
+    lines: string[];
+    problems: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -109,6 +117,67 @@ export default function KnowledgeView() {
         e instanceof ApiError ? e.message : "Could not save. Please try again.",
       );
       return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function upload(file: File) {
+    if (!clinicId) return;
+    setError("");
+    setReport(null);
+    if (!/\.csv$/i.test(file.name)) {
+      setError("Upload a CSV file. In Excel: File → Save As → CSV UTF-8.");
+      return;
+    }
+    let parsed: ReturnType<typeof toImport>;
+    try {
+      parsed = toImport(await file.text());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not read the file.");
+      return;
+    }
+    if (!parsed.rows.length) {
+      setReport({
+        file: file.name,
+        lines: ["Nothing to add (no answered rows)"],
+        problems: parsed.skipped,
+      });
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api<{
+        added: number;
+        updated: number;
+        unchanged: number;
+        problems: string[];
+        knowledge: Knowledge;
+      }>(`${url}/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows: parsed.rows }),
+      });
+      setData({ clinic: clinicId, k: r.knowledge });
+      setTab(parsed.kind === "qa" ? "qa" : "facts");
+      setReport({
+        file: file.name,
+        lines: [
+          `Added ${r.added}`,
+          `Updated ${r.updated}`,
+          `Unchanged ${r.unchanged}`,
+          ...(r.problems.length + parsed.skipped.length
+            ? [`Not saved ${r.problems.length + parsed.skipped.length}`]
+            : []),
+        ],
+        problems: [...r.problems, ...parsed.skipped],
+      });
+      toast(`Uploaded: ${r.added} added, ${r.updated} updated`);
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Could not upload. Please try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -280,7 +349,52 @@ export default function KnowledgeView() {
         >
           {tab === "facts" ? "+ Add fact" : "+ Add question"}
         </button>
+        <button className="btn g" onClick={() => downloadSample(tab)}>
+          Download sample CSV
+        </button>
+        <button className="btn g" onClick={downloadOnboarding}>
+          Download onboarding questions (CSV)
+        </button>
+        <label className="btn g" style={{ cursor: busy ? "wait" : "pointer" }}>
+          {busy ? "Uploading…" : "Upload CSV"}
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            hidden
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ""; // the same file can be chosen again
+              if (file) void upload(file);
+            }}
+          />
+        </label>
       </div>
+      {report && (
+        <div
+          className={report.problems.length ? "warnbox" : "okbox"}
+          style={{ marginBottom: 12 }}
+        >
+          <b>{report.file}</b>: {report.lines.join(" · ")}
+          {report.problems.length > 0 && (
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+              {report.problems.slice(0, 20).map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+              {report.problems.length > 20 && (
+                <li>…and {report.problems.length - 20} more</li>
+              )}
+            </ul>
+          )}
+          <div style={{ marginTop: 6 }}>
+            Uploaded entries are drafts: approve them to let the chatbot use
+            them.{" "}
+            <button className="lnk" onClick={() => setReport(null)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
       {error && !editFact && !editQa && <p className="warnbox">{error}</p>}
 
       {editFact && (

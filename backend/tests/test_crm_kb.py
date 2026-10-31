@@ -84,3 +84,43 @@ async def test_knowledge_base_drafts_approval_and_fact_links(
         await pool.execute("delete from app.kb_facts where clinic_id = 'CL99' and key = 'test_consult_fee'")
         kb.forget("CL99")
         await close_pool()
+
+
+@needs_db
+async def test_upload_rows_become_drafts(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    fact = {"row": 2, "kind": "fact", "key": "test_up_fee", "category": "cost", "value": "Rs 800"}
+    qa = {
+        "row": 3,
+        "kind": "qa",
+        "question": "Test upload question?",
+        "value": "Fee {test_up_fee}.",
+        "category": "",
+    }
+    bad = {"row": 4, "kind": "fact", "key": "Bad Key!", "value": "x"}
+    try:
+        r = await api.post(f"{URL}/import", json={"rows": [fact, qa, bad]}, headers=headers)
+        assert r.status_code == 200, r.text
+        got = r.json()
+        assert (got["added"], got["updated"], got["unchanged"]) == (2, 0, 0)
+        assert len(got["problems"]) == 1 and got["problems"][0].startswith("Row 4: key")
+        [f] = [x for x in got["knowledge"]["facts"] if x["key"] == "test_up_fee"]
+        assert f["status"] == "draft" and f["used_by"] == 1
+
+        again = [fact | {"value": "Rs 900"}, qa | {"question": "TEST upload   question?"}]
+        got = (await api.post(f"{URL}/import", json={"rows": again}, headers=headers)).json()
+        assert (got["added"], got["updated"], got["unchanged"]) == (0, 1, 1)
+        assert next(x for x in got["knowledge"]["facts"] if x["key"] == "test_up_fee")["value"] == "Rs 900"
+    finally:
+        await pool.execute(
+            "delete from app.kb_qa where clinic_id = 'CL99' and question = 'Test upload question?'"
+        )
+        await pool.execute("delete from app.kb_facts where clinic_id = 'CL99' and key = 'test_up_fee'")
+        kb.forget("CL99")
+        await close_pool()

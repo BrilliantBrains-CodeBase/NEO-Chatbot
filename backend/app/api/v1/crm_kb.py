@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.chat import kb
 from app.core.db import get_pool
@@ -207,6 +207,131 @@ async def save_qa(user: Annotated[Staff, Depends(staff)], clinic: str, qa_id: st
     if done is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
     return await _knowledge(clinic, user)
+
+
+class ImportRow(BaseModel):
+    """One row of an uploaded file, as the CRM read it (it is checked here, row by row)."""
+
+    row: int  # its line in the file, for the report
+    kind: Literal["fact", "qa"]
+    key: str = ""
+    category: str = ""
+    value: str = ""  # a fact's value, or a Q&A's answer
+    question: str = ""
+    variants: str = ""
+    treatment: str = ""
+
+
+class ImportIn(BaseModel):
+    rows: list[ImportRow] = Field(max_length=2000)
+
+
+class Imported(BaseModel):
+    added: int
+    updated: int
+    unchanged: int
+    problems: list[str]  # "Row 7: ..."
+    knowledge: Knowledge
+
+
+@router.post("/{clinic}/kb/import", response_model=Imported)
+async def import_rows(user: Annotated[Staff, Depends(staff)], clinic: str, body: ImportIn) -> Imported:
+    """An uploaded file's rows as drafts: a fact by key, a Q&A by question (the same key or question updates
+    that entry, back to draft; a new one is added). Nothing is approved here. A wrong row is reported and
+    skipped; the rest are saved."""
+    pool = await get_pool()
+    added = updated = unchanged = 0
+    problems: list[str] = []
+    kb.forget(clinic)
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        facts = {
+            r["key"]: r
+            for r in await conn.fetch(
+                "select id, key, category, value, variants from app.kb_facts where clinic_id = $1", clinic
+            )
+        }
+        qas = {
+            " ".join(r["question"].lower().split()): r
+            for r in await conn.fetch(
+                "select id, question, variants, answer, category, treatment from app.kb_qa "
+                "where clinic_id = $1",
+                clinic,
+            )
+        }
+        for r in body.rows:
+            try:
+                category = r.category.strip().lower() or ("clinic_info" if r.kind == "fact" else "other")
+                if r.kind == "fact":
+                    f = FactIn(key=r.key.strip(), category=category, value=r.value, variants=r.variants)
+                    old = facts.get(f.key)
+                    if old and (old["value"], old["category"], old["variants"]) == (
+                        f.value.strip(),
+                        f.category,
+                        f.variants,
+                    ):
+                        unchanged += 1
+                    elif old:
+                        await conn.execute(
+                            """update app.kb_facts set category = $2, value = $3, variants = $4,
+                                 status = 'draft', approved_by = null, approved_at = null where id = $1""",
+                            old["id"], f.category, f.value.strip(), f.variants,
+                        )  # fmt: skip
+                        updated += 1
+                    else:
+                        await conn.execute(
+                            """insert into app.kb_facts (clinic_id, key, category, value, variants)
+                               values ($1, $2, $3, $4, $5)""",
+                            clinic, f.key, f.category, f.value.strip(), f.variants,
+                        )  # fmt: skip
+                        facts[f.key] = {
+                            "value": f.value.strip(),
+                            "category": f.category,
+                            "variants": f.variants,
+                        }
+                        added += 1
+                else:
+                    q = QaIn(question=r.question, variants=r.variants, answer=r.value, category=category,
+                             treatment=r.treatment or None)  # fmt: skip
+                    same = " ".join(q.question.lower().split())
+                    old = qas.get(same)
+                    treatment = (q.treatment or "").strip() or None
+                    if old and (old["answer"], old["variants"], old["category"], old["treatment"]) == (
+                        q.answer.strip(),
+                        q.variants,
+                        q.category,
+                        treatment,
+                    ):
+                        unchanged += 1
+                    elif old:
+                        await conn.execute(
+                            """update app.kb_qa set variants = $2, answer = $3, category = $4, treatment = $5,
+                                 status = 'draft', approved_by = null, approved_at = null where id = $1""",
+                            old["id"], q.variants, q.answer.strip(), q.category, treatment,
+                        )  # fmt: skip
+                        updated += 1
+                    else:
+                        await conn.execute(
+                            """insert into app.kb_qa
+                                 (clinic_id, question, variants, answer, category, treatment)
+                               values ($1, $2, $3, $4, $5, $6)""",
+                            clinic, q.question.strip(), q.variants, q.answer.strip(), q.category, treatment,
+                        )  # fmt: skip
+                        qas[same] = {
+                            "answer": q.answer.strip(), "variants": q.variants, "category": q.category,
+                            "treatment": treatment,
+                        }  # fmt: skip
+                        added += 1
+            except ValidationError as e:
+                why = "; ".join(
+                    f"{'.'.join(str(x) for x in err['loc'])}: {err['msg'].replace('Value error, ', '')}"
+                    for err in e.errors()
+                )
+                problems.append(f"Row {r.row}: {why}")
+    return Imported(
+        added=added, updated=updated, unchanged=unchanged, problems=problems[:100],
+        knowledge=await _knowledge(clinic, user),
+    )  # fmt: skip
 
 
 @router.post("/{clinic}/kb/{kind}/{row_id}/{action}", response_model=Knowledge)
