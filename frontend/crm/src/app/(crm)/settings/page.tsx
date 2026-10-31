@@ -1,16 +1,22 @@
 "use client";
 
-import Placeholder from "@/components/crm/Placeholder";
-import { useCrm } from "@/components/crm/CrmProvider";
+import BellCard from "@/components/crm/BellCard";
+import PasswordCard from "@/components/crm/PasswordCard";
+import ProfileCard from "@/components/crm/ProfileCard";
 
-// Sub-step 2 (CRM frame): the screen's header from the design; its content is built in a later step.
+// Settings: how my account works. Clinic setup stays in the Dashboard (Clinic info, Integrations, Team).
 export default function SettingsPage() {
-  const { clinic } = useCrm();
   return (
-    <Placeholder
-      title={"Settings"}
-      description={clinic}
-      next={["Clinic profile, timings and holidays, doctors, treatments", "Lead settings, notifications, integrations, audit log"]}
-    />
+    <>
+      <div className="ph">
+        <div>
+          <h1>Settings</h1>
+          <p>Your profile, password and notifications.</p>
+        </div>
+      </div>
+      <ProfileCard />
+      <PasswordCard />
+      <BellCard />
+    </>
   );
 }

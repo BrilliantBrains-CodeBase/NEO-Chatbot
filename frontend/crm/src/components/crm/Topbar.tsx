@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Clinic } from "@/lib/sample-data";
 import AddLeadForm from "@/components/leads/AddLeadForm";
 import { level } from "@/lib/access";
+import { useBellOff } from "@/lib/bell";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
 
@@ -28,7 +29,11 @@ function ago(iso: string) {
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
-  const pending = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
+  // The bell shows only the request types left on in Settings → Bell notifications.
+  const bellOff = useBellOff();
+  const pending = Object.entries(crm.inbox ?? {})
+    .filter(([type]) => !bellOff.includes(type))
+    .reduce((a, [, n]) => a + n, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const path = usePathname();
   const inConsole = path.startsWith("/assistant");
@@ -56,7 +61,10 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     router.push(href);
   };
   // Newest first, the latest 8.
-  const latest = [...crm.inboxItems].reverse().slice(0, 8);
+  const latest = crm.inboxItems
+    .filter((i) => !bellOff.includes(i.type))
+    .reverse()
+    .slice(0, 8);
 
   return (
     <header className={`tb${compact ? " tb-compact" : ""}`}>
