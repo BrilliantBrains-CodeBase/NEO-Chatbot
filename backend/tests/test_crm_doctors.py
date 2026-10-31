@@ -175,42 +175,37 @@ async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.Monk
 
         r = await api.post(url, json=visit, headers=headers)
         assert r.status_code == 200, r.text
-        assert r.json()["date"] == "2030-01-07" and r.json()["appointment_id"]
+        assert r.json()["tab"] == "book" and r.json()["request_id"]
         code = r.json()["lead_code"]
+        # A pending booking request in the Inbox, with a pending appointment holding the 10-minute time.
         a = await pool.fetchrow(
-            """select a.status, upper(a.slot) - lower(a.slot) len, l.stage from app.appointments a
-               join app.leads l on l.id = a.lead_id where l.lead_code = $1""",
-            code,
+            """select a.status, upper(a.slot) - lower(a.slot) len, r.type, r.status rstatus, l.stage
+               from app.requests r join app.appointments a on a.request_id = r.id
+               join app.leads l on l.id = r.lead_id where r.id = $1::uuid""",
+            r.json()["request_id"],
         )
-        assert a["status"] == "confirmed" and a["len"].seconds == 600 and a["stage"] == "booked"
+        assert a["status"] == "pending" and a["len"].seconds == 600
+        assert a["type"] == "book" and a["rstatus"] == "pending" and a["stage"] == "new"
+        inbox = (await api.get("/v1/crm/inbox?clinic=CL99&type=book", headers=headers)).json()
+        assert r.json()["request_id"] in str(inbox)
 
         r = await api.post(url, json=visit | {"patient": None, "lead_code": code}, headers=headers)
-        assert r.status_code == 409  # taken
+        assert r.status_code == 409  # held by the request
 
-        # Online: confirmed at once and booked in Cal.com (a stand-in here), which needs an email.
-        from app.crm import calcom
-
-        sent: list[str] = []
-
-        async def fake_book(start: Any, name: str, email: str, *args: Any) -> calcom.Booking:
-            sent.append(email)
-            return calcom.Booking(uid="test-uid", meet_link="https://meet.google.com/abc-defg-hij")
-
-        monkeypatch.setattr(calcom, "book", fake_book)
+        # Online: an Online consults request; needs an email (for the Meet link on approval).
         online = {"date": "2030-01-07", "time": "11:00", "type": "online", "lead_code": code}
         r = await api.post(url, json=online, headers=headers)
-        assert r.status_code == 422 and "email" in r.text  # no email yet
+        assert r.status_code == 422 and "email" in r.text
         r = await api.post(url, json=online | {"email": "Test.Patient@Example.com"}, headers=headers)
-        assert r.status_code == 200, r.text
+        assert r.status_code == 200 and r.json()["tab"] == "online", r.text
         a = await pool.fetchrow(
-            """select a.status, a.meet_link, upper(a.slot) - lower(a.slot) len, a.request_id, l.email
-               from app.appointments a join app.leads l on l.id = a.lead_id
-               where a.id = $1::uuid""",
-            r.json()["appointment_id"],
+            """select a.status, upper(a.slot) - lower(a.slot) len, r.type, l.email
+               from app.requests r join app.appointments a on a.request_id = r.id
+               join app.leads l on l.id = r.lead_id where r.id = $1::uuid""",
+            r.json()["request_id"],
         )
-        assert a["status"] == "confirmed" and a["meet_link"].startswith("https://meet.google.com/")
-        assert a["len"].seconds == 1800 and a["request_id"] is None  # no Inbox step
-        assert a["email"] == "test.patient@example.com" and sent == ["test.patient@example.com"]
+        assert a["status"] == "pending" and a["len"].seconds == 1800 and a["type"] == "online"
+        assert a["email"] == "test.patient@example.com"
         r = await api.post(
             url, json=visit | {"time": "11:10", "patient": None, "lead_code": code}, headers=headers
         )

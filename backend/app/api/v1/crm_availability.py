@@ -15,7 +15,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.api.v1 import crm_doctors, crm_inbox
+from app.api.v1 import crm_doctors
 from app.api.v1.crm import NewLead, add_lead, can_edit, can_see
 from app.api.v1.crm_doctors import Schedule
 from app.chat import slots
@@ -23,7 +23,6 @@ from app.chat.flows import EMAIL
 from app.chat.leads import _free_doctors
 from app.core.db import get_pool
 from app.crm import permissions as perm
-from app.crm import whatsapp
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -301,18 +300,18 @@ class BookIn(BaseModel):
 
 class Booked(BaseModel):
     lead_code: str
-    appointment_id: str
-    date: str  # the day, to open it in Appointments
+    request_id: str  # the Inbox request to open
+    tab: str  # its Inbox tab: book (in-clinic) | online
 
 
 @router.post("/availability/{doctor_id}/book", response_model=Booked)
 async def book(
     user: Annotated[Staff, Depends(staff)], clinic: CLINIC, doctor_id: str, body: BookIn
 ) -> Booked:
-    """Staff add a patient at a free time: a CONFIRMED appointment at once (no Inbox step). Online: the
-    consult is booked in Cal.com now (Google Meet; Cal.com emails the link), so the patient's email is needed;
-    Cal.com refusing saves nothing. The patient gets the clinic's "confirmed" WhatsApp, as on approval. Only
-    a time the chatbot would offer can be booked."""
+    """Staff add a patient at a free time: a booking request in the Inbox (Booking requests, or Online
+    consults), with a pending appointment that holds the time, as a chatbot booking makes. Staff then confirm
+    it in the Inbox (which marks the lead Booked, books Cal.com for online and sends the WhatsApp). Online
+    needs the patient's email, for the Meet link. Only a time the chatbot would offer can be booked."""
     can_edit(user, clinic)
     if (body.lead_code is None) == (body.patient is None):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose a patient or add a new one.")
@@ -367,41 +366,34 @@ async def book(
         found = await _free_doctors(conn, clinic_row, body.type, start, "s_crm", doctor_id)
         if not found:
             raise HTTPException(status.HTTP_409_CONFLICT, "That time is not free any more. Choose another.")
+        kind = "online" if body.type == "online" else "book"
+        data = {
+            "name": lead["full_name"], "phone": lead["phone_e164"], "email": email or lead["email"],
+            "treatment": body.treatment, "date": body.date.isoformat(), "time": body.time,
+            "reason": body.note.strip() or None,
+        }  # fmt: skip
+        request = await conn.fetchval(
+            """insert into app.requests (clinic_id, lead_id, type, data) values ($1, $2, $3, $4::jsonb)
+               returning id""",
+            clinic, lead["id"], kind, json.dumps({k: v for k, v in data.items() if v}),
+        )  # fmt: skip
         try:
             appt = await conn.fetchval(
-                """insert into app.appointments (clinic_id, lead_id, doctor_id, type, slot, status,
-                     confirmed_by, confirmed_at)
-                   values ($1, $2, $3::uuid, $4, tstzrange($5, $6, '[)'), 'confirmed', $7::uuid, now())
-                   returning id""",
-                clinic, lead["id"], doctor_id, body.type, start, found[0][1], user.id,
+                """insert into app.appointments (clinic_id, lead_id, request_id, doctor_id, type, slot)
+                   values ($1, $2, $3, $4::uuid, $5, tstzrange($6, $7, '[)')) returning id""",
+                clinic, lead["id"], request, doctor_id, body.type, start, found[0][1],
             )  # fmt: skip
         except asyncpg.exceptions.ExclusionViolationError:
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "That time was just booked. Choose another."
             ) from None
-        if body.type == "online":  # Cal.com now; refusing undoes everything above
-            rec: Any = {
-                "a_start": start, "a_id": appt, "a_doctor_id": UUID(doctor_id), "clinic_id": clinic,
-                "full_name": lead["full_name"], "email": email or lead["email"],
-                "phone_e164": lead["phone_e164"], "lead_code": code,
-            }  # fmt: skip
-            await crm_inbox._online(conn, rec, {"treatment": body.treatment})
-        await conn.execute(
-            """update app.leads set stage = 'booked', stage_reason = null, updated_at = now()
-               where id = $1 and stage in ('new', 'follow_up', 'lost')""",
-            lead["id"],
-        )
-        await conn.execute(
-            "insert into app.lead_events (clinic_id, lead_id, kind, data, actor) "
-            "values ($1, $2, 'appointment', $3::jsonb, $4::uuid)",
-            clinic, lead["id"],
-            json.dumps({"appointment_id": str(appt), "status": "confirmed", "by": "staff"}), user.id,
-        )  # fmt: skip
-        meet = await conn.fetchval("select meet_link from app.appointments where id = $1", appt)
-        name = await conn.fetchval("select name from app.doctors where id = $1::uuid", doctor_id)
-    purpose = "online_confirmed" if body.type == "online" else "inclinic_confirmed"
-    whatsapp.notify(clinic, purpose, lead["phone_e164"], {
-        "lead_code": code, "name": lead["full_name"], "doctor": name, "treatment": body.treatment,
-        "date": start.strftime("%a %d %b"), "time": start.strftime("%I:%M %p"), "meet_link": meet,
-    })  # fmt: skip
-    return Booked(lead_code=code, appointment_id=str(appt), date=body.date.isoformat())
+        for ev_kind, ev in (
+            ("request", {"type": kind, "request_id": str(request), "by": "staff"}),
+            ("appointment", {"appointment_id": str(appt), "status": "pending"}),
+        ):
+            await conn.execute(
+                "insert into app.lead_events (clinic_id, lead_id, kind, data, actor) "
+                "values ($1, $2, $3, $4::jsonb, $5::uuid)",
+                clinic, lead["id"], ev_kind, json.dumps(ev), user.id,
+            )  # fmt: skip
+    return Booked(lead_code=code, request_id=str(request), tab=kind)

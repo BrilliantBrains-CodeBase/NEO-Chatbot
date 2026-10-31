@@ -586,8 +586,8 @@ function ScheduleCard({
   );
 }
 
-/** Add a patient at a free time: an existing patient (search) or a new one. Confirmed at once (online: booked
- * in Cal.com, Meet link emailed), then Appointments opens on that day with the booking showing. */
+/** Add a patient at a free time: an existing patient (search) or a new one. It becomes a booking request (Inbox →
+ * Booking requests, or Online consults) holding the time; the Inbox then opens on it, ready to confirm. */
 function BookCard({
   clinicId,
   doctorId,
@@ -652,8 +652,8 @@ function BookCard({
     try {
       const r = await api<{
         lead_code: string;
-        appointment_id: string;
-        date: string;
+        request_id: string;
+        tab: string;
       }>(`/v1/crm/availability/${doctorId}/book?clinic=${clinicId}`, {
         method: "POST",
         body: JSON.stringify({
@@ -674,9 +674,9 @@ function BookCard({
           note,
         }),
       });
-      toast(`Added (${r.lead_code}): confirmed`);
+      toast(`Added (${r.lead_code}): confirm it in the Inbox`);
       onClose(true);
-      router.push(`/appointments?day=${r.date}&open=${r.appointment_id}`);
+      router.push(`/inbox?tab=${r.tab}&open=${r.request_id}`);
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not book. Please try again.",
@@ -847,8 +847,8 @@ function BookCard({
       )}
       {type === "online" && (
         <p className="sub2" style={{ margin: "8px 0 0" }}>
-          Confirmed at once: the consult is booked in Cal.com and the Google
-          Meet link is emailed to the patient.
+          Goes to Inbox → Online consults to confirm: confirming books Cal.com
+          and emails the Google Meet link to the patient.
         </p>
       )}
       {error && (
