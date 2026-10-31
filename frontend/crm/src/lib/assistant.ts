@@ -157,6 +157,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "versions",
+    off: true,
     icon: "undo",
     label: "Versions",
     group: "Admin",
