@@ -1,9 +1,10 @@
 """Dashboard → Doctors: a clinic's doctors with all their settings in one place: profile, slot lengths
 (in-clinic and online, each the clinic default or their own), weekly in-clinic and online hours and leave.
 
-Rules (user, 2026-10-31): 5 and 10 minute slots are allowed; a doctor's in-clinic and online hours never
-overlap (checked on save, so a doctor is never offered twice for the same time). A doctor connected to Cal.com
-gets their online hours, leave and online length sent there after a save (as Integrations → Online does).
+Rules (user, 2026-10-31): 5 and 10 minute slots are allowed. In-clinic and online hours MAY overlap: a time
+booked in one is not offered in the other (app.chat.slots checks every booking of the doctor). Two rows of the
+same kind may not overlap. A doctor connected to Cal.com gets their online hours, leave and online length sent
+there after a save (as Integrations → Online does).
 """
 
 import json
@@ -56,20 +57,18 @@ class Doctor(BaseModel):
 
 
 class DoctorIn(Doctor):
-    """A doctor as saved: the hours must not overlap. (Reading uses Doctor, so hours saved before this rule
-    still show and can be fixed.)"""
+    """A doctor as saved: two rows of the same kind must not overlap (the database refuses it too)."""
 
     @model_validator(mode="after")
     def _no_overlap(self) -> "DoctorIn":
-        """In-clinic and online hours (and two rows of the same kind) never overlap on a weekday."""
-        rows = [("in-clinic", h) for h in self.in_clinic] + [("online", h) for h in self.online]
-        for i, (k1, a) in enumerate(rows):
-            for k2, b in rows[i + 1 :]:
-                if a.weekday == b.weekday and a.start < b.end and b.start < a.end:
-                    raise ValueError(
-                        f"{DAYS[a.weekday]}: {k1} {a.start}–{a.end} overlaps {k2} {b.start}–{b.end}. "
-                        "A doctor cannot be in the clinic and online at the same time."
-                    )
+        for kind, rows in (("in-clinic", self.in_clinic), ("online", self.online)):
+            for i, a in enumerate(rows):
+                for b in rows[i + 1 :]:
+                    if a.weekday == b.weekday and a.start < b.end and b.start < a.end:
+                        raise ValueError(
+                            f"{DAYS[a.weekday]}: {kind} hours {a.start}–{a.end} and {b.start}–{b.end} "
+                            "overlap. Join them into one row."
+                        )
         return self
 
 

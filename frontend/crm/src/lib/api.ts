@@ -18,7 +18,11 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: RequestInit = {},
+  retried = false,
+): Promise<T> {
   const { data } = await supabase().auth.getSession();
   const token = data.session?.access_token;
   let res: Response;
@@ -33,7 +37,10 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
       },
     });
   } catch {
-    throw new ApiError(0, "The CRM server cannot be reached. Check your connection and try again.");
+    throw new ApiError(
+      0,
+      "The CRM server cannot be reached. Check your connection and try again.",
+    );
   }
   // A stored sign-in token can be out of date (e.g. the laptop slept): renew it once and try again.
   if (res.status === 401 && token && !retried) {
@@ -43,7 +50,17 @@ export async function api<T>(path: string, init: RequestInit = {}, retried = fal
   const body: unknown = await res.json().catch(() => null);
   if (!res.ok) {
     const detail = (body as { detail?: unknown } | null)?.detail;
-    throw new ApiError(res.status, typeof detail === "string" ? detail : "Something went wrong. Please try again.");
+    // A check the backend's models make (e.g. "hours overlap") comes as a list: show its first message.
+    const first = Array.isArray(detail)
+      ? (detail[0] as { msg?: unknown } | undefined)?.msg
+      : undefined;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : typeof first === "string"
+          ? first.replace(/^Value error, /, "")
+          : "Something went wrong. Please try again.";
+    throw new ApiError(res.status, message);
   }
   return body as T;
 }
@@ -57,7 +74,13 @@ export type Me = {
   bb_admin: boolean;
   role_label: string;
   // access: Who sees what, screen -> hidden / view / edit
-  clinics: { id: string; name: string; role: string; role_label: string; access?: Record<string, string> }[];
+  clinics: {
+    id: string;
+    name: string;
+    role: string;
+    role_label: string;
+    access?: Record<string, string>;
+  }[];
 };
 
 export type Count = { key: string; count: number };
@@ -68,7 +91,15 @@ export type Dashboard = {
   inbox_pending: number;
   callbacks_waiting: number;
   followups_due: number;
-  today: { time: string | null; patient: string; lead_code: string; doctor: string | null; type: string; status: string; treatment: string | null }[];
+  today: {
+    time: string | null;
+    patient: string;
+    lead_code: string;
+    doctor: string | null;
+    type: string;
+    status: string;
+    treatment: string | null;
+  }[];
   sources: Count[];
   funnel: Count[];
   treatments: Count[];
@@ -102,12 +133,20 @@ export type LeadDetail = LeadRow & {
   page_url: string | null;
   device: string | null;
   verified: boolean;
-  events: { kind: string; data: Record<string, unknown>; by: string | null; at: string }[];
+  events: {
+    kind: string;
+    data: Record<string, unknown>;
+    by: string | null;
+    at: string;
+  }[];
   chat: { role: string; text: string; at: string }[];
 };
 
 export type StaffOption = { id: string; name: string; role_label: string };
-export type LeadOptions = { treatments: string[]; doctors: { id: string; name: string }[] };
+export type LeadOptions = {
+  treatments: string[];
+  doctors: { id: string; name: string }[];
+};
 
 export type InboxItem = {
   id: string;
@@ -124,7 +163,16 @@ export type InboxItem = {
   time: string | null;
   booked_date: string | null;
   match_status: string | null;
-  appointment: { id: string; start: string | null; day: string | null; doctor: string | null; doctor_id: string | null; type: string; status: string; meet_link: string | null } | null;
+  appointment: {
+    id: string;
+    start: string | null;
+    day: string | null;
+    doctor: string | null;
+    doctor_id: string | null;
+    type: string;
+    status: string;
+    meet_link: string | null;
+  } | null;
 };
 export type Inbox = { pending: Count[]; items: InboxItem[] };
 
@@ -155,4 +203,7 @@ export type Appointment = {
   treatment: string | null;
   stage: string;
 };
-export type Appointments = { doctors: { id: string; name: string }[]; items: Appointment[] };
+export type Appointments = {
+  doctors: { id: string; name: string }[];
+  items: Appointment[];
+};

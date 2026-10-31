@@ -1,5 +1,5 @@
-"""Dashboard → Doctors: add and save a doctor with all settings, in-clinic and online hours that never
-overlap, 5 / 10 minute slots, clinic defaults. Uses the hidden test clinic CL99 and removes what it made."""
+"""Dashboard → Doctors: add and save a doctor with all settings; in-clinic and online hours may overlap but
+two rows of one kind may not; 5 / 10 minute slots; clinic defaults. Uses test clinic CL99 and cleans up."""
 
 from typing import Any
 
@@ -56,10 +56,20 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
         assert d["leave"][0]["reason"] == "Conference" and d["stats"][0]["value"] == "10+"
         assert d["photo"] == "https://example.com/dr.jpg"
 
-        # In-clinic and online hours that overlap are refused, and nothing changes.
-        bad = _doctor(online=[{"weekday": 1, "start": "12:00", "end": "14:00"}])
+        # In-clinic and online hours may overlap (a booking in one hides that time in the other).
+        both = _doctor(online=[{"weekday": 1, "start": "10:00", "end": "13:00"}])
+        r = await api.put(f"{URL}/{made}", json=both, headers=headers)
+        assert r.status_code == 200, r.text
+
+        # Two rows of the same kind that overlap are refused, and nothing changes.
+        bad = _doctor(
+            online=[
+                {"weekday": 1, "start": "10:00", "end": "13:00"},
+                {"weekday": 1, "start": "12:00", "end": "14:00"},
+            ]
+        )
         r = await api.put(f"{URL}/{made}", json=bad, headers=headers)
-        assert r.status_code == 422 and "overlaps" in r.text
+        assert r.status_code == 422 and "overlap" in r.text
         rows = await pool.fetchval(
             "select count(*) from app.doctor_availability where doctor_id = $1::uuid", made
         )
@@ -77,15 +87,6 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
         d = next(x for x in r.json()["doctors"] if x["id"] == made)
         assert d["online_minutes"] == 5 and d["active"] is False
         assert d["online"] == [] and d["about"] == "Changed."
-
-        # Hours saved before the rule (overlapping) still list, so they can be fixed.
-        await pool.execute(
-            """insert into app.doctor_availability (doctor_id, clinic_id, weekday, mode, start_time, end_time)
-               values ($1::uuid, 'CL99', 1, 'online', '11:00', '12:00')""",
-            made,
-        )
-        r = await api.get(URL, headers=headers)
-        assert r.status_code == 200, r.text
 
         # Clinic defaults.
         r = await api.put(

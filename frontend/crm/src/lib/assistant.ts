@@ -57,6 +57,14 @@ export const SECTIONS: Section[] = [
     desc: "One place for what the chat says about the clinic: Lead questions, Services, Contact & hours, and Reviews (Google rating, patient quotes, celebrities), each a tab, with a live preview.",
   },
   {
+    id: "doctors",
+    icon: "doc",
+    label: "Doctors",
+    group: "Widget",
+    stage: 2,
+    desc: "Each doctor's profile, slot lengths, in-clinic and online hours, and leave.",
+  },
+  {
     id: "ai",
     icon: "spark",
     label: "Knowledge base",
