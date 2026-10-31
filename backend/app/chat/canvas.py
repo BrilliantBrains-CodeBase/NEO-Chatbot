@@ -53,7 +53,7 @@ async def turn(
     conn: asyncpg.Connection, req: ChatRequest, state: dict[str, Any], pub: dict[str, Any]
 ) -> tuple[ChatResponse, dict[str, Any], str]:
     """One patient message on the canvas: the reply, the new conversation state and who answered."""
-    from app.api.v1.crm_console import _context, _free, _kb_answer, _nearest_phrase, _upcoming
+    from app.api.v1.crm_console import _context, _free, _nearest_phrase, _upcoming, kb_hit
 
     flow, clinic = pub["flow"], req.client_id
     ctx = _context(pub, req.context.device)
@@ -82,12 +82,14 @@ async def turn(
         # As the canvas test chat: what this message may need is looked up first (the engine is synchronous).
         waiting = (run_state.get("ask") or {}).get("kind")
         if text and waiting in (None, "knowledge", "lead", "question"):
-            found = await _kb_answer(clinic, text)
+            hit = await kb_hit(clinic, text)
             # Not answered alone: read with the last messages ("and Sunday?" after "what are your timings").
-            again = None if found else context.follow_up(text, state.get("canvas_history") or [])
+            again = None if hit else context.follow_up(text, state.get("canvas_history") or [])
             if again:
-                found = await _kb_answer(clinic, again)
+                hit = await kb_hit(clinic, again)
+            found = hit[0] if hit else None
             ctx.kb = lambda q: found
+            ctx.kb_source = hit[1] if hit else ""
         if waiting == "check" and text:
             booked = await _upcoming(clinic, text)
             ctx.appointments = lambda phone: booked

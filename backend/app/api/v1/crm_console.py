@@ -954,16 +954,22 @@ async def _nearest_phrase(flow: dict[str, Any], text: str) -> dict[str, Any] | N
 async def _kb_answer(clinic: str, text: str) -> str | None:
     """The clinic's approved Knowledge base, as the live chat searches it (no LLM): approved Q/A, then facts;
     by words, then by meaning. Medical questions never get here (the engine's guard)."""
+    hit = await kb_hit(clinic, text)
+    return hit[0] if hit else None
+
+
+async def kb_hit(clinic: str, text: str) -> tuple[str, str] | None:
+    """As _kb_answer, with what answered: "qa" (a question staff wrote) or "fact" (a single fact)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         for find in (kb.search, kb.fact):
             hit = await find(conn, clinic, text)
             if hit:
-                return hit.answer
+                return hit.answer, hit.source
         for near in (kb.semantic, kb.fact_semantic):
             hit, _ = await near(conn, clinic, text)
             if hit:
-                return hit.answer
+                return hit.answer, hit.source
     return None
 
 

@@ -80,6 +80,7 @@ class Context:
     phone: str = ""  # the clinic's number: a call button with no number calls it
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
+    kb_source: str = ""  # what answered: "qa" (written by staff) or "fact"
     appointments: Callable[[str], list[str]] = lambda phone: []  # upcoming, as text
     # Free HH:MM slots per day (YYYY-MM-DD) for the booking open now: doctors' hours, leave, holidays and
     # appointments (in-clinic and online share one diary). None: not checked (e.g. no database).
@@ -492,6 +493,8 @@ class Run:
         start = None if hit or phrase else self.start_rule(low)
         start = self.first(start) if start else None
         found = None if hit or phrase or start else self.ctx.kb(text)  # approved answers; never medical
+        if found and self.ctx.kb_source == "fact" and self.page_rule(low):
+            found = None  # the clinic's own screen (e.g. location: address and map) beats a single fact
         if hit:
             self.matched = {"how": "button", "text": hit["label"]}
             self.act(node, hit)
@@ -502,9 +505,7 @@ class Run:
             self.enter(start)
         elif found:
             self.matched = {"how": "knowledge base", "text": text}
-            self.say(found)
-            if node.type != "opening":  # the main menu is already on screen: not shown again under the answer
-                self.render(node)
+            self.say(found)  # only the answer: the buttons already on screen are not sent again
         elif treatment := self.named_treatment(low):
             self.matched = {"how": "treatment name", "text": treatment}
             self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
@@ -529,8 +530,6 @@ class Run:
                     (n.settings.get("fallback") for n in self.flow.nodes if n.type == "opening"), ""
                 )
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
-                if node.type != "opening":
-                    self.render(node)
         return self.reply()
 
     # ---------- typed text beside the flow ----------

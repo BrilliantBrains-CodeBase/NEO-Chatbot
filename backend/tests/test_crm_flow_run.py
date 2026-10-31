@@ -508,3 +508,41 @@ def test_a_knowledge_answer_on_the_main_menu_does_not_repeat_the_menu() -> None:
     assert chat("email address") == ["Clinic email: info@example.com"]  # the answer only
     assert chat.labels() == []  # the menu already on screen is not shown again
     assert chat.at == "opening"  # and still works: a tile tap goes on as before
+
+
+def test_an_answer_on_a_list_does_not_resend_it_and_the_clinic_screen_beats_a_fact() -> None:
+    pick = {
+        "id": "pick",
+        "type": "choice",
+        "settings": {
+            "message": "Pick one",
+            "buttons": [{"id": "b1", "label": "FUE"}, {"id": "b2", "label": "PRP"}],
+        },
+    }
+    clinic = {
+        "id": "page-clinic",
+        "type": "answer",
+        "settings": {"text": "1st floor, Example House. Map: link"},
+    }
+    flow = {
+        "nodes": [opening(("m1", "Treatments"), ("m2", "Clinic")), pick, clinic],
+        "edges": [
+            line("opening", "m1", "pick"),
+            line("opening", "m2", "page-clinic"),
+            line("pick", "b1", "page-clinic"),
+            line("pick", "b2", "page-clinic"),
+        ],
+    }
+    city = "Bengaluru, Karnataka"
+    chat = Chat(flow, ctx(kb=lambda q: city, kb_source="fact"))
+    chat(tap="m1")
+    assert chat.labels() == ["FUE", "PRP"]
+    said = chat("send me the location")
+    assert said == ["1st floor, Example House. Map: link"]  # the clinic screen, not the single "city" fact
+    chat = Chat(flow, ctx(kb=lambda q: "Parking is free.", kb_source="fact"))
+    chat(tap="m1")
+    assert chat("is there parking") == ["Parking is free."]  # answered, and FUE / PRP are not sent again
+    assert chat.labels() == [] and chat.at == "pick"
+    written = Chat(flow, ctx(kb=lambda q: "Our address: 1st floor, Example House.", kb_source="qa"))
+    written(tap="m1")
+    assert written("where is the clinic located") == ["Our address: 1st floor, Example House."]  # a Q&A wins
