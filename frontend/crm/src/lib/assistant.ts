@@ -66,6 +66,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "legal",
+    off: true,
     icon: "file",
     label: "Legal & consent",
     group: "Widget",
@@ -90,7 +91,6 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "quality",
-    off: true,
     icon: "check",
     label: "Test & quality",
     group: "Bot quality",
