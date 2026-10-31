@@ -210,6 +210,17 @@ export default function WeekGrid({
         >
           Next week →
         </button>
+        <input
+          className="sel"
+          type="date"
+          aria-label="Show the week from"
+          title="Show the 7 days from this date"
+          value={w.days[0].date}
+          onChange={(e) =>
+            e.target.value &&
+            setStart(e.target.value === w.today ? null : e.target.value)
+          }
+        />
         <select
           className="sel"
           aria-label="Kind of visit"
