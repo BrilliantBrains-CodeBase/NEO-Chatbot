@@ -59,6 +59,46 @@ class _Row:
 
 _cache: dict[str, tuple[float, list[_Row]]] = {}
 
+# An answer may link facts by key, e.g. "Consultation fee is {consult_fee}." (Knowledge Strategy: one fact,
+# many answers). The link is filled from the approved fact when the bot replies; an answer with a link to a
+# fact that is missing or not approved is never given (the bot goes on as if nothing matched: a call back).
+LINK = re.compile(r"\{([a-z][a-z0-9_]{1,49})\}")
+_values: dict[str, tuple[float, dict[str, str]]] = {}
+
+
+def links(answer: str) -> list[str]:
+    """The fact keys an answer links, in order, once each."""
+    return list(dict.fromkeys(LINK.findall(answer)))
+
+
+def fill(answer: str, values: dict[str, str]) -> str | None:
+    """The answer with its fact links filled in; None when a linked fact is missing."""
+    if any(k not in values for k in links(answer)):
+        return None
+    return LINK.sub(lambda m: values[m.group(1)], answer)
+
+
+def forget(clinic_id: str) -> None:
+    """Drops this clinic's cached Knowledge base (after a Dashboard change), so the bot reads it now."""
+    for cache in (_cache, _values, _facts, _filled):
+        cache.pop(clinic_id, None)
+
+
+async def fact_values(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
+    """The clinic's approved facts, key -> value (cached for a minute, like the rest)."""
+    now = time.monotonic()
+    hit = _values.get(clinic_id)
+    if hit and now - hit[0] < CACHE_S:
+        return hit[1]
+    values = {
+        r["key"]: r["value"]
+        for r in await conn.fetch(
+            "select key, value from app.kb_facts where clinic_id = $1 and status = 'approved'", clinic_id
+        )
+    }
+    _values[clinic_id] = (now, values)
+    return values
+
 
 def words(text: str) -> str:
     return " ".join(w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP)
@@ -69,19 +109,17 @@ async def _rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
     hit = _cache.get(clinic_id)
     if hit and now - hit[0] < CACHE_S:
         return hit[1]
-    rows = [
-        _Row(
-            str(r["id"]),
-            r["question"],
-            r["answer"],
-            tuple(k for k in (words(x) for x in [r["question"], *r["variants"].splitlines()]) if k),
-        )
-        for r in await conn.fetch(
-            "select id, question, variants, answer from app.kb_qa "
-            "where clinic_id = $1 and status = 'approved'",
-            clinic_id,
-        )
-    ]
+    values = await fact_values(conn, clinic_id)
+    rows = []
+    for r in await conn.fetch(
+        "select id, question, variants, answer from app.kb_qa where clinic_id = $1 and status = 'approved'",
+        clinic_id,
+    ):
+        answer = fill(r["answer"], values)
+        if answer is None:  # a linked fact is missing: this answer is not given
+            continue
+        keys = tuple(k for k in (words(x) for x in [r["question"], *r["variants"].splitlines()]) if k)
+        rows.append(_Row(str(r["id"]), r["question"], answer, keys))
     _cache[clinic_id] = (now, rows)
     return rows
 
@@ -170,10 +208,10 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
     if row is None:
         return None, None
     score = round(float(row["sim"]) * 100, 1)
-    hit = (
-        Answer(str(row["id"]), row["question"], row["answer"], score) if row["sim"] >= SEMANTIC_MIN else None
-    )
-    return hit, score
+    answer = fill(row["answer"], await fact_values(conn, clinic_id))
+    if row["sim"] < SEMANTIC_MIN or answer is None:  # not close enough, or a linked fact is missing
+        return None, score
+    return Answer(str(row["id"]), row["question"], answer, score), score
 
 
 # --- Facts (layer 1): approved single facts (clinic name, email, languages...), matched by their NAME and

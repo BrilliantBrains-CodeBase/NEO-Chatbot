@@ -5,6 +5,7 @@ import Placeholder from "@/components/crm/Placeholder";
 import AppearanceView from "./AppearanceView";
 import ClinicInfoView from "./ClinicInfoView";
 import DoctorsSetupView from "./DoctorsSetupView";
+import KnowledgeView from "./KnowledgeView";
 import WorkflowView from "./workflow/WorkflowView";
 import TemplatesView from "./TemplatesView";
 import WebsiteInstallView from "./WebsiteInstallView";
@@ -34,6 +35,7 @@ export default function AssistantSection({ section }: { section: Section }) {
   if (section.id === "menu") return <WorkflowView />;
   if (section.id === "content") return <ClinicInfoView />;
   if (section.id === "doctors") return <DoctorsSetupView />;
+  if (section.id === "ai") return <KnowledgeView />;
   if (section.id === "install") return <WebsiteInstallView />;
   if (section.id === "integrations") return <IntegrationsView />;
   if (section.id === "team") return <TeamView manage />;
