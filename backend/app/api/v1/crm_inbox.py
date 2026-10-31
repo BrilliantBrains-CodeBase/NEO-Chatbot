@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.api.v1.crm import Count, Option, _event, can_edit, can_see
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
+from app.chat.leads import slot_length
 from app.core.db import get_pool
 from app.crm import calcom, vault, webhooks, whatsapp
 from app.crm import permissions as perm
@@ -173,13 +174,14 @@ async def _new_slot(
     conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, Any], user: Staff
 ) -> tuple[Any, datetime | None]:
     """The appointment a reschedule moves to: same doctor and type, the asked day and time."""
-    c = await conn.fetchrow("select timezone, slot_minutes from app.clinics where id = $1", r["clinic_id"])
+    tz = await conn.fetchval("select timezone from app.clinics where id = $1", r["clinic_id"])
     day = date.fromisoformat(data["date"])
     if data.get("time") in (None, "any"):
         start, end = None, None
     else:
-        start = datetime.combine(day, time.fromisoformat(data["time"]), ZoneInfo(c["timezone"]))
-        end = start + timedelta(minutes=c["slot_minutes"])
+        start = datetime.combine(day, time.fromisoformat(data["time"]), ZoneInfo(tz))
+        # The doctor's own length for this kind of visit, else the clinic's.
+        end = start + await slot_length(conn, r["clinic_id"], r["a_doctor_id"], r["a_type"] or "in_clinic")
     try:
         async with conn.transaction():
             new = await conn.fetchval(
@@ -250,9 +252,7 @@ async def _move(
 ) -> None:
     """Moves a booking's appointment to the day and time agreed with the patient. The doctor must work then
     and be free (in-clinic and online share one diary); the current doctor is kept when free."""
-    c = await conn.fetchrow(
-        "select id, timezone, slot_minutes from app.clinics where id = $1", r["clinic_id"]
-    )
+    c = await conn.fetchrow("select id, timezone from app.clinics where id = $1", r["clinic_id"])
     day = date.fromisoformat(day_s) if day_s else r["a_day"]
     if not time_s:  # a new day, still any time
         await conn.execute(
@@ -260,13 +260,13 @@ async def _move(
         )
         return
     first = datetime.combine(day, time.fromisoformat(time_s), ZoneInfo(c["timezone"]))
-    last = first + timedelta(minutes=c["slot_minutes"])
     if first <= datetime.now(first.tzinfo):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That time has already passed.")
     await conn.execute(  # free its own time while choosing (the day keeps the row valid)
         "update app.appointments set slot = null, preferred_date = $2 where id = $1", r["a_id"], day
     )
-    free = await free_doctors(conn, c, r["a_type"], first, last, "s_crm")
+    # Each free doctor with the end of their own slot (their length for this kind of visit).
+    free = dict(await free_doctors(conn, c, r["a_type"], first, "s_crm"))
     if not free:
         raise HTTPException(status.HTTP_409_CONFLICT, "No doctor is free at that time. Choose another time.")
     if doctor_id:  # the doctor staff picked must be one of the free ones
@@ -276,7 +276,8 @@ async def _move(
                 status.HTTP_409_CONFLICT, "That doctor is not free then. Choose another time."
             )
     else:
-        doctor = r["a_doctor_id"] if r["a_doctor_id"] in free else free[0]
+        doctor = r["a_doctor_id"] if r["a_doctor_id"] in free else next(iter(free))
+    last = free[doctor]
     await conn.execute(
         """update app.appointments set slot = tstzrange($2, $3, '[)'), preferred_date = null, doctor_id = $4
            where id = $1""",

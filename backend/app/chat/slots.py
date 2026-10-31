@@ -1,6 +1,11 @@
 """Free appointment slots, from the database: clinic hours, closed weekdays and holidays, doctor
 availability and leave, and the appointments already pending or confirmed. A time is offered only if
 at least one doctor is free. One query covers the whole booking window.
+
+Each doctor's slots are their own length for the kind of visit (Dashboard → Doctors), else the clinic's.
+In-clinic slots stay inside the clinic's opening hours and open days; online slots follow only the doctor's
+online hours (user, 2026-10-31). Holidays and leave apply to both. A booking or hold blocks its whole length
+for both kinds of visit (one diary per doctor).
 """
 
 from datetime import date
@@ -10,38 +15,44 @@ import asyncpg
 
 Mode = Literal["in_clinic", "online"]
 
-# Slot starts run from the later of clinic opening and the doctor's start, to the earlier of
-# (doctor end - slot length) and (clinic closing - last slot gap). Times are the clinic's local time;
-# appointments are compared in real time (timestamptz) through the clinic's time zone.
+# In-clinic: slot starts run from the later of clinic opening and the doctor's start, to the earlier of
+# (doctor end - slot length) and (clinic closing - last slot gap). Online: from the doctor's start to
+# (doctor end - slot length). Times are the clinic's local time; appointments are compared in real time
+# (timestamptz) through the clinic's time zone.
 FREE_SLOTS = """
 with c as (
   select * from app.clinics where id = $1 and active
 ),
 days as (
   select gs::date as day from c, generate_series($2::date, $3::date, interval '1 day') gs
-  where not (extract(dow from gs)::smallint = any (c.closed_weekdays))
+  where ($4 = 'online' or not (extract(dow from gs)::smallint = any (c.closed_weekdays)))
     and not exists (select 1 from app.clinic_holidays h where h.clinic_id = $1 and h.day = gs::date)
 ),
 d as (
-  select days.day, da.doctor_id, da.start_time, da.end_time
-  from days
+  select days.day, da.doctor_id, da.start_time, da.end_time,
+    make_interval(mins => coalesce(
+      case when $4 = 'online' then doc.online_minutes else doc.in_clinic_minutes end,
+      case when $4 = 'online' then c.online_slot_minutes else c.slot_minutes end)) as len
+  from days, c
   join app.doctor_availability da
-    on da.clinic_id = $1 and da.mode = $4 and da.weekday = extract(dow from days.day)::smallint
+    on da.clinic_id = $1 and da.mode = $4
     and ($6::uuid is null or da.doctor_id = $6)  -- one doctor (CRM), or any
   join app.doctors doc on doc.id = da.doctor_id and doc.active
-  where not exists (
-    select 1 from app.doctor_leave l
-    where l.doctor_id = da.doctor_id and days.day between l.from_date and l.to_date
-  )
+  where da.weekday = extract(dow from days.day)::smallint
+    and not exists (
+      select 1 from app.doctor_leave l
+      where l.doctor_id = da.doctor_id and days.day between l.from_date and l.to_date
+    )
 ),
 s as (
-  select d.day, d.doctor_id, gs::time as t
+  select d.day, d.doctor_id, d.len, gs::time as t
   from d, c,
   generate_series(
-    d.day + greatest(d.start_time, c.open_time),
-    d.day + least(d.end_time - make_interval(mins => c.slot_minutes),
-                  c.close_time - make_interval(mins => c.last_slot_before_close_min)),
-    make_interval(mins => c.slot_minutes)
+    d.day + case when $4 = 'online' then d.start_time else greatest(d.start_time, c.open_time) end,
+    d.day + case when $4 = 'online' then d.end_time - d.len
+                 else least(d.end_time - d.len,
+                            c.close_time - make_interval(mins => c.last_slot_before_close_min)) end,
+    d.len
   ) gs
 )
 select s.day, array_agg(distinct to_char(s.t, 'HH24:MI') order by to_char(s.t, 'HH24:MI')) as slots
@@ -52,7 +63,7 @@ where not exists (
     and a.status in ('pending', 'confirmed')
     and a.slot && tstzrange(
       (s.day + s.t) at time zone c.timezone,
-      (s.day + s.t + make_interval(mins => c.slot_minutes)) at time zone c.timezone,
+      (s.day + s.t + s.len) at time zone c.timezone,
       '[)'
     )
 )
@@ -61,7 +72,7 @@ and not exists (  -- held for another patient who is checking the summary
   where h.doctor_id = s.doctor_id and h.expires_at > now() and h.session_id <> $5
     and h.slot && tstzrange(
       (s.day + s.t) at time zone c.timezone,
-      (s.day + s.t + make_interval(mins => c.slot_minutes)) at time zone c.timezone,
+      (s.day + s.t + s.len) at time zone c.timezone,
       '[)'
     )
 )

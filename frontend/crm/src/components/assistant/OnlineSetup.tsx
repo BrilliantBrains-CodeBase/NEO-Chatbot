@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
 
-// Integrations → Cal.com → Set up online consults. Which doctors do online consults, their online hours, leave
-// and the clinic's holidays: saved in the CRM (the one source the chatbot also uses) and sent to the clinic's
-// Cal.com as one schedule and one event per doctor. The clinic sets up nothing in Cal.com.
+// Integrations → Cal.com → Set up online consults: which doctors take online consults through Cal.com, and the
+// clinic's holidays. Each doctor's online hours, leave and consult length are set in Dashboard → Doctors and
+// shown here read-only; saving sends them to the clinic's Cal.com as one schedule and one event per doctor.
 
 type Hours = { weekday: number; start: string; end: string };
 type Leave = { from_date: string; to_date: string; reason: string };
@@ -36,7 +37,6 @@ const row = {
 export default function OnlineSetup({ clinicId }: { clinicId: string }) {
   const { toast } = useCrm();
   const [setup, setSetup] = useState<Setup | null>(null);
-  const [newDoctor, setNewDoctor] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const url = `/v1/crm/console/${clinicId}/integrations/calcom`;
@@ -56,21 +56,24 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
     };
   }, [url]);
 
-  async function call(
-    path: string,
-    method: string,
-    body: object,
-    done: string,
-  ) {
+  async function save() {
+    if (!setup) return;
     setBusy(true);
     setError("");
     try {
-      const s = await api<Setup>(`${url}${path}`, {
-        method,
-        body: JSON.stringify(body),
+      const s = await api<Setup>(`${url}/setup`, {
+        method: "PUT",
+        body: JSON.stringify({
+          doctors: setup.doctors,
+          holidays: setup.holidays,
+        }),
       });
       setSetup(s);
-      toast(s.problems.length ? "Saved, with problems from Cal.com" : done);
+      toast(
+        s.problems.length
+          ? "Saved, with problems from Cal.com"
+          : "Saved and sent to Cal.com",
+      );
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not save. Please try again.",
@@ -86,11 +89,6 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
     ) : (
       <p className="sub2">Loading…</p>
     );
-  const put = (i: number, patch: Partial<Doctor>) =>
-    setSetup({
-      ...setup,
-      doctors: setup.doctors.map((d, k) => (k === i ? { ...d, ...patch } : d)),
-    });
 
   return (
     <div
@@ -102,9 +100,10 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
     >
       <h3 style={{ margin: "0 0 4px" }}>Set up online consults</h3>
       <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
-        Tick the doctors who do online consults and set their online hours and
-        leave. Saved in the CRM (the chatbot uses the same hours) and created in
-        Cal.com for you: one consult per doctor, with Google Meet.
+        Tick the doctors who take online consults. Their online hours, leave and
+        consult length come from{" "}
+        <Link href="/assistant/doctors">Dashboard → Doctors</Link>; saving here
+        sends them to Cal.com (one consult per doctor, with Google Meet).
       </p>
       {setup.doctors.map((d, i) => (
         <div
@@ -123,173 +122,41 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
             <input
               type="checkbox"
               checked={d.online}
-              onChange={(e) => put(i, { online: e.target.checked })}
+              onChange={(e) =>
+                setSetup({
+                  ...setup,
+                  doctors: setup.doctors.map((x, k) =>
+                    k === i ? { ...x, online: e.target.checked } : x,
+                  ),
+                })
+              }
             />
             {d.name}
-            {d.online && (
-              <select
-                className="sel"
-                value={d.consult_minutes}
-                onChange={(e) =>
-                  put(i, { consult_minutes: Number(e.target.value) })
-                }
-              >
-                {[15, 30, 45, 60].map((m) => (
-                  <option key={m} value={m}>
-                    {m} min consult
-                  </option>
-                ))}
-              </select>
-            )}
           </label>
-          {d.online && (
-            <>
-              <p className="sub2" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                Online hours
-              </p>
-              {d.hours.map((h, j) => (
-                <div key={j} style={row}>
-                  <select
-                    className="sel"
-                    value={h.weekday}
-                    onChange={(e) =>
-                      put(i, {
-                        hours: d.hours.map((x, k) =>
-                          k === j
-                            ? { ...x, weekday: Number(e.target.value) }
-                            : x,
-                        ),
-                      })
-                    }
-                  >
-                    {DAYS.map((day, n) => (
-                      <option key={day} value={n}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
-                  {(["start", "end"] as const).map((f) => (
-                    <input
-                      key={f}
-                      type="time"
-                      value={h[f]}
-                      onChange={(e) =>
-                        put(i, {
-                          hours: d.hours.map((x, k) =>
-                            k === j ? { ...x, [f]: e.target.value } : x,
-                          ),
-                        })
-                      }
-                    />
-                  ))}
-                  <button
-                    aria-label="Remove"
-                    onClick={() =>
-                      put(i, { hours: d.hours.filter((_, k) => k !== j) })
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                className="pill"
-                style={{ marginTop: 4 }}
-                onClick={() =>
-                  put(i, {
-                    hours: [
-                      ...d.hours,
-                      { weekday: 1, start: "10:00", end: "13:00" },
-                    ],
-                  })
-                }
-              >
-                + Add hours
-              </button>
-              <p className="sub2" style={{ margin: "8px 0 0", fontSize: 12 }}>
-                Leave (no online consults)
-              </p>
-              {d.leave.map((x, j) => (
-                <div key={j} style={row}>
-                  {(["from_date", "to_date"] as const).map((f) => (
-                    <input
-                      key={f}
-                      type="date"
-                      value={x[f]}
-                      onChange={(e) =>
-                        put(i, {
-                          leave: d.leave.map((y, k) =>
-                            k === j ? { ...y, [f]: e.target.value } : y,
-                          ),
-                        })
-                      }
-                    />
-                  ))}
-                  <input
-                    placeholder="Reason (optional)"
-                    maxLength={200}
-                    value={x.reason}
-                    onChange={(e) =>
-                      put(i, {
-                        leave: d.leave.map((y, k) =>
-                          k === j ? { ...y, reason: e.target.value } : y,
-                        ),
-                      })
-                    }
-                  />
-                  <button
-                    aria-label="Remove"
-                    onClick={() =>
-                      put(i, { leave: d.leave.filter((_, k) => k !== j) })
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                className="pill"
-                style={{ marginTop: 4 }}
-                onClick={() => {
-                  const today = new Date().toISOString().slice(0, 10);
-                  put(i, {
-                    leave: [
-                      ...d.leave,
-                      { from_date: today, to_date: today, reason: "" },
-                    ],
-                  });
-                }}
-              >
-                + Add leave
-              </button>
-            </>
+          <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+            {d.consult_minutes} min consult ·{" "}
+            {d.hours.length
+              ? d.hours
+                  .map((h) => `${DAYS[h.weekday]} ${h.start}–${h.end}`)
+                  .join(", ")
+              : "No online hours yet"}
+            {d.leave.length
+              ? ` · Leave: ${d.leave
+                  .map((x) =>
+                    x.from_date === x.to_date
+                      ? x.from_date
+                      : `${x.from_date} to ${x.to_date}`,
+                  )
+                  .join(", ")}`
+              : ""}
+          </p>
+          {d.online && !d.hours.length && (
+            <p className="warnbox" style={{ margin: "6px 0 0" }}>
+              Add {d.name}&apos;s online hours in Dashboard → Doctors first.
+            </p>
           )}
         </div>
       ))}
-      <div style={row}>
-        <input
-          className="f"
-          placeholder="New doctor's name, e.g. Dr Asha Rao"
-          maxLength={100}
-          value={newDoctor}
-          onChange={(e) => setNewDoctor(e.target.value)}
-        />
-        <button
-          className="btn g"
-          disabled={busy || newDoctor.trim().length < 2}
-          onClick={async () => {
-            await call(
-              "/doctors",
-              "POST",
-              { name: newDoctor.trim() },
-              "Doctor added",
-            );
-            setNewDoctor("");
-          }}
-        >
-          Add a doctor
-        </button>
-      </div>
       <p
         className="sub2"
         style={{ margin: "12px 0 0", fontSize: 12.5, fontWeight: 600 }}
@@ -362,18 +229,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
         </p>
       ))}
       <div style={{ marginTop: 12 }}>
-        <button
-          className="btn"
-          disabled={busy}
-          onClick={() =>
-            call(
-              "/setup",
-              "PUT",
-              { doctors: setup.doctors, holidays: setup.holidays },
-              "Saved and sent to Cal.com",
-            )
-          }
-        >
+        <button className="btn" disabled={busy} onClick={() => void save()}>
           {busy ? "Saving and sending to Cal.com…" : "Save and send to Cal.com"}
         </button>
       </div>

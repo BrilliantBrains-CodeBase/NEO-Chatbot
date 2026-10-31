@@ -1,13 +1,13 @@
 """Dashboard → Integrations → Cal.com → Set up online consults, JSON only.
 
-The CRM is the one source: which doctors do online consults, their online hours (app.doctor_availability, mode
-online), their leave (app.doctor_leave) and the clinic's holidays (app.clinic_holidays). The chatbot's online
-slots come from the same tables. Saving here also sends each doctor to the clinic's Cal.com: a schedule (the
-hours, with holidays and leave blocked) and an event (the consult, Google Meet). One event = one doctor.
+Which doctors take online consults through Cal.com, and the clinic's holidays (app.clinic_holidays). The
+doctors' online hours, leave and online length are set in Dashboard → Doctors (app.api.v1.crm_doctors); the
+chatbot's online slots come from the same tables. Saving here sends each doctor to the clinic's Cal.com: a
+schedule (the hours, with holidays and leave blocked) and an event (the consult, Google Meet).
 """
 
 import re
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -73,11 +73,6 @@ class Setup(BaseModel):
     problems: list[str] = []  # from Cal.com, after a save
 
 
-class NewDoctor(BaseModel):
-    name: str = Field(min_length=2, max_length=100)
-    role_title: str = Field(default="Doctor", min_length=2, max_length=100)
-
-
 def _manager(user: Staff, clinic: str) -> None:
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Integrations are for clinic managers and BB Admin.")
@@ -85,9 +80,12 @@ def _manager(user: Staff, clinic: str) -> None:
 
 async def _setup(clinic: str, problems: list[str] | None = None) -> Setup:
     pool = await get_pool()
+    # The consult length is the doctor's online length (Dashboard → Doctors), else the clinic's.
     docs = await pool.fetch(
-        """select d.id, d.name, c.event_type_id is not null online, coalesce(c.consult_minutes, 30) minutes
-           from app.doctors d left join app.calcom_doctors c on c.doctor_id = d.id
+        """select d.id, d.name, c.event_type_id is not null online,
+                  coalesce(d.online_minutes, cl.online_slot_minutes) minutes
+           from app.doctors d join app.clinics cl on cl.id = d.clinic_id
+           left join app.calcom_doctors c on c.doctor_id = d.id
            where d.clinic_id = $1 and d.active order by d.sort_order, d.name""",
         clinic,
     )
@@ -129,23 +127,11 @@ async def get_setup(user: Annotated[Staff, Depends(staff)], clinic: str) -> Setu
     return await _setup(clinic)
 
 
-@router.post("/{clinic}/integrations/calcom/doctors", response_model=Setup)
-async def add_doctor(user: Annotated[Staff, Depends(staff)], clinic: str, body: NewDoctor) -> Setup:
-    """A new doctor in the CRM (CRM → Doctors shows them too)."""
-    _manager(user, clinic)
-    pool = await get_pool()
-    async with pool.acquire() as conn, conn.transaction():
-        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
-        await conn.execute(
-            "insert into app.doctors (clinic_id, name, role_title) values ($1, $2, $3)",
-            clinic, body.name.strip(), body.role_title.strip(),
-        )  # fmt: skip
-    return await _setup(clinic)
-
-
 @router.put("/{clinic}/integrations/calcom/setup", response_model=Setup)
 async def save_setup(user: Annotated[Staff, Depends(staff)], clinic: str, body: Setup) -> Setup:
-    """Saves the online hours, leave and holidays in the CRM, then sends every online doctor to Cal.com."""
+    """Saves the clinic's holidays and which doctors take online consults, then sends every doctor to Cal.com
+    with their CURRENT online hours, leave and length from Dashboard → Doctors (this screen does not edit
+    those, so the two screens never overwrite each other)."""
     _manager(user, clinic)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -160,12 +146,15 @@ async def save_setup(user: Annotated[Staff, Depends(staff)], clinic: str, body: 
         }
     if not key:
         raise HTTPException(status.HTTP_409_CONFLICT, "The Cal.com key is missing. Please connect again.")
-    for d in body.doctors:
-        if d.doctor_id not in known:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "A doctor was not found in this clinic.")
-        if d.online and not d.hours:
+    online = {d.doctor_id for d in body.doctors if d.online}
+    if online - known:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "A doctor was not found in this clinic.")
+    current = await _setup(clinic)
+    for d in current.doctors:
+        if d.doctor_id in online and not d.hours:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"Add {d.name or 'the doctor'}'s online hours."
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"Add {d.name}'s online hours in Dashboard → Doctors first.",
             )
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
@@ -178,28 +167,12 @@ async def save_setup(user: Annotated[Staff, Depends(staff)], clinic: str, body: 
                    on conflict (clinic_id, day) do update set reason = $3""",
                 clinic, h.day, h.reason,
             )  # fmt: skip
-        for d in body.doctors:
-            await conn.execute(
-                "delete from app.doctor_availability where doctor_id = $1::uuid and mode = 'online'",
-                d.doctor_id,
-            )
-            for hr in d.hours:
-                await conn.execute(
-                    """insert into app.doctor_availability (doctor_id, clinic_id, weekday, mode, start_time,
-                         end_time) values ($1::uuid, $2, $3, 'online', $4, $5)""",
-                    d.doctor_id, clinic, hr.weekday, time.fromisoformat(hr.start), time.fromisoformat(hr.end),
-                )  # fmt: skip
-            await conn.execute(
-                "delete from app.doctor_leave where doctor_id = $1::uuid and to_date >= current_date",
-                d.doctor_id,
-            )
-            for x in d.leave:
-                await conn.execute(
-                    """insert into app.doctor_leave (doctor_id, clinic_id, from_date, to_date, reason)
-                       values ($1::uuid, $2, $3, $4, $5)""",
-                    d.doctor_id, clinic, x.from_date, x.to_date, x.reason,
-                )  # fmt: skip
-    problems = await sync(clinic, key, body)
+    # The doctors as saved in Dashboard → Doctors, with this screen's online choice.
+    send = Setup(
+        doctors=[d.model_copy(update={"online": d.doctor_id in online}) for d in current.doctors],
+        holidays=body.holidays,
+    )
+    problems = await sync(clinic, key, send)
     return await _setup(clinic, problems)
 
 

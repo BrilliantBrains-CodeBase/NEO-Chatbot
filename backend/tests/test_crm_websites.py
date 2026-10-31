@@ -1,5 +1,7 @@
 """Dashboard → Website install: only approved websites get the chatbot (app.clinics.allowed_origins)."""
 
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
 
@@ -194,28 +196,43 @@ async def test_online_consult_setup_goes_to_calcom(api: AsyncClient, monkeypatch
     base = "/v1/crm/console/CL99/integrations/calcom"
     try:
         await api.post(base, json={"api_key": key}, headers=headers)
-        setup = (await api.post(f"{base}/doctors", json={"name": "Dr Test Online"}, headers=headers)).json()
-        [doc] = [d for d in setup["doctors"] if d["name"] == "Dr Test Online"]
-        doc |= {
-            "online": True,
-            "consult_minutes": 15,
-            "hours": [{"weekday": 1, "start": "10:00", "end": "13:00"}],
+        # The doctor, their online hours, leave and length are set in Dashboard → Doctors.
+        doctor = {
+            "name": "Dr Test Online",
+            "online_minutes": 10,
+            "online": [{"weekday": 1, "start": "10:00", "end": "13:00"}],
             "leave": [{"from_date": "2030-01-01", "to_date": "2030-01-02", "reason": "Test"}],
         }
+        docs = (await api.post("/v1/crm/console/CL99/doctors", json=doctor, headers=headers)).json()
+        [made] = [d for d in docs["doctors"] if d["name"] == "Dr Test Online"]
+        setup = (await api.get(f"{base}/setup", headers=headers)).json()
+        [doc] = [d for d in setup["doctors"] if d["name"] == "Dr Test Online"]
+        doc["online"] = True  # this screen only ticks the doctor
         body = {"doctors": [doc], "holidays": [{"day": "2030-01-26", "reason": "Republic Day"}]}
         r = (await api.put(f"{base}/setup", json=body, headers=headers)).json()
         assert r["problems"] == []
         [saved] = [d for d in r["doctors"] if d["name"] == "Dr Test Online"]
-        assert saved["online"] and saved["consult_minutes"] == 15 and saved["hours"][0]["start"] == "10:00"
+        assert saved["online"] and saved["consult_minutes"] == 10 and saved["hours"][0]["start"] == "10:00"
         row = await pool.fetchrow(
             "select event_type_id, schedule_id from app.calcom_doctors where clinic_id = 'CL99'"
         )
         h = {"Authorization": f"Bearer {key}", "cal-api-version": calcom.EVENTS}
-        async with httpx.AsyncClient() as c:
-            event = (await c.get(f"{calcom.API}/event-types/{row['event_type_id']}", headers=h)).json()[
-                "data"
-            ]
-        assert event["lengthInMinutes"] == 15 and event["title"] == "Online consult with Dr Test Online"
+
+        async def length() -> Any:
+            async with httpx.AsyncClient() as c:
+                got = await c.get(f"{calcom.API}/event-types/{row['event_type_id']}", headers=h)
+            return got.json()["data"]
+
+        event = await length()
+        assert event["lengthInMinutes"] == 10 and event["title"] == "Online consult with Dr Test Online"
+        # Saving the doctor in Dashboard → Doctors sends the new length to Cal.com.
+        r = await api.put(
+            f"/v1/crm/console/CL99/doctors/{made['id']}",
+            json=doctor | {"online_minutes": 20},
+            headers=headers,
+        )
+        assert r.status_code == 200 and r.json()["problems"] == [], r.text
+        assert (await length())["lengthInMinutes"] == 20
         body["doctors"][0]["online"] = False  # off: removed from Cal.com
         await api.put(f"{base}/setup", json=body, headers=headers)
         async with httpx.AsyncClient() as c:

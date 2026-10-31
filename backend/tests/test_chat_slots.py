@@ -115,6 +115,43 @@ async def test_holidays_have_no_slots(tx: asyncpg.Connection) -> None:
     assert await slots(tx) == []
 
 
+async def test_each_doctor_uses_their_own_length(tx: asyncpg.Connection) -> None:
+    doc = await doctor(tx, "10:00", "11:00")
+    await tx.execute("update app.doctors set in_clinic_minutes = 10 where id = $1", doc)
+    assert await slots(tx) == ["10:00", "10:10", "10:20", "10:30", "10:40", "10:50"]
+
+
+async def test_online_follows_the_doctors_hours_not_the_clinics(tx: asyncpg.Connection) -> None:
+    await doctor(tx, "18:00", "20:00", mode="online")  # the clinic closes at 19:00
+    assert await slots(tx, mode="online") == ["18:00", "18:30", "19:00", "19:30"]  # clinic's 30 min online
+    await doctor(tx, "10:00", "11:00", mode="online", weekday=2)
+    assert await slots(tx, day=TUE, mode="online") == ["10:00", "10:30"]  # clinic closed Tuesday: online ok
+
+
+async def test_a_booking_blocks_its_whole_length_in_both_modes(tx: asyncpg.Connection) -> None:
+    doc = await doctor(tx, "10:00", "11:00")  # in-clinic, 15 minutes
+    await tx.execute(
+        """insert into app.doctor_availability (doctor_id, clinic_id, weekday, mode, start_time, end_time)
+           values ($1, 'CL99', 1, 'online', '10:00', '11:00')""",
+        doc,
+    )
+    lead = await tx.fetchval(
+        "insert into app.leads (clinic_id, full_name, phone_e164, source) "
+        "values ('CL99', 'Lead', '+919800000002', 'chatbot') returning id"
+    )
+    start = datetime.fromisoformat(f"{MON.isoformat()}T10:00:00+05:30")
+    await tx.execute(  # a 30-minute online consult at 10:00
+        """insert into app.appointments (clinic_id, lead_id, doctor_id, type, slot, status)
+           values ('CL99', $1, $2, 'online',
+                   tstzrange($3::timestamptz, $3::timestamptz + interval '30 minutes', '[)'), 'pending')""",
+        lead,
+        doc,
+        start,
+    )
+    assert await slots(tx) == ["10:30", "10:45"]  # in-clinic: 10:00 and 10:15 are both taken
+    assert await slots(tx, mode="online") == ["10:30"]
+
+
 async def test_new_sources_lost_wording_and_settings(tx: asyncpg.Connection) -> None:
     lead = await tx.fetchval(
         "insert into app.leads (clinic_id, full_name, phone_e164, source) "
