@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { INBOX_TABS } from "@/lib/api";
 import { ON_SECTIONS } from "@/lib/assistant";
-import { CLINIC_CONTENT } from "@/lib/sample-data";
+import { useDoctors } from "@/lib/availability";
 import { useCrm } from "./CrmProvider";
 import Icon, { type IconName } from "./Icon";
 
@@ -44,6 +44,10 @@ export default function Sidebar({
   const tab = params.get("tab") ?? "book";
   const inboxTotal = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
   const doc = params.get("doc") ?? "";
+  // The clinic's real doctors (Dashboard → Doctors), each opening their week.
+  const doctors = useDoctors(
+    crm.me?.clinics.find((c) => c.name === crm.clinic)?.id,
+  );
 
   const item = (
     href: string,
@@ -167,11 +171,11 @@ export default function Sidebar({
             undefined,
             <>
               {subItem("/doctors", "All doctors", path === "/doctors" && !doc)}
-              {(CLINIC_CONTENT[crm.clinic]?.docs ?? []).map((d) =>
+              {doctors.map((d) =>
                 subItem(
-                  `/doctors?doc=${encodeURIComponent(d)}`,
-                  d,
-                  path === "/doctors" && doc === d,
+                  `/doctors?doc=${d.id}`,
+                  d.name,
+                  path === "/doctors" && doc === d.id,
                 ),
               )}
             </>,
