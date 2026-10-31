@@ -90,6 +90,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "quality",
+    off: true,
     icon: "check",
     label: "Test & quality",
     group: "Bot quality",
