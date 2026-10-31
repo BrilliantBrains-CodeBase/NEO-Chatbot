@@ -13,7 +13,9 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from app.api.v1 import crm_doctors
 from app.api.v1.crm import can_see
+from app.api.v1.crm_doctors import Schedule
 from app.chat import slots
 from app.core.db import get_pool
 from app.crm import permissions as perm
@@ -223,3 +225,53 @@ async def week(
     return Week(
         doctor=found[0], today=today.isoformat(), open_time=open_time, close_time=close_time, days=days
     )
+
+
+async def _doctor_id(conn: Any, user: Staff, clinic: str, doctor_id: str, need: str) -> str:
+    """The doctor, checked: in this clinic, and a doctor changes only their own hours (the doctor record
+    linked to their sign-in, in Team)."""
+    try:
+        UUID(doctor_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Doctor not found in this clinic.") from None
+    can_see(user, clinic)
+    await perm.require(conn, user, clinic, "doctors", need)  # type: ignore[arg-type]
+    linked = await conn.fetchrow(
+        "select user_id::text from app.doctors where id = $1::uuid and clinic_id = $2", doctor_id, clinic
+    )
+    if linked is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Doctor not found in this clinic.")
+    own = not user.bb_admin and user.roles.get(clinic) == "doctor"
+    if need == "edit" and own and linked["user_id"] != user.id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctors can change only their own hours and leave.")
+    return doctor_id
+
+
+async def _schedule(clinic: str, doctor_id: str, problems: list[str] | None = None) -> Schedule:
+    d = next(x for x in (await crm_doctors._list(clinic)).doctors if x.id == doctor_id)
+    return Schedule.model_construct(
+        in_clinic=d.in_clinic, online=d.online, leave=d.leave, calcom=d.calcom, problems=problems or []
+    )
+
+
+@router.get("/availability/{doctor_id}/schedule", response_model=Schedule)
+async def get_schedule(user: Annotated[Staff, Depends(staff)], clinic: CLINIC, doctor_id: str) -> Schedule:
+    """A doctor's weekly in-clinic and online hours and upcoming leave."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await _doctor_id(conn, user, clinic, doctor_id, "view")
+    return await _schedule(clinic, doctor_id)
+
+
+@router.put("/availability/{doctor_id}/schedule", response_model=Schedule)
+async def save_schedule(
+    user: Annotated[Staff, Depends(staff)], clinic: CLINIC, doctor_id: str, body: Schedule
+) -> Schedule:
+    """Saves a doctor's weekly hours and upcoming leave (all replaced by what was sent). A doctor connected
+    to Cal.com gets them there too."""
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await _doctor_id(conn, user, clinic, doctor_id, "edit")
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        await crm_doctors._save(conn, clinic, doctor_id, body)
+    return await _schedule(clinic, doctor_id, await crm_doctors._calcom(clinic, doctor_id))

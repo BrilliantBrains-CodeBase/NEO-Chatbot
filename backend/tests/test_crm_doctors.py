@@ -110,3 +110,45 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
             before["slot_minutes"], before["online_slot_minutes"],
         )  # fmt: skip
         await close_pool()
+
+
+@needs_db
+async def test_crm_edits_a_doctors_hours_and_leave(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    made: str | None = None
+    try:
+        r = await api.post(URL, json=_doctor(), headers=headers)
+        made = next(x["id"] for x in r.json()["doctors"] if x["name"] == "Dr Test Doctor")
+        url = f"/v1/crm/availability/{made}/schedule?clinic=CL99"
+        got = (await api.get(url, headers=headers)).json()
+        assert got["in_clinic"] == [{"weekday": 1, "start": "10:00", "end": "13:00"}] and not got["calcom"]
+
+        body: dict[str, Any] = {
+            "in_clinic": [{"weekday": 3, "start": "09:00", "end": "12:00"}],
+            "online": [{"weekday": 3, "start": "11:00", "end": "14:00"}],  # may overlap in-clinic
+            "leave": [{"from_date": "2030-02-01", "to_date": "2030-02-03", "reason": "Travel"}],
+        }
+        r = await api.put(url, json=body, headers=headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["online"] == body["online"] and r.json()["leave"][0]["reason"] == "Travel"
+        # The profile set in the Dashboard is untouched.
+        row = await pool.fetchrow(
+            "select in_clinic_minutes, qualifications from app.doctors where id = $1::uuid", made
+        )
+        assert row["in_clinic_minutes"] == 10 and row["qualifications"] == "MBBS"
+
+        bad = body | {"online": body["online"] * 2}  # the same online row twice
+        r = await api.put(url, json=bad, headers=headers)
+        assert r.status_code == 422 and "overlap" in r.text
+        r = await api.get("/v1/crm/availability/not-a-doctor/schedule?clinic=CL99", headers=headers)
+        assert r.status_code == 404
+    finally:
+        if made:
+            await pool.execute("delete from app.doctors where id = $1::uuid", made)
+        await close_pool()

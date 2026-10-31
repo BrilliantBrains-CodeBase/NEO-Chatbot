@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { level } from "@/lib/access";
 import { api, ApiError } from "@/lib/api";
 import { type Booking, type Day, type Week, spans } from "@/lib/availability";
+import { useCrm } from "./CrmProvider";
+import {
+  HoursEditor,
+  LeaveEditor,
+  overlap,
+  type Hours,
+  type Leave,
+} from "./ScheduleEditors";
 
 // CRM → Doctors Availability → one doctor: their week as a grid (the design's .wkg). Rows step by the doctor's
 // smaller slot length (in-clinic or online), so every booking and free time lands on a row.
@@ -116,10 +125,14 @@ export default function WeekGrid({
   doctorId: string;
 }) {
   const [start, setStart] = useState<string | null>(null); // null = from today
+  const { me, clinic } = useCrm();
+  const canEdit = level(me, clinic, "doctors") === "edit";
+  const [editing, setEditing] = useState(false);
+  const [version, setVersion] = useState(0); // bumped after a save, to load the week again
   const [kind, setKind] = useState<Kind>("all");
   const [week, setWeek] = useState<{ key: string; data: Week }>();
   const [error, setError] = useState("");
-  const key = `${clinicId}|${doctorId}|${start ?? ""}`;
+  const key = `${clinicId}|${doctorId}|${start ?? ""}|${version}`;
 
   useEffect(() => {
     let live = true;
@@ -184,6 +197,16 @@ export default function WeekGrid({
   return (
     <>
       {header}
+      {editing && (
+        <ScheduleCard
+          clinicId={clinicId}
+          doctorId={doctorId}
+          onClose={(saved) => {
+            setEditing(false);
+            if (saved) setVersion((v) => v + 1);
+          }}
+        />
+      )}
       <div
         className="row"
         style={{ gap: 8, marginBottom: 10, flexWrap: "wrap" }}
@@ -191,6 +214,11 @@ export default function WeekGrid({
         <Link className="btn g" href="/doctors">
           ← All doctors
         </Link>
+        {canEdit && !editing && (
+          <button className="btn" onClick={() => setEditing(true)}>
+            Edit hours &amp; leave
+          </button>
+        )}
         <button
           className="btn g"
           onClick={() => setStart(addDays(w.days[0].date, -7))}
@@ -361,5 +389,145 @@ export default function WeekGrid({
         in-clinic or online is taken for both.
       </p>
     </>
+  );
+}
+
+type Schedule = {
+  in_clinic: Hours[];
+  online: Hours[];
+  leave: Leave[];
+  calcom: boolean;
+  problems: string[];
+};
+
+/** Edit a doctor's weekly hours and upcoming leave (profile and slot lengths: Dashboard → Doctors). */
+function ScheduleCard({
+  clinicId,
+  doctorId,
+  onClose,
+}: {
+  clinicId: string;
+  doctorId: string;
+  onClose: (saved: boolean) => void;
+}) {
+  const { toast } = useCrm();
+  const url = `/v1/crm/availability/${doctorId}/schedule?clinic=${clinicId}`;
+  const [s, setS] = useState<Schedule | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let live = true;
+    api<Schedule>(url).then(
+      (x) => live && setS(x),
+      (e) =>
+        live &&
+        setError(
+          e instanceof ApiError ? e.message : "Could not load the hours.",
+        ),
+    );
+    return () => {
+      live = false;
+    };
+  }, [url]);
+
+  async function save() {
+    if (!s) return;
+    setBusy(true);
+    setError("");
+    try {
+      const x = await api<Schedule>(url, {
+        method: "PUT",
+        body: JSON.stringify({
+          in_clinic: s.in_clinic,
+          online: s.online,
+          leave: s.leave,
+        }),
+      });
+      if (x.problems.length) {
+        setS(x);
+        toast("Saved, with problems from Cal.com");
+      } else {
+        toast("Hours and leave saved");
+        onClose(true);
+      }
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not save. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const clash = s ? overlap(s.in_clinic, s.online) : "";
+  return (
+    <div
+      className="card"
+      style={{ padding: 16, marginBottom: 12, maxWidth: 760 }}
+    >
+      <b>Edit hours &amp; leave</b>
+      <p className="sub2" style={{ margin: "4px 0 0" }}>
+        Weekly hours and leave. In-clinic and online hours can be the same: a
+        time booked for one is no longer offered for the other. Profile and slot
+        lengths are in Dashboard → Doctors.
+      </p>
+      {!s && !error && <p className="sub2">Loading…</p>}
+      {s && (
+        <>
+          <HoursEditor
+            title="In-clinic hours"
+            hours={s.in_clinic}
+            onChange={(h) => setS({ ...s, in_clinic: h })}
+          />
+          <HoursEditor
+            title="Online hours"
+            hours={s.online}
+            onChange={(h) => setS({ ...s, online: h })}
+          />
+          {s.calcom && (
+            <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+              Connected to Cal.com: online hours and leave are sent there when
+              you save.
+            </p>
+          )}
+          <LeaveEditor
+            leave={s.leave}
+            onChange={(l) => setS({ ...s, leave: l })}
+          />
+        </>
+      )}
+      {clash && (
+        <p className="warnbox" style={{ marginTop: 12 }}>
+          {clash}
+        </p>
+      )}
+      {s?.problems.map((p) => (
+        <p key={p} className="warnbox" style={{ marginTop: 8 }}>
+          {p}
+        </p>
+      ))}
+      {error && error !== clash && (
+        <p role="alert" style={{ color: "var(--err)", margin: "12px 0 0" }}>
+          {error}
+        </p>
+      )}
+      <div className="row" style={{ gap: 8, marginTop: 16 }}>
+        <button
+          className="btn"
+          disabled={busy || !s}
+          onClick={() => void save()}
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+        <button
+          className="btn g"
+          disabled={busy}
+          onClick={() => onClose(false)}
+        >
+          {s?.problems.length ? "Close" : "Cancel"}
+        </button>
+      </div>
+    </div>
   );
 }

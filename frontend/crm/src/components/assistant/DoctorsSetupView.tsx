@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
+import {
+  HoursEditor,
+  LeaveEditor,
+  overlap,
+  type Hours,
+  type Leave,
+} from "@/components/crm/ScheduleEditors";
 
 // Dashboard → Doctors: every doctor with all settings (profile, slot lengths, in-clinic and online hours, leave)
 // and the clinic's default slot lengths. In-clinic and online hours may overlap (a booking in one hides that time
 // in the other); two rows of the same kind may not.
 
-type Hours = { weekday: number; start: string; end: string };
-type Leave = { from_date: string; to_date: string; reason: string };
 type Figure = { label: string; value: string };
 type Doctor = {
   id: string;
@@ -31,7 +36,6 @@ type Defaults = { slot_minutes: number; online_slot_minutes: number };
 type Data = { defaults: Defaults; doctors: Doctor[]; problems: string[] };
 
 const LENGTHS = [5, 10, 15, 20, 30, 45, 60];
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const row = {
   display: "flex",
   gap: 6,
@@ -56,21 +60,7 @@ const EMPTY: Doctor = {
   calcom: false,
 };
 
-/** Two rows of the same kind that overlap, as the backend words it; "" when none. In-clinic and online may
- * overlap: a time booked in one is not offered in the other. */
-function overlap(d: Doctor): string {
-  for (const [kind, rows] of [
-    ["in-clinic", d.in_clinic],
-    ["online", d.online],
-  ] as const)
-    for (let i = 0; i < rows.length; i++)
-      for (const b of rows.slice(i + 1)) {
-        const a = rows[i];
-        if (a.weekday === b.weekday && a.start < b.end && b.start < a.end)
-          return `${DAYS[a.weekday]}: ${kind} hours ${a.start}–${a.end} and ${b.start}–${b.end} overlap. Join them into one row.`;
-      }
-  return "";
-}
+const clashOf = (d: Doctor) => overlap(d.in_clinic, d.online);
 
 const lengthText = (own: number | null, clinic: number) =>
   own ? `${own} min` : `${clinic} min (clinic)`;
@@ -251,7 +241,7 @@ export default function DoctorsSetupView() {
         </button>
       </div>
       {data.doctors.map((d) => {
-        const clash = overlap(d);
+        const clash = clashOf(d);
         return (
           <div
             key={d.id}
@@ -334,78 +324,6 @@ function LengthSelect({
   );
 }
 
-function HoursEditor({
-  title,
-  hours,
-  onChange,
-}: {
-  title: string;
-  hours: Hours[];
-  onChange: (h: Hours[]) => void;
-}) {
-  const set = (j: number, patch: Partial<Hours>) =>
-    onChange(hours.map((x, k) => (k === j ? { ...x, ...patch } : x)));
-  return (
-    <>
-      <p className="sub2" style={{ margin: "12px 0 0" }}>
-        <b>{title}</b>
-      </p>
-      {hours.length === 0 && (
-        <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
-          None.
-        </p>
-      )}
-      {hours.map((h, j) => (
-        <div key={j} style={row}>
-          <select
-            className="sel"
-            aria-label="Day"
-            value={h.weekday}
-            onChange={(e) => set(j, { weekday: Number(e.target.value) })}
-          >
-            {DAYS.map((day, n) => (
-              <option key={day} value={n}>
-                {day}
-              </option>
-            ))}
-          </select>
-          <input
-            className="f"
-            type="time"
-            aria-label="From"
-            value={h.start}
-            onChange={(e) => set(j, { start: e.target.value })}
-          />
-          <span className="sub2">to</span>
-          <input
-            className="f"
-            type="time"
-            aria-label="To"
-            value={h.end}
-            onChange={(e) => set(j, { end: e.target.value })}
-          />
-          <button
-            className="btn g"
-            aria-label="Remove"
-            onClick={() => onChange(hours.filter((_, k) => k !== j))}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button
-        className="pill"
-        style={{ marginTop: 6 }}
-        onClick={() =>
-          onChange([...hours, { weekday: 1, start: "10:00", end: "13:00" }])
-        }
-      >
-        + Add hours
-      </button>
-    </>
-  );
-}
-
 function DoctorForm({
   doctor: d,
   defaults,
@@ -439,7 +357,7 @@ function DoctorForm({
       />
     </label>
   );
-  const clash = overlap(d);
+  const clash = clashOf(d);
 
   return (
     <div className="card" style={{ padding: 16, maxWidth: 760 }}>
@@ -568,64 +486,7 @@ function DoctorForm({
         </p>
       )}
 
-      <p className="sub2" style={{ margin: "12px 0 0" }}>
-        <b>Leave (no bookings, in-clinic or online)</b>
-      </p>
-      {d.leave.map((x, j) => (
-        <div key={j} style={row}>
-          {(["from_date", "to_date"] as const).map((f) => (
-            <input
-              key={f}
-              className="f"
-              type="date"
-              aria-label={f === "from_date" ? "From" : "To"}
-              value={x[f]}
-              onChange={(e) =>
-                set({
-                  leave: d.leave.map((y, k) =>
-                    k === j ? { ...y, [f]: e.target.value } : y,
-                  ),
-                })
-              }
-            />
-          ))}
-          <input
-            className="f"
-            placeholder="Reason (optional)"
-            maxLength={200}
-            value={x.reason}
-            onChange={(e) =>
-              set({
-                leave: d.leave.map((y, k) =>
-                  k === j ? { ...y, reason: e.target.value } : y,
-                ),
-              })
-            }
-          />
-          <button
-            className="btn g"
-            aria-label="Remove"
-            onClick={() => set({ leave: d.leave.filter((_, k) => k !== j) })}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
-      <button
-        className="pill"
-        style={{ marginTop: 6 }}
-        onClick={() => {
-          const today = new Date().toISOString().slice(0, 10);
-          set({
-            leave: [
-              ...d.leave,
-              { from_date: today, to_date: today, reason: "" },
-            ],
-          });
-        }}
-      >
-        + Add leave
-      </button>
+      <LeaveEditor leave={d.leave} onChange={(l) => set({ leave: l })} />
 
       {clash && (
         <p className="warnbox" style={{ marginTop: 12 }}>

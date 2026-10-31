@@ -56,19 +56,39 @@ class Doctor(BaseModel):
     _len = field_validator("in_clinic_minutes", "online_minutes")(_length)
 
 
+def no_overlap(in_clinic: list[Hours], online: list[Hours]) -> None:
+    """Two rows of the same kind must not overlap (the database refuses it too)."""
+    for kind, rows in (("in-clinic", in_clinic), ("online", online)):
+        for i, a in enumerate(rows):
+            for b in rows[i + 1 :]:
+                if a.weekday == b.weekday and a.start < b.end and b.start < a.end:
+                    raise ValueError(
+                        f"{DAYS[a.weekday]}: {kind} hours {a.start}–{a.end} and {b.start}–{b.end} "
+                        "overlap. Join them into one row."
+                    )
+
+
 class DoctorIn(Doctor):
-    """A doctor as saved: two rows of the same kind must not overlap (the database refuses it too)."""
+    """A doctor as saved (reading uses Doctor, so rows saved before a rule still show and can be fixed)."""
 
     @model_validator(mode="after")
     def _no_overlap(self) -> "DoctorIn":
-        for kind, rows in (("in-clinic", self.in_clinic), ("online", self.online)):
-            for i, a in enumerate(rows):
-                for b in rows[i + 1 :]:
-                    if a.weekday == b.weekday and a.start < b.end and b.start < a.end:
-                        raise ValueError(
-                            f"{DAYS[a.weekday]}: {kind} hours {a.start}–{a.end} and {b.start}–{b.end} "
-                            "overlap. Join them into one row."
-                        )
+        no_overlap(self.in_clinic, self.online)
+        return self
+
+
+class Schedule(BaseModel):
+    """A doctor's weekly hours and upcoming leave (CRM → Doctors Availability)."""
+
+    in_clinic: list[Hours] = Field(default=[], max_length=50)
+    online: list[Hours] = Field(default=[], max_length=50)
+    leave: list[Leave] = Field(default=[], max_length=100)
+    calcom: bool = False  # shown only
+    problems: list[str] = []  # shown only: from Cal.com, after a save
+
+    @model_validator(mode="after")
+    def _no_overlap(self) -> "Schedule":
+        no_overlap(self.in_clinic, self.online)
         return self
 
 
@@ -149,7 +169,7 @@ async def _list(clinic: str, problems: list[str] | None = None) -> Doctors:
     )
 
 
-async def _save(conn: Any, clinic: str, doctor_id: str, body: Doctor) -> None:
+async def _save(conn: Any, clinic: str, doctor_id: str, body: Doctor | Schedule) -> None:
     """Writes the doctor's hours and upcoming leave (all replaced by what was sent)."""
     await conn.execute("delete from app.doctor_availability where doctor_id = $1::uuid", doctor_id)
     for mode, rows in (("in_clinic", body.in_clinic), ("online", body.online)):

@@ -34,13 +34,14 @@ SCREENS: dict[str, tuple[str, str]] = (
 )
 
 # Today's behaviour: managers change everything; Front Desk works leads, inbox, appointments and tasks;
-# Doctors see their work; only managers open the Dashboard.
+# Doctors see their work and change their own hours and leave (front desk any doctor's); only managers open
+# the Dashboard.
 _desk: dict[str, Level] = {
-    "dashboard": "view", "leads": "edit", "inbox": "edit", "doctors": "view", "appointments": "edit",
+    "dashboard": "view", "leads": "edit", "inbox": "edit", "doctors": "edit", "appointments": "edit",
     "tasks": "edit", "patients": "edit", "reports": "view", "team": "view", "settings": "hidden",
 }  # fmt: skip
 _doctor: dict[str, Level] = {
-    "dashboard": "view", "leads": "view", "inbox": "view", "doctors": "view", "appointments": "view",
+    "dashboard": "view", "leads": "view", "inbox": "view", "doctors": "edit", "appointments": "view",
     "tasks": "view", "patients": "view", "reports": "hidden", "team": "view", "settings": "hidden",
 }  # fmt: skip
 BUILTIN: dict[str, dict[str, Level]] = {
