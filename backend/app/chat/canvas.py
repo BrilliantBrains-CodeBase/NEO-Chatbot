@@ -12,7 +12,7 @@ from typing import Any
 
 import asyncpg
 
-from app.chat import leads, main_template
+from app.chat import context, leads, main_template
 from app.chat.flows import normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
 from app.chat.slots import doctors_today
@@ -83,6 +83,10 @@ async def turn(
         waiting = (run_state.get("ask") or {}).get("kind")
         if text and waiting in (None, "knowledge", "lead", "question"):
             found = await _kb_answer(clinic, text)
+            # Not answered alone: read with the last messages ("and Sunday?" after "what are your timings").
+            again = None if found else context.follow_up(text, state.get("canvas_history") or [])
+            if again:
+                found = await _kb_answer(clinic, again)
             ctx.kb = lambda q: found
         if waiting == "check" and text:
             booked = await _upcoming(clinic, text)
@@ -110,7 +114,10 @@ async def turn(
         urgent = {"type": "callback", "name": "Patient (emergency)", "phone": alert["phone"],
                   "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip
         await _save(conn, req, urgent)
-    return _widget(reply, pub, lead_note), {**state, "canvas": reply["state"]}, "flow"
+    said = " ".join(m["text"] for m in reply["messages"] if m.get("text"))
+    history = context.keep(state.get("canvas_history") or [], text, said)  # the last 3 messages each way
+    new_state = {**state, "canvas": reply["state"], "canvas_history": history}
+    return _widget(reply, pub, lead_note), new_state, "flow"
 
 
 def _menu_ids(flow: dict[str, Any]) -> dict[str, str]:

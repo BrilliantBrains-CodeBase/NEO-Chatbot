@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from app.chat.schemas import ChatRequest, Payload
+from app.chat.understand import small_talk
 
 HISTORY = 5  # messages kept (patient and bot), newest last
 MEMORY = ("history", "topic", "last_q", "last_ui")  # carried from turn to turn by the service
@@ -124,3 +125,33 @@ def remember(
     if req.event == "text" and answered_by in ("kb", "rule") and not is_vague(resolved):
         new["last_q"] = without_treatment(resolved, c)
     new["last_ui"] = ui
+
+
+# --- The workflow canvas (the live chat): the last messages, for follow-ups the Knowledge base answers ------
+
+TURNS = 6  # messages kept: the last 3 from the patient and the bot's 3 replies
+
+
+def keep(history: list[dict[str, str]], patient: str | None, bot: str) -> list[dict[str, str]]:
+    """The chat so far with this turn added (the last TURNS messages)."""
+    new = [*history, *([{"who": "patient", "text": patient}] if patient else []), {"who": "bot", "text": bot}]
+    return [m for m in new if m["text"].strip()][-TURNS:]
+
+
+def follow_up(text: str, history: list[dict[str, str]]) -> str | None:
+    """A short follow-up read with the patient's question before it ("and Sunday?" after "what are your
+    timings" -> "what are your timings sunday"; "tell me more" -> the question again). None when the message
+    is not a follow-up, is long enough to stand alone, or nothing came before."""
+    low = norm(text).strip(" ?.!")
+    before = [m["text"] for m in history if m["who"] == "patient"][-3:]
+    if not before or not low or len(low.split()) > SHORT:
+        return None
+    if small_talk(low) is not None:  # "ok", "thanks", "hi": not a question about what came before
+        return None
+    last = before[-1]
+    if is_vague(text):
+        return last
+    if SWITCH.match(low) or POINTER.search(low) or DETAIL.search(low) or len(low.split()) <= 3:
+        rest = SWITCH.sub("", low).strip()
+        return f"{last} {rest}".strip() if rest else last
+    return None

@@ -320,3 +320,17 @@ def test_follow_up_reviews_after_a_procedure_are_not_google_reviews() -> None:
 )
 def test_questions_about_the_clinic_are_not_reviews(text: str) -> None:
     assert not understand.REVIEWS.search(text)
+
+
+def test_canvas_reads_the_last_messages_for_a_follow_up() -> None:
+    from app.chat.context import TURNS, follow_up, keep
+
+    h = keep([], "What are your clinic timings?", "We are open 10 AM to 7 PM.")
+    assert follow_up("and sunday?", h) == "What are your clinic timings? sunday"
+    assert follow_up("tell me more", h) == "What are your clinic timings?"
+    assert follow_up("ok", h) is None and follow_up("thanks", h) is None  # small talk is not a follow-up
+    assert follow_up("Do you have parking in the basement near the lift area?", h) is None  # stands alone
+    assert follow_up("and sunday?", []) is None  # nothing came before
+    for i in range(5):
+        h = keep(h, f"question {i}", f"answer {i}")
+    assert len(h) == TURNS and h[-2]["text"] == "question 4"  # the last 3 each way

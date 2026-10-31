@@ -167,3 +167,30 @@ async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: p
         )
         kb.forget("CL99")
         await close_pool()
+
+
+@needs_db
+async def test_a_follow_up_is_answered_with_the_question_before_it() -> None:
+    from app.api.v1.crm_console import _kb_answer
+    from app.chat.context import follow_up, keep
+
+    pool = await get_pool()
+    try:
+        await pool.execute(
+            """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
+               values ('CL99', 'Test what are the clinic timings on sunday?', '', 'Test: Sunday 10 to 2.',
+                       'approved', now()),
+                      ('CL99', 'Test is the pharmacy open on sunday?', '', 'Test: pharmacy closed Sunday.',
+                       'approved', now())"""
+        )
+        kb.forget("CL99")
+        history = keep([], "test what are the clinic timings?", "We are open 10 AM to 7 PM.")
+        assert await _kb_answer("CL99", "and sunday?") is None  # alone: which Sunday question?
+        again = follow_up("and sunday?", history)
+        assert again is not None and await _kb_answer("CL99", again) == "Test: Sunday 10 to 2."
+    finally:
+        await pool.execute(
+            "delete from app.kb_qa where clinic_id = 'CL99' and question like 'Test what are the%'"
+        )
+        kb.forget("CL99")
+        await close_pool()
