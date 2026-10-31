@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { level } from "@/lib/access";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type LeadList, type LeadRow } from "@/lib/api";
 import { type Booking, type Day, type Week, spans } from "@/lib/availability";
 import { useCrm } from "./CrmProvider";
 import {
@@ -64,7 +64,13 @@ function cell(
   m: number,
   past: boolean,
   kind: Kind,
-): { cls: string; text: string; sub?: string; title?: string } {
+): {
+  cls: string;
+  text: string;
+  sub?: string;
+  title?: string;
+  free?: Kind[]; // the kinds of visit free at this time (a click books one)
+} {
   const b: Booking | undefined = day.bookings.find(
     (x) => x.start && x.end && mins(x.start) <= m && m < mins(x.end),
   );
@@ -103,7 +109,11 @@ function cell(
   const fo = kind !== "in_clinic" && day.free_online.includes(t);
   if (fi || fo) {
     const text = fi && fo ? "Free" : fi ? "Free · in-clinic" : "Free · online";
-    return { cls: "c free", text, title: `${text} at ${t}` };
+    const free: Kind[] = [
+      ...(fi ? (["in_clinic"] as const) : []),
+      ...(fo ? (["online"] as const) : []),
+    ];
+    return { cls: "c free", text, title: `${text} at ${t}`, free };
   }
   const works =
     (kind !== "online" && !day.closed && within(day.in_clinic, m)) ||
@@ -128,6 +138,12 @@ export default function WeekGrid({
   const { me, clinic } = useCrm();
   const canEdit = level(me, clinic, "doctors") === "edit";
   const [editing, setEditing] = useState(false);
+  const canBook = level(me, clinic, "appointments") === "edit";
+  const [booking, setBooking] = useState<{
+    date: string;
+    time: string;
+    kinds: Kind[];
+  } | null>(null);
   const [version, setVersion] = useState(0); // bumped after a save, to load the week again
   const [kind, setKind] = useState<Kind>("all");
   const [week, setWeek] = useState<{ key: string; data: Week }>();
@@ -197,6 +213,18 @@ export default function WeekGrid({
   return (
     <>
       {header}
+      {booking && (
+        <BookCard
+          clinicId={clinicId}
+          doctorId={doctorId}
+          doctor={w.doctor.name}
+          slot={booking}
+          onClose={(saved) => {
+            setBooking(null);
+            if (saved) setVersion((v) => v + 1);
+          }}
+        />
+      )}
       {editing && (
         <ScheduleCard
           clinicId={clinicId}
@@ -373,7 +401,25 @@ export default function WeekGrid({
                     (d.date === w.today && m + step <= nowMin);
                   const c = cell(d, m, past, kind);
                   return (
-                    <td key={d.date} className={c.cls} title={c.title}>
+                    <td
+                      key={d.date}
+                      className={c.cls}
+                      title={
+                        c.free && canBook
+                          ? `${c.title} · click to book`
+                          : c.title
+                      }
+                      onClick={
+                        c.free && canBook
+                          ? () =>
+                              setBooking({
+                                date: d.date,
+                                time: hm(m),
+                                kinds: c.free!,
+                              })
+                          : undefined
+                      }
+                    >
                       {c.text && <b>{c.text}</b>}
                       {c.sub && <span>{c.sub}</span>}
                     </td>
@@ -526,6 +572,247 @@ function ScheduleCard({
           onClick={() => onClose(false)}
         >
           {s?.problems.length ? "Close" : "Cancel"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Book a free time: an existing patient (search) or a new one. In-clinic is confirmed at once; online goes
+ * to Inbox → Online consults, where approving books Cal.com and sends the Meet link. */
+function BookCard({
+  clinicId,
+  doctorId,
+  doctor,
+  slot,
+  onClose,
+}: {
+  clinicId: string;
+  doctorId: string;
+  doctor: string;
+  slot: { date: string; time: string; kinds: Kind[] };
+  onClose: (saved: boolean) => void;
+}) {
+  const { toast } = useCrm();
+  const [type, setType] = useState<Kind>(slot.kinds[0]);
+  const [mode, setMode] = useState<"find" | "new">("find");
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<LeadRow[]>([]);
+  const [lead, setLead] = useState<LeadRow | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [treatment, setTreatment] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (mode !== "find" || q.trim().length < 2) return;
+    let live = true;
+    const t = setTimeout(() => {
+      api<LeadList>(
+        `/v1/crm/leads?clinic=${clinicId}&q=${encodeURIComponent(q.trim())}&limit=6`,
+      ).then(
+        (r) => live && setFound(r.items),
+        () => live && setFound([]),
+      );
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [q, mode, clinicId]);
+
+  async function book() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api<{ lead_code: string; status: string }>(
+        `/v1/crm/availability/${doctorId}/book?clinic=${clinicId}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            date: slot.date,
+            time: slot.time,
+            type,
+            ...(mode === "find"
+              ? { lead_code: lead?.code }
+              : { patient: { name: name.trim(), phone: phone.trim() } }),
+            treatment: treatment.trim() || null,
+            note,
+          }),
+        },
+      );
+      toast(
+        r.status === "confirmed"
+          ? `Booked (${r.lead_code})`
+          : `Online consult sent to Inbox for approval (${r.lead_code})`,
+      );
+      onClose(true);
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : "Could not book. Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const h = head(slot.date);
+  const ready =
+    mode === "find"
+      ? !!lead
+      : name.trim().length >= 2 && phone.trim().length >= 6;
+  return (
+    <div
+      className="card"
+      style={{ padding: 16, marginBottom: 12, maxWidth: 760 }}
+    >
+      <b>
+        Book {doctor} · {h.day} {h.date}, {label(mins(slot.time))}
+      </b>
+      <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        {slot.kinds.length > 1 ? (
+          <select
+            className="sel"
+            aria-label="Kind of visit"
+            value={type}
+            onChange={(e) => setType(e.target.value as Kind)}
+          >
+            <option value="in_clinic">In-clinic visit</option>
+            <option value="online">Online consult</option>
+          </select>
+        ) : (
+          <span className="sub2">
+            {type === "online" ? "Online consult" : "In-clinic visit"}
+          </span>
+        )}
+        <div className="seg">
+          <button
+            className={mode === "find" ? "on" : ""}
+            onClick={() => setMode("find")}
+          >
+            Existing patient
+          </button>
+          <button
+            className={mode === "new" ? "on" : ""}
+            onClick={() => setMode("new")}
+          >
+            New patient
+          </button>
+        </div>
+      </div>
+      {mode === "find" ? (
+        <div style={{ marginTop: 10 }}>
+          {lead ? (
+            <div className="row" style={{ gap: 8 }}>
+              <span>
+                <b>{lead.name}</b> · {lead.code} · {lead.phone}
+              </span>
+              <button className="btn g" onClick={() => setLead(null)}>
+                Change
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                className="f"
+                style={{ width: "100%" }}
+                placeholder="Search name, phone or lead code"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                autoFocus
+              />
+              {q.trim().length >= 2 &&
+                found.map((x) => (
+                  <button
+                    key={x.code}
+                    className="btn g"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      textAlign: "left",
+                      marginTop: 4,
+                    }}
+                    onClick={() => setLead(x)}
+                  >
+                    {x.name} · {x.code} · {x.phone}
+                  </button>
+                ))}
+              {q.trim().length >= 2 && !found.length && (
+                <p className="sub2" style={{ margin: "6px 0 0" }}>
+                  No patient found. Use New patient.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        <div
+          className="row"
+          style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}
+        >
+          <input
+            className="f"
+            style={{ flex: "1 1 200px" }}
+            placeholder="Patient name"
+            maxLength={100}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className="f"
+            style={{ flex: "1 1 160px" }}
+            placeholder="Mobile, e.g. 9876543210"
+            maxLength={20}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
+      )}
+      <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <input
+          className="f"
+          style={{ flex: "1 1 200px" }}
+          placeholder="Treatment (optional)"
+          maxLength={100}
+          value={treatment}
+          onChange={(e) => setTreatment(e.target.value)}
+        />
+        <input
+          className="f"
+          style={{ flex: "2 1 260px" }}
+          placeholder="Note (optional)"
+          maxLength={2000}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </div>
+      {type === "online" && (
+        <p className="sub2" style={{ margin: "8px 0 0" }}>
+          Online consults go to Inbox → Online consults: approving there books
+          Cal.com and sends the Meet link. The time is held from now.
+        </p>
+      )}
+      {error && (
+        <p role="alert" style={{ color: "var(--err)", margin: "10px 0 0" }}>
+          {error}
+        </p>
+      )}
+      <div className="row" style={{ gap: 8, marginTop: 14 }}>
+        <button
+          className="btn"
+          disabled={busy || !ready}
+          onClick={() => void book()}
+        >
+          {busy ? "Booking…" : type === "online" ? "Send to Inbox" : "Book"}
+        </button>
+        <button
+          className="btn g"
+          disabled={busy}
+          onClick={() => onClose(false)}
+        >
+          Cancel
         </button>
       </div>
     </div>

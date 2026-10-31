@@ -5,18 +5,21 @@ days and holidays, appointments, and the free times the chatbot would offer (app
 slot length is their own for the kind of visit, else the clinic's (Dashboard → Doctors).
 """
 
-from datetime import date, datetime, timedelta
-from typing import Annotated, Any
+import json
+from datetime import date, datetime, time, timedelta
+from typing import Annotated, Any, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.v1 import crm_doctors
-from app.api.v1.crm import can_see
+from app.api.v1.crm import NewLead, add_lead, can_edit, can_see
 from app.api.v1.crm_doctors import Schedule
 from app.chat import slots
+from app.chat.leads import _free_doctors
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
@@ -275,3 +278,115 @@ async def save_schedule(
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         await crm_doctors._save(conn, clinic, doctor_id, body)
     return await _schedule(clinic, doctor_id, await crm_doctors._calcom(clinic, doctor_id))
+
+
+class NewPatient(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    phone: str = Field(max_length=20)
+    phone_cc: str = Field(default="+91", pattern=r"^\+[1-9][0-9]{0,3}$")
+
+
+class BookIn(BaseModel):
+    date: date
+    time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    type: Literal["in_clinic", "online"]
+    lead_code: str | None = Field(default=None, max_length=30)  # an existing lead, or
+    patient: NewPatient | None = None  # a new one
+    treatment: str | None = Field(default=None, max_length=100)
+    note: str = Field(default="", max_length=2000)
+
+
+class Booked(BaseModel):
+    lead_code: str
+    status: str  # confirmed (in-clinic) | pending (online: approve in Inbox → Online consults)
+
+
+@router.post("/availability/{doctor_id}/book", response_model=Booked)
+async def book(
+    user: Annotated[Staff, Depends(staff)], clinic: CLINIC, doctor_id: str, body: BookIn
+) -> Booked:
+    """Staff book a free time for a patient. In-clinic: a confirmed appointment. Online: a pending online
+    consult in Inbox → Online consults (approving it there books Cal.com and sends the Meet link); its time
+    is taken from now. Only a time the chatbot would offer can be booked."""
+    can_edit(user, clinic)
+    if (body.lead_code is None) == (body.patient is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose a patient or add a new one.")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await _doctor_id(conn, user, clinic, doctor_id, "view")
+        await perm.require(conn, user, clinic, "appointments", "edit")  # Who sees what
+        tz = ZoneInfo(await conn.fetchval("select timezone from app.clinics where id = $1", clinic))
+        now = datetime.now(tz)
+        free = await slots.free_slots_range(
+            conn, clinic, body.date, body.date, body.type, now.date(), now.hour * 60 + now.minute, "",
+            doctor_id,
+        )  # fmt: skip
+    if body.time not in free.get(body.date.isoformat(), []):
+        raise HTTPException(status.HTTP_409_CONFLICT, "That time is not free any more. Choose another.")
+    if body.patient:  # a new lead, as Add lead makes it (a known phone is refused with its lead code)
+        made = await add_lead(
+            user,
+            NewLead(clinic=clinic, name=body.patient.name, phone=body.patient.phone,
+                    phone_cc=body.patient.phone_cc, treatment=body.treatment, doctor_id=doctor_id,
+                    type=body.type, note=body.note),
+        )  # fmt: skip
+        code = made.code
+    else:
+        code = str(body.lead_code)
+    start = datetime.combine(body.date, time.fromisoformat(body.time), tz)
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        lead = await conn.fetchrow(
+            """select id, clinic_id, full_name, phone_e164 from app.leads
+               where lead_code = $1 and clinic_id = $2 and deleted_at is null""",
+            code, clinic,
+        )  # fmt: skip
+        if lead is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found in this clinic.")
+        clinic_row = await conn.fetchrow("select id, timezone from app.clinics where id = $1", clinic)
+        found = await _free_doctors(conn, clinic_row, body.type, start, "s_crm", doctor_id)
+        if not found:
+            raise HTTPException(status.HTTP_409_CONFLICT, "That time is not free any more. Choose another.")
+        last = found[0][1]
+        request = None
+        if body.type == "online":
+            data = {
+                "name": lead["full_name"],
+                "phone": lead["phone_e164"],
+                "date": body.date.isoformat(),
+                "time": body.time,
+                "treatment": body.treatment,
+                "note": body.note.strip() or None,
+            }
+            request = await conn.fetchval(
+                """insert into app.requests (clinic_id, lead_id, type, data)
+                   values ($1, $2, 'online', $3::jsonb) returning id""",
+                clinic, lead["id"], json.dumps({k: v for k, v in data.items() if v}),
+            )  # fmt: skip
+        state = "pending" if request else "confirmed"
+        try:
+            appt = await conn.fetchval(
+                """insert into app.appointments (clinic_id, lead_id, request_id, doctor_id, type, slot,
+                     status, confirmed_by, confirmed_at)
+                   values ($1, $2, $3, $4::uuid, $5, tstzrange($6, $7, '[)'), $8,
+                     case when $8 = 'confirmed' then $9::uuid end, case when $8 = 'confirmed' then now() end)
+                   returning id""",
+                clinic, lead["id"], request, doctor_id, body.type, start, last, state, user.id,
+            )  # fmt: skip
+        except asyncpg.exceptions.ExclusionViolationError:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "That time was just booked. Choose another."
+            ) from None
+        if state == "confirmed":
+            await conn.execute(
+                """update app.leads set stage = 'booked', stage_reason = null, updated_at = now()
+                   where id = $1 and stage in ('new', 'follow_up', 'lost')""",
+                lead["id"],
+            )
+        await conn.execute(
+            "insert into app.lead_events (clinic_id, lead_id, kind, data, actor) "
+            "values ($1, $2, 'appointment', $3::jsonb, $4::uuid)",
+            clinic, lead["id"], json.dumps({"appointment_id": str(appt), "status": state, "by": "staff"}),
+            user.id,
+        )  # fmt: skip
+    return Booked(lead_code=code, status=state)

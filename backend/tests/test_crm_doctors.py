@@ -152,3 +152,65 @@ async def test_crm_edits_a_doctors_hours_and_leave(api: AsyncClient, monkeypatch
         if made:
             await pool.execute("delete from app.doctors where id = $1::uuid", made)
         await close_pool()
+
+
+@needs_db
+async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    made: str | None = None
+    try:
+        # Monday 7 Jan 2030: in-clinic 10:00-13:00 (10-minute slots), online 10:00-13:00 (clinic's 30).
+        both = _doctor(online=[{"weekday": 1, "start": "10:00", "end": "13:00"}], leave=[])
+        r = await api.post(URL, json=both, headers=headers)
+        made = next(x["id"] for x in r.json()["doctors"] if x["name"] == "Dr Test Doctor")
+        url = f"/v1/crm/availability/{made}/book?clinic=CL99"
+        new = {"name": "Test Booked Patient", "phone": "9000000777"}
+        visit = {"date": "2030-01-07", "time": "10:00", "type": "in_clinic", "patient": new}
+
+        r = await api.post(url, json=visit, headers=headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "confirmed"
+        code = r.json()["lead_code"]
+        a = await pool.fetchrow(
+            """select a.status, upper(a.slot) - lower(a.slot) len, l.stage from app.appointments a
+               join app.leads l on l.id = a.lead_id where l.lead_code = $1""",
+            code,
+        )
+        assert a["status"] == "confirmed" and a["len"].seconds == 600 and a["stage"] == "booked"
+
+        r = await api.post(url, json=visit | {"patient": None, "lead_code": code}, headers=headers)
+        assert r.status_code == 409  # taken
+
+        online = {"date": "2030-01-07", "time": "11:00", "type": "online", "lead_code": code}
+        r = await api.post(url, json=online, headers=headers)
+        assert r.status_code == 200 and r.json()["status"] == "pending", r.text
+        req = await pool.fetchrow(
+            """select r.type, r.status, upper(a.slot) - lower(a.slot) len from app.requests r
+               join app.appointments a on a.request_id = r.id
+               join app.leads l on l.id = r.lead_id where l.lead_code = $1""",
+            code,
+        )
+        assert req["type"] == "online" and req["status"] == "pending" and req["len"].seconds == 1800
+        r = await api.post(
+            url, json=visit | {"time": "11:10", "patient": None, "lead_code": code}, headers=headers
+        )
+        assert r.status_code == 409  # inside the 30-minute online consult
+
+        r = await api.post(url, json=visit | {"time": "15:00"}, headers=headers)
+        assert r.status_code == 409  # the doctor does not work then
+    finally:
+        leads = [r["id"] for r in await pool.fetch(
+            "select id from app.leads where clinic_id = 'CL99' and full_name = 'Test Booked Patient'"
+        )]  # fmt: skip
+        for t in ("appointments", "requests", "lead_events", "tasks"):
+            await pool.execute(f"delete from app.{t} where lead_id = any($1::uuid[])", leads)
+        await pool.execute("delete from app.leads where id = any($1::uuid[])", leads)
+        if made:
+            await pool.execute("delete from app.doctors where id = $1::uuid", made)
+        await close_pool()
