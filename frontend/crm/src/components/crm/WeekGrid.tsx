@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { level } from "@/lib/access";
-import { api, ApiError, type LeadList, type LeadRow } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type LeadList,
+  type LeadOptions,
+  type LeadRow,
+} from "@/lib/api";
+import { COUNTRY_CODES } from "@/lib/countries";
 import { type Booking, type Day, type Week, spans } from "@/lib/availability";
 import { useCrm } from "./CrmProvider";
 import {
@@ -601,6 +608,8 @@ function BookCard({
   const [lead, setLead] = useState<LeadRow | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [cc, setCc] = useState("+91");
+  const [treatments, setTreatments] = useState<string[]>([]);
   const [treatment, setTreatment] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -623,6 +632,17 @@ function BookCard({
     };
   }, [q, mode, clinicId]);
 
+  useEffect(() => {
+    let live = true;
+    api<LeadOptions>(`/v1/crm/lead-options?clinic=${clinicId}`).then(
+      (o) => live && setTreatments(o.treatments),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [clinicId]);
+
   async function book() {
     setBusy(true);
     setError("");
@@ -637,7 +657,13 @@ function BookCard({
             type,
             ...(mode === "find"
               ? { lead_code: lead?.code }
-              : { patient: { name: name.trim(), phone: phone.trim() } }),
+              : {
+                  patient: {
+                    name: name.trim(),
+                    phone: phone.trim(),
+                    phone_cc: cc,
+                  },
+                }),
             treatment: treatment.trim() || null,
             note,
           }),
@@ -760,6 +786,18 @@ function BookCard({
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+          <select
+            className="sel"
+            aria-label="Country code"
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+          >
+            {COUNTRY_CODES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </select>
           <input
             className="f"
             style={{ flex: "1 1 160px" }}
@@ -771,14 +809,18 @@ function BookCard({
         </div>
       )}
       <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <input
-          className="f"
+        <select
+          className="sel"
           style={{ flex: "1 1 200px" }}
-          placeholder="Treatment (optional)"
-          maxLength={100}
+          aria-label="Treatment"
           value={treatment}
           onChange={(e) => setTreatment(e.target.value)}
-        />
+        >
+          <option value="">Treatment: not decided</option>
+          {treatments.map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
         <input
           className="f"
           style={{ flex: "2 1 260px" }}
