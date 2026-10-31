@@ -12,6 +12,7 @@ import asyncpg
 from rapidfuzz import fuzz
 
 from app.chat import embed
+from app.chat.live_facts import live_facts
 from app.core.db import get_pool
 
 log = logging.getLogger(__name__)
@@ -96,6 +97,7 @@ async def fact_values(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str
             "select key, value from app.kb_facts where clinic_id = $1 and status = 'approved'", clinic_id
         )
     }
+    values |= await live_facts(conn, clinic_id)  # the Dashboard and CRM win over a fact with the same key
     _values[clinic_id] = (now, values)
     return values
 

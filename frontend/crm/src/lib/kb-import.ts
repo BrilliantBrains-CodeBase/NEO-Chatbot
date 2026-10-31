@@ -132,6 +132,7 @@ export function toImport(text: string): {
     } else {
       const answer = get(r, "answer");
       if (!answer) return; // not answered yet
+      if (get(r, "answered_in")) return; // read live from the Dashboard / CRM: changed there, not here
       if (get(r, "repeat_for")) {
         skipped.push(
           `Row ${line}: per ${get(r, "repeat_for")} questions are added in a later step`,

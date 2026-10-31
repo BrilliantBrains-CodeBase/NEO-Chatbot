@@ -124,3 +124,46 @@ async def test_upload_rows_become_drafts(api: AsyncClient, monkeypatch: pytest.M
         await pool.execute("delete from app.kb_facts where clinic_id = 'CL99' and key = 'test_up_fee'")
         kb.forget("CL99")
         await close_pool()
+
+
+@needs_db
+async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clinic details, hours, services and doctors are read from the Dashboard / CRM, never typed again."""
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    try:
+        got = (await api.get(URL, headers=headers)).json()
+        live = {x["key"]: x for x in got["live"]}
+        name = await pool.fetchval("select name from app.clinics where id = 'CL99'")
+        assert live["clinic_name"]["value"] == name and "Clinics" in live["clinic_name"]["source"]
+        assert "timings_monday" in live and live["consultation_length"]["value"].startswith("About ")
+
+        r = await api.post(f"{URL}/facts", json={"key": "clinic_name", "value": "Other"}, headers=headers)
+        assert r.status_code == 409 and "change it there" in r.text  # answered in the Dashboard
+        rows = [{"row": 2, "kind": "fact", "key": "clinic_name", "value": "Other"}]
+        got = (await api.post(f"{URL}/import", json={"rows": rows}, headers=headers)).json()
+        assert got["added"] == 0 and "change it there" in got["problems"][0]
+
+        qa = {
+            "question": "Test what is the clinic called?",
+            "answer": "We are {clinic_name}.",
+            "category": "other",
+        }
+        r = await api.post(f"{URL}/qa", json=qa, headers=headers)
+        [q] = [x for x in r.json()["qa"] if x["question"] == qa["question"]]
+        assert q["missing"] == []  # a Dashboard key counts as approved
+        assert (await api.post(f"{URL}/qa/{q['id']}/approve", headers=headers)).status_code == 200
+        async with pool.acquire() as conn:
+            hit = await kb.search(conn, "CL99", "test what is the clinic called")
+        assert hit is not None and hit.answer == f"We are {name}."
+    finally:
+        await pool.execute(
+            "delete from app.kb_qa where clinic_id = 'CL99' and question like 'Test what is the clinic%'"
+        )
+        kb.forget("CL99")
+        await close_pool()

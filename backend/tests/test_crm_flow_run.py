@@ -500,3 +500,11 @@ def test_doctor_card_shows_today_and_books_a_free_time() -> None:
     chat = Chat(flow, ctx(doctor_today=away))
     assert "On leave today. Next free day: Thu 29 Oct." in chat(tap="m1")[0]
     assert not [x for x in chat.labels() if x.endswith("AM")]  # no times to tap
+
+
+def test_a_knowledge_answer_on_the_main_menu_does_not_repeat_the_menu() -> None:
+    flow = {"nodes": [opening(("m1", "Book"), ("m2", "Doctors"))], "edges": []}
+    chat = Chat(flow, ctx(kb=lambda q: "Clinic email: info@example.com" if "email" in q else None))
+    assert chat("email address") == ["Clinic email: info@example.com"]  # the answer only
+    assert chat.labels() == []  # the menu already on screen is not shown again
+    assert chat.at == "opening"  # and still works: a tile tap goes on as before

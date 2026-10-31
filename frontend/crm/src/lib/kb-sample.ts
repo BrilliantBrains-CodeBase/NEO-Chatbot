@@ -140,7 +140,10 @@ export function downloadSample(kind: "facts" | "qa"): void {
 }
 
 /** Downloads the clinic onboarding questionnaire: every question once, in the 10 steps, to fill in. */
-export function downloadOnboarding(): void {
+export function downloadOnboarding(
+  live: { key: string; value: string; source: string }[] = [],
+): void {
+  const known = new Map(live.map((l) => [l.key, l]));
   const rows: string[][] = [
     [
       "step",
@@ -151,6 +154,7 @@ export function downloadOnboarding(): void {
       "type",
       "options",
       "answer",
+      "answered_in",
       "repeat_for",
       "note",
     ],
@@ -169,7 +173,8 @@ export function downloadOnboarding(): void {
       q.text,
       q.type === "yes_no" ? "Yes / No" : q.type,
       (q.options ?? []).join(" | "),
-      q.default ?? "",
+      known.get(q.key)?.value ?? q.default ?? "",
+      known.get(q.key)?.source ?? "",
       s.repeat ?? "",
       note,
     ]);

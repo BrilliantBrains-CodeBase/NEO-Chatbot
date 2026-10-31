@@ -121,9 +121,28 @@ export function keyOf(text: string): string {
 
 const YES = /^(is|are|do|does|can|should|will|has|have)\b/i;
 
+// Questions answered LIVE from the Dashboard / CRM (backend app/chat/live_facts.py): the same keys there.
+const FIXED_KEY: Record<string, string> = {
+  "Do you have an emergency contact number?": "emergency_contact_number",
+  "What should it do outside working hours?": "outside_working_hours",
+  "What time does the clinic open?": "clinic_open_time",
+  "What time does the clinic close?": "clinic_close_time",
+  "What is the last appointment time?": "last_appointment_time",
+  "What is the last patient entry time?": "last_appointment_time",
+  "How long is a typical consultation?": "consultation_length",
+  "How early can patients book an appointment?": "booking_window",
+  "What treatments do you provide?": "services_provided",
+  "What services do you NOT provide?": "services_not_provided",
+  "Which doctors provide online consultations?": "online_doctors",
+  "What are the online consultation timings?": "online_timings",
+  "Which platform do you use?": "online_platform",
+  "What should the chatbot call your clinic?": "chatbot_clinic_name",
+  "Is parking available?": "parking_available",
+};
+
 function q(text: string, more: Partial<Question> = {}): Question {
   return {
-    key: more.key ?? keyOf(text),
+    key: more.key ?? FIXED_KEY[text] ?? keyOf(text),
     text,
     type: more.type ?? (YES.test(text) ? "yes_no" : "text"),
     ...more,

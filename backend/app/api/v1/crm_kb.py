@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.chat import kb
+from app.chat.live_facts import SOURCE, live_facts
 from app.core.db import get_pool
 from app.crm.auth import Staff, staff
 
@@ -58,6 +59,7 @@ class Fact(BaseModel):
     variants: str
     status: str  # draft | approved | retired
     used_by: int  # Q&A answers that link it
+    replaced: str | None = None  # the Dashboard / CRM place that answers this key instead (retire this fact)
     updated_at: str
 
 
@@ -74,8 +76,15 @@ class Qa(BaseModel):
     updated_at: str
 
 
+class Live(BaseModel):
+    key: str
+    value: str
+    source: str  # where staff change it
+
+
 class Knowledge(BaseModel):
     facts: list[Fact]
+    live: list[Live]  # read from the Dashboard and CRM: not typed in the Knowledge base
     qa: list[Qa]
     can_approve: bool  # clinic manager or BB Admin
 
@@ -104,7 +113,9 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
         "where clinic_id = $1 order by status = 'retired', category, question",
         clinic,
     )
-    approved = {f["key"] for f in facts if f["status"] == "approved"}
+    async with pool.acquire() as conn:
+        live = await live_facts(conn, clinic)
+    approved = {f["key"] for f in facts if f["status"] == "approved"} | set(live)
     used: dict[str, int] = {}
     for q in qa:
         if q["status"] != "retired":
@@ -114,9 +125,11 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
         facts=[
             Fact(id=str(f["id"]), key=f["key"], category=f["category"], value=f["value"],
                  variants=f["variants"],
-                 status=f["status"], used_by=used.get(f["key"], 0), updated_at=f["updated_at"].isoformat())
+                 status=f["status"], used_by=used.get(f["key"], 0), updated_at=f["updated_at"].isoformat(),
+                 replaced=SOURCE.get(f["key"], "Dashboard") if f["key"] in live else None)
             for f in facts
         ],
+        live=[Live(key=k, value=v, source=SOURCE.get(k, "Dashboard")) for k, v in live.items()],
         qa=[
             Qa(id=str(q["id"]), question=q["question"], variants=q["variants"], answer=q["answer"],
                category=q["category"], treatment=q["treatment"], status=q["status"],
@@ -126,6 +139,16 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
         ],
         can_approve=_approver(user, clinic),
     )  # fmt: skip
+
+
+async def _not_live(clinic: str, key: str) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if key in await live_facts(conn, clinic) or key in SOURCE:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{{{key}}} is answered in {SOURCE.get(key, 'the Dashboard')}: change it there.",
+            )
 
 
 async def _write(user: Staff, clinic: str, sql: str, *args: Any) -> Any:
@@ -151,7 +174,8 @@ async def knowledge(user: Annotated[Staff, Depends(staff)], clinic: str) -> Know
 
 @router.post("/{clinic}/kb/facts", response_model=Knowledge)
 async def add_fact(user: Annotated[Staff, Depends(staff)], clinic: str, body: FactIn) -> Knowledge:
-    """A new fact, as a draft (a manager approves it)."""
+    """A new fact, as a draft (a manager approves it). A key answered by the Dashboard / CRM is refused."""
+    await _not_live(clinic, body.key)
     await _write(
         user,
         clinic,
@@ -166,6 +190,7 @@ async def save_fact(
     user: Annotated[Staff, Depends(staff)], clinic: str, fact_id: str, body: FactIn
 ) -> Knowledge:
     """A changed fact goes back to draft until approved again (every answer linking it waits too)."""
+    await _not_live(clinic, body.key)
     done = await _write(
         user,
         clinic,
@@ -245,6 +270,7 @@ async def import_rows(user: Annotated[Staff, Depends(staff)], clinic: str, body:
     kb.forget(clinic)
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        live = await live_facts(conn, clinic)
         facts = {
             r["key"]: r
             for r in await conn.fetch(
@@ -262,6 +288,12 @@ async def import_rows(user: Annotated[Staff, Depends(staff)], clinic: str, body:
         for r in body.rows:
             try:
                 category = r.category.strip().lower() or ("clinic_info" if r.kind == "fact" else "other")
+                if r.kind == "fact" and (r.key.strip() in live or r.key.strip() in SOURCE):
+                    where = SOURCE.get(r.key.strip(), "the Dashboard")
+                    problems.append(
+                        f"Row {r.row}: {{{r.key.strip()}}} is answered in {where}; change it there"
+                    )
+                    continue
                 if r.kind == "fact":
                     f = FactIn(key=r.key.strip(), category=category, value=r.value, variants=r.variants)
                     old = facts.get(f.key)
@@ -355,7 +387,8 @@ async def set_status(
         rows = await pool.fetch(
             "select key from app.kb_facts where clinic_id = $1 and status = 'approved'", clinic
         )
-        approved = {r["key"] for r in rows}
+        async with pool.acquire() as conn:
+            approved = {r["key"] for r in rows} | set(await live_facts(conn, clinic))
         missing = [k for k in kb.links(answer or "") if k not in approved]
         if missing:
             raise HTTPException(

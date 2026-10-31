@@ -503,7 +503,8 @@ class Run:
         elif found:
             self.matched = {"how": "knowledge base", "text": text}
             self.say(found)
-            self.render(node)
+            if node.type != "opening":  # the main menu is already on screen: not shown again under the answer
+                self.render(node)
         elif treatment := self.named_treatment(low):
             self.matched = {"how": "treatment name", "text": treatment}
             self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
@@ -528,7 +529,8 @@ class Run:
                     (n.settings.get("fallback") for n in self.flow.nodes if n.type == "opening"), ""
                 )
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
-                self.render(node)
+                if node.type != "opening":
+                    self.render(node)
         return self.reply()
 
     # ---------- typed text beside the flow ----------

@@ -20,7 +20,9 @@ type Fact = {
   status: Status;
   used_by: number;
   updated_at: string;
+  replaced?: string | null; // answered in the Dashboard / CRM instead: retire this fact
 };
+type Live = { key: string; value: string; source: string };
 type Qa = {
   id: string;
   question: string;
@@ -33,7 +35,12 @@ type Qa = {
   missing: string[];
   updated_at: string;
 };
-type Knowledge = { facts: Fact[]; qa: Qa[]; can_approve: boolean };
+type Knowledge = {
+  facts: Fact[];
+  live: Live[]; // read from the Dashboard and CRM
+  qa: Qa[];
+  can_approve: boolean;
+};
 
 const CATEGORIES: [string, string][] = [
   ["clinic_info", "Clinic info"],
@@ -49,13 +56,27 @@ const BADGE: Record<Status, [string, string]> = {
   approved: ["Approved", "b-vi"],
   retired: ["Retired", "b-in"],
 };
+/** An older backend sends no live list: treat it as empty. */
+const withLive = (k: Knowledge): Knowledge => ({ ...k, live: k.live ?? [] });
+
+/** The Dashboard page where a live value is changed. */
+function editAt(source: string): string {
+  if (source.includes("Clinic info")) return "/assistant/content";
+  if (source.includes("Doctors")) return "/assistant/doctors";
+  if (source.includes("Integrations")) return "/assistant/integrations";
+  if (source.includes("Appearance")) return "/assistant/appearance";
+  return "/assistant/security";
+}
 const LINK = /\{([a-z][a-z0-9_]{1,49})\}/g;
 
 /** The answer as the patient would see it, with approved facts filled in; missing ones shown as [key?]. */
-function preview(answer: string, facts: Fact[]): string {
-  const values = Object.fromEntries(
-    facts.filter((f) => f.status === "approved").map((f) => [f.key, f.value]),
-  );
+function preview(answer: string, facts: Fact[], live: Live[] = []): string {
+  const values = Object.fromEntries([
+    ...facts
+      .filter((f) => f.status === "approved")
+      .map((f) => [f.key, f.value]),
+    ...live.map((l) => [l.key, l.value]), // the Dashboard / CRM wins
+  ]);
   return answer.replace(LINK, (_, k: string) => values[k] ?? `[${k}?]`);
 }
 
@@ -81,7 +102,7 @@ export default function KnowledgeView() {
     if (!clinicId) return;
     let live = true;
     api<Knowledge>(`/v1/crm/console/${clinicId}/kb`).then(
-      (k) => live && setData({ clinic: clinicId, k }),
+      (k) => live && setData({ clinic: clinicId, k: withLive(k) }),
       (e) =>
         live &&
         setError(
@@ -109,7 +130,7 @@ export default function KnowledgeView() {
         method,
         body: body ? JSON.stringify(body) : undefined,
       });
-      setData({ clinic: clinicId, k });
+      setData({ clinic: clinicId, k: withLive(k) });
       toast(done);
       return true;
     } catch (e) {
@@ -157,7 +178,7 @@ export default function KnowledgeView() {
         method: "POST",
         body: JSON.stringify({ rows: parsed.rows }),
       });
-      setData({ clinic: clinicId, k: r.knowledge });
+      setData({ clinic: clinicId, k: withLive(r.knowledge) });
       setTab(parsed.kind === "qa" ? "qa" : "facts");
       setReport({
         file: file.name,
@@ -352,7 +373,7 @@ export default function KnowledgeView() {
         <button className="btn g" onClick={() => downloadSample(tab)}>
           Download sample CSV
         </button>
-        <button className="btn g" onClick={downloadOnboarding}>
+        <button className="btn g" onClick={() => downloadOnboarding(k.live)}>
           Download onboarding questions (CSV)
         </button>
         <label className="btn g" style={{ cursor: busy ? "wait" : "pointer" }}>
@@ -430,6 +451,7 @@ export default function KnowledgeView() {
         <QaForm
           qa={editQa}
           facts={k.facts}
+          live={k.live}
           busy={busy}
           error={error}
           onChange={setEditQa}
@@ -458,6 +480,39 @@ export default function KnowledgeView() {
         />
       )}
 
+      {tab === "facts" &&
+        k.live.length > 0 &&
+        (show === "all" || show === "approved") && (
+          <details className="card" style={{ padding: 12, marginBottom: 12 }}>
+            <summary style={{ cursor: "pointer" }}>
+              <b>From the Dashboard &amp; CRM ({k.live.length})</b>{" "}
+              <span className="sub2">
+                Read live, never typed here. Link them in answers as {"{key}"};
+                change them where they live.
+              </span>
+            </summary>
+            {k.live.map((l) => (
+              <div
+                key={l.key}
+                className="row"
+                style={{
+                  gap: 8,
+                  padding: "6px 0",
+                  borderTop: "1px solid var(--line)",
+                  flexWrap: "wrap",
+                }}
+              >
+                <b style={{ minWidth: 200 }}>{`{${l.key}}`}</b>
+                <span style={{ flex: "1 1 260px", whiteSpace: "pre-wrap" }}>
+                  {l.value}
+                </span>
+                <a className="lnk" href={editAt(l.source)} title={l.source}>
+                  Edit in {l.source.replace("Dashboard → ", "")}
+                </a>
+              </div>
+            ))}
+          </details>
+        )}
       {tab === "facts" &&
         (k.facts.filter((f) => show === "all" || f.status === show).length ===
         0 ? (
@@ -492,6 +547,12 @@ export default function KnowledgeView() {
                     <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
                       {f.value}
                     </div>
+                    {f.replaced && f.status !== "retired" && (
+                      <div className="sub2" style={{ color: "var(--warn)" }}>
+                        Replaced by {f.replaced}: the chatbot uses that value.
+                        Retire this fact.
+                      </div>
+                    )}
                     <div className="sub2">
                       Used by {f.used_by} answer{f.used_by === 1 ? "" : "s"}
                       {f.variants
@@ -549,7 +610,7 @@ export default function KnowledgeView() {
                     <b>{q.question}</b>{" "}
                     <span className="sub2">· {CAT[q.category]}</span>
                     <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
-                      {preview(q.answer, k.facts)}
+                      {preview(q.answer, k.facts, k.live)}
                     </div>
                     {q.missing.length > 0 && q.status !== "retired" && (
                       <div className="sub2" style={{ color: "var(--warn)" }}>
@@ -694,6 +755,7 @@ function FactForm({
 function QaForm({
   qa: q,
   facts,
+  live,
   busy,
   error,
   onChange,
@@ -702,6 +764,7 @@ function QaForm({
 }: {
   qa: Partial<Qa>;
   facts: Fact[];
+  live: Live[];
   busy: boolean;
   error: string;
   onChange: (q: Partial<Qa>) => void;
@@ -711,10 +774,13 @@ function QaForm({
   const set = (p: Partial<Qa>) => onChange({ ...q, ...p });
   const answer = q.answer ?? "";
   const linked = [...new Set([...answer.matchAll(LINK)].map((m) => m[1]))];
-  const approved = new Set(
-    facts.filter((f) => f.status === "approved").map((f) => f.key),
+  const approved = new Set([
+    ...facts.filter((f) => f.status === "approved").map((f) => f.key),
+    ...live.map((l) => l.key),
+  ]);
+  const unknown = linked.filter(
+    (k) => !facts.some((f) => f.key === k) && !live.some((l) => l.key === k),
   );
-  const unknown = linked.filter((k) => !facts.some((f) => f.key === k));
   const waiting = linked.filter(
     (k) => !approved.has(k) && !unknown.includes(k),
   );
@@ -770,6 +836,11 @@ function QaForm({
             }
           >
             <option value="">Insert a fact…</option>
+            {live.map((l) => (
+              <option key={l.key} value={l.key}>
+                {`{${l.key}}`} · {l.value.slice(0, 40)} (Dashboard)
+              </option>
+            ))}
             {facts
               .filter((f) => f.status !== "retired")
               .map((f) => (
@@ -811,7 +882,7 @@ function QaForm({
               fontSize: 13.5,
             }}
           >
-            {preview(answer, facts)}
+            {preview(answer, facts, live)}
           </p>
         </div>
       )}
