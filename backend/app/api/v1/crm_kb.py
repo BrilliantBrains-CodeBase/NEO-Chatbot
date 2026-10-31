@@ -87,6 +87,7 @@ class Knowledge(BaseModel):
     live: list[Live]  # read from the Dashboard and CRM: not typed in the Knowledge base
     qa: list[Qa]
     can_approve: bool  # clinic manager or BB Admin
+    kb_only: bool = False  # the live chat answers typed questions from the Knowledge base alone (testing)
 
 
 def _approver(user: Staff, clinic: str) -> bool:
@@ -138,6 +139,11 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
             for q in qa
         ],
         can_approve=_approver(user, clinic),
+        kb_only=bool(await pool.fetchval(
+            "select coalesce((published->>'kb_only')::boolean, false) from app.clinic_settings "
+            "where clinic_id = $1",
+            clinic,
+        )),
     )  # fmt: skip
 
 
@@ -231,6 +237,28 @@ async def save_qa(user: Annotated[Staff, Depends(staff)], clinic: str, qa_id: st
     )  # fmt: skip
     if done is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
+    return await _knowledge(clinic, user)
+
+
+class Mode(BaseModel):
+    kb_only: bool
+
+
+@router.post("/{clinic}/kb/mode", response_model=Knowledge)
+async def set_mode(user: Annotated[Staff, Depends(staff)], clinic: str, body: Mode) -> Knowledge:
+    """Typed questions in the live chat: from the Knowledge base only (testing), or as usual. Kept in the
+    published and the draft settings, so publishing the canvas does not undo it. Manager or BB Admin."""
+    if not _approver(user, clinic):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a clinic manager or BB Admin can change this.")
+    await _write(
+        user,
+        clinic,
+        """update app.clinic_settings
+             set published = jsonb_set(published, '{kb_only}', to_jsonb($2::boolean)),
+                 draft = jsonb_set(draft, '{kb_only}', to_jsonb($2::boolean))
+           where clinic_id = $1 returning clinic_id""",
+        clinic, body.kb_only,
+    )  # fmt: skip
     return await _knowledge(clinic, user)
 
 

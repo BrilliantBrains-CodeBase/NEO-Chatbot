@@ -29,7 +29,8 @@ async def published(conn: asyncpg.Connection, clinic: str) -> dict[str, Any] | N
 
     row = await conn.fetchrow(
         """select published->'chat' chat, published->'flow' flow, published->'services' services,
-             published->'contact' contact, published->'reviews' reviews
+             published->'contact' contact, published->'reviews' reviews,
+             coalesce((published->>'kb_only')::boolean, false) kb_only
            from app.clinic_settings where clinic_id = $1""",
         clinic,
     )
@@ -46,6 +47,7 @@ async def published(conn: asyncpg.Connection, clinic: str) -> dict[str, Any] | N
         "select intent, example from app.intent_examples where clinic_id = $1 and status = 'approved'", clinic
     )
     _add_live_phrases(pub["flow"], [(r["intent"], r["example"]) for r in rows])
+    pub["kb_only"] = row["kb_only"]  # Knowledge base → "Typed questions: Knowledge base only"
     return pub
 
 
@@ -57,6 +59,7 @@ async def turn(
 
     flow, clinic = pub["flow"], req.client_id
     ctx = _context(pub, req.context.device)
+    ctx.kb_only = bool(pub.get("kb_only"))
     if any(n["type"] == "doctor_card" for n in flow["nodes"]):  # the cards show each doctor's day
         ctx.doctor_today = await doctors_today(conn, clinic, ctx.today, ctx.minutes)
     run_state = state.get("canvas")

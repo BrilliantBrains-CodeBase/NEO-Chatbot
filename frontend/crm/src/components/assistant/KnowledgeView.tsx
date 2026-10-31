@@ -40,6 +40,7 @@ type Knowledge = {
   live: Live[]; // read from the Dashboard and CRM
   qa: Qa[];
   can_approve: boolean;
+  kb_only?: boolean; // the live chat answers typed questions from the KB alone
 };
 
 const CATEGORIES: [string, string][] = [
@@ -291,6 +292,44 @@ export default function KnowledgeView() {
   return (
     <>
       {header}
+      <div
+        className={k.kb_only ? "warnbox" : "card"}
+        style={{
+          padding: 12,
+          marginBottom: 12,
+          display: "flex",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <label
+          className="row"
+          style={{ gap: 8, cursor: k.can_approve ? "pointer" : "default" }}
+        >
+          <input
+            type="checkbox"
+            checked={!!k.kb_only}
+            disabled={busy || !k.can_approve}
+            onChange={(e) =>
+              void call(
+                "/mode",
+                "POST",
+                { kb_only: e.target.checked },
+                e.target.checked
+                  ? "Live chat: typed questions from the knowledge base only"
+                  : "Live chat: back to normal",
+              )
+            }
+          />
+          <b>Typed questions: knowledge base only (testing)</b>
+        </label>
+        <span className="sub2" style={{ flex: "1 1 320px" }}>
+          {k.kb_only
+            ? "ON for patients now: typed questions are answered only from approved Q&A, facts and Dashboard values (no screens or keyword rules). Buttons, bookings and safety work as usual. Unanswered: \u201cSorry, I don't have an answer to that yet.\u201d"
+            : "Off: the live chat uses the menu screens and keyword rules too. Turn on to test the knowledge base alone."}
+        </span>
+      </div>
       <div
         className="row"
         style={{ gap: 16, marginBottom: 12, flexWrap: "wrap" }}

@@ -81,6 +81,9 @@ class Context:
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
     kb_source: str = ""  # what answered: "qa" (written by staff) or "fact"
+    # Knowledge base only (a clinic's testing switch): typed questions are answered from the Knowledge base
+    # alone, no screens, keyword rules or phrases. Safety, buttons and booking answers work as always.
+    kb_only: bool = False
     appointments: Callable[[str], list[str]] = lambda phone: []  # upcoming, as text
     # Free HH:MM slots per day (YYYY-MM-DD) for the booking open now: doctors' hours, leave, holidays and
     # appointments (in-clinic and online share one diary). None: not checked (e.g. no database).
@@ -90,6 +93,9 @@ class Context:
     doctor_today: dict[str, dict[str, Any]] = field(default_factory=dict)
     # The approved phrase closest in meaning ({"target", "text", "score"}), when no words matched.
     meaning: Callable[[str], dict[str, Any] | None] = lambda text: None
+
+
+KB_ONLY_MISS = "Sorry, I don't have an answer to that yet."
 
 
 class Run:
@@ -477,8 +483,12 @@ class Run:
             return self.reply()
         said = self.small(low)
         if said is not None:
-            self.say(said)
-            self.render(node)
+            self.say(said)  # only the reply: the buttons already on screen are not sent again
+            return self.reply()
+        if self.ctx.kb_only:
+            found = self.ctx.kb(text)
+            self.matched = {"how": "knowledge base" if found else "knowledge base: no answer", "text": text}
+            self.say(found or KB_ONLY_MISS)
             return self.reply()
         options = self.buttons(node)
         hit = match_option(text, options)

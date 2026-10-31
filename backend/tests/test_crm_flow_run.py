@@ -337,8 +337,8 @@ def test_typed_text_beside_the_flow() -> None:
     kb = ctx(kb=lambda q: "We are open 10 to 7." if "open" in q else None)
 
     chat = Chat(flow, kb)
-    assert chat("hello") == ["Hi!", "Hi!"]  # small talk: the welcome, with the screen again
-    assert chat.labels() == ["Book", "More"]
+    assert chat("hello") == ["Hi!"]  # small talk: the welcome once, the screen is not sent again
+    assert chat.labels() == []  # the menu already on screen is not sent again
     chat(tap="m1")
     assert chat("thanks") == [
         "You're welcome! Is there anything else I can help you with?",
@@ -546,3 +546,21 @@ def test_an_answer_on_a_list_does_not_resend_it_and_the_clinic_screen_beats_a_fa
     written = Chat(flow, ctx(kb=lambda q: "Our address: 1st floor, Example House.", kb_source="qa"))
     written(tap="m1")
     assert written("where is the clinic located") == ["Our address: 1st floor, Example House."]  # a Q&A wins
+
+
+def test_knowledge_base_only_answers_typed_questions_from_the_knowledge_base_alone() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"], "consent": False}}
+    clinic = {"id": "page-clinic", "type": "answer", "settings": {"text": "Clinic screen"}}
+    flow = {
+        "nodes": [opening(("m1", "Book"), ("m2", "Clinic")), book, clinic],
+        "edges": [line("opening", "m1", "book"), line("opening", "m2", "page-clinic")],
+    }
+    answers = {"where is the clinic": "We are at 1st floor, Example House."}
+    chat = Chat(flow, ctx(kb=lambda q: answers.get(q), kb_only=True))
+    assert chat("where is the clinic") == ["We are at 1st floor, Example House."]
+    assert chat("clinic address please") == [
+        "Sorry, I don't have an answer to that yet."
+    ]  # no screen, no rule
+    assert chat("Book") == ["Sorry, I don't have an answer to that yet."]  # typed: not taken as the button
+    chat(tap="m1")  # buttons still work, and a booking question still takes its answer
+    assert chat("Asha")[-1] == "Thank you, Asha. Our team will contact you shortly."
