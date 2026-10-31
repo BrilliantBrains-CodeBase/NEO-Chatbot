@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Live, { Today } from "@/components/crm/Live";
 import { api, ApiError } from "@/lib/api";
-import { type Board, type Day, spans, useDoctors } from "@/lib/availability";
+import WeekGrid from "@/components/crm/WeekGrid";
+import { type Board, type Day, spans } from "@/lib/availability";
 
 // CRM → Doctors Availability. All doctors: a card per doctor with today's hours, booked, pending and free.
-// One doctor (?doc=<id>): their week (built in the next step). Reads ?doc= from the address, so the page renders
+// One doctor (?doc=<id>): their week grid (WeekGrid). Reads ?doc= from the address, so the page renders
 // it inside a Suspense boundary.
 
 /** Today's line for a doctor's card. */
@@ -29,7 +30,6 @@ export default function DoctorsView() {
   const doc = useSearchParams().get("doc") ?? "";
   const { me, clinic } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  const doctors = useDoctors(clinicId);
   const [board, setBoard] = useState<{ clinic: string; data: Board }>();
   const [error, setError] = useState("");
 
@@ -49,23 +49,8 @@ export default function DoctorsView() {
     };
   }, [clinicId, doc]);
 
-  if (doc) {
-    const d = doctors.find((x) => x.id === doc);
-    return (
-      <>
-        <div className="ph">
-          <div>
-            <h1>{d?.name ?? "Doctor"}</h1>
-            <p>Week schedule, leave and slot settings</p>
-          </div>
-        </div>
-        <div className="empty">
-          <h2>Week view comes in the next step</h2>
-          <Link href="/doctors">Back to all doctors</Link>
-        </div>
-      </>
-    );
-  }
+  if (doc)
+    return clinicId ? <WeekGrid clinicId={clinicId} doctorId={doc} /> : null;
 
   const data = board?.clinic === clinicId ? board?.data : undefined;
   return (

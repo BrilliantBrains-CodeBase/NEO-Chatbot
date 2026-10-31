@@ -78,6 +78,8 @@ export default function AppointmentsView() {
   const day = chosen || today;
   const [view, setView] = useState<"doctor" | "list">("doctor");
   const [all, setAll] = useState(false); // also cancelled, rejected and moved ones
+  const [doctorId, setDoctorId] = useState(""); // "" = all doctors
+  const [type, setType] = useState<"all" | "in_clinic" | "online">("all");
   const [version, setVersion] = useState(0); // bumped after a change, to load the day again
   const key = `${clinicId}|${day}|${all}|${version}`;
   const role = me?.clinics.find((c) => c.id === clinicId)?.role;
@@ -144,12 +146,17 @@ export default function AppointmentsView() {
   }
 
   const d = data.key === key ? data.d : undefined;
-  const items = d?.items ?? [];
+  // The chosen doctor (or all) and kind of visit (or both).
+  const items = (d?.items ?? []).filter(
+    (a) =>
+      (!doctorId || a.doctor_id === doctorId) &&
+      (type === "all" || a.type === type),
+  );
   const open = items.find((a) => a.id === openId);
-  // Columns: the clinic's doctors, plus "No doctor yet" when some appointment has none.
+  // Columns: the clinic's doctors (or the chosen one), plus "No doctor yet" when some appointment has none.
   const columns = [
-    ...(d?.doctors ?? []),
-    ...(items.some((a) => !a.doctor_id)
+    ...(d?.doctors ?? []).filter((x) => !doctorId || x.id === doctorId),
+    ...(!doctorId && items.some((a) => !a.doctor_id)
       ? [{ id: "", name: "No doctor yet" }]
       : []),
   ];
@@ -223,6 +230,29 @@ export default function AppointmentsView() {
           />
           Show cancelled and moved
         </label>
+        <select
+          className="sel"
+          aria-label="Doctor"
+          value={doctorId}
+          onChange={(e) => setDoctorId(e.target.value)}
+        >
+          <option value="">All doctors</option>
+          {(d?.doctors ?? []).map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </select>
+        <select
+          className="sel"
+          aria-label="Kind of visit"
+          value={type}
+          onChange={(e) => setType(e.target.value as typeof type)}
+        >
+          <option value="all">In-clinic and online</option>
+          <option value="in_clinic">In-clinic only</option>
+          <option value="online">Online only</option>
+        </select>
       </div>
       {data.key === key && data.error && (
         <div className="warnbox">{data.error}</div>
