@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import date
 from typing import Annotated, Any, Literal
 
@@ -114,6 +115,22 @@ class Dashboard(BaseModel):
 
 TZ = "Asia/Kolkata"
 STAGES = ["new", "follow_up", "booked", "visited", "lost", "invalid"]
+
+
+class MeChange(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+
+
+@router.patch("/me", response_model=Me)
+async def change_me(user: Annotated[Staff, Depends(staff)], body: MeChange) -> Me:
+    """My profile: change my own name (email and roles are changed by a manager in Team)."""
+    name = " ".join(body.name.split())
+    if len(name) < 2:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please enter your name.")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("update app.profiles set full_name = $2 where id = $1::uuid", user.id, name)
+    return await me(replace(user, name=name))
 
 
 def can_see(user: Staff, clinic: str) -> None:

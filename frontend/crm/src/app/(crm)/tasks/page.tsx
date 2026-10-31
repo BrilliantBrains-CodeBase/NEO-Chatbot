@@ -1,14 +1,6 @@
-"use client";
+import { notFound } from "next/navigation";
 
-import Placeholder from "@/components/crm/Placeholder";
-
-// Sub-step 2 (CRM frame): the screen's header from the design; its content is built in a later step.
+// Tasks is turned off for everyone: the page returns 404.
 export default function TasksPage() {
-  return (
-    <Placeholder
-      title={"Tasks"}
-      description={"Who to call today: follow-ups, overdue callbacks and reminders."}
-      next={["Mine or all", "Overdue in red", "Design to be agreed first (not in the approved design yet)"]}
-    />
-  );
+  notFound();
 }

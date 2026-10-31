@@ -32,6 +32,8 @@ type Crm = {
   ready: boolean;
   /** The signed-in person (from GET /v1/crm/me); null while loading. */
   me: Me | null;
+  /** Replace the signed-in person (after My profile saves a change). */
+  setMe: (m: Me) => void;
   /** The clinics this person may see. */
   clinics: Clinic[];
   clinic: Clinic;
@@ -160,6 +162,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     return {
       ready,
       me,
+      setMe,
       clinics,
       clinic,
       setClinic,

@@ -40,9 +40,6 @@ export default function Sidebar({
   });
   const toggle = (g: Group) => setExpanded((e) => ({ ...e, [g]: !e[g] }));
 
-  // Sample counts are hidden: each menu count comes back when its screen reads live data.
-  const LIVE_COUNTS = false;
-  const n = (x: number) => (LIVE_COUNTS && crm.ready ? x : undefined);
   const stage = params.get("stage") ?? "";
   const tab = params.get("tab") ?? "book";
   const inboxTotal = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
@@ -186,16 +183,8 @@ export default function Sidebar({
             "Appointments",
             path === "/appointments",
           )}
-          {item(
-            "/tasks",
-            "task",
-            "Tasks",
-            path === "/tasks",
-            n(crm.stageCount("fu")),
-          )}
+          {/* Tasks and Reports are turned off for everyone. */}
           {item("/patients", "con", "Patients", path === "/patients")}
-          <div className="dv" />
-          {item("/reports", "rep", "Reports", path === "/reports")}
           <div className="dv" />
           <div className="grp">MANAGER</div>
           {item("/team", "team", "Team", path === "/team")}
