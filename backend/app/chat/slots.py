@@ -109,3 +109,55 @@ async def free_slots(
     return (await free_slots_range(conn, clinic_id, day, day, mode, today, now_minutes)).get(
         day.isoformat(), []
     )
+
+
+async def doctors_today(
+    conn: asyncpg.Connection, clinic_id: str, today: date, now_minutes: int, days: int = 14
+) -> dict[str, dict[str, object]]:
+    """Each active doctor's day today, by name, for the chat's doctor card: their in-clinic and online hours
+    (in-clinic only when the clinic is open), on leave or not, today's free in-clinic starts (past times left
+    out) and the next day with a free in-clinic time."""
+    from datetime import timedelta
+
+    c = await conn.fetchrow(
+        "select closed_weekdays, exists (select 1 from app.clinic_holidays h where h.clinic_id = $1 "
+        "and h.day = $2) holiday from app.clinics where id = $1",
+        clinic_id,
+        today,
+    )
+    if c is None:
+        return {}
+    dow = (today.weekday() + 1) % 7  # 0 = Sunday
+    closed = c["holiday"] or dow in c["closed_weekdays"]
+    out: dict[str, dict[str, object]] = {}
+    for d in await conn.fetch(
+        """select d.id::text id, d.name,
+             exists (select 1 from app.doctor_leave l where l.doctor_id = d.id
+                     and $2 between l.from_date and l.to_date) on_leave
+           from app.doctors d where d.clinic_id = $1 and d.active""",
+        clinic_id,
+        today,
+    ):
+        hours = await conn.fetch(
+            """select mode, to_char(start_time, 'HH24:MI') s, to_char(end_time, 'HH24:MI') e
+               from app.doctor_availability where doctor_id = $1::uuid and weekday = $2
+               order by start_time""",
+            d["id"],
+            dow,
+        )
+        free = await free_slots_range(
+            conn, clinic_id, today, today + timedelta(days=days), "in_clinic", today, now_minutes, "", d["id"]
+        )
+        out[d["name"]] = {
+            "in_clinic": []
+            if closed or d["on_leave"]
+            else [(h["s"], h["e"]) for h in hours if h["mode"] == "in_clinic"],
+            "online": []
+            if c["holiday"] or d["on_leave"]
+            else [(h["s"], h["e"]) for h in hours if h["mode"] == "online"],
+            "on_leave": d["on_leave"],
+            "closed": closed,
+            "times": free.get(today.isoformat(), []),
+            "next": next((k for k in sorted(free) if k != today.isoformat()), None),
+        }
+    return out

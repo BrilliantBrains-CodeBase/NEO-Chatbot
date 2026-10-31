@@ -15,6 +15,7 @@ import asyncpg
 from app.chat import leads, main_template
 from app.chat.flows import normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
+from app.chat.slots import doctors_today
 from app.crm import webhooks, whatsapp
 from app.crm.flow_run import send, start
 
@@ -56,6 +57,8 @@ async def turn(
 
     flow, clinic = pub["flow"], req.client_id
     ctx = _context(pub, req.context.device)
+    if any(n["type"] == "doctor_card" for n in flow["nodes"]):  # the cards show each doctor's day
+        ctx.doctor_today = await doctors_today(conn, clinic, ctx.today, ctx.minutes)
     run_state = state.get("canvas")
     tap = req.payload.value if req.event == "button" and req.payload.action == "canvas" else None
     text = req.payload.text if req.event == "text" else None

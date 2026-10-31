@@ -84,6 +84,9 @@ class Context:
     # Free HH:MM slots per day (YYYY-MM-DD) for the booking open now: doctors' hours, leave, holidays and
     # appointments (in-clinic and online share one diary). None: not checked (e.g. no database).
     slots: dict[str, dict[str, list[str]]] | None = None  # by mode: in_clinic, online
+    # Each active doctor's day today, by name (app.chat.slots.doctors_today): hours, leave, today's free
+    # in-clinic times and the next free day. Shown on the doctor's card.
+    doctor_today: dict[str, dict[str, Any]] = field(default_factory=dict)
     # The approved phrase closest in meaning ({"target", "text", "score"}), when no words matched.
     meaning: Callable[[str], dict[str, Any] | None] = lambda text: None
 
@@ -155,6 +158,12 @@ class Run:
                 for i, f in enumerate(node.settings.get("items") or [])
             ]
         if node.type == "doctor_card":
+            # Today's free in-clinic times: a tap books this doctor then (when a booking block is reachable).
+            if self._booking_for(node):
+                times = (self.ctx.doctor_today.get(node.settings["doctor"]) or {}).get("times") or []
+                out += [
+                    {"id": f"slot:{t}", "label": _time(t), "action": "slot", "value": t} for t in times[:6]
+                ]
             if node.settings.get("book_label") and self._leads(node.id, "book"):
                 out.append({"id": "book", "label": self.sub(node.settings["book_label"]), "action": "go"})
             if node.settings.get("treatments_label"):
@@ -174,6 +183,39 @@ class Run:
 
     def _treat(self, t: dict[str, Any]) -> dict[str, Any]:
         return {"id": "t:" + t["name"], "label": t["name"], "action": "treatment", "value": t["name"]}
+
+    def _booking_for(self, card: Node) -> str | None:
+        """The booking block a doctor's card leads to: its Book line, else the canvas's booking block."""
+        target = self.lines.get((card.id, "book")) or self.first("book")
+        return target if target and self.shown(self.nodes.get(target)) else None
+
+    def today_line(self, doctor: str) -> str:
+        """The doctor's day today, as the card says it."""
+        d = self.ctx.doctor_today.get(doctor)
+        if d is None:
+            return ""
+
+        def span(xs: list[tuple[str, str]]) -> str:
+            return ", ".join(f"{_time(a)} – {_time(b)}" for a, b in xs)
+
+        parts = []
+        if d["on_leave"]:
+            parts.append("On leave today.")
+        else:
+            if d["in_clinic"]:
+                parts.append(f"In the clinic today: {span(d['in_clinic'])}.")
+            if d["online"]:
+                parts.append(f"Online today: {span(d['online'])}.")
+            if not parts:
+                parts.append("The clinic is closed today." if d["closed"] else "Not in the clinic today.")
+        if d["times"]:
+            parts.append("Free times today:")
+        else:
+            if d["in_clinic"]:
+                parts.append("No free times left today.")
+            if d["next"]:
+                parts.append(f"Next free day: {_day(d['next'])}.")
+        return " ".join(parts)
 
     def _leads(self, source: str, exit_: str) -> bool:
         return self.shown(self.nodes.get(self.lines.get((source, exit_), "")))
@@ -216,6 +258,7 @@ class Run:
             known = [
                 f for f in ("name", "phone", "email") if self.fields.get(f)
             ]  # given earlier in this chat
+            known += (self.fields.pop("_picked", "") or "").split()  # a time tapped on a doctor's card
             self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": known}
             self.next_question(node)
             return
@@ -301,7 +344,16 @@ class Run:
         text = s.get("welcome") or s.get("message") or s.get("text") or ""
         more: dict[str, Any] = {}
         if node.type == "doctor_card":
-            text = "\n".join(x for x in (s["doctor"], s.get("title", ""), s.get("qualifications", "")) if x)
+            text = "\n".join(
+                x
+                for x in (
+                    s["doctor"],
+                    s.get("title", ""),
+                    s.get("qualifications", ""),
+                    self.today_line(s["doctor"]),
+                )
+                if x
+            )
             more["card"] = {k: s.get(k) for k in ("photo", "about", "stats", "profile_url")}
         if node.type == "treatment_card":
             text = self.treatment_text(s["treatment"])
@@ -334,6 +386,8 @@ class Run:
         kind, _, name = button_id.partition(":")
         if b is None and name and kind in ("t", "book"):  # shown after a tap: a treatment, or Book it
             b = {"id": button_id, "action": "treatment" if kind == "t" else "book", "value": name}
+        if b is None and kind == "slot" and node.type == "doctor_card" and name:  # a time no longer listed
+            b = {"id": button_id, "action": "slot", "value": name}  # a taken one: the booking refuses it
         if b is None and kind == "medical":  # the medical offer: a call back about the question, or the menu
             b = {"id": button_id, "action": "callback" if name == "yes" else "menu", "value": ""}
         if b is None:
@@ -358,6 +412,14 @@ class Run:
             self.say("", buttons=[self._treat({"name": n}) for n in names])
         elif a == "menu":
             self.enter(self.first("opening") or "")
+        elif a == "slot":  # a free time today on a doctor's card: book this doctor then
+            target = self._booking_for(node)
+            if target:
+                self.fields.update(
+                    doctor=node.settings["doctor"], date=self.ctx.today.isoformat(), time=value
+                )
+                self.fields["_picked"] = "date time doctor"  # not asked again in the booking block
+                self.enter(target)
         elif a in ("book", "callback"):
             target = self.first("book" if a == "book" else "callback")
             if value:

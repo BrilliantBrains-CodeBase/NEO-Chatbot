@@ -462,3 +462,41 @@ def test_no_free_day_to_book_turns_into_a_call_back() -> None:
     assert "no free times to book online" in said[0] and chat.at == "cb"
     assert chat.r["lead"]["type"] == "callback" and chat.r["lead"]["reason"] == "Booking request"
     assert chat.r["lead"]["name"] == "Asha Rao"  # not asked again
+
+
+def test_doctor_card_shows_today_and_books_a_free_time() -> None:
+    card = {
+        "id": "doc",
+        "type": "doctor_card",
+        "settings": {"doctor": "Dr. Asha", "title": "Consultant", "book_label": "Book with Dr. Asha"},
+    }
+    book = {
+        "id": "book",
+        "type": "book",
+        "settings": {"fields": ["name", "date", "time"], "consent": False},
+    }
+    flow = {
+        "nodes": [opening(("m1", "Doctors")), card, book],
+        "edges": [line("opening", "m1", "doc"), line("doc", "book", "book")],
+    }
+    today = {
+        "Dr. Asha": {
+            "in_clinic": [("10:00", "13:00")], "online": [("18:00", "20:00")], "on_leave": False,
+            "closed": False, "times": ["11:00", "11:10", "11:20"], "next": "2026-10-29",
+        }
+    }  # fmt: skip
+    chat = Chat(flow, ctx(doctor_today=today))
+    said = chat(tap="m1")
+    assert "In the clinic today: 10:00 AM – 1:00 PM. Online today: 6:00 PM – 8:00 PM." in said[0]
+    assert chat.labels()[:3] == ["11:00 AM", "11:10 AM", "11:20 AM"]
+    assert chat(tap="slot:11:10") == ["May I know your full name?"]  # date and time are not asked
+    chat("Asha Patient")
+    assert chat.r["lead"] == {
+        "type": "book", "block": "book", "name": "Asha Patient", "doctor": "Dr. Asha",
+        "date": WED.isoformat(), "time": "11:10",
+    }  # fmt: skip
+
+    away = {"Dr. Asha": today["Dr. Asha"] | {"on_leave": True, "in_clinic": [], "online": [], "times": []}}
+    chat = Chat(flow, ctx(doctor_today=away))
+    assert "On leave today. Next free day: Thu 29 Oct." in chat(tap="m1")[0]
+    assert not [x for x in chat.labels() if x.endswith("AM")]  # no times to tap
