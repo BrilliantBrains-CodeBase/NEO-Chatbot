@@ -906,13 +906,34 @@ function BookCard({
   );
 }
 
-const LOST: [string, string][] = [
-  ["not_reachable", "Not reachable"],
-  ["not_interested", "Not interested"],
-  ["price", "Price"],
-  ["chose_another_clinic", "Chose another clinic"],
-  ["other", "Other"],
+// The lead's stage from a booking: value "stage" or "stage:reason" (the reasons the database accepts).
+const STAGES: { label: string; options: [string, string][] }[] = [
+  { label: "Follow up", options: [["follow_up", "Follow up"]] },
+  {
+    label: "Lost",
+    options: [
+      ["lost:not_reachable", "Lost: Not reachable"],
+      ["lost:not_interested", "Lost: Not interested"],
+      ["lost:price", "Lost: Price"],
+      ["lost:chose_another_clinic", "Lost: Chose another clinic"],
+      ["lost:other", "Lost: Other"],
+    ],
+  },
+  {
+    label: "Invalid",
+    options: [
+      ["invalid:wrong_number", "Invalid: Wrong number"],
+      ["invalid:spam", "Invalid: Spam"],
+      ["invalid:duplicate", "Invalid: Duplicate"],
+      ["invalid:test", "Invalid: Test"],
+    ],
+  },
 ];
+const STAGE_NAME: Record<string, string> = {
+  follow_up: "Follow up",
+  lost: "Lost",
+  invalid: "Invalid",
+};
 const STATUS: Record<string, string> = {
   pending: "Pending (waiting in the Inbox)",
   confirmed: "Confirmed",
@@ -937,7 +958,7 @@ function DetailCard({
   const { toast } = useCrm();
   const router = useRouter();
   const [reason, setReason] = useState("");
-  const [lost, setLost] = useState("");
+  const [stage, setStage] = useState(""); // "follow_up" | "lost:<reason>" | "invalid:<reason>"
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -1072,43 +1093,45 @@ function DetailCard({
         )}
       </div>
 
-      {b.stage !== "lost" && (
-        <div
-          className="row"
-          style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}
+      <div className="row" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <select
+          className="sel"
+          aria-label="Lead stage"
+          value={stage}
+          onChange={(e) => setStage(e.target.value)}
         >
-          <select
-            className="sel"
-            aria-label="Lost reason"
-            value={lost}
-            onChange={(e) => setLost(e.target.value)}
-          >
-            <option value="">Mark lead as Lost: choose a reason</option>
-            {LOST.map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-          <button
-            className="btn g"
-            disabled={busy || !lost}
-            onClick={() =>
-              void call(
-                `/v1/crm/leads/${b.lead_code}`,
-                "PATCH",
-                { stage: "lost", stage_reason: lost },
-                "Lead marked Lost",
-              )
-            }
-          >
-            Mark Lost
-          </button>
-          <span className="sub2">
-            The booking itself stays until you cancel or reject it.
-          </span>
-        </div>
-      )}
+          <option value="">Change lead stage…</option>
+          {STAGES.map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.options
+                .filter(([k]) => k.split(":")[0] !== b.stage || k.includes(":"))
+                .map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+            </optgroup>
+          ))}
+        </select>
+        <button
+          className="btn g"
+          disabled={busy || !stage}
+          onClick={() => {
+            const [to, why] = stage.split(":");
+            void call(
+              `/v1/crm/leads/${b.lead_code}`,
+              "PATCH",
+              { stage: to, stage_reason: why ?? null },
+              `Lead moved to ${STAGE_NAME[to]}`,
+            );
+          }}
+        >
+          Change stage
+        </button>
+        <span className="sub2">
+          The booking itself stays until you cancel or reject it.
+        </span>
+      </div>
 
       {error && (
         <p role="alert" style={{ color: "var(--err)", margin: "10px 0 0" }}>
