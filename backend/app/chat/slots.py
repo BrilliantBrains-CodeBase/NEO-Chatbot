@@ -111,14 +111,21 @@ async def free_slots(
     )
 
 
+_today: dict[tuple[str, date], tuple[float, dict[str, dict[str, object]]]] = {}
+
+
 async def doctors_today(
     conn: asyncpg.Connection, clinic_id: str, today: date, now_minutes: int, days: int = 14
 ) -> dict[str, dict[str, object]]:
     """Each active doctor's day today, by name, for the chat's doctor card: their in-clinic and online hours
     (in-clinic only when the clinic is open), on leave or not, today's free in-clinic starts (past times left
     out) and the next day with a free in-clinic time."""
+    import time as clock
     from datetime import timedelta
 
+    hit = _today.get((clinic_id, today))
+    if hit and clock.monotonic() - hit[0] < 60:  # kept a minute: a booking still checks the time itself
+        return hit[1]
     c = await conn.fetchrow(
         "select closed_weekdays, exists (select 1 from app.clinic_holidays h where h.clinic_id = $1 "
         "and h.day = $2) holiday from app.clinics where id = $1",
@@ -160,4 +167,5 @@ async def doctors_today(
             "times": free.get(today.isoformat(), []),
             "next": next((k for k in sorted(free) if k != today.isoformat()), None),
         }
+    _today[(clinic_id, today)] = (clock.monotonic(), out)
     return out

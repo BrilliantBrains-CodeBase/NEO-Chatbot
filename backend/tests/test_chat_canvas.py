@@ -16,8 +16,11 @@ pytestmark = pytest.mark.skipif(not get_settings().database_url, reason="DATABAS
 
 
 @pytest.fixture(autouse=True)
-async def _own_pool() -> Any:
-    """The canvas looks things up through the shared pool: close it with this test's event loop."""
+async def _own_pool(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """The canvas looks things up through the shared pool: close it with this test's event loop. These tests
+    change the settings in the database directly (no Publish), so the kept setup is not used here."""
+    monkeypatch.setattr(canvas, "CACHE_S", 0)
+    canvas.forget()
     yield
     await close_pool()
 

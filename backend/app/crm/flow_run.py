@@ -80,7 +80,7 @@ class Context:
     phone: str = ""  # the clinic's number: a call button with no number calls it
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
-    kb_source: str = ""  # what answered: "qa" (written by staff) or "fact"
+    kb_source: str = ""  # what answered: "qa" or "fact" by words, "qa_meaning" / "fact_meaning" by meaning
     # Knowledge base only (a clinic's testing switch): typed questions are answered from the Knowledge base
     # alone, no screens, keyword rules or phrases. Safety, buttons and booking answers work as always.
     kb_only: bool = False
@@ -503,8 +503,10 @@ class Run:
         start = None if hit or phrase else self.start_rule(low)
         start = self.first(start) if start else None
         found = None if hit or phrase or start else self.ctx.kb(text)  # approved answers; never medical
-        if found and self.ctx.kb_source == "fact" and self.page_rule(low):
-            found = None  # the clinic's own screen (e.g. location: address and map) beats a single fact
+        if found and self.ctx.kb_source == "fact_meaning" and self.page_rule(low):
+            found = (
+                None  # the clinic's own screen (location: address and map) beats a fact matched only loosely
+            )
         if hit:
             self.matched = {"how": "button", "text": hit["label"]}
             self.act(node, hit)

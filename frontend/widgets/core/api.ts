@@ -21,7 +21,8 @@ export interface ApiOptions {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function createApi(apiBase: string, opts: ApiOptions = {}) {
-  const { timeoutMs = 10000, retries = 2, fetchImpl = fetch.bind(window) } = opts;
+  // 25 s a try: a server waking from sleep (free hosting) can take most of a minute; 2 retries on top.
+  const { timeoutMs = 25000, retries = 2, fetchImpl = fetch.bind(window) } = opts;
 
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     let lastError: ApiError = new ApiError('server', 'Request failed');

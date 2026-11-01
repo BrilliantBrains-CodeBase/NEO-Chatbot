@@ -10,7 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.chat import kb
+from app.chat import canvas, kb
 from app.chat.live_facts import SOURCE, live_facts
 from app.core.db import get_pool
 from app.crm.auth import Staff, staff
@@ -259,6 +259,7 @@ async def set_mode(user: Annotated[Staff, Depends(staff)], clinic: str, body: Mo
            where clinic_id = $1 returning clinic_id""",
         clinic, body.kb_only,
     )  # fmt: skip
+    canvas.forget(clinic)  # the live chat follows the switch at once
     return await _knowledge(clinic, user)
 
 

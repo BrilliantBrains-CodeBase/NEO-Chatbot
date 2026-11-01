@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Rich } from '../rich';
 import type { UiBlock } from '../types';
 import { Block, type OnChoose } from './Blocks';
@@ -19,12 +19,20 @@ interface Props {
 // The conversation: bubbles, blocks (menu, buttons, pickers), typing dots, kept scrolled to the newest item.
 export function Messages({ entries, busy, onRetry, onChoose }: Props) {
   const end = useRef<HTMLDivElement>(null);
+  // A reply taking long (a server waking up): say so under the typing dots after 5 seconds.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (!busy) return;
+    const timer = setTimeout(() => setSlow(true), 5000);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   useEffect(() => {
     // Scroll the chat body only. scrollIntoView could also scroll the clinic's page.
     const body = end.current?.parentElement;
     if (body) body.scrollTop = body.scrollHeight;
-  }, [entries, busy]);
+  }, [entries, busy, slow]);
 
   return (
     <>
@@ -48,6 +56,11 @@ export function Messages({ entries, busy, onRetry, onChoose }: Props) {
           <span />
           <span />
           <span />
+        </div>
+      )}
+      {busy && slow && (
+        <div class="nb-msg bot" role="status">
+          {t.connecting}
         </div>
       )}
       <div ref={end} />

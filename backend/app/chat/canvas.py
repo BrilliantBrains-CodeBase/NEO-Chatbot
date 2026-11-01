@@ -7,7 +7,9 @@ question is saved as a real lead and Inbox request (chat/leads.save_completed), 
 WhatsApp like the classic chat.
 """
 
+import copy
 import json
+import time
 from typing import Any
 
 import asyncpg
@@ -23,8 +25,31 @@ SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose an
 SAVE_KINDS = {"book", "online", "cancel", "reschedule", "callback", "question"}
 
 
+# The published setup changes only on Publish (and the Knowledge base switch): kept a minute per clinic, so a
+# message does not read it again; forget() clears it at once after a change.
+CACHE_S = 60
+_published: dict[str, tuple[float, dict[str, Any] | None]] = {}
+
+
+def forget(clinic: str | None = None) -> None:
+    """Drops the kept setup (one clinic, or all: a main template's change reaches its followers)."""
+    if clinic is None:
+        _published.clear()
+    else:
+        _published.pop(clinic, None)
+
+
 async def published(conn: asyncpg.Connection, clinic: str) -> dict[str, Any] | None:
     """The clinic's published settings when its chat runs on the canvas (switch on and a canvas published)."""
+    hit = _published.get(clinic)
+    if hit and time.monotonic() - hit[0] < CACHE_S:
+        return copy.deepcopy(hit[1])  # a copy: a message never changes the kept one
+    pub = await _load(conn, clinic)
+    _published[clinic] = (time.monotonic(), pub)
+    return copy.deepcopy(pub)
+
+
+async def _load(conn: asyncpg.Connection, clinic: str) -> dict[str, Any] | None:
     from app.api.v1.crm_console import _add_live_phrases, _filled  # the Dashboard's own helpers
 
     row = await conn.fetchrow(

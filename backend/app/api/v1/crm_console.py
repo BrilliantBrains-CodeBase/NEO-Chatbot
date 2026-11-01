@@ -12,7 +12,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app.chat import embed, kb, main_template, slots
+from app.chat import canvas, embed, kb, main_template, slots
 from app.chat.content import content
 from app.chat.flows import ist_now, normal_phone
 from app.core.db import get_pool
@@ -679,6 +679,7 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str, for_all: 
     """The draft becomes what the widget shows, as a new numbered version (kept for roll back). For the main
     template (Neo Follicle), ``for_all`` also makes its canvas, Templates and Appearance what every following
     clinic shows (BB Admin only); without it, only the main changes."""
+    canvas.forget()  # the live chat reads the new version at once (followers too)
     await _manager(user, clinic)
     if for_all and clinic != main_template.MAIN:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only the main template is published for all.")
@@ -744,6 +745,7 @@ class Follow(BaseModel):
 async def set_follow(user: Annotated[Staff, Depends(staff)], clinic: str, body: Follow) -> Settings:
     """Follow the main template (Neo Follicle) again for this part, or make it the clinic's own (starting
     from the main's version). The main itself follows nothing."""
+    canvas.forget()  # the live chat reads the new version at once (followers too)
     await _manager(user, clinic)
     if clinic == main_template.MAIN:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "This clinic is the main template.")
@@ -959,7 +961,8 @@ async def _kb_answer(clinic: str, text: str) -> str | None:
 
 
 async def kb_hit(clinic: str, text: str) -> tuple[str, str] | None:
-    """As _kb_answer, with what answered: "qa" (a question staff wrote) or "fact" (a single fact)."""
+    """As _kb_answer, with what answered: "qa" (a question staff wrote) or "fact" (a single fact), by its
+    words; "qa_meaning" / "fact_meaning" when only by meaning."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         for find in (kb.search, kb.fact):
@@ -969,7 +972,7 @@ async def kb_hit(clinic: str, text: str) -> tuple[str, str] | None:
         for near in (kb.semantic, kb.fact_semantic):
             hit, _ = await near(conn, clinic, text)
             if hit:
-                return hit.answer, hit.source
+                return hit.answer, f"{hit.source}_meaning"  # by meaning: looser than by words
     return None
 
 

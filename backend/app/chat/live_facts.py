@@ -5,6 +5,7 @@ with that key. Q&A answers link them like any fact: "We are at {clinic_address}.
 """
 
 import json
+import time as clock
 from datetime import time, timedelta
 from typing import Any
 
@@ -54,8 +55,20 @@ def _settings(raw: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+_kept: dict[str, tuple[float, dict[str, str]]] = {}
+
+
 async def live_facts(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
-    """key -> today's value, read from the Dashboard and CRM. Empty values are left out (not answered yet)."""
+    """key -> today's value, read from the Dashboard and CRM (kept a minute). Empty values are left out."""
+    hit = _kept.get(clinic_id)
+    if hit and clock.monotonic() - hit[0] < 60:
+        return hit[1]
+    out = await _read(conn, clinic_id)
+    _kept[clinic_id] = (clock.monotonic(), out)
+    return out
+
+
+async def _read(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
     c = await conn.fetchrow("select * from app.clinics where id = $1", clinic_id)
     if c is None:
         return {}

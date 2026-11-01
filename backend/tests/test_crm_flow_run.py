@@ -534,11 +534,13 @@ def test_an_answer_on_a_list_does_not_resend_it_and_the_clinic_screen_beats_a_fa
         ],
     }
     city = "Bengaluru, Karnataka"
-    chat = Chat(flow, ctx(kb=lambda q: city, kb_source="fact"))
+    chat = Chat(flow, ctx(kb=lambda q: city, kb_source="fact_meaning"))
     chat(tap="m1")
     assert chat.labels() == ["FUE", "PRP"]
     said = chat("send me the location")
-    assert said == ["1st floor, Example House. Map: link"]  # the clinic screen, not the single "city" fact
+    assert said == ["1st floor, Example House. Map: link"]  # the clinic screen beats a loose "city" fact
+    email = Chat(flow, ctx(kb=lambda q: "Clinic email: info@example.com", kb_source="fact"))
+    assert email("email address") == ["Clinic email: info@example.com"]  # by its words: the fact wins
     chat = Chat(flow, ctx(kb=lambda q: "Parking is free.", kb_source="fact"))
     chat(tap="m1")
     assert chat("is there parking") == ["Parking is free."]  # answered, and FUE / PRP are not sent again
