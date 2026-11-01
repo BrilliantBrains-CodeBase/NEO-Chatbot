@@ -590,3 +590,50 @@ def test_answering_the_treatment_in_a_booking_does_not_skip_the_date() -> None:
     assert chat.labels() == ["Thu 29 Oct"]
     chat(tap="2026-10-29")
     assert chat.labels()[:2] == ["11:00 AM", "11:15 AM"]
+
+
+def test_a_booking_choice_with_techniques_asks_which_one() -> None:
+    book = {
+        "id": "book",
+        "type": "book",
+        "settings": {"fields": ["name", "treatment", "date"], "consent": False},
+    }
+    free = {"in_clinic": {"2026-10-29": ["11:00"]}, "online": {}}
+    techniques = {"Non-Surgical Treatment": ["PRP Treatment", "GFC Treatment", "QR678 Treatment"]}
+    flow = {"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]}
+    c = ctx(slots=free, booking_options=["Hair Transplant", "Non-Surgical Treatment"], techniques=techniques)
+    chat = Chat(flow, c)
+    chat(tap="m1")
+    chat("Asha")
+    assert chat(tap="Non-Surgical Treatment") == ["Which treatment exactly?"]
+    assert chat.labels() == ["PRP Treatment", "GFC Treatment", "QR678 Treatment", "Not sure"]
+    assert chat(tap="GFC Treatment") == ["Which date works for you?"]
+    chat(tap="2026-10-29")
+    assert chat.r["lead"]["treatment"] == "GFC Treatment"  # the exact one is saved
+
+    chat = Chat(flow, c)
+    chat(tap="m1")
+    chat("Asha")
+    chat(tap="Non-Surgical Treatment")
+    assert chat(tap="Not sure") == ["Which date works for you?"]
+    chat(tap="2026-10-29")
+    assert chat.r["lead"]["treatment"] == "Non-Surgical Treatment"  # not sure: the booking choice
+    chat = Chat(flow, c)
+    chat(tap="m1")
+    chat("Asha")
+    assert chat(tap="Hair Transplant") == ["Which date works for you?"]  # no techniques: straight on
+
+
+def test_an_inbox_item_shows_the_name_typed_when_the_phone_has_another_lead() -> None:
+    from datetime import UTC, datetime
+
+    from app.api.v1.crm_inbox import _item
+
+    row = {
+        "id": "r1", "type": "book", "status": "pending", "created_at": datetime.now(UTC),
+        "lead_code": "CL01-00016", "full_name": "almas", "phone_e164": "+919875555552", "email": None,
+        "data": {"name": "faz", "treatment": "FUE"}, "match_status": None, "a_id": None,
+    }  # fmt: skip
+    assert _item(row).name == "faz · existing lead almas (same phone)"
+    row["data"] = {"name": "Almas"}
+    assert _item(row).name == "almas"

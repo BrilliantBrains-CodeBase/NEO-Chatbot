@@ -776,6 +776,15 @@ class TestChat(BaseModel):
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
+def techniques(items: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """A booking choice -> the shown services set to "book as" it, when there are 2 or more."""
+    out: dict[str, list[str]] = {}
+    for i in items:
+        if i.get("show") and i.get("book_as") and i.get("name"):
+            out.setdefault(i["book_as"], []).append(i["name"])
+    return {k: v for k, v in out.items() if len(v) > 1}
+
+
 def _context(draft: dict[str, Any], device: str) -> Context:
     """The test chat reads the draft: Services, Contact & hours, Reviews (nothing published is used)."""
     today, minutes = ist_now()
@@ -788,6 +797,7 @@ def _context(draft: dict[str, Any], device: str) -> Context:
         today=today, minutes=minutes, device=device,
         services=draft["services"]["items"],
         booking_options=draft["services"]["booking_options"],
+        techniques=techniques(draft["services"]["items"]),
         open_now={"in_clinic": open_now, "online": open_now},
         location="\n".join(x for x in where if x),
         phone=contact["phone"],

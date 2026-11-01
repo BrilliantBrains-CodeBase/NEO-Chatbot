@@ -84,9 +84,13 @@ def _item(r: asyncpg.Record) -> InboxItem:
             status=r["a_status"],
             meet_link=r["a_meet"],
         )
+    # One lead per phone: a request under a different name (e.g. family sharing a phone) shows who asked.
+    typed = str(data.get("name") or "").strip()
+    same = not typed or " ".join(typed.lower().split()) == " ".join(str(r["full_name"]).lower().split())
+    name = r["full_name"] if same else f"{typed} · existing lead {r['full_name']} (same phone)"
     return InboxItem(
         id=str(r["id"]), type=r["type"], status=r["status"], created_at=r["created_at"].isoformat(),
-        lead_code=r["lead_code"], name=r["full_name"], phone=r["phone_e164"], email=r["email"],
+        lead_code=r["lead_code"], name=name, phone=r["phone_e164"], email=r["email"],
         treatment=data.get("treatment"), reason=data.get("reason"), date=data.get("date"),
         time=data.get("time"), booked_date=data.get("booked_date"), match_status=r["match_status"],
         appointment=appt,

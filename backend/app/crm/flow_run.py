@@ -77,6 +77,9 @@ class Context:
     open_now: dict[str, bool] = field(default_factory=lambda: {"in_clinic": True, "online": True})
     location: str = ""  # Contact & hours, as text
     booking_options: list[str] = field(default_factory=list)  # Services → booking list ("Which treatment?")
+    # A booking choice -> the services set to "book as" it (Clinic info → Services), when 2 or more: asked
+    # next ("Which treatment exactly?"), e.g. "Non-Surgical Treatment" -> PRP, GFC, QR678.
+    techniques: dict[str, list[str]] = field(default_factory=dict)
     phone: str = ""  # the clinic's number: a call button with no number calls it
     reviews: list[str] = field(default_factory=list)  # Clinic info → Reviews, newest first
     kb: Callable[[str], str | None] = lambda q: None  # approved Knowledge base answers only
@@ -96,6 +99,9 @@ class Context:
 
 
 KB_ONLY_MISS = "Sorry, I don't have an answer to that yet."
+
+
+NOT_SURE = "Not sure"
 
 
 class Run:
@@ -785,6 +791,22 @@ class Run:
                 self.follow("next")
             return
         # a booking / call back ... question
+        if ask.get("sub"):  # "Which treatment exactly?" after a booking choice that has several
+            options = [
+                {"id": t, "label": t, "action": "answer"}
+                for t in [*self.ctx.techniques[ask["sub"]], NOT_SURE]
+            ]
+            hit = match_option(text, options)
+            if hit is None and self.aside(node, text, before=False):
+                return
+            if hit is None:
+                return self.wrong(node, "Please choose one of the treatments.", None)
+            if hit["label"] != NOT_SURE:
+                self.fields["treatment"] = hit["label"]  # the exact one; "Not sure" keeps the booking choice
+            ask.pop("sub")
+            ask.update(i=ask["i"] + 1, tries=0)
+            self.next_question(node)
+            return
         fields = self.lead_fields(node)
         key = fields[ask["i"]]
         value = self.check(key, text, {})
@@ -809,6 +831,10 @@ class Run:
                     self.say("", buttons=self.picks(node, "time"))
                 return
         self.fields[key] = value
+        if key == "treatment" and len(self.ctx.techniques.get(value, [])) > 1:
+            ask["sub"] = value  # its techniques next, then the next question
+            self.next_question(node)
+            return
         ask.update(i=ask["i"] + 1, tries=0)
         self.next_question(node)
 
@@ -893,6 +919,13 @@ class Run:
 
     def next_question(self, node: Node) -> None:
         s, ask = node.settings, self.ask or {}
+        if ask.get("sub"):
+            options = [*self.ctx.techniques.get(ask["sub"], []), NOT_SURE]
+            self.say(
+                "Which treatment exactly?",
+                buttons=[{"id": t, "label": t, "action": "answer"} for t in options],
+            )
+            return
         fields = self.lead_fields(node)
         if ask.get("i", 0) < len(fields):
             key = fields[ask["i"]]
