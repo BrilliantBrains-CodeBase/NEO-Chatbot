@@ -289,6 +289,69 @@ export default function KnowledgeView() {
     </div>
   );
 
+  // The add/edit forms: a new entry opens at the top, an edited one in place of its row.
+  const factForm = editFact && (
+    <FactForm
+      fact={editFact}
+      busy={busy}
+      error={error}
+      onChange={setEditFact}
+      onCancel={() => {
+        setEditFact(null);
+        setError("");
+      }}
+      onSave={async () => {
+        const body = {
+          key: editFact.key,
+          category: editFact.category,
+          value: editFact.value,
+          variants: editFact.variants,
+        };
+        const ok = editFact.id
+          ? await call(
+              `/facts/${editFact.id}`,
+              "PUT",
+              body,
+              "Fact saved as a draft",
+            )
+          : await call("/facts", "POST", body, "Fact added as a draft");
+        if (ok) setEditFact(null);
+      }}
+    />
+  );
+  const qaForm = editQa && (
+    <QaForm
+      qa={editQa}
+      facts={k.facts}
+      live={k.live}
+      busy={busy}
+      error={error}
+      onChange={setEditQa}
+      onCancel={() => {
+        setEditQa(null);
+        setError("");
+      }}
+      onSave={async () => {
+        const body = {
+          question: editQa.question,
+          variants: editQa.variants,
+          answer: editQa.answer,
+          category: editQa.category,
+          treatment: editQa.treatment || null,
+        };
+        const ok = editQa.id
+          ? await call(
+              `/qa/${editQa.id}`,
+              "PUT",
+              body,
+              "Question saved as a draft",
+            )
+          : await call("/qa", "POST", body, "Question added as a draft");
+        if (ok) setEditQa(null);
+      }}
+    />
+  );
+
   return (
     <>
       {header}
@@ -457,67 +520,8 @@ export default function KnowledgeView() {
       )}
       {error && !editFact && !editQa && <p className="warnbox">{error}</p>}
 
-      {editFact && (
-        <FactForm
-          fact={editFact}
-          busy={busy}
-          error={error}
-          onChange={setEditFact}
-          onCancel={() => {
-            setEditFact(null);
-            setError("");
-          }}
-          onSave={async () => {
-            const body = {
-              key: editFact.key,
-              category: editFact.category,
-              value: editFact.value,
-              variants: editFact.variants,
-            };
-            const ok = editFact.id
-              ? await call(
-                  `/facts/${editFact.id}`,
-                  "PUT",
-                  body,
-                  "Fact saved as a draft",
-                )
-              : await call("/facts", "POST", body, "Fact added as a draft");
-            if (ok) setEditFact(null);
-          }}
-        />
-      )}
-      {editQa && (
-        <QaForm
-          qa={editQa}
-          facts={k.facts}
-          live={k.live}
-          busy={busy}
-          error={error}
-          onChange={setEditQa}
-          onCancel={() => {
-            setEditQa(null);
-            setError("");
-          }}
-          onSave={async () => {
-            const body = {
-              question: editQa.question,
-              variants: editQa.variants,
-              answer: editQa.answer,
-              category: editQa.category,
-              treatment: editQa.treatment || null,
-            };
-            const ok = editQa.id
-              ? await call(
-                  `/qa/${editQa.id}`,
-                  "PUT",
-                  body,
-                  "Question saved as a draft",
-                )
-              : await call("/qa", "POST", body, "Question added as a draft");
-            if (ok) setEditQa(null);
-          }}
-        />
-      )}
+      {editFact && !editFact.id && factForm}
+      {editQa && !editQa.id && qaForm}
 
       {tab === "facts" &&
         k.live.length > 0 &&
@@ -563,58 +567,62 @@ export default function KnowledgeView() {
         ) : (
           k.facts
             .filter((f) => show === "all" || f.status === show)
-            .map((f) => (
-              <div
-                key={f.id}
-                className="card"
-                style={{ padding: 12, marginBottom: 8 }}
-              >
+            .map((f) =>
+              editFact?.id === f.id ? (
+                <div key={f.id}>{factForm}</div>
+              ) : (
                 <div
-                  className="row"
-                  style={{
-                    gap: 8,
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                  }}
+                  key={f.id}
+                  className="card"
+                  style={{ padding: 12, marginBottom: 8 }}
                 >
-                  <div style={{ minWidth: 0, flex: "1 1 300px" }}>
-                    <span className={`badge ${BADGE[f.status][1]}`}>
-                      {BADGE[f.status][0]}
-                    </span>{" "}
-                    <b>{`{${f.key}}`}</b>{" "}
-                    <span className="sub2">· {CAT[f.category]}</span>
-                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
-                      {f.value}
-                    </div>
-                    {f.replaced && f.status !== "retired" && (
-                      <div className="sub2" style={{ color: "var(--warn)" }}>
-                        Replaced by {f.replaced}: the chatbot uses that value.
-                        Retire this fact.
+                  <div
+                    className="row"
+                    style={{
+                      gap: 8,
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: "1 1 300px" }}>
+                      <span className={`badge ${BADGE[f.status][1]}`}>
+                        {BADGE[f.status][0]}
+                      </span>{" "}
+                      <b>{`{${f.key}}`}</b>{" "}
+                      <span className="sub2">· {CAT[f.category]}</span>
+                      <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
+                        {f.value}
                       </div>
-                    )}
-                    <div className="sub2">
-                      Used by {f.used_by} answer{f.used_by === 1 ? "" : "s"}
-                      {f.variants
-                        ? ` · Also asked as: ${f.variants.split("\n").join(", ")}`
-                        : ""}
+                      {f.replaced && f.status !== "retired" && (
+                        <div className="sub2" style={{ color: "var(--warn)" }}>
+                          Replaced by {f.replaced}: the chatbot uses that value.
+                          Retire this fact.
+                        </div>
+                      )}
+                      <div className="sub2">
+                        Used by {f.used_by} answer{f.used_by === 1 ? "" : "s"}
+                        {f.variants
+                          ? ` · Also asked as: ${f.variants.split("\n").join(", ")}`
+                          : ""}
+                      </div>
                     </div>
-                  </div>
-                  <div className="row" style={{ gap: 6 }}>
-                    <button
-                      className="btn g"
-                      onClick={() => {
-                        setError("");
-                        setEditQa(null);
-                        setEditFact({ ...f });
-                      }}
-                    >
-                      Edit
-                    </button>
-                    {row(f.status, { id: f.id, kind: "facts" })}
+                    <div className="row" style={{ gap: 6 }}>
+                      <button
+                        className="btn g"
+                        onClick={() => {
+                          setError("");
+                          setEditQa(null);
+                          setEditFact({ ...f });
+                        }}
+                      >
+                        Edit
+                      </button>
+                      {row(f.status, { id: f.id, kind: "facts" })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ),
+            )
         ))}
 
       {tab === "qa" &&
@@ -628,57 +636,61 @@ export default function KnowledgeView() {
         ) : (
           k.qa
             .filter((q) => show === "all" || q.status === show)
-            .map((q) => (
-              <div
-                key={q.id}
-                className="card"
-                style={{ padding: 12, marginBottom: 8 }}
-              >
+            .map((q) =>
+              editQa?.id === q.id ? (
+                <div key={q.id}>{qaForm}</div>
+              ) : (
                 <div
-                  className="row"
-                  style={{
-                    gap: 8,
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                  }}
+                  key={q.id}
+                  className="card"
+                  style={{ padding: 12, marginBottom: 8 }}
                 >
-                  <div style={{ minWidth: 0, flex: "1 1 300px" }}>
-                    <span className={`badge ${BADGE[q.status][1]}`}>
-                      {BADGE[q.status][0]}
-                    </span>{" "}
-                    <b>{q.question}</b>{" "}
-                    <span className="sub2">· {CAT[q.category]}</span>
-                    <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
-                      {preview(q.answer, k.facts, k.live)}
+                  <div
+                    className="row"
+                    style={{
+                      gap: 8,
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: "1 1 300px" }}>
+                      <span className={`badge ${BADGE[q.status][1]}`}>
+                        {BADGE[q.status][0]}
+                      </span>{" "}
+                      <b>{q.question}</b>{" "}
+                      <span className="sub2">· {CAT[q.category]}</span>
+                      <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>
+                        {preview(q.answer, k.facts, k.live)}
+                      </div>
+                      {q.missing.length > 0 && q.status !== "retired" && (
+                        <div className="sub2" style={{ color: "var(--warn)" }}>
+                          Not given to patients until these facts are approved:{" "}
+                          {q.missing.map((m) => `{${m}}`).join(", ")}
+                        </div>
+                      )}
+                      {q.variants && (
+                        <div className="sub2">
+                          Also asked as: {q.variants.split("\n").join(", ")}
+                        </div>
+                      )}
                     </div>
-                    {q.missing.length > 0 && q.status !== "retired" && (
-                      <div className="sub2" style={{ color: "var(--warn)" }}>
-                        Not given to patients until these facts are approved:{" "}
-                        {q.missing.map((m) => `{${m}}`).join(", ")}
-                      </div>
-                    )}
-                    {q.variants && (
-                      <div className="sub2">
-                        Also asked as: {q.variants.split("\n").join(", ")}
-                      </div>
-                    )}
-                  </div>
-                  <div className="row" style={{ gap: 6 }}>
-                    <button
-                      className="btn g"
-                      onClick={() => {
-                        setError("");
-                        setEditFact(null);
-                        setEditQa({ ...q });
-                      }}
-                    >
-                      Edit
-                    </button>
-                    {row(q.status, { id: q.id, kind: "qa" })}
+                    <div className="row" style={{ gap: 6 }}>
+                      <button
+                        className="btn g"
+                        onClick={() => {
+                          setError("");
+                          setEditFact(null);
+                          setEditQa({ ...q });
+                        }}
+                      >
+                        Edit
+                      </button>
+                      {row(q.status, { id: q.id, kind: "qa" })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ),
+            )
         ))}
     </>
   );
@@ -763,6 +775,12 @@ function FactForm({
           />
         </label>
       </div>
+      {f.replaced && (
+        <p className="warnbox" style={{ marginTop: 10 }}>
+          This is answered in {f.replaced}: change it there. The chatbot already
+          uses that value, so retire this fact.
+        </p>
+      )}
       {!!f.used_by && (
         <p className="warnbox" style={{ marginTop: 10 }}>
           Used by {f.used_by} answer{f.used_by === 1 ? "" : "s"}. Saving puts
@@ -778,7 +796,7 @@ function FactForm({
       <div className="row" style={{ gap: 8, marginTop: 14 }}>
         <button
           className="btn"
-          disabled={busy || !keyOk || !(f.value ?? "").trim()}
+          disabled={busy || !keyOk || !(f.value ?? "").trim() || !!f.replaced}
           onClick={onSave}
         >
           {busy ? "Saving…" : "Save as draft"}
