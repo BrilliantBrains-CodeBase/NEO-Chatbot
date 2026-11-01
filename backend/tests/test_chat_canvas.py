@@ -109,3 +109,42 @@ async def test_a_menu_tile_mid_question_opens_that_option(tx: asyncpg.Connection
     reply, state, _ = await canvas.turn(tx, req("button", action="canvas", value="m1"), state, pub)
     assert "name" in reply.messages[-1].text.lower()  # the call back again from its start, not a "name"
     assert "valid" not in " ".join(m.text or "" for m in reply.messages).lower()
+
+
+async def test_a_booking_without_a_date_is_kept_as_a_call_back() -> None:
+    """The patient was told the team will call: the request is never dropped, even without a date."""
+    from app.core.db import get_pool
+
+    pool = await get_pool()
+    phone = "+919000000888"  # as saved; the chat keeps it as "+91 9000000888"
+    try:
+        async with pool.acquire() as conn:
+            note = await canvas._save(
+                conn,
+                req("text", text="x"),
+                {
+                    "type": "book",
+                    "name": "No Date Test",
+                    "phone": "+91 9000000888",
+                    "treatment": "FUE",
+                },  # fmt: skip
+            )
+            assert note is None
+            r = await conn.fetchrow(
+                """select r.type, r.data->>'reason' reason from app.requests r
+                   join app.leads l on l.id = r.lead_id
+                   where l.clinic_id = 'CL99' and l.phone_e164 = $1""",
+                phone,
+            )
+        assert r is not None and r["type"] == "callback" and r["reason"] == "Booking request: FUE"
+    finally:
+        ids = [
+            x["id"]
+            for x in await pool.fetch(
+                "select id from app.leads where clinic_id = 'CL99' and phone_e164 = $1", phone
+            )
+        ]
+        for t in ("appointments", "requests", "lead_events", "tasks", "outbox"):
+            await pool.execute(f"delete from app.{t} where lead_id = any($1::uuid[])", ids)
+        await pool.execute("update app.chat_sessions set lead_id = null where lead_id = any($1::uuid[])", ids)
+        await pool.execute("delete from app.leads where id = any($1::uuid[])", ids)

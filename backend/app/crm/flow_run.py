@@ -266,6 +266,10 @@ class Run:
                 f for f in ("name", "phone", "email") if self.fields.get(f)
             ]  # given earlier in this chat
             known += (self.fields.pop("_picked", "") or "").split()  # a time tapped on a doctor's card
+            if t == "book" and self.fields.get("treatment"):  # chosen earlier (a treatment card's Book)
+                known.append("treatment")
+            if t == "callback" and self.fields.get("reason"):  # e.g. the medical question
+                known.append("reason")
             self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": known}
             self.next_question(node)
             return
@@ -503,7 +507,7 @@ class Run:
         start = None if hit or phrase else self.start_rule(low)
         start = self.first(start) if start else None
         found = None if hit or phrase or start else self.ctx.kb(text)  # approved answers; never medical
-        if found and self.ctx.kb_source == "fact_meaning" and self.page_rule(low):
+        if found and self.ctx.kb_source in ("fact_meaning", "followup") and self.page_rule(low):
             found = (
                 None  # the clinic's own screen (location: address and map) beats a fact matched only loosely
             )
@@ -858,11 +862,11 @@ class Run:
     def lead_fields(self, node: Node) -> list[str]:
         s = node.settings
         skip = {"doctor"} if s.get("doctor") else set()
-        if s.get("treatment") or (node.type == "book" and self.fields.get("treatment")):
+        if s.get("treatment"):
             skip.add("treatment")
-        if node.type == "callback" and self.fields.get("reason"):  # e.g. the medical question
-            skip.add("reason")
-        skip |= set((self.ask or {}).get("known") or [])  # given before this block: not asked again
+        # Given before this block (name, phone, a treatment chosen earlier, the medical question...): decided
+        # once when the block starts, so an answer given IN the block never shifts the questions after it.
+        skip |= set((self.ask or {}).get("known") or [])
         return [f for f in s.get("fields", []) if f not in skip]
 
     def free(self, node: Node) -> dict[str, list[str]] | None:

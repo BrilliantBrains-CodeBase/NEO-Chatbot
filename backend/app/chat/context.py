@@ -151,7 +151,22 @@ def follow_up(text: str, history: list[dict[str, str]]) -> str | None:
     last = before[-1]
     if is_vague(text):
         return last
-    if SWITCH.match(low) or POINTER.search(low) or DETAIL.search(low) or len(low.split()) <= 3:
+    if SWITCH.match(low):  # "and Sunday?", "what about Saturday": the last question for something else
         rest = SWITCH.sub("", low).strip()
         return f"{last} {rest}".strip() if rest else last
+    # Otherwise only a message with no subject of its own ("how much is it?", "how long?"): "consultation
+    # fee" names its subject and is read on its own, never glued to the last question.
+    if POINTER.search(low) or DETAIL.search(low):
+        own = [
+            w for w in re.findall(r"[a-z]+", DETAIL.sub(" ", POINTER.sub(" ", low))) if w not in FOLLOW_STOP
+        ]
+        if not own:
+            return last
     return None
+
+
+# Words that are not a subject ("how much is it" has none; "consultation fee" has "consultation").
+FOLLOW_STOP = set(
+    "how what when where which who is are was do does did can could will would the a an of for to in on at "
+    "it its this that these those same much many long please pls plz me i my you your there any".split()
+)

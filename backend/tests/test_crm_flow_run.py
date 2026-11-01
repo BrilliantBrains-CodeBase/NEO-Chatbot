@@ -539,6 +539,11 @@ def test_an_answer_on_a_list_does_not_resend_it_and_the_clinic_screen_beats_a_fa
     assert chat.labels() == ["FUE", "PRP"]
     said = chat("send me the location")
     assert said == ["1st floor, Example House. Map: link"]  # the clinic screen beats a loose "city" fact
+    via = Chat(flow, ctx(kb=lambda q: "Clinic email: info@example.com", kb_source="followup"))
+    via(tap="m1")
+    assert (
+        via("where is the clinic")[0] == "1st floor, Example House. Map: link"
+    )  # a follow-up never beats it
     email = Chat(flow, ctx(kb=lambda q: "Clinic email: info@example.com", kb_source="fact"))
     assert email("email address") == ["Clinic email: info@example.com"]  # by its words: the fact wins
     chat = Chat(flow, ctx(kb=lambda q: "Parking is free.", kb_source="fact"))
@@ -566,3 +571,22 @@ def test_knowledge_base_only_answers_typed_questions_from_the_knowledge_base_alo
     assert chat("Book") == ["Sorry, I don't have an answer to that yet."]  # typed: not taken as the button
     chat(tap="m1")  # buttons still work, and a booking question still takes its answer
     assert chat("Asha")[-1] == "Thank you, Asha. Our team will contact you shortly."
+
+
+def test_answering_the_treatment_in_a_booking_does_not_skip_the_date() -> None:
+    book = {
+        "id": "book",
+        "type": "book",
+        "settings": {"fields": ["name", "treatment", "date", "time"], "consent": False},
+    }
+    free = {"in_clinic": {"2026-10-29": ["11:00", "11:15"]}, "online": {}}
+    chat = Chat(
+        {"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]},
+        ctx(slots=free, booking_options=["FUE", "PRP"]),
+    )
+    chat(tap="m1")
+    chat("Asha")
+    assert chat(tap="FUE") == ["Which date works for you?"]  # the date is asked, not skipped
+    assert chat.labels() == ["Thu 29 Oct"]
+    chat(tap="2026-10-29")
+    assert chat.labels()[:2] == ["11:00 AM", "11:15 AM"]

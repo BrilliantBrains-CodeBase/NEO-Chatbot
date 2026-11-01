@@ -330,6 +330,8 @@ def test_canvas_reads_the_last_messages_for_a_follow_up() -> None:
     assert follow_up("tell me more", h) == "What are your clinic timings?"
     assert follow_up("ok", h) is None and follow_up("thanks", h) is None  # small talk is not a follow-up
     assert follow_up("Do you have parking in the basement near the lift area?", h) is None  # stands alone
+    assert follow_up("consultation fee", h) is None  # names its own subject: read on its own
+    assert follow_up("how much is it?", h) == "What are your clinic timings?"  # no subject: the last one
     assert follow_up("and sunday?", []) is None  # nothing came before
     for i in range(5):
         h = keep(h, f"question {i}", f"answer {i}")

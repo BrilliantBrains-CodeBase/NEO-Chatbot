@@ -114,7 +114,8 @@ async def turn(
             # Not answered alone: read with the last messages ("and Sunday?" after "what are your timings").
             again = None if hit else context.follow_up(text, state.get("canvas_history") or [])
             if again:
-                hit = await kb_hit(clinic, again)
+                via = await kb_hit(clinic, again)
+                hit = (via[0], "followup") if via else None  # found only with the last question
             found = hit[0] if hit else None
             ctx.kb = lambda q: found
             ctx.kb_source = hit[1] if hit else ""
@@ -198,10 +199,20 @@ async def _save(conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any]
             "select id::text from app.doctors where clinic_id = $1 and name = $2 and active",
             req.client_id, lead["doctor"],
         )  # fmt: skip
-    if kind in ("book", "online") and not f["date"]:
-        return None
-    if kind in ("cancel", "reschedule") and not f["booked_date"]:
-        return None
+    # Never lose a patient who was told "we will contact you": a request missing its date is saved as a call
+    # back about it, so staff still see it in the Inbox (Callbacks) and phone the patient.
+    no_date = kind in ("book", "online") and not f["date"]
+    no_booked = kind in ("cancel", "reschedule") and not f["booked_date"]
+    if no_date or no_booked:
+        names = {
+            "book": "Booking",
+            "online": "Online consult",
+            "cancel": "Cancel",
+            "reschedule": "Reschedule",
+        }
+        treatment = f": {f['treatment']}" if f["treatment"] else ""
+        f["reason"] = f["reason"] or f"{names[kind]} request{treatment}"
+        f["kind"] = kind = "callback"
     try:
         async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the chat turn
             code = await leads.save_completed(conn, req, f)
