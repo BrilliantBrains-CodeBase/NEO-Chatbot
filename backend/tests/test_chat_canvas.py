@@ -76,7 +76,7 @@ async def test_canvas_buttons_flow_and_a_saved_call_back(tx: asyncpg.Connection)
     await say(req("button", action="canvas", value="m1"))  # follows the line to the call back block
     await say(req("text", text="Asha Rao"))
     check = await say(req("text", text="9800000123"))
-    assert check.messages[-1].text == "May we save your details?"  # the canvas reads back and asks consent
+    assert check.messages[-1].text == "Is this correct?"  # the canvas reads back and asks to confirm
     await say(req("button", action="canvas", value="yes"))
     lead = await tx.fetchrow(
         "select l.source, r.type from app.leads l join app.requests r on r.lead_id = l.id "

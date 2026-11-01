@@ -136,7 +136,12 @@ async def turn(
         at = next((n for n in flow["nodes"] if n["id"] == run_state.get("at")), None)
         if at and at["type"] in ("book", "online", "reschedule", "follow_up"):
             ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
-        reply = send(flow, ctx, run_state, tap=tap, text=text)
+        reply = send(flow, ctx, copy.deepcopy(run_state), tap=tap, text=text)
+        now_at = next((n for n in flow["nodes"] if n["id"] == reply.get("at")), None)
+        if ctx.slots is None and now_at and now_at["type"] in ("book", "online", "reschedule", "follow_up"):
+            # e.g. a treatment's Book went straight to "Which date?": the dates are needed in this reply
+            ctx.slots = await _free(clinic, now_at["settings"].get("doctor") or "")
+            reply = send(flow, ctx, run_state, tap=tap, text=text)
     lead = reply.get("lead")
     lead_note = await _save(conn, req, lead) if lead else None
     alert = reply.get("alert")

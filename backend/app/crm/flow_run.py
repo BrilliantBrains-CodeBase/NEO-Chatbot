@@ -763,15 +763,15 @@ class Run:
             return
         if kind in ("lead", "question") and self.aside(node, text, before=True):
             return
-        if kind == "consent":
-            if is_yes(text):
+        if kind == "consent":  # "Is this correct?"
+            low = norm(text)
+            if is_yes(text) or low in ("yes that's correct", "yes thats correct", "correct", "confirm"):
                 self.finish(node)
-            elif NO.fullmatch(norm(text)):
-                self.ask = None
-                self.say("No problem. Your details were not saved.")
-                self.enter(self.first("opening") or "")
+            elif low in ("change", "change details", "edit", "update") or NO.fullmatch(low):
+                self.change_details(node)
             else:
-                self.say("Please choose Yes or No.", buttons=self.yes_no())
+                self.say("Please choose one: is this correct, or change your details?",
+                         buttons=self.confirm_buttons())  # fmt: skip
             return
         if kind == "question":
             s = node.settings
@@ -960,11 +960,26 @@ class Run:
                     lines.append(f"{labels.get(k, k)}: {v}")
             if lines:
                 self.say("Please check your details:\n" + "\n".join(lines))
-        if s.get("consent", True):
+        if s.get("consent", True):  # the clinic's consent line, then "Is this correct?" (change, never lost)
             self.ask = {"kind": "consent", "tries": 0}
-            self.say(s.get("consent_text") or "May we save your details?", buttons=self.yes_no())
+            self.say(s.get("consent_text") or "By continuing, you agree to be contacted about your request.")
+            self.say("Is this correct?", buttons=self.confirm_buttons())
             return
         self.finish(node)
+
+    def confirm_buttons(self) -> list[dict[str, Any]]:
+        return [
+            {"id": "yes", "label": "Yes, that's correct", "action": "answer"},
+            {"id": "change", "label": "Change details", "action": "answer"},
+        ]
+
+    def change_details(self, node: Node) -> None:
+        """Asks this block's questions again (nothing is sent until the patient confirms)."""
+        for k in node.settings.get("fields", []):
+            self.fields.pop(k, None)
+        self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": []}
+        self.say("No problem, let's update your details.")
+        self.next_question(node)
 
     def yes_no(self) -> list[dict[str, Any]]:
         return [
@@ -989,6 +1004,8 @@ class Run:
         )
         self.ask = None
         self.say(s.get("final_message") or "Thank you, {name}. Our team will contact you shortly.")
+        # Only who the patient is carries on; what this request was about (reason, date...) does not.
+        self.fields = {k: v for k, v in self.fields.items() if k in ("name", "phone", "email")}
         self.follow("done")
 
 

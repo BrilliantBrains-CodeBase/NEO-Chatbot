@@ -72,7 +72,7 @@ def test_booking_step_by_step_with_a_wrong_answer_and_consent() -> None:
     assert "valid phone" in chat("12345")[0]  # asked again
     chat("98765 43210")
     chat("tomorrow")
-    assert chat.labels() == ["Yes", "No"]  # consent
+    assert chat.labels() == ["Yes, that's correct", "Change details"]  # is this correct?
     texts = chat(tap="yes")
     assert chat.r["lead"] == {
         "type": "book",
@@ -243,7 +243,7 @@ def test_medical_questions_are_never_answered() -> None:
     assert chat(tap="medical:yes") == ["May I know your full name?"]  # the reason is already known
     assert chat.r["state"]["fields"]["reason"].startswith("which tablets")
     chat("Asha Rao")
-    assert chat.labels() == ["Yes", "No"]  # consent next: the reason was not asked again
+    assert chat.labels() == ["Yes, that's correct", "Change details"]  # the reason was not asked again
     chat(tap="yes")
     assert chat.r["lead"]["reason"].startswith("which tablets")
 
@@ -637,3 +637,27 @@ def test_an_inbox_item_shows_the_name_typed_when_the_phone_has_another_lead() ->
     assert _item(row).name == "faz · existing lead almas (same phone)"
     row["data"] = {"name": "Almas"}
     assert _item(row).name == "almas"
+
+
+def test_change_details_asks_again_and_the_next_request_starts_fresh() -> None:
+    callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone", "reason"]}}
+    flow = {
+        "nodes": [opening(("m1", "Call back"), ("m2", "Abroad")), callback],
+        "edges": [line("opening", "m1", "cb")],
+    }
+    flow["nodes"][0]["settings"]["buttons"][1] |= {"action": "callback", "value": "International patient"}
+    chat = Chat(flow)
+    chat(tap="m2")  # "call back about: International patient"
+    chat("Asha")
+    chat("9876543210")
+    assert chat.labels() == ["Yes, that's correct", "Change details"]
+    said = chat(tap="change")  # nothing is lost or sent: the questions again
+    assert said == ["No problem, let's update your details.", "May I know your full name?"]
+    chat("Asha Rao")
+    chat("9876543210")
+    chat("about my visa")
+    chat(tap="yes")
+    assert chat.r["lead"]["name"] == "Asha Rao" and chat.r["lead"]["reason"] == "about my visa"
+    assert chat.r["state"]["fields"] == {"name": "Asha Rao", "phone": "+91 9876543210"}  # only who it is
+    chat("main menu")
+    assert chat(tap="m1") == ["What would you like us to call you about?"]  # asked again, not "International"
