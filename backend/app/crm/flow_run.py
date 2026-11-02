@@ -52,6 +52,18 @@ GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "la
 # The answer box the widget shows for each question (phone: with the country picker).
 INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
 BACK = re.compile(r"back|go back|previous|undo")
+# "Which details would you like to change?": the button for each question, and the words that also pick it.
+CHANGE_OPTIONS = {
+    "name": ("Name", r"name"),
+    "phone": ("Contact number", r"phone|mobile|number|contact|whatsapp"),
+    "email": ("Email", r"e ?mail|mail"),
+    "treatment": ("Treatment", r"treatment|service"),
+    "doctor": ("Doctor", r"doctor|dr"),
+    "date": ("Date", r"date|day"),
+    "time": ("Time", r"time|slot"),
+    "booked_date": ("Booked date", r"booked"),
+    "reason": ("Reason", r"reason|about"),
+}
 # Changing their mind mid-question ("actually I want to cancel"): the block type it switches to.
 SWITCH = [
     ("cancel", re.compile(r"\bcancel\w*\b.*\b(appointment|booking|visit|it)\b|\bcancel (my|the)\b")),
@@ -397,7 +409,7 @@ class Run:
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
-        if self.ask and self.ask["kind"] in ("question", "consent", "lead", "switch"):
+        if self.ask and self.ask["kind"] in ("question", "consent", "change", "lead", "switch"):
             return self.text(button_id)
         b = next((x for x in self.buttons(node) if x["id"] == button_id), None)
         kind, _, name = button_id.partition(":")
@@ -773,6 +785,16 @@ class Run:
                 self.say("Please choose one: is this correct, or change your details?",
                          buttons=self.confirm_buttons())  # fmt: skip
             return
+        if kind == "change":  # "Which details would you like to change?"
+            if is_yes(text) or NO.fullmatch(norm(text)):  # nothing to change: their details again
+                self.edit_field(node, None)
+                return
+            key = self.change_choice(node, text)
+            if key:
+                self.edit_field(node, key)
+            else:
+                self.say("Please choose which details to change.", buttons=self.change_buttons(node))
+            return
         if kind == "question":
             s = node.settings
             value = self.check(s["kind"], text, s)
@@ -831,6 +853,12 @@ class Run:
                     self.say("", buttons=self.picks(node, "time"))
                 return
         self.fields[key] = value
+        if key == "date" and ask.get("editing") and "time" in ask["known"]:
+            old = self.fields.get("time", "")  # the time kept from before may not be free on the new date
+            if free is not None and old not in ("", "any") and old not in free.get(value, []):
+                self.say(f"{_time(old)} is not free on {_day(value)}.")
+                self.edit_field(node, "time")
+                return
         if key == "treatment" and len(self.ctx.techniques.get(value, [])) > 1:
             ask["sub"] = value  # its techniques next, then the next question
             self.next_question(node)
@@ -941,7 +969,8 @@ class Run:
                 self.enter(callback)
                 return
             wording = (s.get("questions") or {}).get(key) or DEFAULT_QUESTIONS[key]
-            if "{name}" in wording and not self.fields.get("name"):  # no "Thanks, ." when no name was asked
+            # No "Thanks, ." when no name was asked, and no thanks when only changing this one answer.
+            if "{name}" in wording and (ask.get("editing") or not self.fields.get("name")):
                 wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
             self.say(wording, buttons=self.picks(node, key), input={"mode": INPUT_MODE.get(key, "text")})
             return
@@ -973,12 +1002,40 @@ class Run:
             {"id": "change", "label": "Change details", "action": "answer"},
         ]
 
+    def changeable(self, node: Node) -> list[str]:
+        """The details on the read-back that the patient gave (a block's fixed treatment or doctor is not)."""
+        s = node.settings
+        fixed = {k for k in ("treatment", "doctor") if s.get(k)}
+        return [
+            k for k in s.get("fields", []) if k in CHANGE_OPTIONS and k not in fixed and self.fields.get(k)
+        ]
+
+    def change_buttons(self, node: Node) -> list[dict[str, Any]]:
+        labels = [CHANGE_OPTIONS[k][0] for k in self.changeable(node)]
+        return [{"id": label, "label": label, "action": "answer"} for label in labels]
+
+    def change_choice(self, node: Node, text: str) -> str | None:
+        """The detail picked: its button (typos too), or one detail named ("my phone number")."""
+        keys = self.changeable(node)
+        hit = match_option(text, self.change_buttons(node))
+        if hit:
+            return next(k for k in keys if CHANGE_OPTIONS[k][0] == hit["label"])
+        named = [k for k in keys if re.search(rf"\b({CHANGE_OPTIONS[k][1]})\b", norm(text))]
+        return named[0] if len(named) == 1 else None
+
     def change_details(self, node: Node) -> None:
-        """Asks this block's questions again (nothing is sent until the patient confirms)."""
-        for k in node.settings.get("fields", []):
-            self.fields.pop(k, None)
-        self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": []}
-        self.say("No problem, let's update your details.")
+        """Asks which detail to change (nothing is sent until the patient confirms, and nothing is lost)."""
+        buttons = self.change_buttons(node)
+        if not buttons:  # nothing the patient gave: the same check again
+            self.edit_field(node, None)
+            return
+        self.ask = {"kind": "change", "tries": 0}
+        self.say("No problem. Which details would you like to change?", buttons=buttons)
+
+    def edit_field(self, node: Node, key: str | None) -> None:
+        """Asks that one question again, with its usual checks, then the read-back (None: only that)."""
+        known = [k for k in node.settings.get("fields", []) if k != key]
+        self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": known, "editing": True}
         self.next_question(node)
 
     def yes_no(self) -> list[dict[str, Any]]:

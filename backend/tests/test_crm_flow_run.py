@@ -639,7 +639,7 @@ def test_an_inbox_item_shows_the_name_typed_when_the_phone_has_another_lead() ->
     assert _item(row).name == "almas"
 
 
-def test_change_details_asks_again_and_the_next_request_starts_fresh() -> None:
+def test_change_details_asks_which_and_the_next_request_starts_fresh() -> None:
     callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone", "reason"]}}
     flow = {
         "nodes": [opening(("m1", "Call back"), ("m2", "Abroad")), callback],
@@ -651,13 +651,123 @@ def test_change_details_asks_again_and_the_next_request_starts_fresh() -> None:
     chat("Asha")
     chat("9876543210")
     assert chat.labels() == ["Yes, that's correct", "Change details"]
-    said = chat(tap="change")  # nothing is lost or sent: the questions again
-    assert said == ["No problem, let's update your details.", "May I know your full name?"]
-    chat("Asha Rao")
-    chat("9876543210")
+    said = chat(tap="change")  # nothing is lost or sent
+    assert said == ["No problem. Which details would you like to change?"]
+    assert chat.labels() == ["Name", "Contact number", "Reason"]  # only what this block asked (no email)
+    assert chat(tap="Name") == ["May I know your full name?"]
+    said = chat("Asha Rao")  # only that one question, then the check again
+    assert said[0] == (
+        "Please check your details:\nName: Asha Rao\nPhone: +91 9876543210\nAbout: International patient"
+    )
+    assert chat.labels() == ["Yes, that's correct", "Change details"]
+    chat(tap="change")
+    assert chat("the reason") == ["What would you like us to call you about?"]  # typed works too
     chat("about my visa")
     chat(tap="yes")
     assert chat.r["lead"]["name"] == "Asha Rao" and chat.r["lead"]["reason"] == "about my visa"
     assert chat.r["state"]["fields"] == {"name": "Asha Rao", "phone": "+91 9876543210"}  # only who it is
     chat("main menu")
     assert chat(tap="m1") == ["What would you like us to call you about?"]  # asked again, not "International"
+
+
+def booking_chat(fields: list[str], free: dict[str, Any] | None = None) -> Chat:
+    book = {"id": "book", "type": "book", "settings": {"fields": fields}}
+    flow = {"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]}
+    return Chat(flow, ctx(slots=free, booking_options=["FUE", "PRP"]))
+
+
+def test_change_details_offers_each_detail_asked_and_keeps_the_others() -> None:
+    free = {"in_clinic": {"2026-10-29": ["11:00", "11:15"], "2026-10-30": ["11:15", "12:00"]}, "online": {}}
+    chat = booking_chat(["name", "phone", "email", "treatment", "date", "time"], free)
+    for answer in ("book", "Asha", "9876543210", "asha@example.com", "FUE"):
+        chat(answer)
+    chat(tap="2026-10-29")
+    chat(tap="11:00")
+    chat(tap="change")
+    assert chat.labels() == ["Name", "Contact number", "Email", "Treatment", "Date", "Time"]
+
+    assert chat(tap="Contact number") == ["What is your contact number?"]  # no "Thanks, Asha." here
+    assert "valid phone" in chat("123")[0]  # its usual check, on the same question
+    assert "Phone: +91 9876500000" in chat("98765 00000")[0]
+    chat(tap="change")
+    chat(tap="Email")
+    assert "Email: new@example.com" in chat("new@example.com")[0]
+    chat(tap="change")
+    assert chat(tap="Treatment") == ["Which treatment are you looking for?"]
+    assert chat.labels() == ["FUE", "PRP"]
+    assert "Treatment: PRP" in chat(tap="PRP")[0]
+    chat(tap="change")
+    chat(tap="Time")
+    assert chat.labels() == ["11:00 AM", "11:15 AM", "Any time"]  # that day's free times
+    assert "Time: 11:15 AM" in chat(tap="11:15")[0]
+    chat(tap="change")
+    chat(tap="Date")
+    assert "Date: Fri 30 Oct\nTime: 11:15 AM" in chat(tap="2026-10-30")[0]  # still free: kept
+
+    chat(tap="yes")
+    assert chat.r["lead"] == {
+        "type": "book", "block": "book", "name": "Asha", "phone": "+91 9876500000",
+        "email": "new@example.com", "treatment": "PRP", "date": "2026-10-30", "time": "11:15",
+    }  # fmt: skip
+
+
+def test_change_date_asks_the_time_again_when_it_is_not_free_that_day() -> None:
+    free = {"in_clinic": {"2026-10-29": ["11:00"], "2026-10-30": ["12:00"]}, "online": {}}
+    chat = booking_chat(["name", "date", "time"], free)
+    chat("book")
+    chat("Asha")
+    chat(tap="2026-10-29")
+    chat(tap="11:00")
+    chat(tap="change")
+    chat(tap="Date")
+    said = chat(tap="2026-10-30")
+    assert said == ["11:00 AM is not free on Fri 30 Oct.", "What time would you prefer?"]
+    assert chat.labels() == ["12:00 PM", "Any time"]
+    assert "Date: Fri 30 Oct\nTime: 12:00 PM" in chat(tap="12:00")[0]
+    chat(tap="yes")
+    assert chat.r["lead"]["date"] == "2026-10-30" and chat.r["lead"]["time"] == "12:00"
+
+
+def test_change_details_typed_replies() -> None:
+    chat = booking_chat(["name", "phone", "email"])
+    for answer in ("book", "Asha", "9876543210", "asha@example.com"):
+        chat(answer)
+    chat("change details")
+    assert chat("emal") == ["What is your email address?"]  # a typo
+    chat("new@example.com")
+    chat("change details")
+    assert chat("my phone number please") == ["What is your contact number?"]  # named in a sentence
+    chat("9876500000")
+    chat("change details")
+    assert chat("my date of birth") == ["Please choose which details to change."]  # not one of them
+    assert chat("name and email") == ["Please choose which details to change."]  # two: asks which
+    assert chat.labels() == ["Name", "Contact number", "Email"]
+    assert chat("no")[0].startswith("Please check your details:")  # nothing to change after all
+    assert chat.labels() == ["Yes, that's correct", "Change details"]
+
+
+def test_change_details_never_offers_a_fixed_treatment_and_still_finishes() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "treatment"], "treatment": "FUE"}}
+    chat = Chat({"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]})
+    chat("book")
+    chat("Asha")
+    chat(tap="change")
+    assert chat.labels() == ["Name"]
+    chat(tap="Name")
+    chat("Asha Rao")
+    chat(tap="yes")
+    assert chat.r["lead"]["treatment"] == "FUE" and chat.r["lead"]["name"] == "Asha Rao"
+
+
+def test_change_details_treatment_with_techniques_asks_which_exactly() -> None:
+    c = ctx(booking_options=["FUE", "Non-Surgical"], techniques={"Non-Surgical": ["PRP", "GFC"]})
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "treatment"]}}
+    chat = Chat({"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]}, c)
+    chat("book")
+    chat("Asha")
+    chat(tap="FUE")
+    chat(tap="change")
+    chat(tap="Treatment")
+    assert chat(tap="Non-Surgical") == ["Which treatment exactly?"]
+    assert "Treatment: GFC" in chat(tap="GFC")[0]
+    assert chat.labels() == ["Yes, that's correct", "Change details"]
