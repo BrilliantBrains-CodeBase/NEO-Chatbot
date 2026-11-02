@@ -83,6 +83,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "unanswered",
+    off: true,
     icon: "help",
     label: "Unanswered questions",
     group: "Bot quality",
@@ -91,6 +92,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "chats",
+    off: true,
     icon: "req",
     label: "Chat transcripts",
     group: "Bot quality",
@@ -99,6 +101,7 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "quality",
+    off: true,
     icon: "check",
     label: "Test & quality",
     group: "Bot quality",
