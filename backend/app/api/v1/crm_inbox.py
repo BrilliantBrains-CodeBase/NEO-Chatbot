@@ -7,10 +7,21 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
-from app.api.v1.crm import Count, Option, _event, can_edit, can_see
+from app.api.v1.crm import (
+    Count,
+    Option,
+    _event,
+    bulk_access,
+    can_edit,
+    can_see,
+    cell,
+    csv_file,
+    export_phone,
+    plain_text,
+)
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.chat.leads import slot_length
@@ -54,12 +65,15 @@ class InboxItem(BaseModel):
 
 
 class Inbox(BaseModel):
-    pending: list[Count]  # pending requests per type, for the tabs, the menu and the bell
+    pending: list[Count]  # pending requests per type, for the tabs, the menu and the bell (never filtered)
     items: list[InboxItem]
+    treatments: list[str] = []  # every treatment this clinic's requests have, for the filter
 
 
 SELECT = """select r.id, r.type, r.status, r.created_at, r.data, r.match_status, r.clinic_id, r.lead_id,
-    l.lead_code, l.full_name, l.phone_e164, l.email, a.id a_id, lower(a.slot) a_start,
+    l.lead_code, l.full_name, l.phone_e164, l.phone_cc, l.email, a.id a_id, lower(a.slot) a_start,
+    to_char(lower(a.slot) at time zone c.timezone, 'HH24:MI') a_time,
+    to_char(r.created_at at time zone c.timezone, 'YYYY-MM-DD HH24:MI') received,
     coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) a_day, d.name a_doctor,
     a.type a_type, a.status a_status, a.doctor_id a_doctor_id, a.meet_link a_meet,
     a.calendar_event_id a_cal
@@ -97,6 +111,77 @@ def _item(r: asyncpg.Record) -> InboxItem:
     )  # fmt: skip
 
 
+# The day a request is about: the day asked for, the booked day (a cancellation), else the day it came in.
+REQUEST_DAY = """coalesce(nullif(r.data->>'date', ''), nullif(r.data->>'booked_date', ''),
+    to_char(r.created_at at time zone c.timezone, 'YYYY-MM-DD'))"""
+
+
+def _inbox_filter(
+    clinic: str,
+    type_: str | None,
+    done: bool,
+    q: str,
+    date_from: date | None,
+    date_to: date | None,
+    treatment: str | None,
+) -> tuple[str, list[Any]]:
+    """The Inbox filters, shared by the list and the export. `q` matches the patient's name (the lead's or the
+    one typed in this request), phone (spaces and dashes ignored), treatment, email or lead code."""
+    where = f"""r.clinic_id = $1 and ($2::text is null or r.type = $2)
+        and {"r.status <> 'pending'" if done else "r.status = 'pending'"}
+        and ($3 = '' or l.full_name ilike '%'||$3||'%' or r.data->>'name' ilike '%'||$3||'%'
+          or l.phone_e164 like '%'||nullif(regexp_replace($3, '[\\s-]', '', 'g'), '')||'%'
+          or r.data->>'treatment' ilike '%'||$3||'%' or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)
+        and ($4::text is null or {REQUEST_DAY} >= $4) and ($5::text is null or {REQUEST_DAY} <= $5)
+        and ($6::text is null or r.data->>'treatment' = $6)"""
+    days = [d.isoformat() if d else None for d in (date_from, date_to)]
+    return where, [clinic, type_, plain_text(q), *days, treatment]
+
+
+RequestType = Literal["book", "online", "cancel", "reschedule", "callback", "question"]
+REQUEST_LABEL = {
+    "book": "Booking request", "online": "Online consult", "cancel": "Cancellation",
+    "reschedule": "Reschedule", "callback": "Callback", "question": "Question",
+}  # fmt: skip
+EXPORT_COLUMNS = ["Code", "Name", "Phone", "Email", "Type", "Treatment", "Asked date", "Asked time",
+                  "Booked date", "Reason", "Appointment date", "Appointment time", "Doctor",
+                  "Appointment type",
+                  "Appointment status", "Status", "Received"]  # fmt: skip
+
+
+@router.get("/inbox/export")
+async def export_inbox(
+    user: Annotated[Staff, Depends(staff)],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    type: Annotated[RequestType | None, Query()] = None,
+    done: bool = False,
+    q: Annotated[str, Query(max_length=100)] = "",
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    treatment: Annotated[str | None, Query(max_length=200)] = None,
+) -> Response:
+    """Every request matching the Inbox filters (no 100-row limit), as a CSV for Excel."""
+    bulk_access(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
+    where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment)
+    rows = await (await get_pool()).fetch(
+        f"{SELECT} where {where} order by r.created_at {'desc' if done else 'asc'}", *args
+    )
+    out: list[list[object]] = []
+    for r in rows:
+        i = _item(r)
+        a = i.appointment
+        out.append([
+            i.lead_code, cell(i.name), export_phone(r["phone_e164"], r["phone_cc"]), cell(i.email),
+            REQUEST_LABEL.get(i.type, i.type), cell(i.treatment), cell(i.date),
+            "Any time" if i.time == "any" else cell(i.time), cell(i.booked_date), cell(i.reason),
+            a.day if a else "", r["a_time"] or "", cell(a.doctor) if a else "",
+            {"online": "Online", "in_clinic": "In-clinic"}.get(a.type, a.type) if a else "",
+            a.status if a else "", i.status, r["received"],
+        ])  # fmt: skip
+    return csv_file(f"inbox-{clinic}", EXPORT_COLUMNS, out)
+
+
 @router.get("/inbox", response_model=Inbox)
 async def inbox(
     user: Annotated[Staff, Depends(staff)],
@@ -105,8 +190,14 @@ async def inbox(
         Literal["book", "online", "cancel", "reschedule", "callback", "question"] | None, Query()
     ] = None,
     done: bool = False,
+    q: Annotated[str, Query(max_length=100)] = "",
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    treatment: Annotated[str | None, Query(max_length=200)] = None,
 ) -> Inbox:
-    """Pending requests (oldest first, so nobody waits longest), or the latest 100 handled ones."""
+    """Pending requests (oldest first, so nobody waits longest), or the latest 100 handled ones. The filters
+    narrow the list only: the tabs' counts stay every pending request. `from` and `to` (days, both included)
+    keep requests by the day asked for (the booked day for a cancellation, else the day it came in)."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
     pool = await get_pool()
@@ -119,14 +210,19 @@ async def inbox(
                 clinic,
             )
         }
+        where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment)
         rows = await conn.fetch(
-            f"""{SELECT} where r.clinic_id = $1 and ($2::text is null or r.type = $2)
-                and {"r.status <> 'pending'" if done else "r.status = 'pending'"}
-                order by r.created_at {"desc" if done else "asc"} limit 100""",
-            clinic, type,
-        )  # fmt: skip
+            f"{SELECT} where {where} order by r.created_at {'desc' if done else 'asc'} limit 100", *args
+        )
+        treatments = await conn.fetch(
+            """select distinct data->>'treatment' from app.requests
+               where clinic_id = $1 and nullif(data->>'treatment', '') is not null order by 1""",
+            clinic,
+        )
     return Inbox(
-        pending=[Count(key=t, count=counts.get(t, 0)) for t in TYPES], items=[_item(r) for r in rows]
+        pending=[Count(key=t, count=counts.get(t, 0)) for t in TYPES],
+        items=[_item(r) for r in rows],
+        treatments=[r[0] for r in treatments],
     )
 
 

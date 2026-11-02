@@ -238,7 +238,11 @@ export type InboxItem = {
     meet_link: string | null;
   } | null;
 };
-export type Inbox = { pending: Count[]; items: InboxItem[] };
+export type Inbox = {
+  pending: Count[];
+  items: InboxItem[];
+  treatments?: string[];
+};
 
 /** Inbox tabs, in the menu's order. */
 export const INBOX_TABS: [string, string][] = [

@@ -290,6 +290,11 @@ def lead_row(r: Record) -> dict[str, object]:
     }  # fmt: skip
 
 
+def plain_text(q: str) -> str:
+    """What staff typed, searched as plain text: % and _ are not wildcards, a backslash is no escape."""
+    return q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _lead_filter(
     clinic: str,
     source: str | None,
@@ -306,9 +311,7 @@ def _lead_filter(
     where += f" and ($4::date is null or (l.created_at at time zone '{TZ}')::date >= $4)"
     where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
     where += " and ($6::text is null or l.treatment = $6)"
-    # What staff typed is searched as plain text: % and _ are not wildcards, a backslash is no escape.
-    text = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return where, [clinic, source, text, date_from, date_to, treatment]
+    return where, [clinic, source, plain_text(q), date_from, date_to, treatment]
 
 
 # The newest lead first; imported leads share one moment, so the code keeps the pages in a fixed order.
@@ -372,13 +375,13 @@ EXPORT_COLUMNS = ["Code", "Name", "Phone", "Email", "Treatment", "Source", "Camp
                   "Assigned", "Created", "Last contact"]  # fmt: skip
 
 
-def _cell(value: object) -> str:
+def cell(value: object) -> str:
     """A spreadsheet runs a cell starting with = + - or @ as a formula: patients' typed text stays text."""
     text = "" if value is None else str(value)
     return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
 
 
-def _export_phone(e164: str | None, cc: str | None) -> str:
+def export_phone(e164: str | None, cc: str | None) -> str:
     """With a space after the country code: Excel keeps it as text instead of showing 9.19E+11."""
     if not e164:
         return ""
@@ -393,22 +396,29 @@ EXPORT_SELECT = LEAD_SELECT.replace(
 )
 
 
-def _csv_file(clinic: str, rows: list[Record]) -> Response:
+def csv_file(name: str, columns: list[str], rows: list[list[object]]) -> Response:
+    """A CSV download for Excel. Cells that hold typed text go through cell first."""
     out = io.StringIO()
     sheet = csv.writer(out)
-    sheet.writerow(EXPORT_COLUMNS)
-    for r in rows:
-        sheet.writerow([
-            r["lead_code"], _cell(r["full_name"]), _export_phone(r["phone_e164"], r["phone_cc"]),
-            _cell(r["email"]), _cell(r["treatment"]), SOURCE_LABEL.get(r["source"], r["source"]),
-            _cell(r["campaign"]), _cell(r["doctor"]), r["stage"], _cell(r["assigned"]), r["created"],
-            r["contacted"],
-        ])  # fmt: skip
+    sheet.writerow(columns)
+    sheet.writerows(rows)
     return Response(
         "\ufeff" + out.getvalue(),  # the mark tells Excel the file is UTF-8
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="leads-{clinic}.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{name}.csv"'},
     )
+
+
+def _csv_file(clinic: str, rows: list[Record]) -> Response:
+    return csv_file(f"leads-{clinic}", EXPORT_COLUMNS, [
+        [
+            r["lead_code"], cell(r["full_name"]), export_phone(r["phone_e164"], r["phone_cc"]),
+            cell(r["email"]), cell(r["treatment"]), SOURCE_LABEL.get(r["source"], r["source"]),
+            cell(r["campaign"]), cell(r["doctor"]), r["stage"], cell(r["assigned"]), r["created"],
+            r["contacted"],
+        ]
+        for r in rows
+    ])  # fmt: skip
 
 
 class ExportPicked(BaseModel):
@@ -830,7 +840,7 @@ async def import_leads(user: Annotated[Staff, Depends(staff)], body: LeadImport)
             for r in saved
         ])  # fmt: skip
         whatsapp.notify_each(body.clinic, "imported_lead", [
-            (_export_phone(r["phone_e164"], r["phone_cc"]),
+            (export_phone(r["phone_e164"], r["phone_cc"]),
              {"lead_code": r["lead_code"], "name": r["full_name"], "treatment": r["treatment"]})
             for r in saved
         ])  # fmt: skip

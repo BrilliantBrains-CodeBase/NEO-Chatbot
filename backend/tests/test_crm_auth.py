@@ -13,7 +13,7 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
-from app.api.v1.crm import _cell, _export_phone, _import_phone, bulk_access, initials
+from app.api.v1.crm import _import_phone, bulk_access, cell, export_phone, initials
 from app.core.config import get_settings
 from app.core.db import close_pool, get_pool
 from app.crm import auth, webhooks, whatsapp
@@ -226,9 +226,9 @@ def test_import_phone_reads_what_a_spreadsheet_holds() -> None:
 
 
 def test_export_cells_stay_text_in_a_spreadsheet() -> None:
-    assert _cell("=HYPERLINK(1)") == "'=HYPERLINK(1)" and _cell("@x") == "'@x" and _cell("-1") == "'-1"
-    assert _cell("Asha Rao") == "Asha Rao" and _cell(None) == ""
-    assert _export_phone("+919876543210", "+91") == "+91 9876543210" and _export_phone(None, None) == ""
+    assert cell("=HYPERLINK(1)") == "'=HYPERLINK(1)" and cell("@x") == "'@x" and cell("-1") == "'-1"
+    assert cell("Asha Rao") == "Asha Rao" and cell(None) == ""
+    assert export_phone("+919876543210", "+91") == "+91 9876543210" and export_phone(None, None) == ""
 
 
 @needs_db

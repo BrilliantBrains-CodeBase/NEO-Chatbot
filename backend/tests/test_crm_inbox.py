@@ -1,5 +1,8 @@
 """CRM Inbox: list, approve, reject and done, on a temporary lead in the test clinic (CL99)."""
 
+import csv
+import io
+import json
 from datetime import datetime
 
 import pytest
@@ -9,6 +12,89 @@ from app.core.db import get_pool
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
+
+
+@needs_db
+async def test_inbox_search_dates_treatment_and_export(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no BB Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    a = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Searchable Almas', '+919000007101', 'chatbot') returning id"""
+    )
+    b = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Other Person', '+919000007102', 'chatbot') returning id"""
+    )
+    made = [
+        (
+            a,
+            "book",
+            {"name": "Faz Family", "treatment": "ZZ Rare Treatment", "date": "2031-03-10", "time": "any"},
+        ),
+        (b, "book", {"treatment": "ZZ Other Treatment", "date": "2031-03-20", "time": "10:00"}),
+        (a, "cancel", {"booked_date": "2031-03-10", "treatment": "=Formula"}),
+    ]
+    try:
+        ids = [
+            str(
+                await pool.fetchval(
+                    "insert into app.requests (clinic_id, lead_id, type, data) "
+                    "values ('CL99', $1, $2, $3::jsonb) returning id",
+                    lead, kind, json.dumps(data),
+                )
+            )
+            for lead, kind, data in made
+        ]  # fmt: skip
+
+        async def found(**params: str) -> set[int]:
+            r = await api.get("/v1/crm/inbox", params={"clinic": "CL99", **params}, headers=headers)
+            assert r.status_code == 200
+            return {ids.index(i["id"]) for i in r.json()["items"] if i["id"] in ids}
+
+        assert await found() == {0, 1, 2}  # no filter: as the bell and menu read it
+        assert await found(q="almas") == {0, 2}  # the lead's name
+        assert await found(q="faz family") == {0}  # the name typed in this request
+        assert await found(q="+91 90000-07102") == {1}  # the phone, typed with a space and a dash
+        assert await found(q="zz rare") == {0}  # treatment
+        assert await found(type="cancel", q="almas") == {2}
+        assert await found(treatment="ZZ Other Treatment") == {1}
+        assert await found(**{"from": "2031-03-15"}) == {1}  # by the day asked for
+        assert await found(**{"from": "2031-03-10", "to": "2031-03-10"}) == {0, 2}  # the booked day too
+        assert await found(**{"to": "2020-01-01"}) == set()
+        for odd in ("-", "%", "_", "\\"):
+            assert await found(q=odd) == set(), odd  # plain text, and never an error
+        assert await found(q="almas", done="true") == set()  # none of them handled yet
+
+        r = await api.get("/v1/crm/inbox", params={"clinic": "CL99"}, headers=headers)
+        assert "ZZ Rare Treatment" in r.json()["treatments"]
+        counted = {c["key"]: c["count"] for c in r.json()["pending"]}
+        narrowed = await api.get("/v1/crm/inbox", params={"clinic": "CL99", "q": "almas"}, headers=headers)
+        assert {
+            c["key"]: c["count"] for c in narrowed.json()["pending"]
+        } == counted  # the tabs stay the total
+
+        file = await api.get("/v1/crm/inbox/export", params={"clinic": "CL99", "q": "almas"}, headers=headers)
+        assert file.status_code == 200 and file.headers["content-type"].startswith("text/csv")
+        rows = list(csv.DictReader(io.StringIO(file.text.lstrip("\ufeff"))))
+        assert len(rows) == 2 and {r["Type"] for r in rows} == {"Booking request", "Cancellation"}
+        booked = next(r for r in rows if r["Type"] == "Booking request")
+        assert booked["Phone"] == "+919000007101" or booked["Phone"] == "+91 9000007101"
+        assert booked["Asked date"] == "2031-03-10" and booked["Asked time"] == "Any time"
+        assert "Faz Family" in booked["Name"]
+        cancel = next(r for r in rows if r["Type"] == "Cancellation")
+        assert cancel["Booked date"] == "2031-03-10" and cancel["Treatment"] == "'=Formula"
+    finally:
+        await pool.execute("delete from app.requests where lead_id = any($1::uuid[])", [a, b])
+        await pool.execute("delete from app.lead_events where lead_id = any($1::uuid[])", [a, b])
+        await pool.execute("delete from app.leads where id = any($1::uuid[])", [a, b])
 
 
 @needs_db

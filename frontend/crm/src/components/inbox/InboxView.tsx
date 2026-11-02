@@ -5,10 +5,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
+import Icon from "@/components/crm/Icon";
+import { useDebounced } from "@/components/leads/LeadsView";
 import {
   api,
+  apiBlob,
   ApiError,
   INBOX_TABS,
+  saveFile,
   type Inbox,
   type InboxItem,
   type LeadOptions,
@@ -87,7 +91,28 @@ export default function InboxView() {
   const tab = INBOX_TABS.some(([k]) => k === asked_tab) ? asked_tab : "book";
   const [handled, setHandled] = useState(false);
   const [version, setVersion] = useState(0);
-  const key = `${clinicId}|${tab}|${handled}|${version}`;
+  const [search, setSearch] = useState("");
+  const q = useDebounced(search.trim());
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [treatment, setTreatment] = useState("");
+  const clearFilters = () => {
+    setSearch("");
+    setFrom("");
+    setTo("");
+    setTreatment("");
+  };
+  const filtering = !!(search.trim() || q || from || to || treatment);
+  const filter = new URLSearchParams();
+  if (q) filter.set("q", q);
+  if (from) filter.set("from", from);
+  if (to) filter.set("to", to);
+  if (treatment) filter.set("treatment", treatment);
+  const filterQuery = filter.toString();
+  const shownQuery = `clinic=${clinicId}&type=${tab}${handled ? "&done=true" : ""}&${filterQuery}`;
+  const [exporting, setExporting] = useState(false);
+  const canExport = !!clinicId && (me?.bb_admin || role === "clinic_manager");
+  const key = `${clinicId}|${tab}|${handled}|${filterQuery}|${version}`;
   const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({
     key: "",
   });
@@ -107,9 +132,7 @@ export default function InboxView() {
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
-    api<Inbox>(
-      `/v1/crm/inbox?clinic=${clinicId}&type=${tab}${handled ? "&done=true" : ""}`,
-    ).then(
+    api<Inbox>(`/v1/crm/inbox?${shownQuery}`).then(
       (d) => live && setList({ key, d }),
       (e) =>
         live &&
@@ -122,7 +145,7 @@ export default function InboxView() {
     return () => {
       live = false;
     };
-  }, [clinicId, tab, handled, key]);
+  }, [clinicId, shownQuery, key]);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -134,7 +157,28 @@ export default function InboxView() {
 
   const d = list.key === key ? list.d : undefined;
   const item = d?.items.find((i) => i.id === openId);
-  const canAct = !!role && level(me, clinic, "inbox") === "edit" && item?.status === "pending";
+  // A request opened from a notification must not be hidden by a search left on.
+  if (d && openId && !item && filtering) clearFilters();
+
+  async function exportInbox() {
+    setExporting(true);
+    try {
+      const file = await apiBlob(`/v1/crm/inbox/export?${shownQuery}`);
+      saveFile(
+        file,
+        `inbox-${clinicId}-${tab}-${new Date().toLocaleDateString("en-CA")}.csv`,
+      );
+      toast("Inbox exported");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not export the Inbox.");
+    } finally {
+      setExporting(false);
+    }
+  }
+  const canAct =
+    !!role &&
+    level(me, clinic, "inbox") === "edit" &&
+    item?.status === "pending";
   // An online consult for "Any time" needs the time agreed with the patient before Cal.com can book it.
   // An online consult needs an exact time for Cal.com: a request for "Any time" (new booking or reschedule)
   // opens the time picker.
@@ -191,19 +235,31 @@ export default function InboxView() {
             back patients.
           </p>
         </div>
-        <div className="seg">
-          <button
-            className={handled ? "" : "on"}
-            onClick={() => setHandled(false)}
-          >
-            Pending
-          </button>
-          <button
-            className={handled ? "on" : ""}
-            onClick={() => setHandled(true)}
-          >
-            Handled
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canExport && (
+            <button
+              className="btn g"
+              disabled={exporting}
+              onClick={exportInbox}
+            >
+              <Icon name="download" />
+              {exporting ? "Exporting…" : "Export"}
+            </button>
+          )}
+          <div className="seg">
+            <button
+              className={handled ? "" : "on"}
+              onClick={() => setHandled(false)}
+            >
+              Pending
+            </button>
+            <button
+              className={handled ? "on" : ""}
+              onClick={() => setHandled(true)}
+            >
+              Handled
+            </button>
+          </div>
         </div>
       </div>
       <div className="tabs">
@@ -219,6 +275,55 @@ export default function InboxView() {
             </span>
           </button>
         ))}
+      </div>
+      <div className="tools">
+        <label className="search">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, phone, treatment, email or code"
+          />
+        </label>
+        <input
+          className="sel"
+          type="date"
+          aria-label="From"
+          title="Date asked for"
+          value={from}
+          max={to || undefined}
+          onChange={(e) => setFrom(e.target.value)}
+        />
+        <span className="sub2">to</span>
+        <input
+          className="sel"
+          type="date"
+          aria-label="To"
+          title="Date asked for"
+          value={to}
+          min={from || undefined}
+          onChange={(e) => setTo(e.target.value)}
+        />
+        <select
+          className="sel"
+          value={treatment}
+          onChange={(e) => setTreatment(e.target.value)}
+          aria-label="Treatment"
+        >
+          <option value="">All treatments</option>
+          {d?.treatments?.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+          {treatment && d && !d.treatments?.includes(treatment) && (
+            <option value={treatment}>{treatment}</option>
+          )}
+        </select>
+        {filtering && (
+          <button type="button" className="btn g sm" onClick={clearFilters}>
+            Clear
+          </button>
+        )}
       </div>
       {list.key === key && list.error && (
         <div className="warnbox">{list.error}</div>
@@ -248,9 +353,11 @@ export default function InboxView() {
             {d && !d.items.length && (
               <tr>
                 <td colSpan={6}>
-                  {handled
-                    ? "Nothing handled yet."
-                    : "Nothing waiting. All done."}
+                  {filtering
+                    ? "No requests match."
+                    : handled
+                      ? "Nothing handled yet."
+                      : "Nothing waiting. All done."}
                 </td>
               </tr>
             )}

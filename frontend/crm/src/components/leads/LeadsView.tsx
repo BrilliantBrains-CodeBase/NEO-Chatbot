@@ -26,7 +26,7 @@ const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the brows
 const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could not load leads.");
 
-function useDebounced(value: string, ms = 300) {
+export function useDebounced(value: string, ms = 300) {
   const [v, setV] = useState(value);
   useEffect(() => {
     const t = setTimeout(() => setV(value), ms);
