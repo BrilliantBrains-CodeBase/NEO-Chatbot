@@ -1,20 +1,23 @@
 """CRM API (JSON only). Every route needs a signed-in staff member (app.crm.auth.staff)."""
 
+import csv
+import io
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import date
 from typing import Annotated, Any, Literal
 
 from asyncpg import Connection, Record
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.chat.content import content
 from app.chat.flows import EMAIL, normal_phone
 from app.core.db import get_pool
 from app.crm import permissions as perm
-from app.crm import webhooks
+from app.crm import webhooks, whatsapp
 from app.crm.auth import ROLE_LABEL, Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
@@ -242,6 +245,7 @@ class LeadList(BaseModel):
     total: int  # matching the filters
     stages: list[Count]  # every stage, for the tabs (search and source applied, stage not)
     items: list[LeadRow]
+    treatments: list[str] = []  # every treatment this clinic's leads have, for the filter
 
 
 class LeadEvent(BaseModel):
@@ -286,6 +290,31 @@ def lead_row(r: Record) -> dict[str, object]:
     }  # fmt: skip
 
 
+def _lead_filter(
+    clinic: str,
+    source: str | None,
+    q: str,
+    date_from: date | None,
+    date_to: date | None,
+    treatment: str | None,
+) -> tuple[str, list[Any]]:
+    """The Leads filters, shared by the list and the export."""
+    where = "l.clinic_id = $1 and l.deleted_at is null and ($2::text is null or l.source = $2)"
+    where += " and ($3 = '' or l.full_name ilike '%'||$3||'%'"
+    where += " or l.phone_e164 like '%'||nullif(regexp_replace($3, '[\\s-]', '', 'g'), '')||'%'"
+    where += " or l.treatment ilike '%'||$3||'%' or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)"
+    where += f" and ($4::date is null or (l.created_at at time zone '{TZ}')::date >= $4)"
+    where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
+    where += " and ($6::text is null or l.treatment = $6)"
+    # What staff typed is searched as plain text: % and _ are not wildcards, a backslash is no escape.
+    text = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return where, [clinic, source, text, date_from, date_to, treatment]
+
+
+# The newest lead first; imported leads share one moment, so the code keeps the pages in a fixed order.
+LEAD_ORDER = "order by l.created_at desc, l.lead_code desc"
+
+
 @router.get("/leads", response_model=LeadList)
 async def leads(
     user: Annotated[Staff, Depends(staff)],
@@ -297,32 +326,128 @@ async def leads(
     offset: Annotated[int, Query(ge=0)] = 0,
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
+    treatment: Annotated[str | None, Query(max_length=200)] = None,
 ) -> LeadList:
-    """Leads of one clinic, newest contact first. `q` matches name, phone, email or lead code; `from` and
-    `to` (days in clinic time, both included) keep leads created in that range."""
+    """Leads of one clinic, newest first. `q` matches name, phone (spaces and dashes ignored),
+    treatment, email or lead code; `from` and `to` (days in clinic time, both included) keep leads created in
+    that range; `treatment` keeps leads of exactly that treatment."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
-    where = "l.clinic_id = $1 and l.deleted_at is null and ($2::text is null or l.source = $2)"
-    where += " and ($3 = '' or l.full_name ilike '%'||$3||'%' or l.phone_e164 like '%'||$3||'%'"
-    where += " or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)"
-    where += f" and ($4::date is null or (l.created_at at time zone '{TZ}')::date >= $4)"
-    where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
-    args = [clinic, source, q.strip(), date_from, date_to]
+    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment)
     pool = await get_pool()
     async with pool.acquire() as conn:
         counts = {r[0]: r[1] for r in await conn.fetch(
             f"select l.stage, count(*) from app.leads l where {where} group by 1", *args
         )}  # fmt: skip
         rows = await conn.fetch(
-            f"""{LEAD_SELECT} where {where} and ($6::text is null or l.stage = $6)
-                order by l.last_contact_at desc limit $7 offset $8""",
+            f"""{LEAD_SELECT} where {where} and ($7::text is null or l.stage = $7)
+                {LEAD_ORDER} limit $8 offset $9""",
             *args, stage, limit, offset,
         )  # fmt: skip
+        treatments = await conn.fetch(
+            """select distinct treatment from app.leads
+               where clinic_id = $1 and deleted_at is null and treatment is not null order by 1""",
+            clinic,
+        )
     return LeadList(
         total=counts.get(stage, 0) if stage else sum(counts.values()),
         stages=[Count(key=s, count=counts.get(s, 0)) for s in STAGES],
         items=[LeadRow.model_validate(lead_row(r)) for r in rows],
+        treatments=[r[0] for r in treatments],
     )
+
+
+def bulk_access(user: Staff, clinic: str) -> None:
+    """Export and import move many patients' details at once: BB Admin and clinic managers only."""
+    can_see(user, clinic)
+    if not user.bb_admin and user.roles.get(clinic) != "clinic_manager":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a clinic manager can export or import leads.")
+
+
+SOURCE_LABEL = {
+    "chatbot": "Chatbot", "meta_ads": "Meta Ads", "google_ads": "Google Ads", "manual": "Manual",
+    "whatsapp": "WhatsApp", "website_form": "Website form",
+}  # fmt: skip
+EXPORT_COLUMNS = ["Code", "Name", "Phone", "Email", "Treatment", "Source", "Campaign", "Doctor", "Stage",
+                  "Assigned", "Created", "Last contact"]  # fmt: skip
+
+
+def _cell(value: object) -> str:
+    """A spreadsheet runs a cell starting with = + - or @ as a formula: patients' typed text stays text."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def _export_phone(e164: str | None, cc: str | None) -> str:
+    """With a space after the country code: Excel keeps it as text instead of showing 9.19E+11."""
+    if not e164:
+        return ""
+    return f"{cc} {e164[len(cc) :]}" if cc and e164.startswith(cc) else e164
+
+
+# The columns the export needs on top of the list's.
+EXPORT_SELECT = LEAD_SELECT.replace(
+    "l.created_at",
+    f"l.phone_cc, to_char(l.created_at at time zone '{TZ}', 'YYYY-MM-DD HH24:MI') created,"
+    f" to_char(l.last_contact_at at time zone '{TZ}', 'YYYY-MM-DD HH24:MI') contacted",
+)
+
+
+def _csv_file(clinic: str, rows: list[Record]) -> Response:
+    out = io.StringIO()
+    sheet = csv.writer(out)
+    sheet.writerow(EXPORT_COLUMNS)
+    for r in rows:
+        sheet.writerow([
+            r["lead_code"], _cell(r["full_name"]), _export_phone(r["phone_e164"], r["phone_cc"]),
+            _cell(r["email"]), _cell(r["treatment"]), SOURCE_LABEL.get(r["source"], r["source"]),
+            _cell(r["campaign"]), _cell(r["doctor"]), r["stage"], _cell(r["assigned"]), r["created"],
+            r["contacted"],
+        ])  # fmt: skip
+    return Response(
+        "\ufeff" + out.getvalue(),  # the mark tells Excel the file is UTF-8
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="leads-{clinic}.csv"'},
+    )
+
+
+class ExportPicked(BaseModel):
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    codes: list[str] = Field(min_length=1, max_length=5000)
+
+
+@router.post("/leads/export")
+async def export_picked_leads(user: Annotated[Staff, Depends(staff)], body: ExportPicked) -> Response:
+    """The leads ticked on the Leads screen, as a CSV (a lead of another clinic is never included)."""
+    bulk_access(user, body.clinic)
+    await perm.require(await get_pool(), user, body.clinic, "leads", "view")  # Who sees what
+    rows = await (await get_pool()).fetch(
+        f"""{EXPORT_SELECT} where l.clinic_id = $1 and l.deleted_at is null and l.lead_code = any($2::text[])
+            {LEAD_ORDER}""",
+        body.clinic, body.codes,
+    )  # fmt: skip
+    return _csv_file(body.clinic, rows)
+
+
+@router.get("/leads/export")
+async def export_leads(
+    user: Annotated[Staff, Depends(staff)],
+    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,
+    source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
+    q: Annotated[str, Query(max_length=100)] = "",
+    date_from: Annotated[date | None, Query(alias="from")] = None,
+    date_to: Annotated[date | None, Query(alias="to")] = None,
+    treatment: Annotated[str | None, Query(max_length=200)] = None,
+) -> Response:
+    """Every lead matching the Leads filters (all pages), as a CSV for Excel."""
+    bulk_access(user, clinic)
+    await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
+    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment)
+    rows = await (await get_pool()).fetch(
+        f"{EXPORT_SELECT} where {where} and ($7::text is null or l.stage = $7) {LEAD_ORDER}", *args, stage
+    )
+    return _csv_file(clinic, rows)
 
 
 @router.get("/leads/{code}", response_model=LeadDetail)
@@ -581,3 +706,132 @@ async def add_lead(user: Annotated[Staff, Depends(staff)], body: NewLead) -> Lea
         "treatment": body.treatment or None, "campaign": body.campaign or None, "source": body.source,
     })  # fmt: skip
     return await lead_detail(user, r["lead_code"])
+
+
+class ImportRow(BaseModel):
+    row: int = Field(ge=1)  # its line in the file, for the report
+    name: str = Field(default="", max_length=500)
+    phone: str = Field(default="", max_length=500)
+    email: str = Field(default="", max_length=500)
+    treatment: str = Field(default="", max_length=500)
+    campaign: str = Field(default="", max_length=500)
+    source: str = Field(default="", max_length=500)
+
+
+class LeadImport(BaseModel):
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    rows: list[ImportRow] = Field(min_length=1, max_length=2000)
+    confirm: bool = False  # False: only checks the rows and saves nothing
+
+
+class ImportNote(BaseModel):
+    row: int
+    name: str
+    reason: str
+
+
+class LeadImportResult(BaseModel):
+    ready: int  # new leads in the file
+    added: int  # saved (0 until confirmed)
+    duplicates: list[ImportNote]  # reason: the existing lead's code, or the line that has the same number
+    invalid: list[ImportNote]
+
+
+def _import_phone(text: str) -> str | None:
+    """A number as a spreadsheet may hold it: +91 98765 43210, +919876543210, 919876543210, 09876543210, or
+    another country's as "+971 501234567" (without the space its country code cannot be told)."""
+    m = re.fullmatch(r"\s*(\+[1-9]\d{0,3})[\s-]+(.+)", text)
+    if m:
+        return normal_phone(m[2], m[1])
+    digits = re.sub(r"[\s()\-]", "", text)
+    digits = re.sub(r"^(\+91|91(?=\d{10}$)|0(?=\d{10}$))", "", digits)
+    return normal_phone(digits, "+91")
+
+
+@router.post("/leads/import", response_model=LeadImportResult)
+async def import_leads(user: Annotated[Staff, Depends(staff)], body: LeadImport) -> LeadImportResult:
+    """Leads from a CSV (the CRM reads the file and sends its rows). A number already in the clinic, or twice
+    in the file, is skipped, and a row with a problem is reported; the others are saved only with `confirm`.
+    Each lead saved then gets the lead_new webhook and the clinic's "Imported lead" WhatsApp template (when
+    one is on), one after another in the background. Skipped numbers get nothing, so importing the same file
+    again messages nobody twice."""
+    bulk_access(user, body.clinic)
+    await perm.require(await get_pool(), user, body.clinic, "leads", "edit")  # Who sees what
+    invalid: list[ImportNote] = []
+    duplicates: list[ImportNote] = []
+    new: dict[str, tuple[ImportRow, str, str, str | None, str]] = {}  # by phone
+    for r in body.rows:
+        name = " ".join(r.name.split())
+        email = r.email.strip().lower() or None
+        phone = _import_phone(r.phone)
+        reason = (
+            "Name is missing or too short." if not 2 <= len(name) <= 100
+            else "Phone is not a valid mobile number." if not phone
+            else "Email is not valid." if email and (len(email) > 200 or not EMAIL.match(email))
+            else "Treatment is too long." if len(r.treatment.strip()) > 100
+            else "Campaign is too long." if len(r.campaign.strip()) > 100
+            else ""
+        )  # fmt: skip
+        if reason or not phone:
+            invalid.append(ImportNote(row=r.row, name=name[:100], reason=reason))
+            continue
+        cc, number = phone.split(" ", 1)
+        e164 = cc + number
+        if e164 in new:
+            duplicates.append(
+                ImportNote(row=r.row, name=name, reason=f"same number as line {new[e164][0].row}")
+            )
+            continue
+        new[e164] = (r, name, cc, email, r.source.strip().lower().replace(" ", "_"))
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        known = await conn.fetch(
+            """select phone_e164, lead_code from app.leads
+               where clinic_id = $1 and deleted_at is null and phone_e164 = any($2::text[])""",
+            body.clinic, list(new),
+        )  # fmt: skip
+        for k in known:
+            r, name, *_ = new.pop(k["phone_e164"])
+            duplicates.append(ImportNote(row=r.row, name=name, reason=k["lead_code"]))
+        saved: list[Record] = []
+        if body.confirm and new:
+            items = list(new.items())
+            saved = await conn.fetch(
+                """insert into app.leads (clinic_id, full_name, phone_e164, phone_cc, email, source, campaign,
+                     treatment)
+                   select $1, n, p, c, e, s, nullif(g, ''), nullif(t, '')
+                   from unnest($2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
+                     $8::text[])
+                     as x(n, p, c, e, s, g, t)
+                   on conflict do nothing
+                   returning id, lead_code, full_name, phone_e164, phone_cc, email, source, campaign,
+                     treatment""",
+                body.clinic,
+                [v[1] for _, v in items],
+                [e164 for e164, _ in items],
+                [v[2] for _, v in items],
+                [v[3] for _, v in items],
+                [v[4] if v[4] in SOURCE_LABEL else "manual" for _, v in items],
+                [v[0].campaign.strip() for _, v in items],
+                [v[0].treatment.strip() for _, v in items],
+            )
+            await conn.execute(
+                """insert into app.lead_events (clinic_id, lead_id, kind, data, actor)
+                   select $1, id, 'contact', '{"by_staff": true, "imported": true}'::jsonb, $3::uuid
+                   from unnest($2::uuid[]) as x(id)""",
+                body.clinic, [r["id"] for r in saved], user.id,
+            )  # fmt: skip
+    if saved:  # after the save, so nobody hears about a lead that was not kept
+        webhooks.emit_each(body.clinic, "lead_new", [
+            {"lead_code": r["lead_code"], "name": r["full_name"], "phone": r["phone_e164"],
+             "email": r["email"], "treatment": r["treatment"], "campaign": r["campaign"],
+             "source": r["source"]}
+            for r in saved
+        ])  # fmt: skip
+        whatsapp.notify_each(body.clinic, "imported_lead", [
+            (_export_phone(r["phone_e164"], r["phone_cc"]),
+             {"lead_code": r["lead_code"], "name": r["full_name"], "treatment": r["treatment"]})
+            for r in saved
+        ])  # fmt: skip
+    return LeadImportResult(ready=len(new), added=len(saved), duplicates=duplicates, invalid=invalid)

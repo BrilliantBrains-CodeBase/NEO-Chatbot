@@ -105,6 +105,21 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </button>
         </div>
       )}
+      {!inConsole && (
+        <label className="search hide-m">
+          <Icon name="search" />
+          <input
+            placeholder="Search name, phone or treatment"
+            aria-label="Search leads by name, phone or treatment"
+            onKeyDown={(e) => {
+              if (e.key === "Enter")
+                router.push(
+                  `/leads?q=${encodeURIComponent(e.currentTarget.value.trim())}`,
+                );
+            }}
+          />
+        </label>
+      )}
       <div id="tb-slot" className="tb-slot" />
       <span className="sp" />
       <div ref={bellRef} style={{ position: "relative" }}>

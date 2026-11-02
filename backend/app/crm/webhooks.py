@@ -35,6 +35,19 @@ def emit(clinic: str, event: str, data: dict[str, Any]) -> None:
     task.add_done_callback(_running.discard)
 
 
+def emit_each(clinic: str, event: str, items: list[dict[str, Any]]) -> None:
+    """The event for many at once (an import): one after another in the background, so an outside system is
+    not flooded."""
+
+    async def in_turn() -> None:
+        for data in items:
+            await _send_all(clinic, event, data)
+
+    task = asyncio.get_running_loop().create_task(in_turn())
+    _running.add(task)
+    task.add_done_callback(_running.discard)
+
+
 async def _send_all(clinic: str, event: str, data: dict[str, Any]) -> None:
     try:
         pool = await get_pool()

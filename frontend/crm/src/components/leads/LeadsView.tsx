@@ -3,8 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
-import { api, ApiError, type LeadDetail, type LeadList } from "@/lib/api";
+import Icon from "@/components/crm/Icon";
+import { api, apiBlob, ApiError, saveFile, type LeadDetail, type LeadList } from "@/lib/api";
+import ImportLeadsForm from "./ImportLeadsForm";
 import LeadActions from "./LeadActions";
+
+const PAGE_SIZE = 30;
+const REFRESH_MS = 30_000; // new leads from the chatbot and forms appear by themselves
 
 export const STAGE_LABEL: Record<string, [string, string]> = {
   new: ["New", "b-new"],
@@ -31,7 +36,7 @@ function useDebounced(value: string, ms = 300) {
 }
 
 export default function LeadsView() {
-  const { clinic, me } = useCrm();
+  const { clinic, me, toast, openModal } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   // The stage tab and the open lead live in the address (?stage=booked&open=CL01-00003), so the menu
   // links and Add lead can open them.
@@ -52,30 +57,68 @@ export default function LeadsView() {
   // Leads created in this range (days, both included); empty = all time.
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [search, setSearch] = useState("");
+  const askedQ = params.get("q"); // the top bar's search
+  const [treatment, setTreatment] = useState("");
+  const [search, setSearch] = useState(askedQ ?? "");
+  const [seenQ, setSeenQ] = useState(askedQ);
+  if (askedQ !== seenQ) {
+    setSeenQ(askedQ);
+    if (askedQ !== null) setSearch(askedQ);
+  }
   const q = useDebounced(search.trim());
+  const [page, setPage] = useState(1);
+  // The leads ticked for Export (across pages), or every lead matching the filters.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [pickedAll, setPickedAll] = useState(false);
+  const clearPicked = () => {
+    setPicked(new Set());
+    setPickedAll(false);
+  };
+  const filters = `${clinicId}|${stage}|${source}|${treatment}|${q}|${from}|${to}`;
+  const [seenFilters, setSeenFilters] = useState(filters);
+  if (filters !== seenFilters) {
+    setSeenFilters(filters);
+    setPage(1);
+    clearPicked(); // what is ticked always belongs to the list on screen
+  }
   // A newly added lead is opened by its code: the list loads again to include it.
-  const key = `${clinicId}|${stage}|${source}|${q}|${from}|${to}|${version}|${openCode}`;
+  const key = `${filters}|${page}|${version}|${openCode}`;
+  const shown = new URLSearchParams();
+  if (stage) shown.set("stage", stage);
+  if (source) shown.set("source", source);
+  if (treatment) shown.set("treatment", treatment);
+  if (q) shown.set("q", q);
+  if (from) shown.set("from", from);
+  if (to) shown.set("to", to);
+  const filterQuery = shown.toString();
+  const listUrl = `/v1/crm/leads?clinic=${clinicId}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&${filterQuery}`;
   const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
   const [detail, setDetail] = useState<{ code: string; d?: LeadDetail; error?: string }>({ code: "" });
 
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
-    const p = new URLSearchParams({ clinic: clinicId, limit: "100" });
-    if (stage) p.set("stage", stage);
-    if (source) p.set("source", source);
-    if (q) p.set("q", q);
-    if (from) p.set("from", from);
-    if (to) p.set("to", to);
-    api<LeadList>(`/v1/crm/leads?${p}`).then(
+    api<LeadList>(listUrl).then(
       (d) => live && setList({ key, d }),
       (e) => live && setList({ key, error: errorText(e) }),
     );
     return () => {
       live = false;
     };
-  }, [clinicId, stage, source, q, from, to, key]);
+  }, [clinicId, listUrl, key]);
+
+  // Quietly, without "Loading…": the same list again while the tab is in view.
+  useEffect(() => {
+    if (!clinicId) return;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      api<LeadList>(listUrl).then(
+        (d) => setList((now) => (now.key === key ? { key, d } : now)),
+        () => {},
+      );
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [clinicId, listUrl, key]);
 
   function range(days: number | null) {
     if (days === null) {
@@ -121,6 +164,67 @@ export default function LeadsView() {
   const error = list.key === key ? list.error : undefined;
   const all = d?.stages.reduce((n, s) => n + s.count, 0);
   const lead = open?.d;
+  const pages = d ? Math.max(1, Math.ceil(d.total / PAGE_SIZE)) : 1;
+  if (d && page > pages) setPage(pages); // the last page emptied (e.g. leads moved to another stage)
+  // A lead opened from outside the page shown (just added): the newest are on the first page.
+  if (d && openCode && page > 1 && !d.items.some((l) => l.code === openCode)) setPage(1);
+  const clinicRole = me?.clinics.find((c) => c.id === clinicId)?.role;
+  const canBulk = !!clinicId && (me?.bb_admin || clinicRole === "clinic_manager");
+  const [exporting, setExporting] = useState(false);
+
+  function goPage(n: number) {
+    setPage(n);
+    document.querySelector(".crm .page")?.scrollTo(0, 0);
+  }
+
+  const onPage = d?.items.map((l) => l.code) ?? [];
+  const pageTicked = onPage.length > 0 && onPage.every((c) => picked.has(c));
+  const pickedCount = pickedAll ? (d?.total ?? 0) : picked.size;
+
+  function tick(code: string, on: boolean) {
+    // Unticking one out of "all": everything else on this screen stays ticked.
+    const next = new Set(pickedAll ? onPage : picked);
+    if (on) next.add(code);
+    else next.delete(code);
+    setPickedAll(false);
+    setPicked(next);
+  }
+
+  function tickPage(on: boolean) {
+    if (!on) return clearPicked();
+    setPicked(new Set([...picked, ...onPage]));
+  }
+
+  async function exportLeads() {
+    setExporting(true);
+    try {
+      const file = await (picked.size && !pickedAll
+        ? apiBlob("/v1/crm/leads/export", {
+            method: "POST",
+            body: JSON.stringify({ clinic: clinicId, codes: [...picked] }),
+          })
+        : apiBlob(`/v1/crm/leads/export?clinic=${clinicId}&${filterQuery}`));
+      saveFile(file, `leads-${clinicId}-${ymd(new Date())}.csv`);
+      toast("Leads exported");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not export the leads.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // After an import: every filter off, so the new leads are right there on the first page.
+  function imported() {
+    clearPicked();
+    setSearch("");
+    setTreatment("");
+    setSource("");
+    setFrom("");
+    setTo("");
+    setPage(1);
+    setVersion((v) => v + 1);
+    go("", null);
+  }
 
   return (
     <>
@@ -129,6 +233,26 @@ export default function LeadsView() {
           <h1>Leads</h1>
           <p>Every lead from chatbot, ads, calls and walk-ins.</p>
         </div>
+        {canBulk && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn g" disabled={exporting} onClick={exportLeads}>
+              <Icon name="download" />
+              {exporting ? "Exporting…" : pickedCount ? `Export (${pickedCount})` : "Export all"}
+            </button>
+            <button
+              className="btn g"
+              onClick={() =>
+                openModal({
+                  title: "Import leads",
+                  body: <ImportLeadsForm clinicId={clinicId!} onDone={imported} />,
+                })
+              }
+            >
+              <Icon name="upload" />
+              Import
+            </button>
+          </div>
+        )}
       </div>
       <div className="tabs">
         <button className={stage ? "" : "on"} onClick={() => setStage("")}>
@@ -143,7 +267,7 @@ export default function LeadsView() {
       </div>
       <div className="tools">
         <label className="search">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, email or code" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, treatment, email or code" />
         </label>
         <div className="pills" style={{ margin: 0 }} aria-label="Created">
           {(
@@ -168,12 +292,46 @@ export default function LeadsView() {
             </option>
           ))}
         </select>
+        <select className="sel" value={treatment} onChange={(e) => setTreatment(e.target.value)} aria-label="Treatment">
+          <option value="">All treatments</option>
+          {d?.treatments?.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+          {treatment && d && !d.treatments?.includes(treatment) && <option value={treatment}>{treatment}</option>}
+        </select>
       </div>
       {error && <div className="warnbox">{error}</div>}
+      {canBulk && pickedCount > 0 && d && (
+        <p className="sub2" style={{ margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span>
+            {pickedAll ? `All ${d.total} leads selected.` : `${picked.size} lead${picked.size === 1 ? "" : "s"} selected.`}
+          </span>
+          {!pickedAll && pageTicked && d.total > picked.size && (
+            <button type="button" className="btn g sm" onClick={() => setPickedAll(true)}>
+              Select all {d.total}
+            </button>
+          )}
+          <button type="button" className="btn g sm" onClick={clearPicked}>
+            Clear
+          </button>
+        </p>
+      )}
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
+              {canBulk && (
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all leads on this page"
+                    checked={pickedAll || pageTicked}
+                    onChange={(e) => tickPage(e.target.checked)}
+                  />
+                </th>
+              )}
               <th>Lead</th>
               <th>Source</th>
               <th>Treatment</th>
@@ -186,16 +344,26 @@ export default function LeadsView() {
           <tbody>
             {!d && !error && (
               <tr>
-                <td colSpan={7}>Loading…</td>
+                <td colSpan={8}>Loading…</td>
               </tr>
             )}
             {d && !d.items.length && (
               <tr>
-                <td colSpan={7}>No leads match.</td>
+                <td colSpan={8}>No leads match.</td>
               </tr>
             )}
             {d?.items.map((l) => (
               <tr key={l.code} onClick={() => show(l.code)} style={{ cursor: "pointer" }}>
+                {canBulk && (
+                  <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${l.name}`}
+                      checked={pickedAll || picked.has(l.code)}
+                      onChange={(e) => tick(l.code, e.target.checked)}
+                    />
+                  </td>
+                )}
                 <td>
                   <div className="nm">{l.name}</div>
                   <div className="pn">
@@ -218,10 +386,36 @@ export default function LeadsView() {
           </tbody>
         </table>
       </div>
-      {d && d.total > d.items.length && (
-        <p className="sub2">
-          Showing the latest {d.items.length} of {d.total}. Search to find others.
-        </p>
+      {d && d.total > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+          <span className="sub2">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + d.items.length} of {d.total}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="sub2">
+              Page {page} of {pages}
+            </span>
+            {(
+              [
+                ["Previous page", "‹", page - 1, page <= 1],
+                ["Next page", "›", page + 1, page >= pages],
+              ] as [string, string, number, boolean][]
+            ).map(([label, mark, to, off]) => (
+              <button
+                key={label}
+                type="button"
+                className="btn g sm"
+                aria-label={label}
+                title={label}
+                disabled={off}
+                style={{ width: 34, height: 34, padding: 0, justifyContent: "center", fontSize: 20, lineHeight: 1, opacity: off ? 0.45 : 1, cursor: off ? "not-allowed" : "pointer" }}
+                onClick={() => goPage(to)}
+              >
+                {mark}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className={`ov${open ? " on" : ""}`} onClick={close} />

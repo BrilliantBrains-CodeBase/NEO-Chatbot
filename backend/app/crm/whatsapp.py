@@ -22,6 +22,7 @@ PURPOSES = {
     "request_received": "Request received (a booking or call back from the chat)",
     "inclinic_confirmed": "Appointment booked, in-clinic (sent when staff confirm it in the CRM)",
     "online_confirmed": "Online consult booked (sent when staff confirm it in the CRM)",
+    "imported_lead": "Imported lead (sent to each new lead when a manager imports a list)",
     "reminder": "Reminder before the appointment",
     "otp": "OTP (Check my appointment)",
 }
@@ -57,6 +58,32 @@ def notify(clinic: str, purpose: str, phone: str | None, data: dict[str, Any]) -
     if not phone:
         return
     task = asyncio.get_running_loop().create_task(_quiet(clinic, purpose, phone, data))
+    _running.add(task)
+    task.add_done_callback(_running.discard)
+
+
+async def template_on(clinic: str, purpose: str) -> bool:
+    pool = await get_pool()
+    saved = await pool.fetchval("select templates from app.whatsapp_accounts where clinic_id = $1", clinic)
+    tpl = _obj(_obj(saved).get(purpose))
+    return bool(tpl.get("name")) and bool(tpl.get("on", True))
+
+
+def notify_each(clinic: str, purpose: str, items: list[tuple[str, dict[str, Any]]]) -> None:
+    """The template for many patients (an import): one after another in the background, so Interakt is not
+    flooded. With no template on for this purpose nothing is sent (and nothing is logged per patient)."""
+
+    async def in_turn() -> None:
+        try:
+            if not await template_on(clinic, purpose):
+                return
+        except Exception:
+            log.exception("whatsapp: %s for %s", purpose, clinic)
+            return
+        for phone, data in items:
+            await _quiet(clinic, purpose, phone, data)
+
+    task = asyncio.get_running_loop().create_task(in_turn())
     _running.add(task)
     task.add_done_callback(_running.discard)
 

@@ -75,6 +75,7 @@ const PATHS = {
   plus: <path d="M12 5v14M5 12h14" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,
   // Dashboard (chatbot console) screens, drawn in the same line style.
   palette: (
     <>

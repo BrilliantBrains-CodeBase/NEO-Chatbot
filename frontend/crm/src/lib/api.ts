@@ -65,6 +65,58 @@ export async function api<T>(
   return body as T;
 }
 
+/** A file from the API (e.g. a CSV export), with the signed-in person's token. */
+export async function apiBlob(
+  path: string,
+  init: RequestInit = {},
+  retried = false,
+): Promise<Blob> {
+  const { data } = await supabase().auth.getSession();
+  const token = data.session?.access_token;
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, {
+      ...init,
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      "The CRM server cannot be reached. Check your connection and try again.",
+    );
+  }
+  if (res.status === 401 && token && !retried) {
+    const { data: fresh } = await supabase().auth.refreshSession();
+    if (fresh.session) return apiBlob(path, init, true);
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      detail?: unknown;
+    } | null;
+    throw new ApiError(
+      res.status,
+      typeof body?.detail === "string"
+        ? body.detail
+        : "Something went wrong. Please try again.",
+    );
+  }
+  return res.blob();
+}
+
+/** Saves a file made in the browser to the person's downloads. */
+export function saveFile(blob: Blob, name: string): void {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 /** GET /v1/crm/me: who is signed in and which clinics they see. */
 export type Me = {
   id: string;
@@ -126,7 +178,19 @@ export type LeadRow = {
   last_contact_at: string;
   created_at: string;
 };
-export type LeadList = { total: number; stages: Count[]; items: LeadRow[] };
+export type LeadList = {
+  total: number;
+  stages: Count[];
+  items: LeadRow[];
+  treatments?: string[];
+};
+export type LeadImportNote = { row: number; name: string; reason: string };
+export type LeadImportResult = {
+  ready: number;
+  added: number;
+  duplicates: LeadImportNote[];
+  invalid: LeadImportNote[];
+};
 export type LeadDetail = LeadRow & {
   stage_reason: string | null;
   notes: string;
