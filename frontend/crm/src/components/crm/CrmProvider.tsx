@@ -49,7 +49,7 @@ type Crm = {
   inboxCount: number;
   /** Live pending requests per type (book, online, cancel, reschedule, callback, question); null while loading. */
   inbox: Record<string, number> | null;
-  /** The pending requests themselves (oldest first), for the notifications list. */
+  /** The pending requests themselves (newest first), for the notifications list. */
   inboxItems: InboxItem[];
   /** Load the pending counts again (after a request is handled). */
   refreshInbox: () => void;

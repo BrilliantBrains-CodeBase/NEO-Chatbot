@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon from "@/components/crm/Icon";
-import { useDebounced } from "@/components/leads/LeadsView";
+import Pager from "@/components/crm/Pager";
+import { REFRESH_MS, SOURCE, useDebounced } from "@/components/leads/LeadsView";
 import {
   api,
   apiBlob,
@@ -26,6 +27,8 @@ const placeholder = (choice: string) =>
     ? "Write the treatment"
     : "Note for the team: what the patient said (optional)";
 
+const PAGE_SIZE = 30;
+const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
 const OUTCOMES: [string, string][] = [
   ["answered", "Answered"],
   ["no_answer", "No answer"],
@@ -96,23 +99,34 @@ export default function InboxView() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [treatment, setTreatment] = useState("");
-  const clearFilters = () => {
-    setSearch("");
-    setFrom("");
-    setTo("");
-    setTreatment("");
-  };
-  const filtering = !!(search.trim() || q || from || to || treatment);
+  const [source, setSource] = useState("");
+  const [page, setPage] = useState(1);
   const filter = new URLSearchParams();
   if (q) filter.set("q", q);
   if (from) filter.set("from", from);
   if (to) filter.set("to", to);
   if (treatment) filter.set("treatment", treatment);
+  if (source) filter.set("source", source);
   const filterQuery = filter.toString();
+  // The requests ticked for Export (across pages), or every request matching the filters.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [pickedAll, setPickedAll] = useState(false);
+  const clearPicked = () => {
+    setPicked(new Set());
+    setPickedAll(false);
+  };
+  const filters = `${clinicId}|${tab}|${handled}|${filterQuery}`;
+  const [seenFilters, setSeenFilters] = useState(filters);
+  if (filters !== seenFilters) {
+    setSeenFilters(filters);
+    setPage(1);
+    clearPicked(); // what is ticked always belongs to the list on screen
+  }
   const shownQuery = `clinic=${clinicId}&type=${tab}${handled ? "&done=true" : ""}&${filterQuery}`;
+  const listUrl = `/v1/crm/inbox?${shownQuery}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`;
   const [exporting, setExporting] = useState(false);
   const canExport = !!clinicId && (me?.bb_admin || role === "clinic_manager");
-  const key = `${clinicId}|${tab}|${handled}|${filterQuery}|${version}`;
+  const key = `${filters}|${page}|${version}`;
   const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({
     key: "",
   });
@@ -132,7 +146,7 @@ export default function InboxView() {
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
-    api<Inbox>(`/v1/crm/inbox?${shownQuery}`).then(
+    api<Inbox>(listUrl).then(
       (d) => live && setList({ key, d }),
       (e) =>
         live &&
@@ -145,7 +159,21 @@ export default function InboxView() {
     return () => {
       live = false;
     };
-  }, [clinicId, shownQuery, key]);
+  }, [clinicId, listUrl, key]);
+
+  // Quietly, without "Loading…": the same list again while the tab is in view, and the menu's count with it.
+  useEffect(() => {
+    if (!clinicId) return;
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      api<Inbox>(listUrl).then(
+        (d) => setList((now) => (now.key === key ? { key, d } : now)),
+        () => {},
+      );
+      refreshInbox();
+    }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [clinicId, listUrl, key, refreshInbox]);
 
   useEffect(() => {
     if (!clinicId) return;
@@ -156,14 +184,64 @@ export default function InboxView() {
   }, [clinicId]);
 
   const d = list.key === key ? list.d : undefined;
-  const item = d?.items.find((i) => i.id === openId);
-  // A request opened from a notification must not be hidden by a search left on.
-  if (d && openId && !item && filtering) clearFilters();
+  const onPage = d?.items.find((i) => i.id === openId);
+  // Opened from a notification or the calendar, it may be on another page or hidden by a search: read by itself.
+  const [fetched, setFetched] = useState<InboxItem | null>(null);
+  useEffect(() => {
+    if (!openId || !d || onPage) return;
+    let live = true;
+    api<InboxItem>(`/v1/crm/requests/${encodeURIComponent(openId)}`).then(
+      (i) => live && setFetched(i),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [openId, d, onPage]);
+  const item = onPage ?? (fetched?.id === openId ? fetched : undefined);
+
+  const total = d?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  if (d && page > pages) setPage(pages); // the last page emptied (e.g. its requests were handled)
+  const rowIds = d?.items.map((i) => i.id) ?? [];
+  const pageTicked = rowIds.length > 0 && rowIds.every((c) => picked.has(c));
+  const pickedCount = pickedAll ? total : picked.size;
+
+  function tick(id: string, on: boolean) {
+    // Unticking one out of "all": everything else on this screen stays ticked.
+    const next = new Set(pickedAll ? rowIds : picked);
+    if (on) next.add(id);
+    else next.delete(id);
+    setPickedAll(false);
+    setPicked(next);
+  }
+
+  function tickPage(on: boolean) {
+    if (!on) return clearPicked();
+    setPicked(new Set([...picked, ...rowIds]));
+  }
+
+  function goPage(n: number) {
+    setPage(n);
+    document.querySelector(".crm .page")?.scrollTo(0, 0);
+  }
+
+  function range(days: number | null) {
+    const today = ymd(new Date());
+    setFrom(days === null ? "" : today);
+    setTo(days === null ? "" : today);
+  }
+  const isToday = !!from && from === to && from === ymd(new Date());
 
   async function exportInbox() {
     setExporting(true);
     try {
-      const file = await apiBlob(`/v1/crm/inbox/export?${shownQuery}`);
+      const file = await (picked.size && !pickedAll
+        ? apiBlob("/v1/crm/inbox/export", {
+            method: "POST",
+            body: JSON.stringify({ clinic: clinicId, ids: [...picked] }),
+          })
+        : apiBlob(`/v1/crm/inbox/export?${shownQuery}`));
       saveFile(
         file,
         `inbox-${clinicId}-${tab}-${new Date().toLocaleDateString("en-CA")}.csv`,
@@ -243,7 +321,11 @@ export default function InboxView() {
               onClick={exportInbox}
             >
               <Icon name="download" />
-              {exporting ? "Exporting…" : "Export"}
+              {exporting
+                ? "Exporting…"
+                : pickedCount
+                  ? `Export (${pickedCount})`
+                  : "Export all"}
             </button>
           )}
           <div className="seg">
@@ -284,6 +366,26 @@ export default function InboxView() {
             placeholder="Search name, phone, treatment, email or code"
           />
         </label>
+        <div
+          className="pills"
+          style={{ margin: 0 }}
+          aria-label="Date asked for"
+        >
+          <button
+            type="button"
+            className={`pill${isToday ? " on" : ""}`}
+            onClick={() => range(1)}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            className={`pill${!from && !to ? " on" : ""}`}
+            onClick={() => range(null)}
+          >
+            All time
+          </button>
+        </div>
         <input
           className="sel"
           type="date"
@@ -305,6 +407,19 @@ export default function InboxView() {
         />
         <select
           className="sel"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          aria-label="Source"
+        >
+          <option value="">All sources</option>
+          {Object.entries(SOURCE).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <select
+          className="sel"
           value={treatment}
           onChange={(e) => setTreatment(e.target.value)}
           aria-label="Treatment"
@@ -319,12 +434,37 @@ export default function InboxView() {
             <option value={treatment}>{treatment}</option>
           )}
         </select>
-        {filtering && (
-          <button type="button" className="btn g sm" onClick={clearFilters}>
+      </div>
+      {canExport && pickedCount > 0 && d && (
+        <p
+          className="sub2"
+          style={{
+            margin: "0 0 8px",
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            {pickedAll
+              ? `All ${total} requests selected.`
+              : `${picked.size} request${picked.size === 1 ? "" : "s"} selected.`}
+          </span>
+          {!pickedAll && pageTicked && total > picked.size && (
+            <button
+              type="button"
+              className="btn g sm"
+              onClick={() => setPickedAll(true)}
+            >
+              Select all {total}
+            </button>
+          )}
+          <button type="button" className="btn g sm" onClick={clearPicked}>
             Clear
           </button>
-        )}
-      </div>
+        </p>
+      )}
       {list.key === key && list.error && (
         <div className="warnbox">{list.error}</div>
       )}
@@ -332,6 +472,16 @@ export default function InboxView() {
         <table>
           <thead>
             <tr>
+              {canExport && (
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all requests on this page"
+                    checked={pickedAll || pageTicked}
+                    onChange={(e) => tickPage(e.target.checked)}
+                  />
+                </th>
+              )}
               <th>Patient</th>
               <th>Treatment</th>
               <th>
@@ -347,13 +497,13 @@ export default function InboxView() {
           <tbody>
             {!d && !(list.key === key && list.error) && (
               <tr>
-                <td colSpan={6}>Loading…</td>
+                <td colSpan={7}>Loading…</td>
               </tr>
             )}
             {d && !d.items.length && (
               <tr>
-                <td colSpan={6}>
-                  {filtering
+                <td colSpan={7}>
+                  {filterQuery
                     ? "No requests match."
                     : handled
                       ? "Nothing handled yet."
@@ -367,6 +517,19 @@ export default function InboxView() {
                 onClick={() => open(i.id)}
                 style={{ cursor: "pointer" }}
               >
+                {canExport && (
+                  <td
+                    style={{ cursor: "default" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${i.name}`}
+                      checked={pickedAll || picked.has(i.id)}
+                      onChange={(e) => tick(i.id, e.target.checked)}
+                    />
+                  </td>
+                )}
                 <td>
                   <div className="nm">{i.name}</div>
                   <div className="pn">
@@ -399,6 +562,15 @@ export default function InboxView() {
           </tbody>
         </table>
       </div>
+      {d && total > 0 && (
+        <Pager
+          page={page}
+          size={PAGE_SIZE}
+          shown={d.items.length}
+          total={total}
+          onPage={goPage}
+        />
+      )}
 
       <div className={`ov${item ? " on" : ""}`} onClick={() => open(null)} />
       <aside className={`dr${item ? " on" : ""}`} aria-hidden={!item}>

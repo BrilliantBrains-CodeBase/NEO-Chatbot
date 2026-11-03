@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from httpx import AsyncClient
 
+from app.chat import kb
 from app.chat.content import content
 from app.core.db import get_pool
 from app.crm.flow import FlowError, check, import_content, normalise
@@ -186,7 +187,18 @@ async def test_test_chat_reads_the_knowledge_base_and_appointments(api: AsyncCli
     )
     if admin is None:
         pytest.skip("no BB Admin in this database")
-    assert "10:00 AM" in (await _kb_answer("CL01", "what are your clinic timings") or "")
+    question = "Is there a valet for test cars?"
+    await pool.execute(  # its own answer, in the test clinic: never the clinic's changing content
+        """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
+           values ('CL99', $1, '', 'Yes, a test valet.', 'approved', now())""",
+        question,
+    )
+    kb.forget("CL99")
+    try:
+        assert await _kb_answer("CL99", question) == "Yes, a test valet."
+    finally:
+        await pool.execute("delete from app.kb_qa where clinic_id = 'CL99' and question = $1", question)
+        kb.forget("CL99")
     user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
     saved = await _save_test_lead(
         user, {"type": "book", "name": "Test Appt", "phone": "+91 9000000098"}, "desktop"

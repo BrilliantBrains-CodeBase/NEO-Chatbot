@@ -4,6 +4,7 @@ import json
 from collections.abc import Awaitable
 from datetime import date, datetime, time, timedelta
 from typing import Annotated, Any, Literal
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import asyncpg
@@ -11,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.api.v1.crm import (
+    SOURCE_FILTER,
     Count,
     Option,
     _event,
@@ -65,8 +67,9 @@ class InboxItem(BaseModel):
 
 
 class Inbox(BaseModel):
-    pending: list[Count]  # pending requests per type, for the tabs, the menu and the bell (never filtered)
+    pending: list[Count]  # pending requests per type, with the filters applied (none: the menu and the bell)
     items: list[InboxItem]
+    total: int = 0  # requests matching the filters on this tab, across all pages
     treatments: list[str] = []  # every treatment this clinic's requests have, for the filter
 
 
@@ -124,6 +127,7 @@ def _inbox_filter(
     date_from: date | None,
     date_to: date | None,
     treatment: str | None,
+    source: str | None = None,
 ) -> tuple[str, list[Any]]:
     """The Inbox filters, shared by the list and the export. `q` matches the patient's name (the lead's or the
     one typed in this request), phone (spaces and dashes ignored), treatment, email or lead code."""
@@ -133,11 +137,14 @@ def _inbox_filter(
           or l.phone_e164 like '%'||nullif(regexp_replace($3, '[\\s-]', '', 'g'), '')||'%'
           or r.data->>'treatment' ilike '%'||$3||'%' or l.email ilike '%'||$3||'%' or l.lead_code ilike $3)
         and ($4::text is null or {REQUEST_DAY} >= $4) and ($5::text is null or {REQUEST_DAY} <= $5)
-        and ($6::text is null or r.data->>'treatment' = $6)"""
+        and ($6::text is null or r.data->>'treatment' = $6)
+        and ($7::text is null or l.source = $7)"""
     days = [d.isoformat() if d else None for d in (date_from, date_to)]
-    return where, [clinic, type_, plain_text(q), *days, treatment]
+    return where, [clinic, type_, plain_text(q), *days, treatment, source]
 
 
+# The newest request first, pending and handled alike; those of one moment keep a fixed order across pages.
+REQUEST_ORDER = "order by r.created_at desc, r.id desc"
 RequestType = Literal["book", "online", "cancel", "reschedule", "callback", "question"]
 REQUEST_LABEL = {
     "book": "Booking request", "online": "Online consult", "cancel": "Cancellation",
@@ -159,14 +166,33 @@ async def export_inbox(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     treatment: Annotated[str | None, Query(max_length=200)] = None,
+    source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
 ) -> Response:
-    """Every request matching the Inbox filters (no 100-row limit), as a CSV for Excel."""
+    """Every request matching the Inbox filters (all pages), as a CSV for Excel."""
     bulk_access(user, clinic)
     await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
-    where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment)
+    where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment, source)
+    rows = await (await get_pool()).fetch(f"{SELECT} where {where} {REQUEST_ORDER}", *args)
+    return _inbox_csv(clinic, rows)
+
+
+class ExportPicked(BaseModel):
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    ids: list[UUID] = Field(min_length=1, max_length=5000)
+
+
+@router.post("/inbox/export")
+async def export_picked_requests(user: Annotated[Staff, Depends(staff)], body: ExportPicked) -> Response:
+    """The requests ticked on the Inbox screen, as a CSV (a request of another clinic is never included)."""
+    bulk_access(user, body.clinic)
+    await perm.require(await get_pool(), user, body.clinic, "inbox", "view")  # Who sees what
     rows = await (await get_pool()).fetch(
-        f"{SELECT} where {where} order by r.created_at {'desc' if done else 'asc'}", *args
+        f"{SELECT} where r.clinic_id = $1 and r.id = any($2::uuid[]) {REQUEST_ORDER}", body.clinic, body.ids
     )
+    return _inbox_csv(body.clinic, rows)
+
+
+def _inbox_csv(clinic: str, rows: list[asyncpg.Record]) -> Response:
     out: list[list[object]] = []
     for r in rows:
         i = _item(r)
@@ -194,25 +220,34 @@ async def inbox(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     treatment: Annotated[str | None, Query(max_length=200)] = None,
+    source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Inbox:
-    """Pending requests (oldest first, so nobody waits longest), or the latest 100 handled ones. The filters
-    narrow the list only: the tabs' counts stay every pending request. `from` and `to` (days, both included)
-    keep requests by the day asked for (the booked day for a cancellation, else the day it came in)."""
+    """Pending or handled requests, newest first, a page at a time. The tabs' counts follow the filters, as on
+    Leads; with none (the menu and the bell) they are every pending request. `from` and `to` (days, both
+    included) keep requests by the day asked for (a cancellation: the booked day; else the day received)."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
     pool = await get_pool()
     async with pool.acquire() as conn:
+        waiting, wait_args = _inbox_filter(clinic, None, False, q, date_from, date_to, treatment, source)
         counts = {
             r[0]: r[1]
             for r in await conn.fetch(
-                "select type, count(*) from app.requests where clinic_id = $1 and status = 'pending'"
-                " group by 1",
-                clinic,
+                f"""select r.type, count(*) from app.requests r join app.leads l on l.id = r.lead_id
+                    join app.clinics c on c.id = r.clinic_id where {waiting} group by 1""",
+                *wait_args,
             )
         }
-        where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment)
+        where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment, source)
+        total = await conn.fetchval(
+            f"""select count(*) from app.requests r join app.leads l on l.id = r.lead_id
+                join app.clinics c on c.id = r.clinic_id where {where}""",
+            *args,
+        )
         rows = await conn.fetch(
-            f"{SELECT} where {where} order by r.created_at {'desc' if done else 'asc'} limit 100", *args
+            f"{SELECT} where {where} {REQUEST_ORDER} limit $8 offset $9", *args, limit, offset
         )
         treatments = await conn.fetch(
             """select distinct data->>'treatment' from app.requests
@@ -222,8 +257,20 @@ async def inbox(
     return Inbox(
         pending=[Count(key=t, count=counts.get(t, 0)) for t in TYPES],
         items=[_item(r) for r in rows],
+        total=total,
         treatments=[r[0] for r in treatments],
     )
+
+
+@router.get("/requests/{request_id}", response_model=InboxItem)
+async def one_request(user: Annotated[Staff, Depends(staff)], request_id: UUID) -> InboxItem:
+    """One request, for opening it from a notification or the calendar when it is not on the page shown."""
+    r = await (await get_pool()).fetchrow(f"{SELECT} where r.id = $1", request_id)
+    if r is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Request not found.")
+    can_see(user, r["clinic_id"])
+    await perm.require(await get_pool(), user, r["clinic_id"], "inbox", "view")  # Who sees what
+    return _item(r)
 
 
 class Reject(BaseModel):

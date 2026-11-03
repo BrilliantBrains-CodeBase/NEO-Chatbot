@@ -3,7 +3,8 @@
 import csv
 import io
 import json
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from typing import Any
 
 import pytest
 from httpx import AsyncClient
@@ -12,6 +13,14 @@ from app.core.db import get_pool
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
+
+# Real days ahead, never fixed ones: a time that has passed is refused, so a fixed date stops working the
+# day it arrives. The doctors in these tests work on Mondays.
+_today = date.today()
+_monday = _today + timedelta(days=(7 - _today.weekday()) % 7 or 7)
+MONDAY, TUESDAY = _monday.isoformat(), (_monday + timedelta(days=1)).isoformat()
+NEXT_MONDAY = (_monday + timedelta(days=7)).isoformat()
+THIRD_MONDAY = (_monday + timedelta(days=14)).isoformat()
 
 
 @needs_db
@@ -72,14 +81,45 @@ async def test_inbox_search_dates_treatment_and_export(
         for odd in ("-", "%", "_", "\\"):
             assert await found(q=odd) == set(), odd  # plain text, and never an error
         assert await found(q="almas", done="true") == set()  # none of them handled yet
+        assert await found(source="chatbot", q="almas") == {0, 2}
+        assert await found(source="manual", q="almas") == set()
+
+        async def order(**params: str) -> dict[str, Any]:
+            r = await api.get(
+                "/v1/crm/inbox", params={"clinic": "CL99", "q": "zz", **params}, headers=headers
+            )
+            assert r.status_code == 200
+            shown: dict[str, Any] = r.json()
+            return shown
+
+        page = await order(type="book", limit="1")  # the two book requests with a "ZZ" treatment
+        assert page["total"] == 2 and [i["id"] for i in page["items"]] == [ids[1]]  # newest first
+        second = await order(type="book", limit="1", offset="1")
+        assert second["total"] == 2 and [i["id"] for i in second["items"]] == [ids[0]]  # the next page
+        assert {c["key"]: c["count"] for c in page["pending"]}["book"] == 2  # counts follow the search
+        no_filter = await api.get("/v1/crm/inbox", params={"clinic": "CL99"}, headers=headers)
+        assert {c["key"]: c["count"] for c in no_filter.json()["pending"]}["book"] >= 2
+
+        one = await api.get(f"/v1/crm/requests/{ids[0]}", headers=headers)
+        assert one.status_code == 200 and one.json()["id"] == ids[0]
+        missing = "00000000-0000-0000-0000-000000000000"
+        assert (await api.get(f"/v1/crm/requests/{missing}", headers=headers)).status_code == 404
+        assert (await api.get("/v1/crm/requests/nope", headers=headers)).status_code == 422
+
+        ticked = await api.post(
+            "/v1/crm/inbox/export", json={"clinic": "CL99", "ids": [ids[1]]}, headers=headers
+        )
+        rows_out = list(csv.DictReader(io.StringIO(ticked.text.lstrip("\ufeff"))))
+        assert [r["Treatment"] for r in rows_out] == ["ZZ Other Treatment"]
+        elsewhere = await api.post(
+            "/v1/crm/inbox/export", json={"clinic": "CL01", "ids": [ids[1]]}, headers=headers
+        )
+        assert (
+            elsewhere.text.lstrip("\ufeff").strip().count("\n") == 0
+        )  # headings only: not that clinic's request
 
         r = await api.get("/v1/crm/inbox", params={"clinic": "CL99"}, headers=headers)
         assert "ZZ Rare Treatment" in r.json()["treatments"]
-        counted = {c["key"]: c["count"] for c in r.json()["pending"]}
-        narrowed = await api.get("/v1/crm/inbox", params={"clinic": "CL99", "q": "almas"}, headers=headers)
-        assert {
-            c["key"]: c["count"] for c in narrowed.json()["pending"]
-        } == counted  # the tabs stay the total
 
         file = await api.get("/v1/crm/inbox/export", params={"clinic": "CL99", "q": "almas"}, headers=headers)
         assert file.status_code == 200 and file.headers["content-type"].startswith("text/csv")
@@ -115,16 +155,16 @@ async def test_inbox_approve_reject_and_done(api: AsyncClient, monkeypatch: pyte
         for kind in ("book", "callback", "online"):
             ids[kind] = str(
                 await pool.fetchval(
-                    """insert into app.requests (clinic_id, lead_id, type, data)
-                       values ('CL99', $1, $2, '{"date": "2026-11-02", "time": "any"}')
+                    f"""insert into app.requests (clinic_id, lead_id, type, data)
+                       values ('CL99', $1, $2, '{{"date": "{MONDAY}", "time": "any"}}')
                        returning id""",
                     lead,
                     kind,
                 )
             )
         await pool.execute(
-            """insert into app.appointments (clinic_id, lead_id, request_id, type, preferred_date)
-               values ('CL99', $1, $2::uuid, 'in_clinic', '2026-11-02')""",
+            f"""insert into app.appointments (clinic_id, lead_id, request_id, type, preferred_date)
+               values ('CL99', $1, $2::uuid, 'in_clinic', '{MONDAY}')""",
             lead,
             ids["book"],
         )
@@ -194,14 +234,14 @@ async def test_online_approve_books_calcom_and_keeps_the_link(
     try:
         req = str(
             await pool.fetchval(
-                """insert into app.requests (clinic_id, lead_id, type, data)
-                   values ('CL99', $1, 'online', '{"date": "2026-11-02", "time": "any"}') returning id""",
+                f"""insert into app.requests (clinic_id, lead_id, type, data)
+                   values ('CL99', $1, 'online', '{{"date": "{MONDAY}", "time": "any"}}') returning id""",
                 lead,
             )
         )
         await pool.execute(
-            """insert into app.appointments (clinic_id, lead_id, request_id, type, preferred_date)
-               values ('CL99', $1, $2::uuid, 'online', '2026-11-02')""",
+            f"""insert into app.appointments (clinic_id, lead_id, request_id, type, preferred_date)
+               values ('CL99', $1, $2::uuid, 'online', '{MONDAY}')""",
             lead,
             req,
         )
@@ -223,7 +263,7 @@ async def test_online_approve_books_calcom_and_keeps_the_link(
         appt = r.json()["appointment"]
         assert appt["meet_link"] == "https://meet.google.com/abc-defg-hij" and appt["status"] == "confirmed"
         assert [(datetime.fromisoformat(t), e) for t, e in booked] == [
-            (datetime.fromisoformat("2026-11-02T11:30:00+05:30"), "online@example.com")
+            (datetime.fromisoformat(f"{MONDAY}T11:30:00+05:30"), "online@example.com")
         ]
         assert await pool.fetchval(
             "select calendar_event_id from app.appointments where lead_id = $1", lead
@@ -263,7 +303,7 @@ async def test_online_cancel_and_reschedule_update_calcom(
     )
     try:
         appts = []
-        for day in ("2026-11-02", "2026-11-09"):  # two booked online consults with Cal.com bookings
+        for day in (MONDAY, NEXT_MONDAY):  # two booked online consults with Cal.com bookings
             appts.append(
                 await pool.fetchval(
                     """insert into app.appointments (clinic_id, lead_id, type, slot, status, meet_link,
@@ -282,19 +322,20 @@ async def test_online_cancel_and_reschedule_update_calcom(
             appts[0],
         )
         resch_req = await pool.fetchval(
-            """insert into app.requests (clinic_id, lead_id, type, data, match_status, matched_appointment_id)
-               values ('CL99', $1, 'reschedule', '{"date": "2026-11-16", "time": "any"}', 'matched', $2)
+            f"""insert into app.requests (clinic_id, lead_id, type, data, match_status,
+                 matched_appointment_id)
+               values ('CL99', $1, 'reschedule', '{{"date": "{THIRD_MONDAY}", "time": "any"}}', 'matched', $2)
                returning id""",
             lead,
             appts[1],
         )
         r = await api.post(f"/v1/crm/requests/{cancel_req}/approve", headers=headers)
-        assert r.status_code == 200 and calls == [("cancel", "uid-2026-11-02")]
+        assert r.status_code == 200 and calls == [("cancel", f"uid-{MONDAY}")]
         url = f"/v1/crm/requests/{resch_req}/approve"
         assert (await api.post(url, headers=headers)).status_code == 422  # online needs an exact time
         r = await api.post(url, json={"time": "12:00"}, headers=headers)
         assert r.status_code == 200, r.text
-        assert calls[-1] == ("reschedule", "uid-2026-11-09")
+        assert calls[-1] == ("reschedule", f"uid-{NEXT_MONDAY}")
         new = r.json()["appointment"]
         assert new["meet_link"] == "https://meet.google.com/aaa-bbbb-ccc" and new["status"] == "confirmed"
         uid = await pool.fetchval(
@@ -320,16 +361,16 @@ async def test_appointments_of_a_day(api: AsyncClient, monkeypatch: pytest.Monke
     )
     try:
         await pool.execute(
-            """insert into app.appointments (clinic_id, lead_id, type, slot) values ('CL99', $1, 'in_clinic',
-                 tstzrange('2026-11-03 14:30+05:30', '2026-11-03 14:45+05:30', '[)'))""",
+            f"""insert into app.appointments (clinic_id, lead_id, type, slot) values ('CL99', $1, 'in_clinic',
+                 tstzrange('{TUESDAY} 14:30+05:30', '{TUESDAY} 14:45+05:30', '[)'))""",
             lead,
         )
         await pool.execute(
-            """insert into app.appointments (clinic_id, lead_id, type, preferred_date, status)
-               values ('CL99', $1, 'online', '2026-11-03', 'cancelled')""",
+            f"""insert into app.appointments (clinic_id, lead_id, type, preferred_date, status)
+               values ('CL99', $1, 'online', '{TUESDAY}', 'cancelled')""",
             lead,
         )
-        url = "/v1/crm/appointments?clinic=CL99&from=2026-11-03"
+        url = f"/v1/crm/appointments?clinic=CL99&from={TUESDAY}"
         mine = [a for a in (await api.get(url, headers=headers)).json()["items"] if a["name"] == "Appt Test"]
         assert [(a["time"], a["type"], a["status"]) for a in mine] == [("14:30", "in_clinic", "pending")]
         r = await api.get(url + "&status=all", headers=headers)
@@ -379,8 +420,8 @@ async def test_appointment_move_visit_and_cancel(api: AsyncClient, monkeypatch: 
     try:
         ids = []
         for kind, start, uid in (
-            ("online", datetime.fromisoformat("2026-11-02T11:00+05:30"), "uid-1"),
-            ("in_clinic", datetime.fromisoformat("2026-11-03T11:00+05:30"), None),
+            ("online", datetime.fromisoformat(f"{MONDAY}T11:00+05:30"), "uid-1"),
+            ("in_clinic", datetime.fromisoformat(f"{TUESDAY}T11:00+05:30"), None),
         ):
             ids.append(
                 await pool.fetchval(
@@ -398,11 +439,11 @@ async def test_appointment_move_visit_and_cancel(api: AsyncClient, monkeypatch: 
         online, inclinic = ids
         r = await api.post(
             f"/v1/crm/appointments/{online}/move",
-            json={"date": "2026-11-09", "time": "12:00"},
+            json={"date": NEXT_MONDAY, "time": "12:00"},
             headers=headers,
         )
         assert r.status_code == 200, r.text
-        assert (r.json()["day"], r.json()["time"], r.json()["doctor"]) == ("2026-11-09", "12:00", "Dr Move")
+        assert (r.json()["day"], r.json()["time"], r.json()["doctor"]) == (NEXT_MONDAY, "12:00", "Dr Move")
         assert calls == ["move uid-1"]
         url = f"/v1/crm/appointments/{online}/status"
         assert (await api.post(url, json={"status": "cancelled"}, headers=headers)).status_code == 422

@@ -63,7 +63,6 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   // Newest first, the latest 8.
   const latest = crm.inboxItems
     .filter((i) => !bellOff.includes(i.type))
-    .reverse()
     .slice(0, 8);
 
   return (

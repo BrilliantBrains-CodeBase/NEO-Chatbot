@@ -241,6 +241,7 @@ export type InboxItem = {
 export type Inbox = {
   pending: Count[];
   items: InboxItem[];
+  total?: number;
   treatments?: string[];
 };
 

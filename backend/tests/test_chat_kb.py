@@ -88,6 +88,10 @@ async def _ask(db: asyncpg.Connection, text: str, state: dict[str, object] | Non
 @pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
 async def test_every_question_is_traced_step_by_step(tx: asyncpg.Connection) -> None:
     kb._cache.clear()
+    await tx.execute(  # its own answer, undone with the test: never the clinic's changing content
+        """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
+           values ('CL01', 'Do you provide visa assistance?', '', 'Yes, we help.', 'approved', now())"""
+    )
     for text in ("do you provide visa assistance", "is it painful", "talk to someone", "sell shampoo?"):
         await _ask(tx, text)
     await _ask(tx, "Asha Rao", {"flow": {"kind": "book", "step": "name"}})  # a form answer: not traced
