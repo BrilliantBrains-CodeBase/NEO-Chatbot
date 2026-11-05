@@ -92,6 +92,25 @@ async def summary(user: Annotated[Staff, Depends(staff)], clinic: CLINIC) -> Sum
         return await _summary(conn, clinic, user)
 
 
+@router.get("/notifications/clinics", response_model=dict[str, Summary])
+async def by_clinic(user: Annotated[Staff, Depends(staff)]) -> dict[str, Summary]:
+    """The counts in each clinic this person has the Inbox in, for the clinic switch."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ids = (
+            [r["id"] for r in await conn.fetch("select id from app.clinics where active")]
+            if user.bb_admin
+            else list(user.roles)
+        )
+        out: dict[str, Summary] = {}
+        for clinic in ids:
+            role = "bb_admin" if user.bb_admin else user.roles[clinic]
+            rules = await perm.for_person(conn, clinic, user.id, role)
+            if rules.get("inbox", "hidden") != "hidden":
+                out[clinic] = await _summary(conn, clinic, user)
+    return out
+
+
 @router.get("/notifications", response_model=NotificationList)
 async def notifications(
     user: Annotated[Staff, Depends(staff)],

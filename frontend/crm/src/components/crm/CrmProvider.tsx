@@ -13,7 +13,14 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { level } from "@/lib/access";
-import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Inbox, type InboxItem, type Me } from "@/lib/api";
+import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Inbox, type Me } from "@/lib/api";
+import {
+  desktopAlert,
+  playTone,
+  type ClinicCounts,
+  type NotePrefs,
+  type NoteSummary,
+} from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
 export type Clinic = string; // a clinic's name, as the backend lists them
@@ -33,8 +40,17 @@ type Crm = {
   signOut: () => Promise<void>;
   /** Live pending requests per type (book, online, cancel, reschedule, callback, question); null while loading. */
   inbox: Record<string, number> | null;
-  /** The pending requests themselves (newest first), for the notifications list. */
-  inboxItems: InboxItem[];
+  /** The selected clinic's id; undefined while loading. */
+  clinicId: string | undefined;
+  /** The bell's counts for this person in this clinic; null while loading. */
+  notes: NoteSummary | null;
+  /** The new counts, after an action on a notification. */
+  setNotes: (s: NoteSummary) => void;
+  /** The bell's counts in every clinic this person has, by clinic id (several clinics only). */
+  clinicNotes: ClinicCounts;
+  /** This person's bell settings, the same on every computer. */
+  prefs: NotePrefs;
+  savePrefs: (p: NotePrefs) => Promise<void>;
   /** "hidden": this person has no Inbox here. "error": the last read failed, so the counts may be old or missing. */
   inboxStatus: "hidden" | "loading" | "ready" | "error";
   /** Load the pending counts again (after a request is handled). */
@@ -101,25 +117,70 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const ready = useBrowserNow() !== null;
 
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number>; items: InboxItem[] } | null>(
-    null,
-  );
+  const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number> } | null>(null);
+  const [noted, setNoted] = useState<{ clinic: string; s: NoteSummary } | null>(null);
+  const [clinicNotes, setClinicNotes] = useState<ClinicCounts>({});
+  const [prefs, setPrefs] = useState<NotePrefs>({ off_kinds: [], sound: false, desktop: false });
+  // What the last read found, to notice something new; and the settings, read when something arrives.
+  const lastNotes = useRef<{ clinic: string; s: NoteSummary } | null>(null);
+  const alerts = useRef(prefs);
+  useEffect(() => {
+    alerts.current = prefs;
+  }, [prefs]);
   const [inboxVersion, setInboxVersion] = useState(0);
   const refreshInbox = useCallback(() => setInboxVersion((v) => v + 1), []);
   const [inboxFailed, setInboxFailed] = useState<string | null>(null); // the clinic whose last read failed
   const canInbox = !!me && level(me, clinic, "inbox") !== "hidden";
-  // On every page: read now, every REFRESH_MS while the tab is in view, and on coming back to the tab.
+  const toastRef = useRef<(m: string) => void>(() => {});
+  const several = clinics.length > 1;
+  useEffect(() => {
+    if (!me) return;
+    let live = true;
+    api<NotePrefs>("/v1/crm/notifications/prefs").then(
+      (p) => live && setPrefs(p),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [me]);
+  // On every page: read now, every REFRESH_MS, and on coming back to the tab. The Inbox's counts wait while the
+  // tab is hidden; the bell's do not, or a desktop alert could never fire while someone works in another tab.
   useEffect(() => {
     if (!clinicId || !canInbox) return;
     let live = true;
     let lastRead = 0;
+    const readNotes = () => {
+      if (several)
+        api<ClinicCounts>("/v1/crm/notifications/clinics").then(
+          (d) => live && setClinicNotes(d),
+          () => {},
+        );
+      return api<NoteSummary>(`/v1/crm/notifications/summary?clinic=${clinicId}`).then((s) => {
+        if (!live) return;
+        const was = lastNotes.current;
+        if (was && was.clinic === clinicId) {
+          const urgent = s.urgent > was.s.urgent;
+          if (urgent || s.unread > was.s.unread) {
+            toastRef.current(urgent ? "Emergency: check the bell" : "New notification");
+            if (alerts.current.sound) playTone(urgent);
+            if (alerts.current.desktop && (urgent || document.hidden)) desktopAlert(urgent);
+          }
+        }
+        lastNotes.current = { clinic: clinicId, s };
+        setNoted({ clinic: clinicId, s });
+      });
+    };
+    const readInbox = () =>
+      // One row is enough: the counts come with any page of the list.
+      api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}&limit=1`).then((d) => {
+        if (live) setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])) });
+      });
     const read = () => {
       lastRead = Date.now();
-      api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}`).then(
-        (d) => {
-          if (!live) return;
-          setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])), items: d.items });
-          setInboxFailed(null);
+      Promise.all([readNotes(), document.hidden ? null : readInbox()]).then(
+        () => {
+          if (live) setInboxFailed(null);
         },
         () => {
           if (live) setInboxFailed(clinicId);
@@ -127,9 +188,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       );
     };
     read();
-    const timer = setInterval(() => {
-      if (!document.hidden) read();
-    }, REFRESH_MS);
+    const timer = setInterval(read, REFRESH_MS);
     // Coming back fires both events: one read is enough.
     const onReturn = () => {
       if (!document.hidden && Date.now() - lastRead > 5000) read();
@@ -142,7 +201,25 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onReturn);
       window.removeEventListener("focus", onReturn);
     };
-  }, [clinicId, canInbox, inboxVersion]);
+  }, [clinicId, canInbox, several, inboxVersion]);
+
+  const setNotes = useCallback(
+    (s: NoteSummary) => {
+      if (!clinicId) return;
+      lastNotes.current = { clinic: clinicId, s };
+      setNoted({ clinic: clinicId, s });
+    },
+    [clinicId],
+  );
+  const savePrefs = useCallback(
+    async (p: NotePrefs) => {
+      setPrefs(p);
+      await api("/v1/crm/notifications/prefs", { method: "PUT", body: JSON.stringify(p) });
+      lastNotes.current = null; // a type turned back on is not something new arriving
+      refreshInbox(); // types turned off change the counts
+    },
+    [refreshInbox],
+  );
 
   const [toastText, setToastText] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -151,6 +228,9 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setToastText(""), 1800);
   }, []);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
   const [drawer, setDrawer] = useState<ReactNode | null>(null);
   const [modal, setModal] = useState<Modal | null>(null);
@@ -165,12 +245,17 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       setClinic,
       signOut,
       inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
-      inboxItems: inbox && inbox.clinic === clinicId ? inbox.items : [],
+      clinicId,
+      notes: noted && noted.clinic === clinicId ? noted.s : null,
+      setNotes,
+      clinicNotes,
+      prefs,
+      savePrefs,
       inboxStatus: me && !canInbox
         ? "hidden"
         : clinicId && inboxFailed === clinicId
           ? "error"
-          : inbox && inbox.clinic === clinicId
+          : noted && noted.clinic === clinicId
             ? "ready"
             : "loading",
       refreshInbox,
@@ -183,7 +268,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, inboxFailed, canInbox, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canInbox, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

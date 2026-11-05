@@ -12,38 +12,14 @@ import {
 import AddLeadForm from "@/components/leads/AddLeadForm";
 import { level } from "@/lib/access";
 import { inDashboard } from "@/lib/workspace";
-import { useBellOff } from "@/lib/bell";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
-
-const NOTICE: Record<string, string> = {
-  book: "Booking request",
-  online: "Online consult",
-  cancel: "Cancellation",
-  reschedule: "Reschedule",
-  callback: "Callback",
-  question: "Question",
-};
-function ago(iso: string) {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "Just now";
-  if (min < 60) return `${min} min ago`;
-  if (min < 1440) return `${Math.round(min / 60)} h ago`;
-  return `${Math.round(min / 1440)} d ago`;
-}
+import NotificationBell from "./NotificationBell";
 
 type MenuName = "clinic" | "bell" | "profile";
 
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
-  // The bell shows only the request types left on in Settings → Bell notifications.
-  const bellOff = useBellOff();
-  const pending =
-    Object.entries(crm.inbox ?? {})
-      .filter(([type]) => !bellOff.includes(type))
-      .reduce((a, [, n]) => a + n, 0) +
-    // An emergency always counts, even when its type is turned off.
-    crm.inboxItems.filter((i) => i.urgent && bellOff.includes(i.type)).length;
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const path = usePathname();
   const inConsole = inDashboard(path);
@@ -100,11 +76,12 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     setOpen(null);
     router.push(href);
   };
-  // Emergencies on top and never hidden, then newest first: 8 in all.
-  const latest = [
-    ...crm.inboxItems.filter((i) => i.urgent),
-    ...crm.inboxItems.filter((i) => !i.urgent && !bellOff.includes(i.type)),
-  ].slice(0, 8);
+  // Unread in the other clinics this person has, in the clinic switch.
+  const countOf = (name: string) => {
+    const id = crm.me?.clinics.find((c) => c.name === name)?.id;
+    return (id && crm.clinicNotes[id]?.unread) || 0;
+  };
+  const othersWaiting = crm.clinics.some((c) => c !== crm.clinic && countOf(c) > 0);
 
   // Until the person's clinics have loaded, no name shows (not a clinic that may not be theirs).
   const clinicName = crm.clinics.length > 0 ? crm.clinic : "";
@@ -131,6 +108,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               <Icon name="clinic" />
             </span>
             <span className="tb-clinic-n">{clinicName}</span>
+            {othersWaiting && <span className="tb-clinic-dot" aria-label="Another clinic has unread notifications" />}
             <Icon name="chev" className="chev" />
           </button>
           <div
@@ -149,6 +127,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                 }}
               >
                 <span className="tb-clinic-n">{c}</span>
+                {countOf(c) > 0 && <b className="tb-clinic-count">{countOf(c)}</b>}
                 {c === crm.clinic && <Icon name="check" className="tb-tick" />}
               </button>
             ))}
@@ -211,78 +190,12 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       <span className="sp" />
 
       {crm.inboxStatus !== "hidden" && (
-      <div ref={bellRef} className="tb-menu">
-        <button
-          className="ib tb-bell"
-          aria-label={pending ? `Notifications, ${pending} waiting` : "Notifications"}
-          aria-haspopup="menu"
-          aria-expanded={open === "bell"}
-          onClick={(e) => toggleMenu("bell", e)}
-        >
-          <Icon name="bell" />
-          {/* Remounting on a new count replays the badge's pop. */}
-          {!!pending && <b key={pending}>{pending > 99 ? "99+" : pending}</b>}
-        </button>
-        <div
-          className={`pmenu tb-notes${open === "bell" ? " on" : ""}`}
-          role="menu"
-          aria-label="Notifications"
-        >
-          <div className="who">
-            <b>Notifications</b>
-            <span>
-              {crm.inboxStatus === "loading"
-                ? "Loading…"
-                : crm.inboxStatus === "error"
-                  ? "Could not check for new requests"
-                  : pending
-                    ? `${pending} waiting in the Inbox`
-                    : "Nothing waiting"}
-            </span>
-          </div>
-          {crm.inboxStatus === "error" && (
-            <button role="menuitem" className="tb-retry" onClick={crm.refreshInbox}>
-              Try again
-            </button>
-          )}
-          {crm.inboxStatus === "ready" && latest.length === 0 && (
-            <p className="tb-notes-empty">
-              {pending
-                ? "The newest requests are of types hidden in Settings."
-                : "You're all caught up."}
-            </p>
-          )}
-          <div className="tb-notes-list">
-            {latest.map((i) => (
-              <button
-                key={i.id}
-                role="menuitem"
-                className={i.urgent ? "tb-urgent" : undefined}
-                onClick={() => go(`/inbox?tab=${i.type}&open=${i.id}`)}
-              >
-                <span className="tb-dot" aria-hidden="true" />
-                <span className="tb-note">
-                  <span>
-                    {i.urgent ? "Emergency" : (NOTICE[i.type] ?? "New request")} · {i.name}
-                  </span>
-                  <small>
-                    {[i.urgent ? i.reason : i.treatment, ago(i.created_at)]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </small>
-                </span>
-              </button>
-            ))}
-          </div>
-          <button
-            role="menuitem"
-            className="tb-all"
-            onClick={() => go("/inbox")}
-          >
-            View all in Inbox
-          </button>
-        </div>
-      </div>
+        <NotificationBell
+          open={open === "bell"}
+          boxRef={bellRef}
+          onToggle={(e) => toggleMenu("bell", e)}
+          onGo={go}
+        />
       )}
 
       {/* Leads belong to the CRM: not shown in the Dashboard (the chatbot console). */}

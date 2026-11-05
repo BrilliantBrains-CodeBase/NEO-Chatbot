@@ -536,6 +536,9 @@ export default function InboxView() {
                 <td>
                   <div className="nm">
                     {i.urgent && <span className="urgent-tag">Emergency</span>}
+                    {i.appointment?.status === "missed" && !handled && (
+                      <span className="passed-tag">Time passed</span>
+                    )}
                     {i.name}
                   </div>
                   <div className="pn">

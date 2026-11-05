@@ -269,6 +269,24 @@ async def test_permissions_and_clinics_are_kept_apart(
         await _clean(world["lead"]["id"])
 
 
+async def test_counts_per_clinic_only_cover_this_persons_clinics(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    await _request(world["other_lead"]["id"], clinic="CL98")
+    await _request(world["lead"]["id"])
+    try:
+        both = signed_in_as(monkeypatch, world["both"]["id"])
+        counts = (await api.get(f"{URL}/clinics", headers=both)).json()
+        assert counts["CL98"]["unread"] >= 1 and counts["CL99"]["unread"] >= 1
+        desk = signed_in_as(monkeypatch, world["desk"]["id"])
+        assert set((await api.get(f"{URL}/clinics", headers=desk)).json()) == {"CL99"}
+        doctor = signed_in_as(monkeypatch, world["doctor"]["id"])  # no Inbox
+        assert (await api.get(f"{URL}/clinics", headers=doctor)).json() == {}
+    finally:
+        await _clean(world["other_lead"]["id"])
+        await _clean(world["lead"]["id"])
+
+
 async def test_a_no_phone_emergency_shows_once_per_chat(tx: asyncpg.Connection) -> None:
     from app.crm import alerts
 
