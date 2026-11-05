@@ -126,6 +126,10 @@ async def test_classic_chat_without_a_phone_still_emails(
     await service.raise_emergency(tx, req("text", text="chest pain"), {})
     assert quiet == [("CL99", None)]
     assert await _request(tx) is None
+    shown = await tx.fetchval(
+        "select severity from app.notifications where dedupe_key = $1", f"emergency:{req().session_id}"
+    )
+    assert shown == "urgent"  # in the bell, with no request behind it
 
 
 @needs_db

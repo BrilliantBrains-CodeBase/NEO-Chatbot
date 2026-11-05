@@ -158,6 +158,8 @@ async def turn(
                    where s.id = $1""",
                 req.session_id,
             )
+        else:
+            await alerts.record_no_phone(conn, req.client_id, req.session_id)
         alerts.emergency(req.client_id, code)
     said = " ".join(m["text"] for m in reply["messages"] if m.get("text"))
     history = context.keep(state.get("canvas_history") or [], text, said)  # the last 3 messages each way

@@ -96,6 +96,8 @@ async def raise_emergency(conn: asyncpg.Connection, req: ChatRequest, state: sto
                 code = await leads.save_completed(conn, req, f)
         except (ValueError, asyncpg.PostgresError):  # the patient still gets the reply, managers the email
             log.exception("emergency call back for %s", req.client_id)
+    if code is None:
+        await alerts.record_no_phone(conn, req.client_id, req.session_id)
     alerts.emergency(req.client_id, code)
 
 

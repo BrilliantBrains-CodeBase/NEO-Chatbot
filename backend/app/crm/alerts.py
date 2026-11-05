@@ -42,6 +42,15 @@ async def managers(conn: Any, clinic: str) -> list[str]:
     return [r["email"] for r in rows]
 
 
+async def record_no_phone(conn: Any, clinic: str, session_id: str) -> None:
+    """An emergency with no phone number has no request, so it goes in the bell by itself, once per chat."""
+    await conn.execute(
+        """insert into app.notifications (clinic_id, kind, severity, dedupe_key)
+           values ($1, 'emergency', 'urgent', $2) on conflict (dedupe_key) do nothing""",
+        clinic, f"emergency:{session_id}",
+    )  # fmt: skip
+
+
 def emergency_email(clinic_name: str, lead_code: str | None) -> tuple[str, str]:
     """The subject and text. No patient name, number or message: an inbox is not the place for them."""
     link = get_settings().crm_url.rstrip("/") + "/inbox?tab=callback"
