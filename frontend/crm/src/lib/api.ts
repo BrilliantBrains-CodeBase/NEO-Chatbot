@@ -150,22 +150,34 @@ export type Branding = {
 };
 
 export type Count = { key: string; count: number };
+/** One period's headline numbers on the Dashboard. */
+export type Totals = { leads: number; converted: number; bookings: number; visits: number; chats: number; chat_leads: number };
+
+export type TodayAppt = {
+  time: string | null;
+  end: string | null;
+  patient: string;
+  lead_code: string;
+  doctor: string | null;
+  doctor_id: string | null;
+  type: string;
+  status: string;
+  treatment: string | null;
+};
+
 export type Dashboard = {
   clinic: string;
   days: number;
+  start: string; // the period's first day, 2026-10-31
   new_leads: number;
   inbox_pending: number;
   callbacks_waiting: number;
   followups_due: number;
-  today: {
-    time: string | null;
-    patient: string;
-    lead_code: string;
-    doctor: string | null;
-    type: string;
-    status: string;
-    treatment: string | null;
-  }[];
+  now: Totals;
+  before: Totals; // the same number of days just before
+  series: { day: string; leads: number; leads_before: number; bookings: number; visits: number; chats: number }[];
+  outcomes: Count[]; // appointments on days in the period, by status
+  today: TodayAppt[];
   sources: Count[];
   funnel: Count[];
   treatments: Count[];
@@ -174,6 +186,9 @@ export type Dashboard = {
   chat_answered_by: Count[];
   unanswered: number;
 };
+
+/** Appointments per day in one month, for the Dashboard calendar. */
+export type DashMonth = { month: string; today: string; days: Count[] };
 
 export type LeadRow = {
   code: string;

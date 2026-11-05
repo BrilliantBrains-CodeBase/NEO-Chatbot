@@ -871,3 +871,172 @@
   .crm .st-images { grid-template-columns:1fr }
   .crm .st-who { flex-direction:column;align-items:flex-start }
 }
+
+/* ---------- Dashboard (the CRM home) and its charts ----------
+   Chart colours: the validated categorical order (dataviz palette; slots below 3:1 always carry a visible
+   label or legend), status colours for outcomes (each with an icon and a word), an ordinal blue ramp for the
+   funnel. Text never wears a series colour. */
+.crm .db { --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;
+  --prev:#A3ACB9;--good:#0ca30c;--serious:#ec835a;--critical:#d03b3b;--idle:#C3CBD6;--f1:#104281;--f2:#256abf;--f3:#5598e7;
+  --grid:#EDF0F5;--axis:#C9D0DA;
+  display:grid;grid-template-columns:minmax(0,1fr) 330px;column-gap:16px;align-items:start;
+  grid-template-areas:"head head" "needs rail" "kpis rail" "charts rail" }
+.crm .db > .db-head { grid-area:head }
+.crm .db > .db-full, .crm .db > .loading { grid-column:1 / -1 }
+.crm .db-needs { grid-area:needs }
+.crm .db-kpis { grid-area:kpis }
+.crm .db-rail { grid-area:rail;grid-row:2 / span 3;display:flex;flex-direction:column;gap:14px;position:sticky;top:0 }
+.crm .db-charts { grid-area:charts;display:flex;flex-direction:column;gap:14px;margin-top:14px;min-width:0 }
+.crm .db-stale { opacity:.55;transition:opacity .15s }
+.crm .sr-only { position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap }
+
+/* What needs staff now */
+.crm .db-needs { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px }
+.crm .db-need { display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);text-decoration:none;min-width:0 }
+.crm a.db-need:hover { border-color:#C9D5EA;background:#fff }
+.crm .db-need b { font-size:var(--fs-title) }
+.crm .db-need > span:last-child { font-size:var(--fs-small);color:var(--soft);font-weight:500;line-height:1.25 }
+.crm .db-needs-i { width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:#fff;color:var(--soft);flex:0 0 auto }
+.crm .db-need.hot { background:var(--warnt);border-color:#F2D9A6 }
+.crm .db-need.hot .db-needs-i { color:var(--warn) }
+.crm .db-need.zero b { color:var(--soft) }
+
+/* Stat tiles */
+.crm .db-kpis { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px }
+.crm .db-kpi { display:flex;flex-direction:column;gap:6px;min-width:0;transition:border-color .15s,box-shadow .15s }
+.crm a.db-kpi:hover { border-color:#C9D5EA;box-shadow:0 4px 14px rgba(22,32,46,.06) }
+.crm .db-kpi-t { display:flex;align-items:center;gap:9px;color:var(--soft);font-weight:600;font-size:var(--fs-sec) }
+.crm .db-ic { width:32px;height:32px;border-radius:10px;display:grid;place-items:center;flex:0 0 auto }
+.crm .db-ic.blue { background:var(--tint);color:var(--accent) }
+.crm .db-ic.violet { background:var(--viot);color:var(--vio) }
+.crm .db-ic.green { background:var(--okt);color:var(--ok) }
+.crm .db-ic.amber { background:var(--warnt);color:var(--warn) }
+.crm .db-kpi-n { font-size:var(--fs-num);font-weight:700;line-height:1.1;margin-top:2px }
+.crm .db-kpi-d { display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--fs-small);color:var(--mute);font-weight:500 }
+.crm .db-kpi-note { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
+.crm .db-delta { display:inline-flex;align-items:center;gap:2px;font-weight:700;color:var(--soft) }
+.crm .db-delta svg { width:14px;height:14px;stroke-width:2.4 }
+.crm .db-delta.up { color:var(--ok) }
+.crm .db-delta.down { color:var(--err) }
+.crm .db-meter { height:8px;border-radius:4px;background:var(--tint);overflow:hidden;margin-top:8px }
+.crm .db-meter i { display:block;height:100%;background:var(--s1);border-radius:0 4px 4px 0 }
+
+/* Chart cards */
+.crm .db-row { display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px }
+.crm .db-card { min-width:0;padding:16px 18px }
+.crm .db-card h3 { gap:10px;flex-wrap:wrap }
+.crm .db-card h3 small { margin-left:6px }
+.crm .db-seg { margin-left:0 }
+.crm .db-seg button { padding:5px 10px;font-size:var(--fs-small) }
+.crm .db-sub { margin:16px 0 6px;font-size:var(--fs-sec);color:var(--soft);font-weight:600 }
+.crm .db-mini { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px }
+.crm .db-mini > div { background:var(--panel);border-radius:10px;padding:10px 12px;min-width:0 }
+.crm .db-mini span { display:block;font-size:var(--fs-small);color:var(--soft);font-weight:500 }
+.crm .db-mini b { display:block;font-size:var(--fs-section);margin:2px 0 }
+.crm .db-mini small { font-size:var(--fs-tiny);color:var(--mute);font-weight:500 }
+.crm .db-mini .db-delta { display:inline-flex;font-size:var(--fs-tiny) }
+.crm .db-funnel { list-style:none;margin:4px 0 0;padding:0 }
+.crm .db-step { font-size:var(--fs-small);color:var(--soft);font-weight:500;margin:4px 0 4px 120px;display:flex;align-items:center;gap:6px }
+.crm .db-step::before { content:"";width:1px;height:14px;background:var(--axis) }
+.crm .db-fbar .ch-track-h i { height:22px }
+.crm .db-stages { display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-size:var(--fs-small);color:var(--soft);font-weight:500 }
+.crm .db-chip { display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--ink);text-decoration:none;font-weight:500 }
+.crm a.db-chip:hover { background:var(--panel) }
+
+/* The charts */
+.crm .ch-wrap { position:relative;outline:none;border-radius:8px;margin-top:4px }
+.crm .ch-wrap:focus-visible { box-shadow:0 0 0 2px var(--accent) }
+.crm .ch-wrap svg, .crm .ch-spark svg, .crm .ch-ring svg { width:auto;height:auto;stroke:none;display:block;overflow:visible }
+.crm .ch-grid { stroke:var(--grid);stroke-width:1 }
+.crm .ch-base { stroke:var(--axis);stroke-width:1 }
+.crm .ch-tick { fill:var(--mute);font-size:var(--fs-tiny);font-variant-numeric:tabular-nums;stroke:none }
+.crm .ch-line { fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round }
+.crm .ch-dot { stroke:#fff;stroke-width:2 }
+.crm .ch-cross { stroke:var(--axis);stroke-width:1 }
+.crm .ch-tip { position:absolute;top:0;width:170px;pointer-events:none;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(22,32,46,.12);padding:8px 10px;z-index:2 }
+.crm .ch-tip-h { font-size:var(--fs-tiny);color:var(--mute);font-weight:600;margin-bottom:4px }
+.crm .ch-tip-r { display:flex;align-items:center;gap:7px;font-size:var(--fs-small);color:var(--soft) }
+.crm .ch-tip-r i { width:12px;height:2px;border-radius:1px;flex:0 0 auto }
+.crm .ch-tip-r b { color:var(--ink);font-variant-numeric:tabular-nums }
+.crm .ch-keys { display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fs-small);color:var(--soft);font-weight:500;margin-bottom:6px }
+.crm .ch-keys span { display:inline-flex;align-items:center;gap:6px }
+.crm .ch-keys i { width:14px;height:3px;border-radius:2px }
+.crm .ch-spark { height:34px;margin-top:4px }
+.crm .ch-empty { color:var(--soft);font-size:var(--fs-sec);margin:18px 0;text-align:center }
+.crm .ch-donut { display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:6px }
+.crm .ch-ring { position:relative;flex:0 0 auto }
+.crm .ch-track { fill:none;stroke:var(--panel) }
+.crm .ch-seg { transition:opacity .15s,stroke-width .15s;cursor:default }
+.crm .ch-mid { position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 30px;pointer-events:none }
+.crm .ch-mid b { font-size:var(--fs-section);line-height:1.1 }
+.crm .ch-mid span { font-size:var(--fs-tiny);color:var(--soft);font-weight:500 }
+.crm .ch-legend { list-style:none;margin:0;padding:0;flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px }
+.crm .ch-legend li > * { display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;color:inherit;text-decoration:none;outline:none;font-size:var(--fs-sec) }
+.crm .ch-legend li > *:hover, .crm .ch-legend li > *:focus-visible { background:var(--panel) }
+.crm .ch-legend i { width:10px;height:10px;border-radius:3px;flex:0 0 auto }
+.crm .ch-legend svg { width:14px;height:14px;color:var(--soft);stroke-width:2.4 }
+.crm .ch-legend .ch-l { flex:1;min-width:0;color:var(--soft);font-weight:500 }
+.crm .ch-legend b { font-variant-numeric:tabular-nums }
+.crm .ch-legend em { font-style:normal;width:40px;text-align:right;color:var(--mute);font-size:var(--fs-small);font-variant-numeric:tabular-nums }
+.crm .ch-bars { list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px }
+.crm .ch-bars li, .crm .db-fbar { display:flex;align-items:center;gap:10px }
+.crm .ch-bars .ch-l, .crm .db-fbar .ch-l { width:110px;flex:0 0 auto;font-size:var(--fs-sec);color:var(--soft);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.crm .ch-track-h { flex:1;display:flex;align-items:center;gap:8px;min-width:0 }
+.crm .ch-track-h i { display:block;height:14px;border-radius:0 4px 4px 0;max-width:calc(100% - 44px) }
+.crm .ch-track-h b { font-size:var(--fs-sec);font-variant-numeric:tabular-nums }
+.crm .ch-table { margin-top:10px;font-size:var(--fs-small) }
+.crm .ch-table summary { cursor:pointer;color:var(--accent);font-weight:600;width:max-content }
+.crm .ch-table-x { max-height:240px;overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:8px }
+.crm .ch-table table { border-collapse:collapse;width:100% }
+.crm .ch-table th, .crm .ch-table td { padding:5px 10px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap }
+.crm .ch-table th[scope=row], .crm .ch-table thead th:first-child { text-align:left;font-weight:500 }
+.crm .ch-table thead th { position:sticky;top:0;background:var(--panel);font-weight:600 }
+
+/* The calendar */
+.crm .db-cal-h { display:flex;align-items:center;justify-content:space-between;margin-bottom:8px }
+.crm .db-cal-h h3 { margin:0 }
+.crm .db-cal-h > div { display:flex;gap:6px }
+.crm .db-cal-h .ib { width:30px;height:30px }
+.crm .db-cal-ph { height:250px }
+.crm .db-cal-g { display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center }
+.crm .db-cal-w { font-size:var(--fs-tiny);color:var(--mute);font-weight:600;padding:4px 0 }
+.crm .db-day { position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:38px;border-radius:9px;color:var(--ink);text-decoration:none;font-size:var(--fs-sec);font-weight:500 }
+.crm a.db-day:hover { background:var(--panel) }
+.crm .db-day em { font-style:normal;font-size:var(--fs-tiny);font-weight:700;color:var(--accent);line-height:1 }
+.crm .db-day.has { background:var(--tint) }
+.crm .db-day.today { background:var(--brand);color:#fff }
+.crm .db-day.today em { color:#fff }
+.crm .db-cal-today { margin-top:10px }
+
+/* Today's schedule */
+.crm .db-tl { list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px }
+.crm .db-tl > li { display:grid;grid-template-columns:52px 1fr;gap:8px }
+.crm .db-tl-h { font-size:var(--fs-small);color:var(--mute);font-weight:600;padding-top:8px }
+.crm .db-tl-items { display:flex;flex-direction:column;gap:6px;border-left:1px solid var(--line);padding-left:10px;min-width:0 }
+.crm .db-tl-i { display:block;border:1px solid var(--line);border-left:4px solid var(--idle);border-radius:9px;padding:7px 10px;color:inherit;text-decoration:none;background:#fff }
+.crm a.db-tl-i:hover { background:var(--panel) }
+.crm .db-tl-t { display:flex;align-items:center;justify-content:space-between;gap:6px }
+.crm .db-tl-t b { font-size:var(--fs-sec);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.crm .db-tl-s { display:block;font-size:var(--fs-small);color:var(--soft);font-weight:500;margin-top:2px }
+
+@media (max-width:1360px) {
+  .crm .db { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "needs" "kpis" "rail" "charts" }
+  .crm .db-rail { grid-row:auto;position:static;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start }
+}
+@media (max-width:1100px) {
+  .crm .db-needs, .crm .db-kpis { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .crm .db-row { grid-template-columns:minmax(0,1fr) }
+}
+@media (max-width:760px) {
+  .crm .db-rail { grid-template-columns:minmax(0,1fr) }
+  .crm .db-mini { grid-template-columns:minmax(0,1fr) }
+}
+@media (max-width:480px) {
+  .crm .db-kpis { grid-template-columns:minmax(0,1fr) }
+  .crm .db-need { padding:9px 10px }
+  .crm .ch-bars .ch-l, .crm .db-fbar .ch-l { width:86px }
+  .crm .db-step { margin-left:96px }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crm .ch-seg, .crm .db-stale, .crm .db-kpi { transition:none }
+}

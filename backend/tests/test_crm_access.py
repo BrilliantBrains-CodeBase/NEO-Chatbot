@@ -23,6 +23,7 @@ TODAY = date.today().isoformat()
 # Everything a clinic's screens read, for CL98. Each must refuse someone who only works in CL99.
 OTHER_CLINIC = [
     "/v1/crm/dashboard?clinic=CL98",
+    "/v1/crm/dashboard/calendar?clinic=CL98",
     "/v1/crm/leads?clinic=CL98",
     "/v1/crm/leads/export?clinic=CL98",
     "/v1/crm/staff?clinic=CL98",
