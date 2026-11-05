@@ -11,7 +11,7 @@ from email.message import EmailMessage
 from typing import Any
 
 from app.core.db import get_pool
-from app.crm import vault
+from app.crm import failures, vault
 
 HOST, PORT = "smtp.gmail.com", 465
 
@@ -61,4 +61,6 @@ async def send(clinic: str | None, to: str, subject: str, text: str, kind: str) 
         clinic, to, kind, error is None, error,  # under the clinic it was for, even from the BB Gmail
     )  # fmt: skip
     if error:
+        if kind != "test":  # someone testing already sees the answer
+            await failures.report(clinic, "Email")
         raise EmailError(error)

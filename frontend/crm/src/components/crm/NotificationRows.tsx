@@ -6,6 +6,7 @@ import {
   ago,
   groupNotes,
   needsAction,
+  noteHref,
   noteTitle,
   type BellNote,
   type NoteList,
@@ -109,7 +110,7 @@ function Row({
   onOpen: (href: string) => void;
 }) {
   const waiting = needsAction(n);
-  const href = n.request_id ? `/inbox?tab=${n.tab}&open=${n.request_id}` : null;
+  const href = noteHref(n);
   const detail = [waiting ? n.reason : n.treatment, ago(n.created_at)].filter(Boolean).join(" · ");
   const unread = !n.read && !n.resolved;
   return (

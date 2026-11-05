@@ -18,14 +18,21 @@ from app.crm.auth import Staff, staff
 router = APIRouter(prefix="/crm", tags=["crm"])
 
 CLINIC = Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
-Kind = Literal["book", "online", "cancel", "reschedule", "callback", "question"]
+Kind = Literal[
+    "book", "online", "cancel", "reschedule", "callback", "question", "callback_late", "booking_late",
+    "lead_new", "lead_assigned", "access_request", "integration_failed",
+]  # fmt: skip
+# A notification shows to those who can see its screen (Who sees what).
+SCREENS = ("inbox", "leads", "team", "dash_integrations")
 
-# $1 clinic, $2 the person. Cleared rows and kinds this person turned off are left out; an emergency never is.
+# $1 clinic, $2 the person, $3 the screens they can see. Cleared rows and kinds this person turned off are
+# left out; an emergency never is. One meant for a colleague alone shows only to them.
 SEEN = """from app.notifications n
   left join app.notification_receipts r on r.notification_id = n.id and r.user_id = $2::uuid
   left join app.notification_state s on s.user_id = $2::uuid and s.clinic_id = n.clinic_id
   left join app.notification_prefs f on f.user_id = $2::uuid
   where n.clinic_id = $1 and r.dismissed_at is null
+    and n.screen = any($3::text[]) and (n.user_id is null or n.user_id = $2::uuid)
     and (n.severity = 'urgent' or not n.kind = any(coalesce(f.off_kinds, '{}'::text[])))"""
 # "Mark as unread" leaves a receipt with no read time, which wins over "mark all read".
 READ = """(r.read_at is not null
@@ -54,6 +61,8 @@ class Notification(BaseModel):
     treatment: str | None
     reason: str | None
     time_passed: bool  # a booking whose time has gone while it waited: still worth a call
+    count: int  # new leads grouped into this one
+    detail: str | None  # the service that failed
 
 
 class NotificationList(BaseModel):
@@ -64,21 +73,34 @@ class NotificationList(BaseModel):
 
 
 class Prefs(BaseModel):
-    off_kinds: list[Kind] = Field(default=[], max_length=6)
+    off_kinds: list[Kind] = Field(default=[], max_length=12)
     sound: bool = False
     desktop: bool = False
 
 
+async def _screens(conn: Any, clinic: str, user: Staff) -> list[str]:
+    """Which of the bell's screens this person can see in this clinic."""
+    role = "bb_admin" if user.bb_admin else user.roles.get(clinic)
+    if role is None:
+        return []
+    rules = await perm.for_person(conn, clinic, user.id, role)
+    dashboard = rules.get("dash_open", "hidden") != "hidden"  # a Dashboard tab needs the Dashboard open
+    return [
+        s for s in SCREENS if rules.get(s, "hidden") != "hidden" and (dashboard or not s.startswith("dash_"))
+    ]
+
+
 async def _allowed(user: Staff, clinic: str) -> None:
     can_see(user, clinic)
-    await perm.require(await get_pool(), user, clinic, "inbox", "view")
+    if not await _screens(await get_pool(), clinic, user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You cannot see notifications here.")
 
 
 async def _summary(conn: Any, clinic: str, user: Staff) -> Summary:
     row = await conn.fetchrow(
         f"""select count(*) filter (where {UNREAD}) unread,
               count(*) filter (where {URGENT_OPEN}) urgent {SEEN}""",
-        clinic, user.id,
+        clinic, user.id, await _screens(conn, clinic, user),
     )  # fmt: skip
     return Summary(unread=row["unread"], urgent=row["urgent"])
 
@@ -94,7 +116,7 @@ async def summary(user: Annotated[Staff, Depends(staff)], clinic: CLINIC) -> Sum
 
 @router.get("/notifications/clinics", response_model=dict[str, Summary])
 async def by_clinic(user: Annotated[Staff, Depends(staff)]) -> dict[str, Summary]:
-    """The counts in each clinic this person has the Inbox in, for the clinic switch."""
+    """The counts in each clinic where this person can see notifications, for the clinic switch."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         ids = (
@@ -104,9 +126,7 @@ async def by_clinic(user: Annotated[Staff, Depends(staff)]) -> dict[str, Summary
         )
         out: dict[str, Summary] = {}
         for clinic in ids:
-            role = "bb_admin" if user.bb_admin else user.roles[clinic]
-            rules = await perm.for_person(conn, clinic, user.id, role)
-            if rules.get("inbox", "hidden") != "hidden":
+            if await _screens(conn, clinic, user):
                 out[clinic] = await _summary(conn, clinic, user)
     return out
 
@@ -116,24 +136,24 @@ async def notifications(
     user: Annotated[Staff, Depends(staff)],
     clinic: CLINIC,
     show: Literal["all", "unread"] = "all",
-    kind: Literal["book", "online", "cancel", "reschedule", "callback", "question", "emergency"]
-    | None = None,
+    kind: Kind | Literal["emergency"] | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> NotificationList:
     """Emergencies nobody has handled come first, then the newest, a page at a time."""
     await _allowed(user, clinic)
-    where = f"{SEEN} and ($3::text is null or n.kind = $3)" + (f" and {UNREAD}" if show == "unread" else "")
+    where = f"{SEEN} and ($4::text is null or n.kind = $4)" + (f" and {UNREAD}" if show == "unread" else "")
     pool = await get_pool()
     async with pool.acquire() as conn:
-        total = await conn.fetchval(f"select count(*) {where}", clinic, user.id, kind)
+        screens = await _screens(conn, clinic, user)
+        total = await conn.fetchval(f"select count(*) {where}", clinic, user.id, screens, kind)
         rows = await conn.fetch(
             f"""select n.*, {READ} is_read, q.type tab, q.data, l.lead_code, l.full_name,
                   p.full_name resolver,
                   q.status = 'pending' and exists (select 1 from app.appointments a
                     where a.request_id = q.id and a.status = 'missed') time_passed
                 from (select n.id {where}
-                      order by {URGENT_OPEN} desc, n.created_at desc, n.id desc limit $4 offset $5) page
+                      order by {URGENT_OPEN} desc, n.created_at desc, n.id desc limit $5 offset $6) page
                 join app.notifications n on n.id = page.id
                 left join app.notification_receipts r on r.notification_id = n.id and r.user_id = $2::uuid
                 left join app.notification_state s on s.user_id = $2::uuid and s.clinic_id = n.clinic_id
@@ -141,7 +161,7 @@ async def notifications(
                 left join app.leads l on l.id = n.lead_id
                 left join app.profiles p on p.id = n.resolved_by
                 order by {URGENT_OPEN} desc, n.created_at desc, n.id desc""",
-            clinic, user.id, kind, limit, offset,
+            clinic, user.id, screens, kind, limit, offset,
         )  # fmt: skip
         counts = await _summary(conn, clinic, user)
     items = []
@@ -165,6 +185,8 @@ async def notifications(
                 treatment=data.get("treatment"),
                 reason=data.get("reason"),
                 time_passed=bool(r["time_passed"]),
+                count=r["count"],
+                detail=r["detail"],
             )  # fmt: skip
         )
     return NotificationList(items=items, total=total, unread=counts.unread, urgent=counts.urgent)
@@ -221,19 +243,24 @@ async def clear_read(user: Annotated[Staff, Depends(staff)], clinic: CLINIC) -> 
             f"""insert into app.notification_receipts (notification_id, user_id, read_at, dismissed_at)
                 select n.id, $2::uuid, now(), now() {SEEN} and {READ} and not {URGENT_OPEN}
                 on conflict (notification_id, user_id) do update set dismissed_at = now()""",
-            clinic, user.id,
+            clinic, user.id, await _screens(conn, clinic, user),
         )  # fmt: skip
         return await _summary(conn, clinic, user)
 
 
 async def _one(user: Staff, notification_id: UUID) -> Any:
     row = await (await get_pool()).fetchrow(
-        "select id, clinic_id, severity, request_id, resolved_at from app.notifications where id = $1",
+        """select id, clinic_id, severity, request_id, resolved_at, screen, user_id
+           from app.notifications where id = $1""",
         notification_id,
     )
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found.")
     await _allowed(user, row["clinic_id"])
+    meant_for = row["user_id"]
+    hidden = row["screen"] not in await _screens(await get_pool(), row["clinic_id"], user)
+    if hidden or (meant_for and str(meant_for) != user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Notification not found.")
     return row
 
 

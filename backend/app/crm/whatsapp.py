@@ -14,7 +14,7 @@ import httpx
 
 from app.chat import main_template
 from app.core.db import get_pool
-from app.crm import vault
+from app.crm import failures, vault
 
 API = "https://api.interakt.ai/v1/public/message/"
 # The messages the CRM sends, and when.
@@ -162,6 +162,8 @@ async def send(clinic: str, purpose: str, phone: str, data: dict[str, Any]) -> N
                 error = f"Interakt: {r.text[:300] or r.status_code}"
         except httpx.HTTPError as e:
             error = f"Interakt could not be reached: {type(e).__name__}"
+        if error:  # not a setup choice like "no template is set": a message that should have gone
+            await failures.report(clinic, "WhatsApp")
     await pool.execute(
         "insert into app.whatsapp_log (clinic_id, purpose, to_phone, ok, error) values ($1, $2, $3, $4, $5)",
         clinic, purpose, f"{cc} {number}", error is None, error,

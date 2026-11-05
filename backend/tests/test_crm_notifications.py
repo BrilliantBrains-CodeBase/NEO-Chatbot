@@ -10,9 +10,11 @@ import pytest
 from httpx import AsyncClient
 
 from app.core.db import get_pool
+from app.crm import failures
 from tests.test_chat_store import req
 from tests.test_crm_access import world
 from tests.test_crm_auth import api, needs_db, signed_in_as
+from tests.test_db_access import person
 
 __all__ = ["api", "world"]  # the fixtures
 
@@ -285,6 +287,188 @@ async def test_counts_per_clinic_only_cover_this_persons_clinics(
     finally:
         await _clean(world["other_lead"]["id"])
         await _clean(world["lead"]["id"])
+
+
+async def _lead_in(tx: asyncpg.Connection, phone: str, source: str = "chatbot") -> Any:
+    return await tx.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Bell Test', $1, $2) returning id""",
+        phone, source,
+    )  # fmt: skip
+
+
+async def test_open_minutes_skip_nights_closed_days_and_holidays(tx: asyncpg.Connection) -> None:
+    await tx.execute(
+        """update app.clinics set timezone = 'Asia/Kolkata', open_time = '10:00', close_time = '19:00',
+             closed_weekdays = '{0}' where id = 'CL99'"""
+    )
+    await tx.execute("delete from app.clinic_holidays where clinic_id = 'CL99'")
+
+    async def minutes(start: str, end: str) -> int:
+        got: int = await tx.fetchval(
+            "select app.open_minutes('CL99', $1::text::timestamptz, $2::text::timestamptz)", start, end
+        )
+        return got
+
+    # 2031-03-10 is a Monday, 2031-03-09 a Sunday (closed).
+    assert await minutes("2031-03-10 11:00+05:30", "2031-03-10 12:30+05:30") == 90
+    assert await minutes("2031-03-10 18:30+05:30", "2031-03-11 10:30+05:30") == 60  # across the night
+    assert await minutes("2031-03-08 18:00+05:30", "2031-03-10 11:00+05:30") == 120  # across a closed Sunday
+    assert await minutes("2031-03-10 20:00+05:30", "2031-03-10 23:00+05:30") == 0  # after closing
+    await tx.execute("insert into app.clinic_holidays (clinic_id, day) values ('CL99', '2031-03-10')")
+    assert await minutes("2031-03-10 11:00+05:30", "2031-03-10 12:30+05:30") == 0
+
+
+async def test_requests_left_waiting_are_flagged_once_and_resolve_when_handled(
+    tx: asyncpg.Connection,
+) -> None:
+    await tx.execute(
+        """update app.clinics set open_time = '00:00', close_time = '23:59', closed_weekdays = '{}'
+           where id = 'CL99'"""
+    )
+    await tx.execute("delete from app.clinic_holidays where clinic_id = 'CL99'")
+    lead = await _lead_in(tx, "+919000008811")
+
+    async def made(kind: str, hours: int, data: str = "{}") -> Any:
+        return await tx.fetchval(
+            """insert into app.requests (clinic_id, lead_id, type, data, created_at)
+               values ('CL99', $1, $2, $3::jsonb, now() - make_interval(hours => $4)) returning id""",
+            lead, kind, data, hours,
+        )  # fmt: skip
+
+    callback, booking_soon = await made("callback", 2), await made("book", 1)
+    booking, old = await made("book", 3), await made("callback", 24 * 8)
+    emergency = await made("callback", 3, '{"urgent": true}')
+    cancel = await made("cancel", 5)
+    await tx.execute("select app.job_flag_late_requests()")
+    await tx.execute("select app.job_flag_late_requests()")  # a second run adds nothing
+
+    async def late(request: Any) -> list[str]:
+        rows = await tx.fetch("select kind from app.notifications where dedupe_key = $1", f"late:{request}")
+        return [r["kind"] for r in rows]
+
+    assert await late(callback) == ["callback_late"]
+    assert await late(booking) == ["booking_late"]
+    for quiet in (booking_soon, old, emergency, cancel):
+        assert await late(quiet) == []
+    await tx.execute("update app.requests set status = 'done' where id = $1", callback)
+    assert await tx.fetchval(
+        "select resolved_at from app.notifications where dedupe_key = $1", f"late:{callback}"
+    )
+
+
+async def test_new_leads_group_into_one_and_show_as_new_again(tx: asyncpg.Connection) -> None:
+    async def rollup() -> Any:
+        return await tx.fetchrow(
+            """select * from app.notifications where clinic_id = 'CL99' and kind = 'lead_new'
+               order by created_at desc limit 1"""
+        )
+
+    await tx.execute("delete from app.notifications where clinic_id = 'CL99' and kind = 'lead_new'")
+    await _lead_in(tx, "+919000008821")  # the chatbot's arrive as a request instead
+    assert await rollup() is None
+    first = await _lead_in(tx, "+919000008822", "manual")
+    one = await rollup()
+    assert (one["count"], one["lead_id"], one["screen"]) == (1, first, "leads")
+    someone = await person(tx, "bell_read", "CL99", "front_desk")
+    await tx.execute(
+        "insert into app.notification_receipts (notification_id, user_id, read_at) values ($1, $2, now())",
+        one["id"], someone,
+    )  # fmt: skip
+    await _lead_in(tx, "+919000008823", "meta_ads")
+    two = await rollup()
+    assert (two["id"], two["count"], two["lead_id"]) == (one["id"], 2, None)
+    assert (
+        await tx.fetchval(
+            "select count(*) from app.notification_receipts where notification_id = $1", one["id"]
+        )
+        == 0
+    )
+
+
+async def test_assigning_tells_only_that_person_unless_they_took_it(tx: asyncpg.Connection) -> None:
+    lead = await _lead_in(tx, "+919000008831")
+    desk = await person(tx, "bell_desk", "CL99", "front_desk")
+    await tx.execute("update app.leads set assigned_to = $2 where id = $1", lead, desk)
+    row = await tx.fetchrow(
+        "select * from app.notifications where kind = 'lead_assigned' and lead_id = $1", lead
+    )
+    assert (row["user_id"], row["screen"]) == (desk, "leads")
+    await tx.execute("update app.leads set assigned_to = null where id = $1", lead)
+    await tx.execute("select set_config('request.jwt.claim.sub', $1, true)", str(desk))
+    await tx.execute("update app.leads set assigned_to = $2 where id = $1", lead, desk)
+    count = await tx.fetchval(
+        "select count(*) from app.notifications where kind = 'lead_assigned' and lead_id = $1", lead
+    )
+    assert count == 1
+
+
+async def test_an_access_request_waits_until_decided(tx: asyncpg.Connection) -> None:
+    made = await tx.fetchval(
+        """insert into app.access_requests (clinic_id, role, full_name, email)
+           values ('CL99', 'front_desk', 'New Person', 'bell-access@test.invalid') returning id"""
+    )
+    key = f"access:{made}"
+    row = await tx.fetchrow("select * from app.notifications where dedupe_key = $1", key)
+    assert (row["kind"], row["screen"], row["resolved_at"]) == ("access_request", "team", None)
+    await tx.execute(
+        "update app.access_requests set status = 'rejected', decided_at = now() where id = $1", made
+    )
+    assert await tx.fetchval("select resolved_at from app.notifications where dedupe_key = $1", key)
+
+
+async def test_a_failing_service_shows_once_a_day_and_names_only_the_service(tx: asyncpg.Connection) -> None:
+    await failures.record(tx, "CL99", "WhatsApp")
+    await failures.record(tx, "CL99", "WhatsApp")
+    rows = await tx.fetch(
+        "select detail, screen from app.notifications where clinic_id = 'CL99' "
+        "and kind = 'integration_failed' "
+        "and detail = 'WhatsApp'"
+    )
+    assert [(r["detail"], r["screen"]) for r in rows] == [("WhatsApp", "dash_integrations")]
+
+
+async def test_each_person_sees_only_what_their_role_and_name_allow(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    pool = await get_pool()
+
+    async def make(key: str, kind: str, screen: str, user: Any = None) -> str:
+        return str(
+            await pool.fetchval(
+                """insert into app.notifications (clinic_id, kind, screen, user_id, dedupe_key)
+                   values ('CL99', $1, $2, $3::uuid, $4) returning id""",
+                kind,
+                screen,
+                user,
+                key,
+            )  # fmt: skip
+        )
+
+    team = await make("test:team", "access_request", "team")
+    failed = await make("test:failed", "integration_failed", "dash_integrations")
+    mine = await make("test:mine", "lead_assigned", "leads", world["desk"]["id"])
+    theirs = await make("test:theirs", "lead_assigned", "leads", world["manager"]["id"])
+    try:
+
+        async def seen(who: str, limit: int = 100) -> set[str]:
+            h = signed_in_as(monkeypatch, world[who]["id"])
+            return {i["id"] for i in (await _list(api, h, limit=limit))["items"]}
+
+        desk = await seen("desk")
+        assert mine in desk and not {team, failed, theirs} & desk  # Front Desk: no Team, no Dashboard
+        manager = await seen("manager")
+        assert {team, failed, theirs} <= manager and mine not in manager
+
+        h = signed_in_as(monkeypatch, world["desk"]["id"])
+        for hidden in (team, failed, theirs):
+            assert (await api.post(f"{URL}/{hidden}/read", headers=h)).status_code == 404, hidden
+        assert (await api.post(f"{URL}/{mine}/read", headers=h)).status_code == 200
+        off = await api.put(f"{URL}/prefs", json={"off_kinds": ["lead_assigned"]}, headers=h)
+        assert off.status_code == 200 and mine not in await seen("desk")
+    finally:
+        await pool.execute("delete from app.notifications where dedupe_key like 'test:%'")
+        await pool.execute("delete from app.notification_prefs where user_id = $1::uuid", world["desk"]["id"])
 
 
 async def test_a_no_phone_emergency_shows_once_per_chat(tx: asyncpg.Connection) -> None:

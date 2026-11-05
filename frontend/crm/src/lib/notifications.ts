@@ -18,6 +18,8 @@ export type BellNote = {
   treatment: string | null;
   reason: string | null;
   time_passed: boolean;
+  count: number;
+  detail: string | null;
 };
 export type NoteSummary = { unread: number; urgent: number };
 export type NoteList = NoteSummary & { items: BellNote[]; total: number };
@@ -31,14 +33,34 @@ export const NOTE_KINDS: { id: string; label: string; one: string }[] = [
   { id: "reschedule", label: "Reschedules", one: "Reschedule" },
   { id: "callback", label: "Callbacks", one: "Callback" },
   { id: "question", label: "Questions", one: "Question" },
+  { id: "callback_late", label: "Call backs left waiting", one: "Call back still waiting" },
+  { id: "booking_late", label: "Bookings left waiting", one: "Booking still waiting" },
+  { id: "lead_new", label: "New leads", one: "New lead" },
+  { id: "lead_assigned", label: "Leads assigned to me", one: "Lead assigned to you" },
+  { id: "access_request", label: "Access requests", one: "Access request waiting" },
+  { id: "integration_failed", label: "Failed integrations", one: "Integration failed" },
 ];
 
 export function noteTitle(n: BellNote): string {
+  if (n.kind === "lead_new" && n.count > 1) return `${n.count} new leads`;
+  if (n.kind === "integration_failed") return `${n.detail ?? "An integration"} is failing`;
+  if (n.kind === "access_request") return "Access request waiting";
   const what =
     n.kind === "emergency"
       ? "Emergency"
       : (NOTE_KINDS.find((k) => k.id === n.kind)?.one ?? "New request");
-  return n.name ? `${what} · ${n.name}` : `${what} · no phone number given`;
+  if (n.name) return `${what} · ${n.name}`;
+  return n.kind === "emergency" ? `${what} · no phone number given` : what;
+}
+
+/** Where a notification opens. None: an emergency with no phone number has nothing to open. */
+export function noteHref(n: BellNote): string | null {
+  if (n.request_id) return `/inbox?tab=${n.tab}&open=${n.request_id}`;
+  if (n.kind === "access_request") return "/team";
+  if (n.kind === "integration_failed") return "/assistant/integrations";
+  if (n.kind === "lead_new" || n.kind === "lead_assigned")
+    return n.lead_code ? `/leads?q=${encodeURIComponent(n.lead_code)}` : "/leads";
+  return null;
 }
 
 export const needsAction = (n: BellNote) =>

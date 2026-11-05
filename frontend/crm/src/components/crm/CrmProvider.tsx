@@ -51,7 +51,7 @@ type Crm = {
   /** This person's bell settings, the same on every computer. */
   prefs: NotePrefs;
   savePrefs: (p: NotePrefs) => Promise<void>;
-  /** "hidden": this person has no Inbox here. "error": the last read failed, so the counts may be old or missing. */
+  /** "hidden": no bell for this person here. "error": the last read failed, so the counts may be old or missing. */
   inboxStatus: "hidden" | "loading" | "ready" | "error";
   /** Load the pending counts again (after a request is handled). */
   refreshInbox: () => void;
@@ -131,6 +131,9 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const refreshInbox = useCallback(() => setInboxVersion((v) => v + 1), []);
   const [inboxFailed, setInboxFailed] = useState<string | null>(null); // the clinic whose last read failed
   const canInbox = !!me && level(me, clinic, "inbox") !== "hidden";
+  // The bell shows to anyone who can see one of the screens its notifications belong to.
+  const canBell =
+    !!me && ["inbox", "leads", "team", "dash_integrations"].some((s) => level(me, clinic, s) !== "hidden");
   const toastRef = useRef<(m: string) => void>(() => {});
   const several = clinics.length > 1;
   useEffect(() => {
@@ -147,7 +150,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   // On every page: read now, every REFRESH_MS, and on coming back to the tab. The Inbox's counts wait while the
   // tab is hidden; the bell's do not, or a desktop alert could never fire while someone works in another tab.
   useEffect(() => {
-    if (!clinicId || !canInbox) return;
+    if (!clinicId || !canBell) return;
     let live = true;
     let lastRead = 0;
     const readNotes = () => {
@@ -178,7 +181,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       });
     const read = () => {
       lastRead = Date.now();
-      Promise.all([readNotes(), document.hidden ? null : readInbox()]).then(
+      Promise.all([readNotes(), document.hidden || !canInbox ? null : readInbox()]).then(
         () => {
           if (live) setInboxFailed(null);
         },
@@ -201,7 +204,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", onReturn);
       window.removeEventListener("focus", onReturn);
     };
-  }, [clinicId, canInbox, several, inboxVersion]);
+  }, [clinicId, canBell, canInbox, several, inboxVersion]);
 
   const setNotes = useCallback(
     (s: NoteSummary) => {
@@ -251,7 +254,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       clinicNotes,
       prefs,
       savePrefs,
-      inboxStatus: me && !canInbox
+      inboxStatus: me && !canBell
         ? "hidden"
         : clinicId && inboxFailed === clinicId
           ? "error"
@@ -268,7 +271,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canInbox, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canBell, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

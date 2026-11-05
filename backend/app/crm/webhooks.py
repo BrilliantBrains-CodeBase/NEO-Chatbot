@@ -15,7 +15,7 @@ from typing import Any
 import httpx
 
 from app.core.db import get_pool
-from app.crm import vault
+from app.crm import failures, vault
 
 EVENTS = {
     "lead_new": "New lead",
@@ -89,4 +89,5 @@ async def send(hook: Any, url: str, secret_id: Any, clinic: str, event: str, bod
             return True
         if attempt <= len(WAITS):
             await asyncio.sleep(WAITS[attempt - 1])
+    await failures.report(clinic, "Webhook")
     return False
