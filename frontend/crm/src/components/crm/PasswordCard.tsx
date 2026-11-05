@@ -5,7 +5,7 @@ import { useCrm } from "@/components/crm/CrmProvider";
 import { supabase } from "@/lib/supabase";
 import { STRENGTH_COLOR, STRENGTH_HINT, passwordScore } from "@/lib/validation";
 
-// Settings → Change password, for the signed-in person (Supabase Auth changes it for this sign-in).
+// My profile → Change password, for the signed-in person (Supabase Auth changes it for this sign-in).
 // No "current password" box: signing in again would start a new sign-in that 2-step login asks a code for.
 export default function PasswordCard() {
   const { toast } = useCrm();
@@ -43,12 +43,10 @@ export default function PasswordCard() {
   }
 
   return (
-    <div className="card" style={{ padding: 16, maxWidth: 640, marginTop: 16 }}>
-      <b>Change password</b>
-      <p className="sub2" style={{ margin: "4px 0 12px" }}>
-        Use at least 8 characters with a number and a capital letter.
-      </p>
-      <div style={{ display: "grid", gap: 8 }}>
+    <section className="st-card">
+      <h2>Change password</h2>
+      <p>Use at least 8 characters with a number and a capital letter.</p>
+      <div style={{ display: "grid", gap: 8, maxWidth: 420 }}>
         <input
           className="f"
           type={shown ? "text" : "password"}
@@ -91,6 +89,6 @@ export default function PasswordCard() {
           </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

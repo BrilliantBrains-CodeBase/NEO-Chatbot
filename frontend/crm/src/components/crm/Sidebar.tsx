@@ -1,5 +1,6 @@
 "use client";
 
+import DataImg from "@/components/crm/DataImg";
 import { canSee } from "@/lib/access";
 import { inDashboard } from "@/lib/workspace";
 import Link from "next/link";
@@ -194,6 +195,8 @@ export default function Sidebar({
   }, [placeMarker]);
 
   const see = (href: string) => canSee(crm.me, crm.clinic, href);
+  const logo = crm.branding?.logo ?? null;
+  const mark = crm.branding?.favicon ?? null;
 
   const item = (
     href: string,
@@ -299,9 +302,14 @@ export default function Sidebar({
 
   return (
     <aside className={`sb${open ? " on" : ""}`} aria-label="Main menu">
-      <div className="sb-top">
-        <i>N</i>
-        <span className="sb-name">NEO CRM</span>
+      {/* The chosen clinic's logo (Clinic settings); the narrow menu shows its favicon. Without them: NEO CRM. */}
+      <div className={`sb-top${logo ? " has-logo" : ""}`}>
+        {mark ? <DataImg className="sb-mark" src={mark} alt="" /> : <i>{logo ? crm.clinic.charAt(0) : "N"}</i>}
+        {logo ? (
+          <DataImg className="sb-logo" src={logo} alt={crm.clinic} />
+        ) : (
+          <span className="sb-name">NEO CRM</span>
+        )}
       </div>
       <button
         type="button"
@@ -376,7 +384,7 @@ export default function Sidebar({
               <div className="dv" />
               <div className="grp">ADMIN</div>
               {item("/team", "team", "Team", path === "/team")}
-              {!console_ && item("/settings", "set", "Settings", path === "/settings")}
+              {!console_ && item("/settings", "set", "Clinic settings", path === "/settings")}
             </>
           )}
         </div>

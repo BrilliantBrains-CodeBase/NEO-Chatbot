@@ -1,22 +1,9 @@
 "use client";
 
-import BellCard from "@/components/crm/BellCard";
-import PasswordCard from "@/components/crm/PasswordCard";
-import ProfileCard from "@/components/crm/ProfileCard";
+import ClinicSettingsView from "@/components/settings/ClinicSettingsView";
 
-// Settings: how my account works. Clinic setup stays in the Dashboard (Clinic info, Integrations, Team).
+// Clinic settings: the chosen clinic's look, details, lead assignment and alerts (Settings in Who sees what).
+// Each person's own details, password and bell are on My profile.
 export default function SettingsPage() {
-  return (
-    <>
-      <div className="ph">
-        <div>
-          <h1>Settings</h1>
-          <p>Your profile, password and notifications.</p>
-        </div>
-      </div>
-      <ProfileCard />
-      <PasswordCard />
-      <BellCard />
-    </>
-  );
+  return <ClinicSettingsView />;
 }

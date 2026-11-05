@@ -39,6 +39,8 @@ OTHER_CLINIC = [
     "/v1/crm/console/CL98/settings",
     "/v1/crm/console/CL98/kb",
     "/v1/crm/console/CL98/doctors",
+    "/v1/crm/clinic-settings/CL98",
+    "/v1/crm/clinic-settings/CL98/branding",
 ]
 
 

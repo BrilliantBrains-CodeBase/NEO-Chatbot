@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { level } from "@/lib/access";
-import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Inbox, type Me } from "@/lib/api";
+import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Branding, type Inbox, type Me } from "@/lib/api";
 import {
   desktopAlert,
   playTone,
@@ -42,6 +42,10 @@ type Crm = {
   inbox: Record<string, number> | null;
   /** The selected clinic's id; undefined while loading. */
   clinicId: string | undefined;
+  /** The chosen clinic's logo and favicon (Clinic settings); null while loading. */
+  branding: Branding | null;
+  /** After Clinic settings saves new images. */
+  setBranding: (b: Branding) => void;
   /** The bell's counts for this person in this clinic; null while loading. */
   notes: NoteSummary | null;
   /** The new counts, after an action on a notification. */
@@ -117,6 +121,26 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const ready = useBrowserNow() !== null;
 
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
+  // The chosen clinic's look, kept per clinic so switching back shows it at once.
+  const [looks, setLooks] = useState<Record<string, Branding>>({});
+  useEffect(() => {
+    if (!clinicId) return;
+    let live = true;
+    api<Branding>(`/v1/crm/clinic-settings/${clinicId}/branding`).then(
+      (b) => live && setLooks((x) => ({ ...x, [clinicId]: b })),
+      () => live && setLooks((x) => ({ ...x, [clinicId]: { logo: null, favicon: null, updated_at: null } })),
+    );
+    return () => {
+      live = false;
+    };
+  }, [clinicId]);
+  const branding = (clinicId && looks[clinicId]) || null;
+  const setBranding = useCallback(
+    (b: Branding) => {
+      if (clinicId) setLooks((x) => ({ ...x, [clinicId]: b }));
+    },
+    [clinicId],
+  );
   const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number> } | null>(null);
   const [noted, setNoted] = useState<{ clinic: string; s: NoteSummary } | null>(null);
   const [clinicNotes, setClinicNotes] = useState<ClinicCounts>({});
@@ -249,6 +273,8 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       signOut,
       inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
       clinicId,
+      branding,
+      setBranding,
       notes: noted && noted.clinic === clinicId ? noted.s : null,
       setNotes,
       clinicNotes,
@@ -271,7 +297,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canBell, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, branding, setBranding, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canBell, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

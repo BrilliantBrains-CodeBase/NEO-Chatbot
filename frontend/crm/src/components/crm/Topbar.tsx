@@ -1,5 +1,6 @@
 "use client";
 
+import DataImg from "@/components/crm/DataImg";
 import Loading from "@/components/crm/Loading";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -10,7 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import AddLeadForm from "@/components/leads/AddLeadForm";
-import { level } from "@/lib/access";
+import { canSee, level } from "@/lib/access";
 import { inDashboard } from "@/lib/workspace";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
@@ -228,7 +229,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           aria-expanded={open === "profile"}
           onClick={(e) => toggleMenu("profile", e)}
         >
-          {crm.me?.initials ?? ""}
+          {crm.me?.photo ? (
+            <DataImg className="tb-av-img" src={crm.me.photo} alt="" />
+          ) : (
+            (crm.me?.initials ?? "")
+          )}
         </button>
         <div
           className={`pmenu${open === "profile" ? " on" : ""}`}
@@ -245,10 +250,12 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
             <Icon name="user" />
             My profile
           </button>
-          <button role="menuitem" onClick={() => go("/settings")}>
-            <Icon name="set" />
-            Settings
-          </button>
+          {canSee(crm.me, crm.clinic, "/settings") && (
+            <button role="menuitem" onClick={() => go("/settings")}>
+              <Icon name="set" />
+              Clinic settings
+            </button>
+          )}
           <button
             role="menuitem"
             className="tb-out"

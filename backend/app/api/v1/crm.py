@@ -35,6 +35,8 @@ class Me(BaseModel):
     id: str
     name: str
     email: str
+    phone: str | None = None  # +919876543210
+    photo: str | None = None  # a small data:image, resized in the browser (My profile)
     initials: str
     bb_admin: bool
     role_label: str  # the highest role, for the profile menu
@@ -55,6 +57,11 @@ async def me(user: Annotated[Staff, Depends(staff)]) -> Me:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("select id, name from app.clinics where active and not is_test order by id")
+        mine = await conn.fetchrow(
+            """select p.phone, f.photo from app.profiles p
+               left join app.profile_photos f on f.user_id = p.id where p.id = $1::uuid""",
+            user.id,
+        )
         # Team's "Last sign-in": asked on sign-in and when the CRM opens (written at most every 5 minutes).
         await conn.execute(
             """update app.profiles set last_seen_at = now()
@@ -77,6 +84,8 @@ async def me(user: Annotated[Staff, Depends(staff)]) -> Me:
         id=user.id,
         name=user.name,
         email=user.email,
+        phone=mine["phone"] if mine else None,
+        photo=mine["photo"] if mine else None,
         initials=initials(user.name),
         bb_admin=user.bb_admin,
         role_label=ROLE_LABEL[top],
@@ -122,18 +131,72 @@ STAGES = ["new", "follow_up", "booked", "visited", "lost", "invalid"]
 
 class MeChange(BaseModel):
     name: str = Field(min_length=2, max_length=100)
+    # Left out: unchanged; null: removed.
+    phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
 
 
 @router.patch("/me", response_model=Me)
 async def change_me(user: Annotated[Staff, Depends(staff)], body: MeChange) -> Me:
-    """My profile: change my own name (email and roles are changed by a manager in Team)."""
+    """My profile: my own name and phone. Email: confirmed through Supabase Auth (POST /me/email first); roles
+    are changed by a manager in Team."""
     name = " ".join(body.name.split())
     if len(name) < 2:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please enter your name.")
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("update app.profiles set full_name = $2 where id = $1::uuid", user.id, name)
+        if "phone" in body.model_fields_set:
+            await conn.execute(
+                "update app.profiles set full_name = $2, phone = $3 where id = $1::uuid",
+                user.id,
+                name,
+                body.phone,
+            )
+        else:
+            await conn.execute("update app.profiles set full_name = $2 where id = $1::uuid", user.id, name)
     return await me(replace(user, name=name))
+
+
+class PhotoIn(BaseModel):
+    photo: str | None = Field(default=None, max_length=60_000)  # null: back to initials
+
+
+PHOTO = re.compile(r"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$")
+
+
+@router.put("/me/photo", response_model=Me)
+async def change_photo(user: Annotated[Staff, Depends(staff)], body: PhotoIn) -> Me:
+    """My profile photo, shown in the top bar. The browser resizes it first (a square, about 10 KB)."""
+    pool = await get_pool()
+    if body.photo is None:
+        await pool.execute("delete from app.profile_photos where user_id = $1::uuid", user.id)
+        return await me(user)
+    if not PHOTO.match(body.photo):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Upload a PNG, JPG or WebP image.")
+    await pool.execute(
+        """insert into app.profile_photos (user_id, photo) values ($1::uuid, $2)
+           on conflict (user_id) do update set photo = $2""",
+        user.id, body.photo,
+    )  # fmt: skip
+    return await me(user)
+
+
+class EmailIn(BaseModel):
+    email: str = Field(max_length=120)
+
+
+@router.post("/me/email", status_code=status.HTTP_204_NO_CONTENT)
+async def check_new_email(user: Annotated[Staff, Depends(staff)], body: EmailIn) -> Response:
+    """Before My profile asks Supabase Auth to change the sign-in email: the address must be valid, new and
+    not someone else's. Supabase then emails a confirmation link; once clicked, the profile follows (0038)."""
+    email = body.email.strip().lower()
+    if not EMAIL.match(email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Please enter a valid email address.")
+    if email == user.email:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "That is already your email.")
+    pool = await get_pool()
+    if await pool.fetchval("select 1 from app.profiles where email = $1 and id <> $2::uuid", email, user.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Another account already uses that email.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def in_clinic(user: Staff, clinic: str) -> bool:

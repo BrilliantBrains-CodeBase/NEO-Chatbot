@@ -1,18 +1,13 @@
 "use client";
 
-import ProfileCard from "@/components/crm/ProfileCard";
+import { Suspense } from "react";
+import ProfileView from "@/components/settings/ProfileView";
 
-// My profile: my details (the same card is on Settings).
+// My profile: the signed-in person's details, email, password, own notifications and roles.
 export default function ProfilePage() {
   return (
-    <>
-      <div className="ph">
-        <div>
-          <h1>My profile</h1>
-          <p>Your details in the CRM.</p>
-        </div>
-      </div>
-      <ProfileCard />
-    </>
+    <Suspense fallback={null}>
+      <ProfileView />
+    </Suspense>
   );
 }

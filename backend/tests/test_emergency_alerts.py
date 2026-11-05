@@ -58,6 +58,20 @@ async def test_only_active_managers_of_this_clinic_are_emailed(tx: asyncpg.Conne
     assert not {"alert_off@test.invalid", "alert_desk@test.invalid", "alert_other@test.invalid"} & set(to)
 
 
+@needs_db
+async def test_clinic_settings_choose_who_is_emailed(tx: asyncpg.Connection) -> None:
+    await person(tx, "alert_mgr2", "CL99", "clinic_manager")
+    assert "alert_mgr2@test.invalid" in await alerts.recipients(tx, "CL99")  # nothing saved: the Admins
+    await tx.execute(
+        """insert into app.clinic_alerts (clinic_id, emergency_admins, emergency_emails)
+           values ('CL99', true, '{desk@test.invalid}')"""
+    )
+    both = await alerts.recipients(tx, "CL99")
+    assert "alert_mgr2@test.invalid" in both and both[-1] == "desk@test.invalid"
+    await tx.execute("update app.clinic_alerts set emergency_admins = false where clinic_id = 'CL99'")
+    assert await alerts.recipients(tx, "CL99") == ["desk@test.invalid"]
+
+
 async def test_one_managers_failed_email_does_not_stop_the_next(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[str] = []
 
@@ -87,7 +101,7 @@ async def test_one_managers_failed_email_does_not_stop_the_next(monkeypatch: pyt
         return ["a@test.invalid", "b@test.invalid"]
 
     monkeypatch.setattr(alerts, "get_pool", pool)
-    monkeypatch.setattr(alerts, "managers", two)
+    monkeypatch.setattr(alerts, "recipients", two)
     monkeypatch.setattr(email, "send", send)
     await alerts._send("CL99", None)
     assert sent == ["a@test.invalid", "b@test.invalid"]

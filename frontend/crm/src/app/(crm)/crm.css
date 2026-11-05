@@ -831,3 +831,43 @@
 @media (max-width:560px) {
   .crm .tm-form { grid-template-columns:1fr }
 }
+
+/* Clinic settings → the chosen clinic's logo in the menu. Wide menu: the logo; narrow menu: the favicon. */
+.crm .sb-top .sb-mark { flex:0 0 auto;width:34px;height:34px;border-radius:9px;object-fit:contain;background:#fff }
+.crm .sb-top .sb-logo { flex:1 1 auto;min-width:0;max-width:190px;max-height:40px;object-fit:contain;object-position:left center;transition:opacity .18s }
+.crm .sb-top.has-logo .sb-mark, .crm .sb-top.has-logo > i { display:none }
+@media (min-width:861px) {
+  :root[data-menu-mini] .crm .sb-top.has-logo .sb-logo { display:none }
+  :root[data-menu-mini] .crm .sb-top.has-logo .sb-mark { display:block }
+  :root[data-menu-mini] .crm .sb-top.has-logo > i { display:grid }
+}
+/* My profile photo in the top bar. */
+.crm .tb .tb-av-img { width:100%;height:100%;border-radius:50%;object-fit:cover;display:block }
+
+/* Clinic settings and My profile. */
+.crm .st { max-width:820px }
+.crm .st-card { background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px }
+.crm .st-card > h2 { margin:0;font-size:var(--fs-section) }
+.crm .st-card > p { margin:4px 0 14px;color:var(--soft);font-size:var(--fs-sec) }
+.crm .st-images { display:grid;grid-template-columns:1.6fr 1fr;gap:16px }
+.crm .st-image { display:flex;flex-direction:column;gap:8px;font-size:var(--fs-small);font-weight:600;color:#2F3B4B }
+.crm .st-drop { display:grid;place-items:center;height:96px;border:1px dashed #C6D3E4;border-radius:12px;background:var(--panel);overflow:hidden }
+.crm .st-drop img { max-width:90%;max-height:72px;object-fit:contain }
+.crm .st-drop.sq img { width:48px;height:48px }
+.crm .st-drop span { color:var(--soft);font-weight:500 }
+.crm .st-btns { display:flex;gap:6px;flex-wrap:wrap }
+.crm .st-who { display:flex;align-items:center;gap:16px;margin-bottom:16px }
+.crm .st-photo { width:72px;height:72px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;overflow:hidden;background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;font-weight:700;font-size:var(--fs-section) }
+.crm .st-photo img { width:100%;height:100%;object-fit:cover }
+.crm .st-phone { display:flex;gap:6px }
+.crm .st-phone select { flex:0 0 118px;min-height:40px }
+.crm .st-phone input { flex:1;min-width:0 }
+.crm .st-list { display:grid;gap:6px;margin:0;padding:0;list-style:none }
+.crm .st-list li { display:flex;justify-content:space-between;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:var(--fs-sec) }
+.crm .st-chips { display:flex;flex-wrap:wrap;gap:6px }
+.crm .st-chips span { display:inline-flex;align-items:center;gap:6px;padding:4px 6px 4px 10px;border-radius:999px;background:var(--tint);font-size:var(--fs-sec);font-weight:500 }
+.crm .st-chips button { border:0;background:none;cursor:pointer;color:var(--soft);padding:0 4px;font:inherit }
+@media (max-width:560px) {
+  .crm .st-images { grid-template-columns:1fr }
+  .crm .st-who { flex-direction:column;align-items:flex-start }
+}

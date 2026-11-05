@@ -4,7 +4,7 @@ import { useState } from "react";
 import { NOTE_KINDS, type NotePrefs } from "@/lib/notifications";
 import { useCrm } from "./CrmProvider";
 
-// Settings → Bell notifications: saved for this person, the same on every computer.
+// My profile → Notifications: saved for this person, the same on every computer and in every clinic.
 export default function BellCard() {
   const { prefs, savePrefs } = useCrm();
   const [blocked, setBlocked] = useState(false);
@@ -21,10 +21,11 @@ export default function BellCard() {
   }
 
   return (
-    <div className="card" style={{ padding: 16, maxWidth: 640, marginTop: 16 }}>
-      <b>Bell notifications</b>
-      <p className="sub2" style={{ margin: "4px 0 12px" }}>
-        Choose what shows in the bell. The Inbox still shows every request, and emergencies always show.
+    <section className="st-card">
+      <h2>Bell notifications</h2>
+      <p>
+        Choose what shows in your bell. The Inbox still shows every request, and emergencies always show. Who is
+        emailed for the whole clinic is in Clinic settings.
       </p>
       <div style={{ display: "grid", gap: 8 }}>
         {NOTE_KINDS.map((t) => (
@@ -66,6 +67,6 @@ export default function BellCard() {
           </p>
         )}
       </div>
-    </div>
+    </section>
   );
 }

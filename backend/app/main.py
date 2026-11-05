@@ -23,6 +23,7 @@ from app.api.v1 import (
     crm_patients,
     crm_permissions,
     crm_security,
+    crm_settings,
     crm_sheets,
     crm_team,
     crm_webhooks,
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(crm_patients.router, prefix="/v1")
     app.include_router(crm_inbox.router, prefix="/v1")
     app.include_router(crm_notifications.router, prefix="/v1")
+    app.include_router(crm_settings.router, prefix="/v1")
     app.include_router(crm_console.router, prefix="/v1", dependencies=tab(None))
     app.include_router(crm_websites.router, prefix="/v1", dependencies=tab("install"))
     app.include_router(crm_integrations.router, prefix="/v1", dependencies=tab("integrations"))

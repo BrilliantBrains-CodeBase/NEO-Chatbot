@@ -30,6 +30,27 @@ function Frame({ children }: { children: ReactNode }) {
     if (noHome) router.replace("/appointments");
   }, [noHome, router]);
 
+  // The browser tab follows the chosen clinic: its favicon (Clinic settings) and its name in the title.
+  const favicon = crm.branding?.favicon ?? null;
+  useEffect(() => {
+    let link = document.querySelector<HTMLLinkElement>("link[data-clinic-icon]");
+    if (!favicon) {
+      link?.remove();
+      return;
+    }
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      link.dataset.clinicIcon = "";
+    }
+    link.href = favicon;
+    document.head.appendChild(link); // the last icon wins
+  }, [favicon]);
+  const clinicName = crm.clinics.length > 0 ? crm.clinic : "";
+  useEffect(() => {
+    document.title = clinicName ? `${clinicName} · NEO CRM` : "NEO CRM";
+  }, [clinicName, path]);
+
   // Esc closes the pop-up form first, then the panel (as in the design).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

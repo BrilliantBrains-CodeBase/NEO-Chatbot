@@ -1,6 +1,7 @@
 """Staff alerts that cannot wait: when a patient uses emergency words in the chatbot, the clinic's active
-Clinic Managers are emailed at once, whether or not the patient gave a phone number. It runs in the background
-during the chat turn, so it needs no worker. The email names the lead, never what the patient wrote.
+Clinic Managers (and any addresses added in Clinic settings → Notifications) are emailed at once, whether or
+not the patient gave a phone number. It runs in the background during the chat turn, so it needs no worker.
+The email names the lead, never what the patient wrote.
 """
 
 import asyncio
@@ -42,6 +43,17 @@ async def managers(conn: Any, clinic: str) -> list[str]:
     return [r["email"] for r in rows]
 
 
+async def recipients(conn: Any, clinic: str) -> list[str]:
+    """Who is emailed on an emergency (Clinic settings → Notifications, 0038): the active Admins unless turned
+    off, then the extra addresses. No settings saved: the Admins."""
+    row = await conn.fetchrow(
+        "select emergency_admins, emergency_emails from app.clinic_alerts where clinic_id = $1", clinic
+    )
+    to = await managers(conn, clinic) if row is None or row["emergency_admins"] else []
+    extra = list(row["emergency_emails"]) if row else []
+    return list(dict.fromkeys(to + extra))
+
+
 async def record_no_phone(conn: Any, clinic: str, session_id: str) -> None:
     """An emergency with no phone number has no request, so it goes in the bell by itself, once per chat."""
     await conn.execute(
@@ -70,10 +82,10 @@ async def _send(clinic: str, lead_code: str | None) -> None:
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            to = await managers(conn, clinic)
+            to = await recipients(conn, clinic)
             name = await conn.fetchval("select name from app.clinics where id = $1", clinic)
         if not to:
-            log.warning("emergency in %s: no active Clinic Manager to email", clinic)
+            log.warning("emergency in %s: no one to email (no active Admin, no extra address)", clinic)
             return
         subject, text = emergency_email(name, lead_code)
         for address in to:

@@ -125,6 +125,10 @@ export type Me = {
   id: string;
   name: string;
   email: string;
+  /** +919876543210, or null when not given. */
+  phone: string | null;
+  /** A small uploaded data:image (My profile), or null: the initials show. */
+  photo: string | null;
   initials: string;
   bb_admin: boolean;
   role_label: string;
@@ -136,6 +140,13 @@ export type Me = {
     role_label: string;
     access?: Record<string, string>;
   }[];
+};
+
+/** The CRM's look for one clinic (Clinic settings): shown while that clinic is chosen. */
+export type Branding = {
+  logo: string | null;
+  favicon: string | null;
+  updated_at: string | null;
 };
 
 export type Count = { key: string; count: number };
