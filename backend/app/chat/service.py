@@ -94,7 +94,7 @@ async def raise_emergency(conn: asyncpg.Connection, req: ChatRequest, state: sto
         try:
             async with conn.transaction():  # a savepoint: a failed save does not undo the chat turn
                 code = await leads.save_completed(conn, req, f)
-        except (ValueError, asyncpg.PostgresError):  # the patient still gets the reply, the managers the email
+        except (ValueError, asyncpg.PostgresError):  # the patient still gets the reply, managers the email
             log.exception("emergency call back for %s", req.client_id)
     alerts.emergency(req.client_id, code)
 
