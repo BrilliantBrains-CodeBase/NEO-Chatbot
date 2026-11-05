@@ -6,12 +6,11 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon from "@/components/crm/Icon";
 import Pager from "@/components/crm/Pager";
-import { api, apiBlob, ApiError, saveFile, type LeadDetail, type LeadList } from "@/lib/api";
+import { api, apiBlob, ApiError, REFRESH_MS, saveFile, type LeadDetail, type LeadList } from "@/lib/api";
 import ImportLeadsForm from "./ImportLeadsForm";
 import LeadActions from "./LeadActions";
 
 const PAGE_SIZE = 30;
-export const REFRESH_MS = 30_000; // new leads from the chatbot and forms appear by themselves
 
 export const STAGE_LABEL: Record<string, [string, string]> = {
   new: ["New", "b-new"],

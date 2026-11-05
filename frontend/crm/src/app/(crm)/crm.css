@@ -644,6 +644,8 @@
 .crm .tb-note small { color:var(--soft);font-weight:500 }
 .crm .tb-dot { flex:0 0 auto;width:8px;height:8px;margin-top:6px;align-self:flex-start;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(62,111,217,.16) }
 .crm .tb .pmenu button.tb-all { justify-content:center;margin-top:4px;color:var(--brand);font-weight:600 }
+.crm .tb .pmenu button.tb-retry { justify-content:center;color:var(--brand);font-weight:600 }
+.crm .tb-notes-empty { margin:0;padding:18px 10px;text-align:center;color:var(--soft);font-size:var(--fs-small) }
 .crm .tb .pmenu button.tb-out, .crm .tb .pmenu button.tb-out svg { color:var(--err) }
 .crm .tb .pmenu button.tb-out:hover { background:var(--errt) }
 

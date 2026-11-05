@@ -8,12 +8,13 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon from "@/components/crm/Icon";
 import Pager from "@/components/crm/Pager";
-import { REFRESH_MS, SOURCE, useDebounced } from "@/components/leads/LeadsView";
+import { SOURCE, useDebounced } from "@/components/leads/LeadsView";
 import {
   api,
   apiBlob,
   ApiError,
   INBOX_TABS,
+  REFRESH_MS,
   saveFile,
   type Inbox,
   type InboxItem,
@@ -162,7 +163,7 @@ export default function InboxView() {
     };
   }, [clinicId, listUrl, key]);
 
-  // Quietly, without "Loading…": the same list again while the tab is in view, and the menu's count with it.
+  // Quietly, without "Loading…": the same list again while the tab is in view (CrmProvider keeps the counts fresh).
   useEffect(() => {
     if (!clinicId) return;
     const timer = setInterval(() => {
@@ -171,10 +172,9 @@ export default function InboxView() {
         (d) => setList((now) => (now.key === key ? { key, d } : now)),
         () => {},
       );
-      refreshInbox();
     }, REFRESH_MS);
     return () => clearInterval(timer);
-  }, [clinicId, listUrl, key, refreshInbox]);
+  }, [clinicId, listUrl, key]);
 
   useEffect(() => {
     if (!clinicId) return;

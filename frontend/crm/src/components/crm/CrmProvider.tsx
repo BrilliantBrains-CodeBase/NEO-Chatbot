@@ -12,7 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { api, ApiError, CODE_NEEDED, type Inbox, type InboxItem, type Me } from "@/lib/api";
+import { level } from "@/lib/access";
+import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Inbox, type InboxItem, type Me } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 export type Clinic = string; // a clinic's name, as the backend lists them
@@ -34,6 +35,8 @@ type Crm = {
   inbox: Record<string, number> | null;
   /** The pending requests themselves (newest first), for the notifications list. */
   inboxItems: InboxItem[];
+  /** "hidden": this person has no Inbox here. "error": the last read failed, so the counts may be old or missing. */
+  inboxStatus: "hidden" | "loading" | "ready" | "error";
   /** Load the pending counts again (after a request is handled). */
   refreshInbox: () => void;
   toast: (message: string) => void;
@@ -103,19 +106,43 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   );
   const [inboxVersion, setInboxVersion] = useState(0);
   const refreshInbox = useCallback(() => setInboxVersion((v) => v + 1), []);
+  const [inboxFailed, setInboxFailed] = useState<string | null>(null); // the clinic whose last read failed
+  const canInbox = !!me && level(me, clinic, "inbox") !== "hidden";
+  // On every page: read now, every REFRESH_MS while the tab is in view, and on coming back to the tab.
   useEffect(() => {
-    if (!clinicId) return;
+    if (!clinicId || !canInbox) return;
     let live = true;
-    api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}`).then(
-      (d) =>
-        live &&
-        setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])), items: d.items }),
-      () => {},
-    );
+    let lastRead = 0;
+    const read = () => {
+      lastRead = Date.now();
+      api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}`).then(
+        (d) => {
+          if (!live) return;
+          setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])), items: d.items });
+          setInboxFailed(null);
+        },
+        () => {
+          if (live) setInboxFailed(clinicId);
+        },
+      );
+    };
+    read();
+    const timer = setInterval(() => {
+      if (!document.hidden) read();
+    }, REFRESH_MS);
+    // Coming back fires both events: one read is enough.
+    const onReturn = () => {
+      if (!document.hidden && Date.now() - lastRead > 5000) read();
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    window.addEventListener("focus", onReturn);
     return () => {
       live = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onReturn);
+      window.removeEventListener("focus", onReturn);
     };
-  }, [clinicId, inboxVersion]);
+  }, [clinicId, canInbox, inboxVersion]);
 
   const [toastText, setToastText] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -139,6 +166,13 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       signOut,
       inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
       inboxItems: inbox && inbox.clinic === clinicId ? inbox.items : [],
+      inboxStatus: me && !canInbox
+        ? "hidden"
+        : clinicId && inboxFailed === clinicId
+          ? "error"
+          : inbox && inbox.clinic === clinicId
+            ? "ready"
+            : "loading",
       refreshInbox,
       toast,
       toastText,
@@ -149,7 +183,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, inboxFailed, canInbox, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

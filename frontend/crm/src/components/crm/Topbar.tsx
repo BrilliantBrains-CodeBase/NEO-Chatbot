@@ -25,10 +25,8 @@ const NOTICE: Record<string, string> = {
   question: "Question",
 };
 function ago(iso: string) {
-  const min = Math.max(
-    1,
-    Math.round((Date.now() - new Date(iso).getTime()) / 60000),
-  );
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "Just now";
   if (min < 60) return `${min} min ago`;
   if (min < 1440) return `${Math.round(min / 60)} h ago`;
   return `${Math.round(min / 1440)} d ago`;
@@ -208,6 +206,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       <div id="tb-slot" className="tb-slot" />
       <span className="sp" />
 
+      {crm.inboxStatus !== "hidden" && (
       <div ref={bellRef} className="tb-menu">
         <button
           className="ib tb-bell"
@@ -218,7 +217,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
         >
           <Icon name="bell" />
           {/* Remounting on a new count replays the badge's pop. */}
-          {!!pending && <b key={pending}>{pending}</b>}
+          {!!pending && <b key={pending}>{pending > 99 ? "99+" : pending}</b>}
         </button>
         <div
           className={`pmenu tb-notes${open === "bell" ? " on" : ""}`}
@@ -228,9 +227,27 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           <div className="who">
             <b>Notifications</b>
             <span>
-              {pending ? `${pending} waiting in the Inbox` : "Nothing waiting"}
+              {crm.inboxStatus === "loading"
+                ? "Loading…"
+                : crm.inboxStatus === "error"
+                  ? "Could not check for new requests"
+                  : pending
+                    ? `${pending} waiting in the Inbox`
+                    : "Nothing waiting"}
             </span>
           </div>
+          {crm.inboxStatus === "error" && (
+            <button role="menuitem" className="tb-retry" onClick={crm.refreshInbox}>
+              Try again
+            </button>
+          )}
+          {crm.inboxStatus === "ready" && latest.length === 0 && (
+            <p className="tb-notes-empty">
+              {pending
+                ? "The newest requests are of types hidden in Settings."
+                : "You're all caught up."}
+            </p>
+          )}
           <div className="tb-notes-list">
             {latest.map((i) => (
               <button
@@ -259,6 +276,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Leads belong to the CRM: not shown in the Dashboard (the chatbot console). */}
       {!inConsole && level(crm.me, crm.clinic, "leads") === "edit" && (

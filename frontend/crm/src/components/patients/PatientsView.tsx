@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Pager from "@/components/crm/Pager";
-import { REFRESH_MS, SOURCE, STAGE_LABEL, useDebounced } from "@/components/leads/LeadsView";
+import { SOURCE, STAGE_LABEL, useDebounced } from "@/components/leads/LeadsView";
 import { level } from "@/lib/access";
-import { api, ApiError, type PatientList } from "@/lib/api";
+import { api, ApiError, REFRESH_MS, type PatientList } from "@/lib/api";
 
 const PAGE_SIZE = 30;
 

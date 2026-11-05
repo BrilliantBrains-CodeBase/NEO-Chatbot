@@ -632,7 +632,7 @@ function BookCard({
   slot: { date: string; time: string; kinds: Kind[] };
   onClose: (saved: boolean) => void;
 }) {
-  const { toast } = useCrm();
+  const { toast, refreshInbox } = useCrm();
   const router = useRouter();
   const [type, setType] = useState<Kind>(slot.kinds[0]);
   const [mode, setMode] = useState<"find" | "new">("find");
@@ -705,6 +705,7 @@ function BookCard({
           note,
         }),
       });
+      refreshInbox();
       toast(`Added (${r.lead_code}): confirm it in the Inbox`);
       onClose(true);
       router.push(`/inbox?tab=${r.tab}&open=${r.request_id}`);
@@ -956,7 +957,7 @@ function DetailCard({
   booking: Booking;
   onClose: (saved: boolean) => void;
 }) {
-  const { toast } = useCrm();
+  const { toast, refreshInbox } = useCrm();
   const router = useRouter();
   const [reason, setReason] = useState("");
   const [stage, setStage] = useState(""); // "follow_up" | "lost:<reason>" | "invalid:<reason>"
@@ -973,6 +974,7 @@ function DetailCard({
     setError("");
     try {
       await api(path, { method, body: JSON.stringify(body) });
+      refreshInbox(); // a booking rejected here leaves the Inbox and the bell
       toast(done);
       onClose(true);
     } catch (e) {
