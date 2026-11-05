@@ -27,7 +27,7 @@ class ClinicAccess(BaseModel):
     id: str  # CL01
     name: str  # Neo Follicle
     role: str  # bb_admin
-    role_label: str  # BB Admin
+    role_label: str  # Super Admin
     access: dict[str, str] = {}  # Who sees what: screen -> hidden / view / edit (time-limited too)
 
 
@@ -51,7 +51,7 @@ RANK = ["bb_admin", "clinic_manager", "front_desk", "doctor"]
 
 @router.get("/me", response_model=Me)
 async def me(user: Annotated[Staff, Depends(staff)]) -> Me:
-    """Who is signed in and which clinics they see. BB Admin sees every active clinic (not test clinics)."""
+    """Who is signed in and which clinics they see. Super Admin: every active clinic (not test clinics)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("select id, name from app.clinics where active and not is_test order by id")
@@ -134,6 +134,21 @@ async def change_me(user: Annotated[Staff, Depends(staff)], body: MeChange) -> M
     async with pool.acquire() as conn:
         await conn.execute("update app.profiles set full_name = $2 where id = $1::uuid", user.id, name)
     return await me(replace(user, name=name))
+
+
+def in_clinic(user: Staff, clinic: str) -> bool:
+    """Lead codes are readable, so another clinic's lead answers "not found": nothing about it shows."""
+    return user.bb_admin or clinic in user.roles
+
+
+async def own_doctor(conn: Any, user: Staff, clinic: str) -> tuple[bool, str | None]:
+    """Whether this person is limited to their own doctor record here, and that record (if linked)."""
+    if user.bb_admin or user.roles.get(clinic) != "doctor":
+        return False, None
+    mine = await conn.fetchval(
+        "select id from app.doctors where clinic_id = $1 and user_id = $2::uuid", clinic, user.id
+    )
+    return True, str(mine) if mine else None
 
 
 def can_see(user: Staff, clinic: str) -> None:
@@ -361,10 +376,10 @@ async def leads(
 
 
 def bulk_access(user: Staff, clinic: str) -> None:
-    """Export and import move many patients' details at once: BB Admin and clinic managers only."""
+    """Export and import move many patients' details at once: Super Admin and admins only."""
     can_see(user, clinic)
     if not user.bb_admin and user.roles.get(clinic) != "clinic_manager":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a clinic manager can export or import leads.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin can export or import leads.")
 
 
 SOURCE_LABEL = {
@@ -475,9 +490,8 @@ async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> Lead
             } where l.lead_code = $1 and l.deleted_at is null""",
             code,
         )
-        if r is None:
+        if r is None or not in_clinic(user, r["clinic_id"]):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
-        can_see(user, r["clinic_id"])
         await perm.require(await get_pool(), user, r["clinic_id"], "leads", "view")  # Who sees what
         events = await conn.fetch(
             """select e.kind, e.data, p.full_name, e.created_at from app.lead_events e
@@ -511,7 +525,7 @@ INVALID = ["wrong_number", "spam", "duplicate", "test"]
 
 
 def can_edit(user: Staff, clinic: str) -> None:
-    """Changes to leads: BB Admin, clinic manager and front desk. Doctors only read."""
+    """Changes to leads: Super Admin, admin and front desk. Doctors only read."""
     can_see(user, clinic)
     if not user.bb_admin and user.roles.get(clinic) == "doctor":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctors can view leads but not change them.")
@@ -560,7 +574,7 @@ async def _lead_for_edit(conn: Connection, user: Staff, code: str) -> Record:
         "for update",
         code,
     )
-    if r is None:
+    if r is None or not in_clinic(user, r["clinic_id"]):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
     can_edit(user, r["clinic_id"])
     await perm.require(await get_pool(), user, r["clinic_id"], "leads", "edit")  # Who sees what

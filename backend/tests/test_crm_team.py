@@ -16,7 +16,7 @@ async def test_requests_are_decided(api: AsyncClient, monkeypatch: pytest.Monkey
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     try:
         req = await pool.fetchval(
@@ -63,7 +63,7 @@ async def test_request_access_makes_a_login_and_reject_removes_it(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     email = f"neo-test-{uuid.uuid4().hex[:8]}@example.com"
     ask = {"full_name": "Test Person", "email": email, "password": "test-pass-123", "clinic": "CL99",
            "role": "front_desk"}  # fmt: skip
@@ -106,7 +106,7 @@ async def test_remove_member_deletes_a_login_with_no_clinic_left(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     email = f"neo-test-{uuid.uuid4().hex[:8]}@example.com"
     ask = {"full_name": "Test Member", "email": email, "password": "test-pass-123", "clinic": "CL99",
            "role": "front_desk"}  # fmt: skip
@@ -132,7 +132,7 @@ async def test_remove_member_deletes_a_login_with_no_clinic_left(
 
 @needs_db
 async def test_main_bb_admin_is_protected(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Real Supabase Auth (needs SUPABASE_SECRET_KEY). Leaves the main BB Admin as it found it."""
+    """Real Supabase Auth (needs SUPABASE_SECRET_KEY). Leaves the main Super Admin as it found it."""
     import uuid
 
     from app.chat import guard
@@ -145,12 +145,12 @@ async def test_main_bb_admin_is_protected(api: AsyncClient, monkeypatch: pytest.
     pool = await get_pool()
     before = await pool.fetchval("select main_bb_email from app.platform where id = 1")
     if before is not None:
-        pytest.skip("a main BB Admin is set; not changed by tests")
+        pytest.skip("a main Super Admin is set; not changed by tests")
     admin = await pool.fetchval(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     email = f"neo-test-{uuid.uuid4().hex[:8]}@example.com"
     ask = {"full_name": "Test Owner", "email": email, "password": "test-pass-123", "clinic": "CL99",
            "role": "front_desk"}  # fmt: skip
@@ -167,10 +167,10 @@ async def test_main_bb_admin_is_protected(api: AsyncClient, monkeypatch: pytest.
         missing = await api.put(url, json={"email": "nobody-here@example.com"}, headers=headers)
         assert missing.status_code == 404  # not an existing login
         got = (await api.put(url, json={"email": email}, headers=headers)).json()
-        assert got["email"] == email and got["can_change"] is False  # only the main BB Admin changes it now
+        assert got["email"] == email and got["can_change"] is False  # only the main one changes it now
         assert await pool.fetchval(
             "select 1 from app.user_clinics where user_id = $1 and role = 'bb_admin' and active", uid
-        )  # made BB Admin
+        )  # made Super Admin
         member = f"/v1/crm/team/CL99/members/{uid}"
         assert (await api.put(member, json={"active": False}, headers=headers)).status_code == 403
         assert (await api.delete(member, headers=headers)).status_code == 403

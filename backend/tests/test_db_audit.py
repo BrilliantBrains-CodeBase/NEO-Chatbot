@@ -1,4 +1,4 @@
-"""Audit log (migration 0007): written by the database, never edited, readable by managers and BB Admin.
+"""Audit log (migration 0007): written by the database, never edited, readable by managers and Super Admin.
 
 Rolled back after each test; data in CL99 and a second test clinic CL98. Skipped without DATABASE_URL.
 """

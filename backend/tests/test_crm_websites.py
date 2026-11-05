@@ -18,7 +18,7 @@ async def test_only_approved_sites_are_allowed(api: AsyncClient, monkeypatch: py
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/websites"
     allowed = "select allowed_origins from app.clinics where id = 'CL99'"
@@ -54,7 +54,7 @@ async def test_embed_code(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> 
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     code = (await api.get("/v1/crm/console/CL01/websites/embed", headers=headers)).json()["code"]
     assert (
@@ -89,7 +89,7 @@ async def test_widget_shows_only_on_approved_sites_and_pages(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/websites"
     site = "https://www.clinic-test.example.com"
@@ -127,7 +127,7 @@ async def test_integrations_status_never_shows_keys(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/console/CL01/integrations", headers=headers)
     assert r.status_code == 200
@@ -150,7 +150,7 @@ async def test_connect_calcom_keeps_the_key_in_vault(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None or not key:
-        pytest.skip("no BB Admin or no Cal.com key in this setup")
+        pytest.skip("no Super Admin or no Cal.com key in this setup")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/integrations/calcom"
     try:
@@ -191,7 +191,7 @@ async def test_online_consult_setup_goes_to_calcom(api: AsyncClient, monkeypatch
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None or not key:
-        pytest.skip("no BB Admin or no Cal.com key in this setup")
+        pytest.skip("no Super Admin or no Cal.com key in this setup")
     headers = signed_in_as(monkeypatch, str(admin))
     base = "/v1/crm/console/CL99/integrations/calcom"
     try:
@@ -259,7 +259,7 @@ async def test_sheet_link_reports_tabs(api: AsyncClient, monkeypatch: pytest.Mon
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/integrations/sheets"
     try:
@@ -291,7 +291,7 @@ async def test_sheet_tab_mapping(api: AsyncClient, monkeypatch: pytest.MonkeyPat
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/integrations/sheets"
     try:
@@ -330,7 +330,7 @@ async def test_sheet_rows_become_leads(api: AsyncClient, monkeypatch: pytest.Mon
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/integrations/sheets"
     cols = ["id", "created_time", "platform", "question", "full_name", "phone_number", "email", "notes"]
@@ -381,7 +381,7 @@ async def test_calcom_webhook_moves_and_cancels(api: AsyncClient) -> None:
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
     saved = await _save_test_lead(
         user, {"type": "online", "name": "Cal Test", "phone": "+91 9000000093"}, "desktop"
@@ -501,7 +501,7 @@ async def test_webhooks_send_and_receive(api: AsyncClient, monkeypatch: pytest.M
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     got: list[httpx.Request] = []
 
@@ -570,7 +570,7 @@ async def test_whatsapp_templates_and_test_message(api: AsyncClient, monkeypatch
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     sent: list[httpx.Request] = []
 
@@ -655,7 +655,7 @@ async def test_whatsapp_send_to_a_contact(api: AsyncClient, monkeypatch: pytest.
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     sent: list[httpx.Request] = []
     real = httpx.AsyncClient

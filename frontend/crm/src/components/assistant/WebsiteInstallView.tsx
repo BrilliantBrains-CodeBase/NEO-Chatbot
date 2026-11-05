@@ -6,7 +6,7 @@ import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
 
 // Dashboard → Website install: the websites the clinic's chatbot may run on. A site is added as pending and
-// the chat runs only on approved ones (any other site is refused). Approve / reject: Clinic Manager or BB Admin.
+// the chat runs only on approved ones (any other site is refused). Approve / reject: Admin or Super Admin.
 
 type Site = {
   id: string;

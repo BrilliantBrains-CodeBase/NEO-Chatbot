@@ -38,7 +38,7 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     before = await pool.fetchrow(
         "select slot_minutes, online_slot_minutes from app.clinics where id = 'CL99'"
@@ -119,7 +119,7 @@ async def test_crm_edits_a_doctors_hours_and_leave(api: AsyncClient, monkeypatch
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     made: str | None = None
     try:
@@ -161,7 +161,7 @@ async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.Monk
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     made: str | None = None
     try:

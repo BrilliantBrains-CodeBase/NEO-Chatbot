@@ -79,6 +79,13 @@ const PATHS = {
   ),
   bell: <path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="19" cy="12" r="1.2" />
+    </>
+  ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,

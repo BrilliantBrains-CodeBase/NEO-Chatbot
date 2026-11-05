@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Pager from "@/components/crm/Pager";
 import { REFRESH_MS, SOURCE, STAGE_LABEL, useDebounced } from "@/components/leads/LeadsView";
+import { level } from "@/lib/access";
 import { api, ApiError, type PatientList } from "@/lib/api";
 
 const PAGE_SIZE = 30;
@@ -68,6 +69,7 @@ export default function PatientsView() {
   const { clinic, me } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const router = useRouter();
+  const canOpen = level(me, clinic, "leads") !== "hidden"; // a row opens its lead
 
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
@@ -387,7 +389,13 @@ export default function PatientsView() {
             {d?.items.map((p) => {
               const tag = ACTIVITY.find(([k]) => k === p.activity);
               return (
-                <tr key={p.code} onClick={() => router.push(`/leads?open=${encodeURIComponent(p.code)}`)}>
+                <tr
+                  key={p.code}
+                  style={canOpen ? undefined : { cursor: "default" }}
+                  onClick={() => {
+                    if (canOpen) router.push(`/leads?open=${encodeURIComponent(p.code)}`);
+                  }}
+                >
                   <td>
                     <div className="nm">{p.name}</div>
                     <div className="pn">

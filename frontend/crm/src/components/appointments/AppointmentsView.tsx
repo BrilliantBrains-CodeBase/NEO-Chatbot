@@ -367,9 +367,13 @@ export default function AppointmentsView() {
               <div>
                 <h2>{open.name}</h2>
                 <p>
-                  <Link className="lnk" href={`/leads?open=${open.lead_code}`}>
-                    {open.lead_code}
-                  </Link>
+                  {level(me, clinic, "leads") !== "hidden" ? (
+                    <Link className="lnk" href={`/leads?open=${open.lead_code}`}>
+                      {open.lead_code}
+                    </Link>
+                  ) : (
+                    open.lead_code
+                  )}
                   <span className={`badge ${STATUS[open.status]?.[1]}`}>
                     {STATUS[open.status]?.[0] ?? open.status}
                   </span>

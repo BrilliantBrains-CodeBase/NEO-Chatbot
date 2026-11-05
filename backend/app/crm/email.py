@@ -1,4 +1,4 @@
-"""Email through Gmail (migration 0030): each clinic's own Gmail, and the BB Gmail for BB Admin login codes
+"""Email through Gmail (migration 0030): each clinic's own Gmail, and the BB Gmail for Super Admin login codes
 and as the fallback. Gmail address + Google App password (kept in Supabase Vault), sent through
 smtp.gmail.com with Python's own smtplib (in a thread, never blocking the server). Every email is logged,
 sent or not.

@@ -1,8 +1,9 @@
-"""Dashboard → Login & security (migration 0029), JSON only. BB Admin only.
+"""Dashboard → Login & security (migration 0029), JSON only. Super Admin only.
 
-Main BB Admin: one email that always has full BB Admin power over every clinic. Setting it gives that person
-an active BB Admin role (so the backend and the database's own rules agree); Team & access never disables,
-removes or demotes them. Only the main BB Admin changes it; any BB Admin sets the first one.
+Main Super Admin: one email that always has full Super Admin power over every clinic. Setting it gives that
+person
+an active Super Admin role (so the backend and the database's own rules agree); Team & access never disables,
+removes or demotes them. Only the main Super Admin changes it; any Super Admin sets the first one.
 """
 
 import hashlib
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/crm/security", tags=["crm"])
 class MainAdmin(BaseModel):
     email: str | None  # None: not set yet
     is_me: bool
-    can_change: bool  # the main BB Admin, or any BB Admin while none is set
+    can_change: bool  # the main Super Admin, or any Super Admin while none is set
 
 
 class NewMain(BaseModel):
@@ -36,14 +37,14 @@ class NewMain(BaseModel):
 
 
 async def main_email() -> str | None:
-    """The main BB Admin's email, if one is set."""
+    """The main Super Admin's email, if one is set."""
     found = await (await get_pool()).fetchval("select main_bb_email from app.platform where id = 1")
     return str(found) if found else None
 
 
 def _bb(user: Staff) -> None:
     if not user.bb_admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Login & security is for BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Login & security is for Super Admin.")
 
 
 async def _state(user: Staff) -> MainAdmin:
@@ -60,10 +61,12 @@ async def get_main(user: Annotated[Staff, Depends(staff)]) -> MainAdmin:
 
 @router.put("/main-admin", response_model=MainAdmin)
 async def set_main(user: Annotated[Staff, Depends(staff)], body: NewMain) -> MainAdmin:
-    """Hands full control to this email (an existing, active login), and makes sure it is BB Admin."""
+    """Hands full control to this email (an existing, active login), and makes sure it is Super Admin."""
     _bb(user)
     if not (await _state(user)).can_change:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the main BB Admin can change the main BB Admin.")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only the main Super Admin can change the main Super Admin."
+        )
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
@@ -71,13 +74,13 @@ async def set_main(user: Annotated[Staff, Depends(staff)], body: NewMain) -> Mai
         if person is None:
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND,
-                "No active login has this email. Invite them in Team & access first, then set it here.",
+                "No active login has this email. Invite them in Team first, then set it here.",
             )
         sql = "update app.platform set main_bb_email = $1, updated_by = $2::uuid where id = 1"
         await conn.execute(sql, body.email, user.id)
         if not await conn.fetchval(
             "select 1 from app.user_clinics where user_id = $1 and role = 'bb_admin' and active", person
-        ):  # BB Admin in one clinic counts everywhere; their row in the first clinic, if they have none
+        ):  # Super Admin in one clinic counts everywhere; their row in the first clinic, if they have none
             clinic = await conn.fetchval(
                 """select coalesce(
                      (select clinic_id from app.user_clinics where user_id = $1 order by clinic_id limit 1),
@@ -113,7 +116,8 @@ async def get_two_step(user: Annotated[Staff, Depends(staff)]) -> TwoStep:
 
 @router.put("/two-step", response_model=TwoStep)
 async def set_two_step(user: Annotated[Staff, Depends(staff)], body: TwoStep) -> TwoStep:
-    """Which roles need an emailed code after the password. Needs the BB Gmail (it sends BB Admin codes and is
+    """Which roles need an emailed code after the password. Needs the BB Gmail (it sends Super Admin codes and
+    is
     every clinic's fallback). Your own sign-in counts as verified, so you are not sent out now."""
     _bb(user)
     pool = await get_pool()
@@ -162,7 +166,7 @@ async def send_code(user: Annotated[Staff, Depends(signed_in)]) -> dict[str, str
     )  # fmt: skip
     clinic = None if user.bb_admin else sorted(user.roles)[0]
     text = (f"Your NEO CRM sign-in code is {code}.\n\nIt works for {CODE_MINUTES} minutes. If you did not "
-            "try to sign in, change your password and tell your clinic manager.")  # fmt: skip
+            "try to sign in, change your password and tell your admin.")  # fmt: skip
     try:
         await email.send(clinic, user.email, f"Your sign-in code: {code}", text, "login_code")
     except email.EmailError as e:

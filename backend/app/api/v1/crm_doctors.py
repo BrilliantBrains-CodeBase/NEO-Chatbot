@@ -109,7 +109,7 @@ def _manager(user: Staff, clinic: str) -> None:
     from app.crm import permissions as perm
 
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctors are managed by clinic managers and BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Doctors are managed by admins and Super Admin.")
 
 
 def _profile(raw: Any) -> dict[str, Any]:

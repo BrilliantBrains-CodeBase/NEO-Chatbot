@@ -8,7 +8,7 @@ import { toImport } from "@/lib/kb-import";
 import { downloadOnboarding, downloadSample } from "@/lib/kb-sample";
 
 // Dashboard → Knowledge base: the clinic's facts and Q&A. One fact, many answers: an answer links a fact as
-// {key} and shows its approved value. Staff save drafts; a clinic manager or BB Admin approves; only approved
+// {key} and shows its approved value. Staff save drafts; an admin or Super Admin approves; only approved
 // entries answer patients, and an answer whose linked fact is not approved is never given.
 
 type Status = "draft" | "approved" | "retired";
@@ -414,7 +414,7 @@ export default function KnowledgeView() {
         )}
         {!k.can_approve && (
           <span className="sub2">
-            Your entries are drafts until a clinic manager approves them.
+            Your entries are drafts until an admin approves them.
           </span>
         )}
       </div>

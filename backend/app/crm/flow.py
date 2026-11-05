@@ -489,7 +489,7 @@ class FlowCheck(BaseModel):
 
 class Phrase(BaseModel):
     """A typed phrase that leads to a button ("block id:button id") or a Typed trigger ("block id"). The chat
-    uses it only once a clinic manager approved it (no self-training): saving a flow never approves one."""
+    uses it only once an admin approved it (no self-training): saving a flow never approves one."""
 
     id: str = Field(pattern=r"^p[a-z0-9]{1,20}$")
     target: str = Field(max_length=100)

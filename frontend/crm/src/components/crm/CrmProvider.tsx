@@ -14,17 +14,8 @@ import {
 import { useRouter } from "next/navigation";
 import { api, ApiError, CODE_NEEDED, type Inbox, type InboxItem, type Me } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
-import {
-  CLINICS,
-  sampleLeads,
-  sampleRequests,
-  type Clinic,
-  type Lead,
-  type Req,
-  type ReqKind,
-  type Stage,
-} from "@/lib/sample-data";
 
+export type Clinic = string; // a clinic's name, as the backend lists them
 type Modal = { title: string; body: ReactNode };
 
 type Crm = {
@@ -39,14 +30,6 @@ type Crm = {
   clinic: Clinic;
   setClinic: (c: Clinic) => void;
   signOut: () => Promise<void>;
-  leads: Lead[];
-  requests: Req[];
-  /** Leads in a stage ("lo" also counts Invalid, like the design's "Lost & Invalid"). */
-  stageCount: (s: Stage) => number;
-  /** Pending requests of a kind. */
-  pending: (k: ReqKind) => number;
-  /** Booking, online, cancel and reschedule requests waiting (the Inbox count). */
-  inboxCount: number;
   /** Live pending requests per type (book, online, cancel, reschedule, callback, question); null while loading. */
   inbox: Record<string, number> | null;
   /** The pending requests themselves (newest first), for the notifications list. */
@@ -111,18 +94,8 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   // Every clinic this person may see, as the backend lists them (any clinic added in Login & security).
   const clinics = useMemo(() => (me?.clinics ?? []).map((c) => c.name as Clinic), [me]);
   const [chosen, setClinic] = useState<Clinic | null>(null);
-  const clinic = chosen && clinics.includes(chosen) ? chosen : (clinics[0] ?? CLINICS[0]);
-  // Sample data per clinic (replaced by backend data screen by screen). Made in the browser only, after the
-  // frame shows: it depends on the current time, which the server must not use while pre-rendering.
-  const now = useBrowserNow();
-  const { leads, requests } = useMemo(() => {
-    if (!now) return { leads: [], requests: [] };
-    // The leftover sample data knows only its own clinic names; any other clinic uses one of them.
-    const sample = CLINICS.includes(clinic) ? clinic : CLINICS[2];
-    const l = sampleLeads(sample, now);
-    return { leads: l, requests: sampleRequests(sample, l, now) };
-  }, [clinic, now]);
-  const ready = now !== null;
+  const clinic = chosen && clinics.includes(chosen) ? chosen : (clinics[0] ?? "");
+  const ready = useBrowserNow() !== null;
 
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const [inbox, setInbox] = useState<{ clinic: string; counts: Record<string, number>; items: InboxItem[] } | null>(
@@ -156,9 +129,6 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const [modal, setModal] = useState<Modal | null>(null);
 
   const value = useMemo<Crm>(() => {
-    const stageCount = (s: Stage) =>
-      leads.filter((l) => l.st === s || (s === "lo" && l.st === "in")).length;
-    const pending = (k: ReqKind) => requests.filter((r) => r.kind === k && r.status === "pending").length;
     return {
       ready,
       me,
@@ -167,11 +137,6 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       clinic,
       setClinic,
       signOut,
-      leads,
-      requests,
-      stageCount,
-      pending,
-      inboxCount: (["appt", "online", "cancel", "resch"] as ReqKind[]).reduce((a, k) => a + pending(k), 0),
       inbox: inbox && inbox.clinic === clinicId ? inbox.counts : null,
       inboxItems: inbox && inbox.clinic === clinicId ? inbox.items : [],
       refreshInbox,
@@ -184,7 +149,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, signOut, leads, requests, inbox, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, clinicId, signOut, inbox, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

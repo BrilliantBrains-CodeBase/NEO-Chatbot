@@ -27,7 +27,7 @@ async def test_rules_stack_and_grants_are_checked(api: AsyncClient, monkeypatch:
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     before = await pool.fetchval("select permissions from app.platform where id = 1")
     url = "/v1/crm/permissions/CL99"
@@ -70,8 +70,8 @@ async def test_rules_stack_and_grants_are_checked(api: AsyncClient, monkeypatch:
 
 @needs_db
 async def test_require_follows_the_rules_and_time_limited_access() -> None:
-    """Doctors only view Leads by default: viewing passes, changing is refused; a Hidden screen is refused;
-    access given for a time lifts the level until it ends."""
+    """Doctors only view Appointments by default: viewing passes, changing is refused; a Hidden screen is
+    refused; access given for a time lifts the level until it ends."""
     import uuid
 
     from fastapi import HTTPException
@@ -82,14 +82,16 @@ async def test_require_follows_the_rules_and_time_limited_access() -> None:
     pool = await get_pool()
     doctor = Staff(id=str(uuid.uuid4()), name="Dr Test", email="d@example.com", roles={"CL99": "doctor"},
                    bb_admin=False)  # fmt: skip
-    await perm.require(pool, doctor, "CL99", "leads", "view")
+    await perm.require(pool, doctor, "CL99", "appointments", "view")
     with pytest.raises(HTTPException) as no:
-        await perm.require(pool, doctor, "CL99", "leads", "edit")
-    assert no.value.status_code == 403 and "cannot change Leads" in str(no.value.detail)
+        await perm.require(pool, doctor, "CL99", "appointments", "edit")
+    assert no.value.status_code == 403 and "cannot change Appointments" in str(no.value.detail)
+    with pytest.raises(HTTPException):
+        await perm.require(pool, doctor, "CL99", "leads", "view")  # Hidden for Doctors
     with pytest.raises(HTTPException):
         await perm.require(pool, doctor, "CL99", "reports", "view")  # Hidden for Doctors
     with pytest.raises(HTTPException):
-        await perm.require(pool, doctor, "CL01", "leads", "view")  # not their clinic
+        await perm.require(pool, doctor, "CL01", "appointments", "view")  # not their clinic
     desk = Staff(id=str(uuid.uuid4()), name="Desk", email="f@example.com", roles={"CL99": "front_desk"},
                  bb_admin=False)  # fmt: skip
     mine = await perm.for_person(pool, "CL99", desk.id, "front_desk")

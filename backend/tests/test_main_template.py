@@ -1,5 +1,6 @@
 """The main template: a clinic copied from Neo Follicle follows its canvas, Templates and Appearance (in its
-own names) until it changes a part; "Follow main again" undoes that; only BB Admin publishes the main for all.
+own names) until it changes a part; "Follow main again" undoes that; only Super Admin publishes the main for
+all.
 Removes the test clinic afterwards."""
 
 import re
@@ -38,7 +39,7 @@ async def test_follow_make_own_and_follow_again(api: AsyncClient, monkeypatch: p
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     before = {r["id"] for r in await pool.fetch("select id from app.clinics")}
     code = None

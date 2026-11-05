@@ -1,6 +1,6 @@
 """Dashboard → Website install, JSON only: the websites a clinic's chatbot may run on (migration 0020).
 
-A site is added as pending; a Clinic Manager or BB Admin approves or rejects it. Only approved sites are kept
+A site is added as pending; an Admin or Super Admin approves or rejects it. Only approved sites are kept
 in app.clinics.allowed_origins, which the chat checks on every message, so the widget works on them only.
 Every change is in the audit log.
 """
@@ -69,7 +69,7 @@ class Pages(BaseModel):
 
 async def _manager(user: Staff, clinic: str) -> None:
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Website install is for clinic managers and BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Website install is for admins and Super Admin.")
 
 
 async def _list(clinic: str) -> list[Website]:

@@ -25,7 +25,7 @@ async def test_patients_lists_everyone_with_filters_sort_and_pages(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     # name -> source, stage, campaign, consent, the days ago of each visit, no-shows, days ahead of a booking
     people: dict[str, tuple[str, str, str | None, bool, list[int], int, int | None]] = {

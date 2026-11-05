@@ -1,5 +1,5 @@
 """Dashboard → Knowledge base, JSON only: a clinic's facts and Q&A (Clinic Knowledge Strategy: one fact, many
-answers). Staff save drafts; a clinic manager or BB Admin approves, and only approved rows answer patients
+answers). Staff save drafts; an admin or Super Admin approves, and only approved rows answer patients
 (the bot never learns by itself). A Q&A answer may link facts by key, "{consult_fee}", filled from the
 approved fact when the bot replies; an answer whose linked fact is missing is never given.
 """
@@ -86,7 +86,7 @@ class Knowledge(BaseModel):
     facts: list[Fact]
     live: list[Live]  # read from the Dashboard and CRM: not typed in the Knowledge base
     qa: list[Qa]
-    can_approve: bool  # clinic manager or BB Admin
+    can_approve: bool  # admin or Super Admin
     kb_only: bool = False  # the live chat answers typed questions from the Knowledge base alone (testing)
 
 
@@ -247,9 +247,9 @@ class Mode(BaseModel):
 @router.post("/{clinic}/kb/mode", response_model=Knowledge)
 async def set_mode(user: Annotated[Staff, Depends(staff)], clinic: str, body: Mode) -> Knowledge:
     """Typed questions in the live chat: from the Knowledge base only (testing), or as usual. Kept in the
-    published and the draft settings, so publishing the canvas does not undo it. Manager or BB Admin."""
+    published and the draft settings, so publishing the canvas does not undo it. Manager or Super Admin."""
     if not _approver(user, clinic):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a clinic manager or BB Admin can change this.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin or Super Admin can change this.")
     await _write(
         user,
         clinic,
@@ -403,10 +403,10 @@ async def set_status(
     row_id: str,
     action: Literal["approve", "retire", "draft"],
 ) -> Knowledge:
-    """Approve (manager or BB Admin: the bot uses it from now), retire (the bot stops using it), or back to
+    """Approve (manager or Super Admin: the bot uses it from now), retire (the bot stops using it), or back to
     draft. Approving a Q&A whose answer links a missing fact is refused."""
     if action == "approve" and not _approver(user, clinic):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a clinic manager or BB Admin can approve.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an admin or Super Admin can approve.")
     table = "app.kb_facts" if kind == "facts" else "app.kb_qa"
     if action == "approve" and kind == "qa":
         pool = await get_pool()

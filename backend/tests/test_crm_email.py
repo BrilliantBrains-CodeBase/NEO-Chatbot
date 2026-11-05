@@ -19,7 +19,7 @@ async def test_gmail_connect_test_and_fallback(api: AsyncClient, monkeypatch: py
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     if await pool.fetchval("select 1 from app.email_senders where clinic_id is null or clinic_id = 'CL99'"):
         pytest.skip("a real Gmail is connected; not changed by tests")
     headers = signed_in_as(monkeypatch, str(admin))

@@ -63,11 +63,11 @@ async def test_bb_admin_sees_every_active_clinic(api: AsyncClient, monkeypatch: 
            where u.role = 'bb_admin' and u.active and p.active limit 1"""
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     r = await api.get("/v1/crm/me", headers=signed_in_as(monkeypatch, str(admin)))
     assert r.status_code == 200
     me = r.json()
-    assert me["bb_admin"] and me["role_label"] == "BB Admin"
+    assert me["bb_admin"] and me["role_label"] == "Super Admin"
     ids = [c["id"] for c in me["clinics"]]
     assert "CL01" in ids and "CL99" not in ids  # the test clinic is never listed
     assert all(c["role"] == "bb_admin" for c in me["clinics"])
@@ -86,7 +86,7 @@ async def test_dashboard_returns_the_numbers(api: AsyncClient, monkeypatch: pyte
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/dashboard?clinic=CL01&days=7", headers=headers)
     assert r.status_code == 200
@@ -106,7 +106,7 @@ async def test_dashboard_needs_access_to_the_clinic(
            cross join app.clinics c
            where u.active and p.active and u.role <> 'bb_admin' and c.id not in
              (select clinic_id from app.user_clinics where user_id = u.user_id)
-             and u.user_id not in  -- a BB Admin anywhere has every clinic
+             and u.user_id not in  -- a Super Admin anywhere has every clinic
                (select user_id from app.user_clinics where role = 'bb_admin' and active) limit 1"""
     )
     if row is None:
@@ -122,7 +122,7 @@ async def test_leads_list_and_one_lead(api: AsyncClient, monkeypatch: pytest.Mon
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/leads?clinic=CL01&limit=5", headers=headers)
     assert r.status_code == 200
@@ -150,7 +150,7 @@ async def test_leads_search_by_phone_with_spaces_and_by_treatment(
            and deleted_at is null and phone_e164 like '+91%' and treatment is not null limit 1"""
     )
     if admin is None or lead is None:
-        pytest.skip("no BB Admin, or no lead with a phone and treatment, in this database")
+        pytest.skip("no Super Admin, or no lead with a phone and treatment, in this database")
     headers = signed_in_as(monkeypatch, str(admin))
 
     async def search(q: str) -> dict[str, Any]:
@@ -176,7 +176,7 @@ async def test_lead_stage_owner_note_and_call(api: AsyncClient, monkeypatch: pyt
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     lead = await pool.fetchrow(
         """insert into app.leads (clinic_id, full_name, phone_e164, source)
@@ -283,7 +283,7 @@ async def test_import_export_and_pages_newest_first(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     hooks: list[tuple[str, str, list[dict[str, Any]]]] = []
     messages: list[tuple[str, str, list[tuple[str, dict[str, Any]]]]] = []
@@ -394,7 +394,7 @@ async def test_add_lead_and_duplicate_phone(api: AsyncClient, monkeypatch: pytes
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     body = {
         "clinic": "CL99",

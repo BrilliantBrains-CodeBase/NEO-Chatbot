@@ -1,7 +1,7 @@
 import type { IconName } from "@/components/crm/Icon";
 
 // The Dashboard (the chatbot's console), from the approved design "Patient Assistant Console".
-// Stage = the build stage marked in the design; bbOnly sections are for BB Admin.
+// Stage = the build stage marked in the design; bbOnly sections are for Super Admin.
 export type Section = {
   id: string;
   icon: IconName;
@@ -143,8 +143,9 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "team",
+    off: true, // its own page now: /team, on both sides of the switch
     icon: "team",
-    label: "Team & access",
+    label: "Team",
     group: "Security",
     stage: 2,
     desc: "Who can sign in, which clinics they can open and what each role can change; invites and the allowed email domain.",
@@ -181,6 +182,6 @@ export const SECTIONS: Section[] = [
 /** The sections in use (turned-off ones left out). */
 export const ON_SECTIONS = SECTIONS.filter((s) => !s.off);
 
-/** Who may open the console: BB Admin and clinic managers. */
+/** Who may open the console: Super Admin and admins. */
 export const canUseConsole = (role: string | undefined) =>
   role === "bb_admin" || role === "clinic_manager";

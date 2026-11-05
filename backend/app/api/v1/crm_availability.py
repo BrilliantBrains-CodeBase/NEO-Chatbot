@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.v1 import crm_doctors
-from app.api.v1.crm import NewLead, add_lead, can_edit, can_see
+from app.api.v1.crm import NewLead, add_lead, can_edit, can_see, own_doctor
 from app.api.v1.crm_doctors import Schedule
 from app.chat import slots
 from app.chat.flows import EMAIL
@@ -111,8 +111,10 @@ async def _doctors(conn: Any, clinic: str, doctor_id: str | None = None) -> list
     ]  # fmt: skip
 
 
-async def _days(conn: Any, clinic: str, doc: Doctor, first: date, last: date) -> list[Day]:
-    """The doctor's days from first to last (clinic time)."""
+async def _days(
+    conn: Any, clinic: str, doc: Doctor, first: date, last: date, patients: bool = True
+) -> list[Day]:
+    """The doctor's days from first to last (clinic time). Without `patients`: hours and free times only."""
     c = await conn.fetchrow("select timezone, closed_weekdays from app.clinics where id = $1", clinic)
     tz = ZoneInfo(c["timezone"])
     now = datetime.now(tz)
@@ -171,7 +173,7 @@ async def _days(conn: Any, clinic: str, doc: Doctor, first: date, last: date) ->
                                   status=a["status"], patient=a["full_name"], lead_code=a["lead_code"],
                                   phone=a["phone_e164"], treatment=a["treatment"], stage=a["stage"],
                                   request_id=str(a["req"]) if a["req"] else None)
-                          for a in appts if a["day"] == day],
+                          for a in appts if patients and a["day"] == day],
             )
         )  # fmt: skip
         day += timedelta(days=1)
@@ -205,7 +207,9 @@ async def board(user: Annotated[Staff, Depends(staff)], clinic: CLINIC) -> Board
         tz = await conn.fetchval("select timezone from app.clinics where id = $1", clinic)
         today = datetime.now(ZoneInfo(tz)).date()
         open_time, close_time = await _hours(conn, clinic)
-        cards = [Card(doctor=d, today=(await _days(conn, clinic, d, today, today))[0])
+        limited, mine = await own_doctor(conn, user, clinic)  # a Doctor sees only their own patients
+        cards = [Card(doctor=d, today=(await _days(conn, clinic, d, today, today,
+                                                   not limited or d.id == mine))[0])
                  for d in await _doctors(conn, clinic)]  # fmt: skip
     return Board(today=today.isoformat(), open_time=open_time, close_time=close_time, doctors=cards)
 
@@ -232,7 +236,9 @@ async def week(
         today = datetime.now(ZoneInfo(tz)).date()
         first = start or today
         open_time, close_time = await _hours(conn, clinic)
-        days = await _days(conn, clinic, found[0], first, first + timedelta(days=6))
+        limited, mine = await own_doctor(conn, user, clinic)  # a Doctor sees only their own patients
+        days = await _days(conn, clinic, found[0], first, first + timedelta(days=6),
+                           not limited or doctor_id == mine)  # fmt: skip
     return Week(
         doctor=found[0], today=today.isoformat(), open_time=open_time, close_time=close_time, days=days
     )

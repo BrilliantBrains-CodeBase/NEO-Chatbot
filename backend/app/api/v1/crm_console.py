@@ -1,6 +1,6 @@
 """Dashboard (the chatbot console) in the CRM, JSON only: each clinic's widget settings as a draft that staff
 edit, then publish (migration 0019). Every value is checked here; the browser never writes the tables.
-Clinic managers and BB Admin only. The live chatbot does not read these settings until it is switched over."""
+Admins and Super Admin only. The live chatbot does not read these settings until it is switched over."""
 
 import json
 import re
@@ -82,7 +82,7 @@ class WidgetStyle(BaseModel):
     footer_on: bool = True
     # The clinic's part, before " · Powered By Brilliant Brains" (always shown, with BB's link).
     footer_text: str = Field(default="Not For Medical Advice", max_length=25)
-    footer_link: str = Field(  # footer_on and footer_link: BB Admin only
+    footer_link: str = Field(  # footer_on and footer_link: Super Admin only
         default="https://brilliantbrains.ai", max_length=300, pattern=r"^(https://\S+)?$"
     )
     # Mobile: a contact row at the bottom of the chat.
@@ -435,7 +435,7 @@ def _filled(saved: dict[str, Any]) -> dict[str, Any]:
 
 async def _manager(user: Staff, clinic: str) -> None:
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "The Dashboard is for clinic managers and BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "The Dashboard is for admins and Super Admin.")
 
 
 async def _load(clinic: str) -> Settings:
@@ -567,7 +567,7 @@ class Approve(BaseModel):
 
 @router.post("/{clinic}/flow/phrases/approve", response_model=Settings)
 async def approve_phrases(user: Annotated[Staff, Depends(staff)], clinic: str, body: Approve) -> Settings:
-    """A clinic manager approves typed phrases: only then does the chat use them (no self-training)."""
+    """An admin approves typed phrases: only then does the chat use them (no self-training)."""
     await _manager(user, clinic)
     flow = (await _load(clinic)).draft["flow"]
     for p in flow["phrases"]:
@@ -678,13 +678,13 @@ def _slim(published: dict[str, Any]) -> dict[str, Any]:
 async def publish(user: Annotated[Staff, Depends(staff)], clinic: str, for_all: bool = False) -> Settings:
     """The draft becomes what the widget shows, as a new numbered version (kept for roll back). For the main
     template (Neo Follicle), ``for_all`` also makes its canvas, Templates and Appearance what every following
-    clinic shows (BB Admin only); without it, only the main changes."""
+    clinic shows (Super Admin only); without it, only the main changes."""
     canvas.forget()  # the live chat reads the new version at once (followers too)
     await _manager(user, clinic)
     if for_all and clinic != main_template.MAIN:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only the main template is published for all.")
     if for_all and not user.bb_admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Publishing for all clinics is for BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Publishing for all clinics is for Super Admin.")
     current = await _load(clinic)
     if not current.changed and for_all and current.main_behind:  # already live here: now for all too
         async with (await get_pool()).acquire() as conn, conn.transaction():
@@ -855,9 +855,9 @@ async def _save_test_lead(
 
 async def _test_alert(user: Staff, alert: dict[str, Any], device: str) -> str:
     """A test chat's emergency alert. With the patient's phone: an urgent call back in CL99's Inbox (the
-    bell). No email is queued for a test (live, the clinic manager is emailed)."""
+    bell). No email is queued for a test (live, the admin is emailed)."""
     if not alert.get("phone"):
-        return "Staff alert (test): live, the clinic manager is emailed. No phone yet, so no Inbox call back."
+        return "Staff alert (test): live, the admin is emailed. No phone yet, so no Inbox call back."
     said = alert.get("said") or "emergency words"
     lead = {"type": "callback", "name": "Test patient", "phone": alert["phone"], "urgent": "yes",
             "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip

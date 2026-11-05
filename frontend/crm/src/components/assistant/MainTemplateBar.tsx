@@ -3,7 +3,7 @@
 import { useCrm } from "@/components/crm/CrmProvider";
 
 // The main template (Neo Follicle): its canvas, Templates and Appearance are what other clinics show until they
-// change that part. On Neo Follicle: "Publish for all clinics" (BB Admin only). Elsewhere: whether this part
+// change that part. On Neo Follicle: "Publish for all clinics" (Super Admin only). Elsewhere: whether this part
 // follows Neo Follicle or is the clinic's own, and the switch between them.
 
 export const MAIN = "CL01";

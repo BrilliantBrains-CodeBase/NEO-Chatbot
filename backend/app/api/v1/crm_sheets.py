@@ -50,7 +50,7 @@ class NewSheet(BaseModel):
 
 def _manager(user: Staff, clinic: str) -> None:
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Integrations are for clinic managers and BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Integrations are for admins and Super Admin.")
 
 
 async def _list(clinic: str) -> list[Sheet]:

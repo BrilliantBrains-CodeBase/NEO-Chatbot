@@ -115,7 +115,7 @@ export default function ProfileCard() {
           "None",
       )}
       <p className="sub2" style={{ margin: "10px 0 0" }}>
-        To change your email or role, ask your clinic manager (Team).
+        To change your email or role, ask your admin (Team).
       </p>
     </div>
   );

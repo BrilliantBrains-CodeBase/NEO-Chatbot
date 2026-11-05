@@ -25,7 +25,7 @@ async def test_add_a_clinic_copied_from_another(api: AsyncClient, monkeypatch: p
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     before = {r["id"] for r in await pool.fetch("select id from app.clinics")}
     new: Any = None
@@ -61,7 +61,7 @@ async def test_delete_only_an_empty_clinic(api: AsyncClient, monkeypatch: pytest
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     before = {r["id"] for r in await pool.fetch("select id from app.clinics")}
     try:

@@ -23,7 +23,7 @@ async def test_code_needed_then_verified(api: AsyncClient, monkeypatch: pytest.M
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     session = str(uuid.uuid4())
 
     def verify(token: str) -> dict[str, Any]:

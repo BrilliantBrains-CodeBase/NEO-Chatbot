@@ -30,7 +30,7 @@ async def test_knowledge_base_drafts_approval_and_fact_links(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     try:
         fact = {"key": "test_consult_fee", "category": "cost", "value": "Rs 700", "variants": "fee\n fee \n"}
@@ -93,7 +93,7 @@ async def test_upload_rows_become_drafts(api: AsyncClient, monkeypatch: pytest.M
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     fact = {"row": 2, "kind": "fact", "key": "test_up_fee", "category": "cost", "value": "Rs 800"}
     qa = {
@@ -134,7 +134,7 @@ async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: p
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     try:
         got = (await api.get(URL, headers=headers)).json()

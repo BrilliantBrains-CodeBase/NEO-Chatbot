@@ -157,7 +157,7 @@ async def test_inactive_staff_see_nothing(tx: asyncpg.Connection, world: dict[st
         assert await tx.fetch("select id from app.clinics") == []
 
 
-# ---------- clinic manager
+# ---------- admin
 
 
 async def test_manager_deletes_leads_and_manages_the_team_but_not_bb_admins(
@@ -174,7 +174,7 @@ async def test_manager_deletes_leads_and_manages_the_team_but_not_bb_admins(
     async with signed_in(tx, boss):
         await tx.execute("update app.leads set deleted_at = now() where id = $1", world["lead99"])
         await tx.execute(sql, newbie, "CL99", "front_desk")
-        async with rejected(tx):  # only BB Admin creates BB Admins
+        async with rejected(tx):  # only Super Admin creates Super Admins
             await tx.execute("update app.user_clinics set role = 'bb_admin' where user_id = $1", newbie)
         async with rejected(tx):  # not their clinic
             await tx.execute(sql, newbie, "CL98", "front_desk")
@@ -202,7 +202,7 @@ async def test_doctor_edits_only_own_hours(tx: asyncpg.Connection, world: dict[s
             await tx.execute(sql, world["other_doc"])
 
 
-# ---------- BB Admin
+# ---------- Super Admin
 
 
 async def test_bb_admin_sees_every_clinic(tx: asyncpg.Connection, world: dict[str, UUID]) -> None:

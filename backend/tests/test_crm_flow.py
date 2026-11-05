@@ -64,7 +64,7 @@ async def test_publish_is_blocked_by_a_loose_end(api: AsyncClient, monkeypatch: 
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99"
     await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")
@@ -88,7 +88,7 @@ async def test_test_chat_runs_the_draft(api: AsyncClient, monkeypatch: pytest.Mo
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL01/flow/test"  # reads the draft only; nothing is saved
     r = (await api.post(url, json={}, headers=headers)).json()
@@ -109,7 +109,7 @@ async def test_test_leads_go_to_cl99_and_are_deleted(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
     lead = {
@@ -155,7 +155,7 @@ async def test_only_the_approve_action_approves_phrases(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99"
     sneaky = {"id": "p1", "target": "opening:m1", "text": "I want to book", "status": "approved"}
@@ -186,7 +186,7 @@ async def test_test_chat_reads_the_knowledge_base_and_appointments(api: AsyncCli
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     question = "Is there a valet for test cars?"
     await pool.execute(  # its own answer, in the test clinic: never the clinic's changing content
         """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
@@ -227,7 +227,7 @@ async def test_stage_rule_and_emergency_alert_in_cl99(api: AsyncClient) -> None:
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     user = Staff(id=str(admin), email="", name="", bb_admin=True, roles={})
     try:
         saved = await _save_test_lead(
@@ -444,7 +444,7 @@ async def test_publish_is_not_blocked_by_the_test_sets(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     monkeypatch.setattr(cc, "TEST_SET_BARS", {"CL99": {"Typed messages": 317}})
     monkeypatch.setattr("app.chat.embed.ready", lambda: True)

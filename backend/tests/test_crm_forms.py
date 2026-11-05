@@ -19,7 +19,7 @@ async def test_form_submissions_become_leads(api: AsyncClient, monkeypatch: pyte
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/integrations/forms"
     phone = "+919000012345"
@@ -67,7 +67,7 @@ async def test_auto_capture_sends_site_forms(api: AsyncClient, monkeypatch: pyte
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/websites"
     site = "https://capture-test.example.com"

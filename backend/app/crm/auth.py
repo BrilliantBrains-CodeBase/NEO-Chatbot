@@ -19,12 +19,12 @@ from app.core.db import get_pool
 log = logging.getLogger(__name__)
 
 ROLE_LABEL = {
-    "bb_admin": "BB Admin",
-    "clinic_manager": "Clinic Manager",
+    "bb_admin": "Super Admin",
+    "clinic_manager": "Admin",
     "front_desk": "Front Desk",
     "doctor": "Doctor",
 }
-NO_ACCESS = "Your account has no CRM access yet. Your clinic manager or BB Admin must approve it."
+NO_ACCESS = "Your account has no CRM access yet. Your admin or Super Admin must approve it."
 # 2-step login (migration 0031): the CRM shows its "Enter the code" page on this exact message.
 CODE_NEEDED = "Enter the sign-in code sent to your email."
 

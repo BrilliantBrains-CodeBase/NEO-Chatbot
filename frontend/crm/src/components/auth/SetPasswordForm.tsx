@@ -89,7 +89,7 @@ export default function SetPasswordForm() {
       <section className="done">
         <h2>Password saved</h2>
         <p className="sub">
-          Your access is waiting for approval by your clinic manager. You can
+          Your access is waiting for approval by your admin. You can
           sign in once it is approved.
         </p>
         <Link className="btn" href="/sign-in">

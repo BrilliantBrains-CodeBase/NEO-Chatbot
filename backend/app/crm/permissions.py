@@ -1,4 +1,4 @@
-"""Who sees what (migration 0032): for each screen and role, hidden, view or edit. BB Admin always has edit
+"""Who sees what (migration 0032): for each screen and role, hidden, view or edit. Super Admin always has edit
 everywhere. The rules stack: BUILTIN (today's behaviour) ← BB's defaults for all clinics (app.platform) ← the
 clinic's own changes (app.clinic_permissions). Only changes are stored.
 """
@@ -25,7 +25,7 @@ DASHBOARD = {
     "unanswered": "Unanswered questions",
     "chats": "Chat transcripts", "quality": "Test & quality", "install": "Website install",
     "integrations": "Integrations", "security": "Login & security", "privacy": "Privacy & data",
-    "team": "Team & access", "activity": "Activity", "alerts": "Alerts", "versions": "Versions",
+    "activity": "Activity", "alerts": "Alerts", "versions": "Versions",
 }  # fmt: skip
 SCREENS: dict[str, tuple[str, str]] = (
     {k: (v, "CRM") for k, v in CRM.items()}
@@ -33,16 +33,23 @@ SCREENS: dict[str, tuple[str, str]] = (
     | {f"dash_{k}": (v, "Dashboard") for k, v in DASHBOARD.items()}
 )
 
-# Today's behaviour: managers change everything; Front Desk works leads, inbox, appointments and tasks;
-# Doctors see their work and change their own hours and leave (front desk any doctor's); only managers open
-# the Dashboard.
+# Rows the "Who sees what" table leaves out: screens turned off for everyone, and screens whose access is
+# fixed by role whatever the table says (Team: Admins and Super Admin. Login & security: Super Admin).
+FIXED = {
+    "tasks", "reports", "team", "dash_overview", "dash_legal", "dash_unanswered", "dash_chats",
+    "dash_quality", "dash_privacy", "dash_security", "dash_activity", "dash_alerts", "dash_versions",
+}  # fmt: skip
+
+# Built in: managers change everything; Front Desk works leads, inbox, appointments and patients; Doctors see
+# their own appointments and patients and change their own hours and leave (front desk any doctor's); only
+# managers open the Dashboard and Team.
 _desk: dict[str, Level] = {
     "dashboard": "view", "leads": "edit", "inbox": "edit", "doctors": "edit", "appointments": "edit",
-    "tasks": "edit", "patients": "edit", "reports": "view", "team": "view", "settings": "hidden",
+    "tasks": "edit", "patients": "edit", "reports": "view", "team": "hidden", "settings": "hidden",
 }  # fmt: skip
 _doctor: dict[str, Level] = {
-    "dashboard": "view", "leads": "view", "inbox": "view", "doctors": "edit", "appointments": "view",
-    "tasks": "view", "patients": "view", "reports": "hidden", "team": "view", "settings": "hidden",
+    "dashboard": "hidden", "leads": "hidden", "inbox": "hidden", "doctors": "edit", "appointments": "view",
+    "tasks": "hidden", "patients": "view", "reports": "hidden", "team": "hidden", "settings": "hidden",
 }  # fmt: skip
 BUILTIN: dict[str, dict[str, Level]] = {
     "clinic_manager": {k: "edit" for k in SCREENS},
@@ -91,7 +98,7 @@ def rank(level: str) -> int:
 
 async def for_person(conn: Any, clinic: str, user_id: str, role: str) -> dict[str, Level]:
     """What one person has in a clinic: their role's rules, raised by any access given to them for a time
-    that has not ended. BB Admin: edit everywhere."""
+    that has not ended. Super Admin: edit everywhere."""
     if role == "bb_admin":
         return {k: "edit" for k in SCREENS}
     mine = dict((await effective(conn, clinic)).get(role, {}))
@@ -118,9 +125,10 @@ async def require(conn: Any, user: Any, clinic: str, screen: str, need: Level) -
 
 
 # ---------- Dashboard tabs (their own modules) ----------
-# A router-level check on /crm/.../{clinic} addresses: Clinic Managers and BB Admin pass as before; anyone
-# else needs the tab's level (view to read, edit to save), and is then let through the module's own manager
-# check for this request (granted). Public addresses (forms, sheets, webhooks) have no clinic: untouched.
+# A router-level check on /crm/.../{clinic} addresses: Super Admin passes; anyone else, Admins included,
+# needs the Dashboard open and the tab's level (view to read, edit to save). Someone other than a manager is
+# then let through the module's own manager check for this request (granted). Public addresses (forms, sheets,
+# webhooks) have no clinic: untouched.
 _granted: ContextVar[tuple[str, str] | None] = ContextVar("dash_granted", default=None)
 SECTION_TAB = {
     "appearance": "appearance", "template": "templates", "menu": "menu", "flow": "menu", "chat": "menu",
@@ -144,12 +152,14 @@ def dash_guard(tab: str | None) -> Any:
         from app.crm.auth import staff
 
         user = await staff(request.headers.get("authorization", ""))
-        if user.bb_admin or user.roles.get(clinic) == "clinic_manager":
+        if user.bb_admin:
             return
         section = str(request.path_params.get("section") or "")
         t = tab or SECTION_TAB.get(section) or ("menu" if "/flow" in request.url.path else "open")
         need: Level = "view" if request.method == "GET" else "edit"
-        await require(await get_pool(), user, clinic, f"dash_{t}", need)
+        pool = await get_pool()
+        await require(pool, user, clinic, "dash_open", "view")
+        await require(pool, user, clinic, f"dash_{t}", need)
         _granted.set((user.id, clinic))
 
     return guard

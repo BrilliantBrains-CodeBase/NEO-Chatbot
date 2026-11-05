@@ -18,7 +18,7 @@ class AdminError(Exception):
 async def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
     s = get_settings()
     if not s.supabase_secret_key:
-        raise AdminError("Team & access needs SUPABASE_SECRET_KEY on the server.")
+        raise AdminError("Team needs SUPABASE_SECRET_KEY on the server.")
     headers = {"apikey": s.supabase_secret_key, "Authorization": f"Bearer {s.supabase_secret_key}"}
     try:
         async with httpx.AsyncClient(timeout=15) as client:

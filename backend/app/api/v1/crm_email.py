@@ -1,5 +1,5 @@
-"""Email senders (migration 0030), JSON only: a clinic's Gmail (Integrations → Email; Clinic Manager, BB
-Admin) and the BB Gmail (Login & security; BB Admin). Connect with the Gmail address and a Google App
+"""Email senders (migration 0030), JSON only: a clinic's Gmail (Integrations → Email; Admin, BB
+Admin) and the BB Gmail (Login & security; Super Admin). Connect with the Gmail address and a Google App
 password (kept in Vault, never shown again), send a test, see the last emails. Connecting again replaces
 the password.
 """
@@ -55,12 +55,12 @@ class Test(BaseModel):
 
 
 def _who(user: Staff, clinic: str | None) -> None:
-    """A clinic's Gmail: its Clinic Manager or BB Admin. The BB Gmail: BB Admin."""
+    """A clinic's Gmail: its Admin or Super Admin. The BB Gmail: Super Admin."""
     if clinic is None and not user.bb_admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "The BB Gmail is for BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "The BB Gmail is for Super Admin.")
     allowed = user.bb_admin or user.roles.get(clinic or "") == "clinic_manager"
     if clinic and not (allowed or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Email is for clinic managers and BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Email is for admins and Super Admin.")
 
 
 async def _state(clinic: str | None) -> Sender:

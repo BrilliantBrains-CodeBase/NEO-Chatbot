@@ -9,9 +9,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import type { Clinic } from "@/lib/sample-data";
 import AddLeadForm from "@/components/leads/AddLeadForm";
 import { level } from "@/lib/access";
+import { inDashboard } from "@/lib/workspace";
 import { useBellOff } from "@/lib/bell";
 import { useCrm } from "./CrmProvider";
 import Icon from "./Icon";
@@ -45,7 +45,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     .reduce((a, [, n]) => a + n, 0);
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const path = usePathname();
-  const inConsole = path.startsWith("/assistant");
+  const inConsole = inDashboard(path);
   const compact = path === "/assistant/menu"; // the workflow canvas needs the whole page
   const router = useRouter();
   const [open, setOpen] = useState<MenuName | null>(null);
@@ -142,7 +142,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
                 role="menuitemradio"
                 aria-checked={c === crm.clinic}
                 onClick={() => {
-                  crm.setClinic(c as Clinic);
+                  crm.setClinic(c);
                   setOpen(null);
                 }}
               >
@@ -190,7 +190,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           </button>
         </div>
       )}
-      {!inConsole && (
+      {!inConsole && level(crm.me, crm.clinic, "leads") !== "hidden" && (
         <label className="search hide-m">
           <Icon name="search" />
           <input

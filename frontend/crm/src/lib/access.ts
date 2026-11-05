@@ -1,7 +1,7 @@
 import type { Me } from "./api";
 
-// Who sees what (Dashboard → Team & access): each person's level per screen in a clinic, from GET /v1/crm/me.
-// BB Admin always edits. Without levels (an older backend), nothing is hidden: the backend still decides.
+// Who sees what (Team → Roles & permissions): each person's level per screen in a clinic, from GET /v1/crm/me.
+// Super Admin always edits. Without levels (an older backend), nothing is hidden: the backend still decides.
 export type Level = "hidden" | "view" | "edit";
 
 /** The screen a page belongs to: /leads → "leads", /assistant/appearance → "dash_appearance". */

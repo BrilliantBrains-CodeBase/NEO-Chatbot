@@ -1,8 +1,8 @@
-"""Login & security → Clinics (BB Admin only), JSON only. All clinics live in the one project: a new clinic
+"""Login & security → Clinics (Super Admin only), JSON only. All clinics live in the one project: a new clinic
 is a new row with the next free code (CL02 … CL98, CL99 is the test clinic, then CL100 … CL999). It copies
 another clinic's working setup (hours, slots, booking window, lead assignment) and its chat (canvas,
 Appearance, Templates, Menu wording), published and running on the canvas; never its contact details,
-services, reviews, doctors, websites or keys. The first Clinic Manager can be invited at once. Clinics are
+services, reviews, doctors, websites or keys. The first Admin can be invited at once. Clinics are
 deactivated, never deleted.
 """
 
@@ -13,7 +13,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
-from app.api.v1.crm_team import _give
+from app.api.v1.crm_team import give_role, one_clinic, roles_of
 from app.chat import main_template
 from app.core.db import get_pool
 from app.crm import supabase_admin
@@ -58,7 +58,7 @@ class Active(BaseModel):
 
 def _bb(user: Staff) -> None:
     if not user.bb_admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Clinics are managed by BB Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Clinics are managed by Super Admin.")
 
 
 async def _list() -> list[Clinic]:
@@ -134,7 +134,9 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
             list(main_template.PARTS) if body.copy_from == main_template.MAIN else [],
         )  # fmt: skip  (a copy of the main follows it: canvas, Templates, Appearance)
         if manager_id:
-            await _give(conn, str(manager_id), code, "clinic_manager")
+            has = await roles_of(conn, str(manager_id))
+            one_clinic({c: r["role"] for c, r in has.items()} | {code: "clinic_manager"})
+            await give_role(conn, str(manager_id), code, "clinic_manager")
     return await _list()
 
 

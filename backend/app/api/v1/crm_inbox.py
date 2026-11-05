@@ -22,6 +22,7 @@ from app.api.v1.crm import (
     cell,
     csv_file,
     export_phone,
+    own_doctor,
     plain_text,
 )
 from app.chat import slots
@@ -652,6 +653,7 @@ async def appointments(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose at most 2 months.")
     pool = await get_pool()
     async with pool.acquire() as conn:
+        limited, mine = await own_doctor(conn, user, clinic)  # a Doctor sees their own appointments
         doctors = await conn.fetch(
             "select id, name from app.doctors where clinic_id = $1 and active order by sort_order, name",
             clinic,
@@ -667,8 +669,9 @@ async def appointments(
                  and coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date)
                      between $2 and $3
                  and ($4 = 'all' or a.status in ('pending', 'confirmed', 'visited', 'no_show', 'missed'))
+                 and (not $5 or a.doctor_id = $6::uuid)
                order by day, lower(a.slot) nulls last, l.full_name""",
-            clinic, date_from, last, status_,
+            clinic, date_from, last, status_, limited, mine,
         )  # fmt: skip
     return Appointments(
         doctors=[Option(id=str(d["id"]), name=d["name"]) for d in doctors],

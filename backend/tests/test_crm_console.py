@@ -17,7 +17,7 @@ async def test_appearance_draft_and_publish(api: AsyncClient, monkeypatch: pytes
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     url = "/v1/crm/console/CL99/settings"
     await pool.execute("delete from app.clinic_settings where clinic_id = 'CL99'")

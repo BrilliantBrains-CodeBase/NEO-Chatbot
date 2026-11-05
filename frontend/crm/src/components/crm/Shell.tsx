@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { canSee } from "@/lib/access";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import CrmProvider, { useCrm } from "./CrmProvider";
@@ -23,6 +23,12 @@ function Frame({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const { drawer, closeDrawer, modal, closeModal } = crm;
+  // Sign-in lands on the CRM's Dashboard; someone without it (Doctors) starts on their appointments.
+  const router = useRouter();
+  const noHome = path === "/dashboard" && !!crm.me && !canSee(crm.me, crm.clinic, path);
+  useEffect(() => {
+    if (noHome) router.replace("/appointments");
+  }, [noHome, router]);
 
   // Esc closes the pop-up form first, then the panel (as in the design).
   useEffect(() => {
@@ -46,12 +52,12 @@ function Frame({ children }: { children: ReactNode }) {
         <div className="main">
           <Topbar onMenu={() => setMenuOpen(!menuOpen)} />
           <main className="page">
-            {canSee(crm.me, crm.clinic, path) ? (
+            {noHome ? null : canSee(crm.me, crm.clinic, path) ? (
               children
             ) : (
               <div className="empty">
                 <h2>No access</h2>
-                Your clinic manager has not given you this screen.
+                Your admin has not given you this screen.
               </div>
             )}
           </main>

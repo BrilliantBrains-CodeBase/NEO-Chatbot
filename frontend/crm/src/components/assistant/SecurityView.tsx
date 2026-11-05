@@ -5,10 +5,9 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
 import GmailPanel from "./GmailPanel";
-import ClinicsCard from "./ClinicsCard";
 
-// Dashboard → Login & security (BB Admin). Main BB Admin: the one email with full power over every clinic;
-// nobody can disable, remove or demote it, and only the main BB Admin changes it (any BB Admin sets the first).
+// Dashboard → Login & security (Super Admin). Main Super Admin: the one email with full power over every clinic;
+// nobody can disable, remove or demote it, and only the main Super Admin changes it (any Super Admin sets the first).
 
 type MainAdmin = { email: string | null; is_me: boolean; can_change: boolean };
 
@@ -35,7 +34,7 @@ export default function SecurityView() {
     return (
       <div className="empty">
         <h2>No access</h2>
-        Login & security is for BB Admin.
+        Login & security is for Super Admin.
       </div>
     );
 
@@ -43,7 +42,7 @@ export default function SecurityView() {
     const next = email.trim().toLowerCase();
     if (
       !window.confirm(
-        `Make ${next} the main BB Admin? That login gets full control of every clinic, and only it can change this again.`,
+        `Make ${next} the main Super Admin? That login gets full control of every clinic, and only it can change this again.`,
       )
     )
       return;
@@ -57,7 +56,7 @@ export default function SecurityView() {
         }),
       );
       setEmail("");
-      toast(`${next} is now the main BB Admin`);
+      toast(`${next} is now the main Super Admin`);
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not save. Please try again.",
@@ -77,10 +76,10 @@ export default function SecurityView() {
       {!main && !error && <Loading />}
       {main && (
         <section className="card">
-          <h3 style={{ margin: "0 0 4px" }}>Main BB Admin</h3>
+          <h3 style={{ margin: "0 0 4px" }}>Main Super Admin</h3>
           <p className="sub2" style={{ margin: "0 0 10px" }}>
             One email with full power over every clinic. Nobody can disable,
-            remove or demote it in Team & access. Only the main BB Admin can
+            remove or demote it in Team. Only the main Super Admin can
             change it.
           </p>
           <p style={{ margin: "0 0 10px" }}>
@@ -91,7 +90,7 @@ export default function SecurityView() {
               </>
             ) : (
               <span className="sub2">
-                Not set yet. Any BB Admin can set the first one.
+                Not set yet. Any Super Admin can set the first one.
               </span>
             )}
           </p>
@@ -111,7 +110,7 @@ export default function SecurityView() {
                 disabled={busy || !email.includes("@")}
                 onClick={() => void save()}
               >
-                {main.email ? "Change main BB Admin" : "Set main BB Admin"}
+                {main.email ? "Change main Super Admin" : "Set main Super Admin"}
               </button>
             </div>
           ) : (
@@ -121,17 +120,16 @@ export default function SecurityView() {
           )}
           <p className="sub2" style={{ margin: "8px 0 0", fontSize: "var(--fs-small)" }}>
             The email must belong to a login that can already sign in (invite
-            them in Team & access first). Use an email you can always open, so
+            them in Team first). Use an email you can always open, so
             you never lock yourself out.
           </p>
         </section>
       )}
-      <ClinicsCard />
       <TwoStep />
       <section className="card" style={{ marginTop: 14 }}>
         <h3 style={{ margin: "0 0 4px" }}>BB Gmail</h3>
         <p className="sub2" style={{ margin: 0 }}>
-          Sends BB Admins&apos; login codes, and any clinic&apos;s emails while
+          Sends Super Admins&apos; login codes, and any clinic&apos;s emails while
           that clinic has not connected its own Gmail (Integrations → Email).
         </p>
         <GmailPanel url="/v1/crm/security/email" />
@@ -141,13 +139,13 @@ export default function SecurityView() {
 }
 
 const ROLES: [string, string][] = [
-  ["bb_admin", "BB Admin"],
-  ["clinic_manager", "Clinic Manager"],
+  ["bb_admin", "Super Admin"],
+  ["clinic_manager", "Admin"],
   ["front_desk", "Front Desk"],
   ["doctor", "Doctor"],
 ];
 
-/** 2-step login: the roles that need an emailed code after the password (BB Admin only; needs the BB Gmail). */
+/** 2-step login: the roles that need an emailed code after the password (Super Admin only; needs the BB Gmail). */
 function TwoStep() {
   const { toast } = useCrm();
   const [roles, setRoles] = useState<string[] | null>(null);

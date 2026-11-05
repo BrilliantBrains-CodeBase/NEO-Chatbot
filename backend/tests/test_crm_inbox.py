@@ -32,7 +32,7 @@ async def test_inbox_search_dates_treatment_and_export(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     a = await pool.fetchval(
         """insert into app.leads (clinic_id, full_name, phone_e164, source)
@@ -144,7 +144,7 @@ async def test_inbox_approve_reject_and_done(api: AsyncClient, monkeypatch: pyte
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     lead = await pool.fetchval(
         """insert into app.leads (clinic_id, full_name, phone_e164, source)
@@ -216,7 +216,7 @@ async def test_online_approve_books_calcom_and_keeps_the_link(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     lead = await pool.fetchval(
         """insert into app.leads (clinic_id, full_name, phone_e164, source)
@@ -295,7 +295,7 @@ async def test_online_cancel_and_reschedule_update_calcom(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     lead = await pool.fetchval(
         """insert into app.leads (clinic_id, full_name, phone_e164, email, source)
@@ -353,7 +353,7 @@ async def test_appointments_of_a_day(api: AsyncClient, monkeypatch: pytest.Monke
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     lead = await pool.fetchval(
         """insert into app.leads (clinic_id, full_name, phone_e164, source)
@@ -403,7 +403,7 @@ async def test_appointment_move_visit_and_cancel(api: AsyncClient, monkeypatch: 
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     if admin is None:
-        pytest.skip("no BB Admin in this database")
+        pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
     doctor = await pool.fetchval(
         "insert into app.doctors (clinic_id, name, role_title) values ('CL99', 'Dr Move', 'MD') returning id"

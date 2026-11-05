@@ -589,7 +589,7 @@ export default function AppearanceView() {
                         }
                       />
                     </Field>
-                    <Field label="Footer link" hint="Set by BB Admin.">
+                    <Field label="Footer link" hint="Set by Super Admin.">
                       <input
                         className="f"
                         disabled={!me?.bb_admin}

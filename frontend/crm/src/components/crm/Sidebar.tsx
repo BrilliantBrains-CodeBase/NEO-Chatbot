@@ -1,6 +1,7 @@
 "use client";
 
 import { canSee } from "@/lib/access";
+import { inDashboard } from "@/lib/workspace";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -293,7 +294,8 @@ export default function Sidebar({
   };
 
   const consoleGroups = [...new Set(ON_SECTIONS.map((s) => s.group))];
-  const showManager = see("/team") || see("/settings");
+  const console_ = inDashboard(path);
+  const showAdmin = see("/team") || (!console_ && see("/settings"));
 
   return (
     <aside className={`sb${open ? " on" : ""}`} aria-label="Main menu">
@@ -326,7 +328,7 @@ export default function Sidebar({
       >
         <div className="nav-in" ref={innerRef}>
           <span className="sb-ind" ref={markerRef} aria-hidden="true" />
-          {path.startsWith("/assistant") ? (
+          {console_ ? (
             /* The Assistant console's menu (design: Patient Assistant Console), grouped as in the design. */
             consoleGroups.map((g) => {
               const rows = ON_SECTIONS.filter(
@@ -366,14 +368,15 @@ export default function Sidebar({
               )}
               {/* Tasks and Reports are turned off for everyone. */}
               {item("/patients", "con", "Patients", path === "/patients")}
-              {showManager && (
-                <>
-                  <div className="dv" />
-                  <div className="grp">MANAGER</div>
-                  {item("/team", "team", "Team", path === "/team")}
-                  {item("/settings", "set", "Settings", path === "/settings")}
-                </>
-              )}
+            </>
+          )}
+          {/* The same place on both sides of the switch. */}
+          {showAdmin && (
+            <>
+              <div className="dv" />
+              <div className="grp">ADMIN</div>
+              {item("/team", "team", "Team", path === "/team")}
+              {!console_ && item("/settings", "set", "Settings", path === "/settings")}
             </>
           )}
         </div>

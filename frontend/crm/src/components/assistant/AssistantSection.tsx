@@ -10,7 +10,6 @@ import WorkflowView from "./workflow/WorkflowView";
 import TemplatesView from "./TemplatesView";
 import WebsiteInstallView from "./WebsiteInstallView";
 import IntegrationsView from "./IntegrationsView";
-import TeamView from "./TeamView";
 import SecurityView from "./SecurityView";
 import { type Section } from "@/lib/assistant";
 import { level } from "@/lib/access";
@@ -26,7 +25,7 @@ export default function AssistantSection({ section }: { section: Section }) {
     return (
       <div className="empty">
         <h2>No access</h2>
-        The Dashboard is for clinic managers and BB Admin.
+        The Dashboard is for admins and Super Admin.
       </div>
     );
   }
@@ -38,7 +37,6 @@ export default function AssistantSection({ section }: { section: Section }) {
   if (section.id === "ai") return <KnowledgeView />;
   if (section.id === "install") return <WebsiteInstallView />;
   if (section.id === "integrations") return <IntegrationsView />;
-  if (section.id === "team") return <TeamView manage />;
   if (section.id === "security") return <SecurityView />;
   return (
     <Placeholder
