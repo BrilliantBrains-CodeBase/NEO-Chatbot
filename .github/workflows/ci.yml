@@ -1,4 +1,6 @@
-# Every push and pull request: all checks and the full test suites.
+# Every push and pull request: all checks and the backend tests.
+# The widget browser tests (Playwright) run on the developer's machine before pushing, not here:
+# cd frontend/widgets, npm run build, npm test
 # Backend database tests need the repository secret DATABASE_URL (Settings -> Secrets and variables ->
 # Actions). They run inside transactions that are rolled back, on the test clinics CL98/CL99 only.
 # Without the secret they are skipped and the rest still runs.
@@ -29,14 +31,6 @@ jobs:
       - run: npm run lint
       - run: npx prettier --check core mock tests neo-follicle neo-fertility derma-solutions
       - run: npm run build # fails if a file is over its size limit
-      - run: npx playwright install --with-deps msedge
-      - run: npx playwright test
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-traces
-          path: frontend/widgets/test-results
-          retention-days: 7
 
   backend:
     runs-on: ubuntu-latest

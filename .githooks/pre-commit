@@ -1,6 +1,7 @@
 #!/bin/sh
-# Fast checks before every commit, only for the parts that changed. The full test suites run on
-# GitHub Actions (.github/workflows/ci.yml). Turn this hook on once per clone:
+# Fast checks before every commit, only for the parts that changed. The backend tests also run on
+# GitHub Actions (.github/workflows/ci.yml); the widget browser tests run on your machine before
+# pushing (cd frontend/widgets, npm run build, npm test). Turn this hook on once per clone:
 #   git config core.hooksPath .githooks
 set -e
 
