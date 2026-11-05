@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
@@ -88,7 +89,7 @@ export default function SlotPicker({
       {data.key === key && data.error && (
         <div className="warnbox">{data.error}</div>
       )}
-      {!d && !data.error && <p className="sub2">Loading free times…</p>}
+      {!d && !data.error && <Loading inline label="Loading free times" />}
       {d && !days.length && (
         <p className="sub2">No free times in the next 2 weeks.</p>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
@@ -134,7 +135,7 @@ function IconPicker({
           borderRadius: 8,
           cursor: "pointer",
           color: "var(--ink)",
-          fontSize: 11,
+          fontSize: "var(--fs-tiny)",
           background: on ? "var(--tint)" : "#fff",
           border: `1px solid ${on ? "var(--brand)" : "var(--line)"}`,
         }}
@@ -176,7 +177,7 @@ function IconPicker({
             border: "1px solid var(--line)",
             borderRadius: 12,
             boxShadow: "0 14px 30px -16px rgba(22,32,46,.45)",
-            fontWeight: 400,
+            fontWeight: 450,
           }}
         >
           <div
@@ -187,7 +188,7 @@ function IconPicker({
               borderBottom: "1px solid var(--line)",
             }}
           >
-            <b style={{ flex: 1, fontSize: 13 }}>Choose an icon</b>
+            <b style={{ flex: 1, fontSize: "var(--fs-sec)" }}>Choose an icon</b>
             <button
               type="button"
               aria-label="Close"
@@ -196,7 +197,7 @@ function IconPicker({
                 border: 0,
                 background: "none",
                 cursor: "pointer",
-                fontSize: 15,
+                fontSize: "var(--fs-body)",
               }}
             >
               ✕
@@ -211,7 +212,7 @@ function IconPicker({
                   className="sub2"
                   style={{
                     fontWeight: 700,
-                    fontSize: 10.5,
+                    fontSize: "var(--fs-tiny)",
                     letterSpacing: ".06em",
                     margin: "0 0 4px",
                   }}
@@ -337,7 +338,7 @@ export default function MenuView() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !menu || !tpl) return <p className="sub2">Loading…</p>;
+  if (!s || !menu || !tpl) return <Loading />;
 
   const setBtn = (i: number, patch: Partial<Main>) =>
     setMenu({
@@ -371,7 +372,7 @@ export default function MenuView() {
         </div>
       </div>
       {error && <div className="warnbox">{error}</div>}
-      <div
+      <div className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 360px",
@@ -475,7 +476,7 @@ export default function MenuView() {
                 value={menu.fallback}
                 onChange={(e) => setMenu({ ...menu, fallback: e.target.value })}
               />
-              <span className="sub2" style={{ fontWeight: 400 }}>
+              <span className="sub2" style={{ fontWeight: 450 }}>
                 Shown with a call-back button when no answer is found.
               </span>
             </label>
@@ -884,7 +885,7 @@ function Arrows({ onUp, onDown }: { onUp: () => void; onDown: () => void }) {
           background: "none",
           cursor: "pointer",
           lineHeight: 1,
-          fontSize: 11,
+          fontSize: "var(--fs-small)",
         }}
       >
         ▲
@@ -897,7 +898,7 @@ function Arrows({ onUp, onDown }: { onUp: () => void; onDown: () => void }) {
           background: "none",
           cursor: "pointer",
           lineHeight: 1,
-          fontSize: 11,
+          fontSize: "var(--fs-small)",
         }}
       >
         ▼
@@ -999,7 +1000,7 @@ function Preview({
       <h3>
         Live preview <small>tap a button to see its sub-buttons</small>
       </h3>
-      <div style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
+      <div className="chat-preview" style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
         <div
           style={{
             background: "#fff",

@@ -194,7 +194,7 @@ export default function PermissionsCard({
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
-                fontSize: 13,
+                fontSize: "var(--fs-sec)",
               }}
             >
               <thead>
@@ -294,7 +294,7 @@ export default function PermissionsCard({
             (their role&apos;s rule applies again).
           </p>
           {r.grants.map((g) => (
-            <p key={g.id} style={{ margin: "3px 0", fontSize: 13 }}>
+            <p key={g.id} style={{ margin: "3px 0", fontSize: "var(--fs-sec)" }}>
               <b>{g.name}</b> · {label(g.screen)} ·{" "}
               {g.level === "edit" ? "Edit" : "View"} · until{" "}
               {new Date(g.until).toLocaleString("en-IN")}

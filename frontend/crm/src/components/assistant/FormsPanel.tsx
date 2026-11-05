@@ -108,7 +108,7 @@ export default function FormsPanel({ clinicId }: { clinicId: string }) {
   const code = {
     width: "100%",
     fontFamily: "ui-monospace, monospace",
-    fontSize: 12,
+    fontSize: "var(--fs-small)",
   };
 
   return (
@@ -156,7 +156,7 @@ export default function FormsPanel({ clinicId }: { clinicId: string }) {
             </button>
           </div>
           {open === f.id && (
-            <div style={{ marginTop: 8, fontSize: 12.5 }}>
+            <div style={{ marginTop: 8, fontSize: "var(--fs-small)" }}>
               <p style={{ margin: "0 0 4px" }}>
                 <b>1. Send the form here.</b>{" "}
                 <span className="sub2">
@@ -208,7 +208,7 @@ export default function FormsPanel({ clinicId }: { clinicId: string }) {
                       <tr key={k}>
                         <td style={{ padding: "3px 6px 3px 0" }}>
                           <b>{k}</b>
-                          <div className="sub2" style={{ fontSize: 11.5 }}>
+                          <div className="sub2" style={{ fontSize: "var(--fs-small)" }}>
                             e.g. {f.sample[i] || "(empty)"}
                           </div>
                         </td>

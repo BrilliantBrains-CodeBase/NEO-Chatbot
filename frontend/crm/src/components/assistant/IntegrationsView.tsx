@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -65,7 +66,7 @@ export default function IntegrationsView() {
         server and never shown.
       </p>
       {error && <div className="warnbox">{error}</div>}
-      {list === null && !error && <p className="sub2">Loading…</p>}
+      {list === null && !error && <Loading />}
       {list?.map((i) => (
         <div key={i.id} className="card" style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -91,14 +92,14 @@ export default function IntegrationsView() {
                   key={d}
                   style={{
                     margin: "2px 0",
-                    fontSize: 12.5,
+                    fontSize: "var(--fs-small)",
                     wordBreak: "break-all",
                   }}
                 >
                   {d}
                 </p>
               ))}
-              <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12 }}>
+              <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-small)" }}>
                 {i.last
                   ? `Last used ${new Date(i.last).toLocaleString("en-IN")}`
                   : "Not used yet"}
@@ -185,7 +186,7 @@ function CalcomConnect({
         paddingTop: 10,
       }}
     >
-      <p className="sub2" style={{ margin: "0 0 6px", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-small)" }}>
         {own ? "Replace the API key" : "Connect the clinic's Cal.com"}: Cal.com
         → Settings → Developer → API keys. The key is checked with Cal.com, kept
         encrypted (Supabase Vault) and never shown again.

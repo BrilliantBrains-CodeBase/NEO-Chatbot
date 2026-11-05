@@ -143,7 +143,7 @@ export default function WebhooksPanel({ clinicId }: { clinicId: string }) {
             </button>
           </div>
           {open === h.id && (
-            <div style={{ marginTop: 8, fontSize: 12.5 }}>
+            <div style={{ marginTop: 8, fontSize: "var(--fs-small)" }}>
               {h.direction === "send" ? (
                 <>
                   <p style={{ margin: "0 0 4px", wordBreak: "break-all" }}>
@@ -192,7 +192,7 @@ export default function WebhooksPanel({ clinicId }: { clinicId: string }) {
                     style={{
                       width: "100%",
                       fontFamily: "ui-monospace, monospace",
-                      fontSize: 12,
+                      fontSize: "var(--fs-small)",
                     }}
                     onFocus={(e) => e.target.select()}
                   />
@@ -257,7 +257,7 @@ export default function WebhooksPanel({ clinicId }: { clinicId: string }) {
               gap: 12,
               flexWrap: "wrap",
               marginTop: 6,
-              fontSize: 13,
+              fontSize: "var(--fs-sec)",
             }}
           >
             {EVENTS.map(([k, label]) => (

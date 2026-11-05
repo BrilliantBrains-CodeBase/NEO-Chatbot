@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
@@ -222,7 +223,7 @@ export default function AppearanceView() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !form) return <p className="sub2">Loading…</p>;
+  if (!s || !form) return <Loading />;
 
   const set = <K extends keyof Appearance>(
     k: K,
@@ -270,7 +271,7 @@ export default function AppearanceView() {
         call={call}
       />
       {error && <div className="warnbox">{error}</div>}
-      <div
+      <div className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 380px",
@@ -513,7 +514,7 @@ export default function AppearanceView() {
                   onChange={(v) => set("widget", { font: v })}
                 />
                 <Field label="On mobile" group full>
-                  <span className="sub2" style={{ fontWeight: 400 }}>
+                  <span className="sub2" style={{ fontWeight: 450 }}>
                     The chat covers the whole screen (no corners), so nothing
                     behind it can be tapped.
                   </span>
@@ -797,7 +798,7 @@ export default function AppearanceView() {
                     />
                     Show the label on mobile too (the designs: button only)
                   </label>
-                  <span className="sub2" style={{ fontWeight: 400 }}>
+                  <span className="sub2" style={{ fontWeight: 450 }}>
                     On mobile the chat never opens by itself.
                   </span>
                 </Field>
@@ -834,7 +835,7 @@ function Field({
       {label}
       {children}
       {hint && (
-        <span className="sub2" style={{ fontWeight: 400 }}>
+        <span className="sub2" style={{ fontWeight: 450 }}>
           {hint}
         </span>
       )}
@@ -1025,7 +1026,7 @@ function Preview({ a }: { a: Appearance }) {
           </div>
         )}
       </div>
-      <div
+      <div className="chat-preview"
         style={{
           background: night ? c.dark_page : "#F4F1F2",
           borderRadius: mobile ? 28 : 12,

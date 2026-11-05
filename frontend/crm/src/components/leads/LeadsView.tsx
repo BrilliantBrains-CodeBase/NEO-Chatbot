@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -345,7 +346,9 @@ export default function LeadsView() {
           <tbody>
             {!d && !error && (
               <tr>
-                <td colSpan={8}>Loading…</td>
+                <td colSpan={8}>
+                  <Loading />
+                </td>
               </tr>
             )}
             {d && !d.items.length && (

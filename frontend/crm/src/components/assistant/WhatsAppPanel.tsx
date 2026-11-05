@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -92,7 +93,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
     return error ? (
       <p className="warnbox">{error}</p>
     ) : (
-      <p className="sub2">Loading…</p>
+      <Loading inline />
     );
   const tpl = draft ?? state.templates;
   const put = (p: string, patch: Partial<Template>) =>
@@ -104,10 +105,10 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
         marginTop: 10,
         borderTop: "1px solid var(--line)",
         paddingTop: 10,
-        fontSize: 13,
+        fontSize: "var(--fs-sec)",
       }}
     >
-      <p className="sub2" style={{ margin: "0 0 6px", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-small)" }}>
         {state.connected
           ? "Replace the Interakt API key"
           : "Connect the clinic's Interakt"}
@@ -163,7 +164,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
       {state.connected && (
         <>
           <h3 style={{ margin: "14px 0 4px" }}>Messages</h3>
-          <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
+          <p className="sub2" style={{ margin: "0 0 8px", fontSize: "var(--fs-small)" }}>
             For each message: the template&apos;s <b>name</b> as approved in
             Interakt (e.g. request_received_v1, not its text), its language, and
             what fills each blank in order. The preview shows what each blank
@@ -283,7 +284,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                 </div>
                 <p
                   className="sub2"
-                  style={{ margin: "8px 0 4px", fontSize: 12 }}
+                  style={{ margin: "8px 0 4px", fontSize: "var(--fs-small)" }}
                 >
                   Tick what to send, in the template&apos;s order: the first
                   tick is {"{{1}}"}, the next {"{{2}}"} …
@@ -322,7 +323,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                 <textarea
                   rows={3}
                   maxLength={1024}
-                  style={{ width: "100%", marginTop: 8, fontSize: 12.5 }}
+                  style={{ width: "100%", marginTop: 8, fontSize: "var(--fs-small)" }}
                   placeholder="Optional: paste the approved text (with {{1}}, {{2}} …) to see the message filled in"
                   value={t.text}
                   onChange={(e) => put(p, { text: e.target.value })}
@@ -342,7 +343,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                       borderRadius: 8,
                       background: "#E7FCE3",
                       whiteSpace: "pre-wrap",
-                      fontSize: 12.5,
+                      fontSize: "var(--fs-small)",
                     }}
                   >
                     {preview}
@@ -351,7 +352,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
                   t.values.length > 0 && (
                     <p
                       className="sub2"
-                      style={{ margin: "6px 0 0", fontSize: 12 }}
+                      style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}
                     >
                       {t.values
                         .map(
@@ -392,7 +393,7 @@ export default function WhatsAppPanel({ clinicId }: { clinicId: string }) {
           <h3 style={{ margin: "14px 0 4px" }}>Last messages</h3>
           {state.log.length ? (
             state.log.map((x, i) => (
-              <p key={i} style={{ margin: "2px 0", fontSize: 12.5 }}>
+              <p key={i} style={{ margin: "2px 0", fontSize: "var(--fs-small)" }}>
                 <span className={`badge ${x.ok ? "b-vi" : "b-in"}`}>
                   {x.ok ? "Sent" : "Not sent"}
                 </span>{" "}
@@ -462,7 +463,7 @@ function SendMessage({
   return (
     <div className="card" style={{ marginTop: 14, padding: 10 }}>
       <h3 style={{ margin: "0 0 4px" }}>Send a message</h3>
-      <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "0 0 8px", fontSize: "var(--fs-small)" }}>
         To one CRM contact (their name, latest appointment and booking ID fill
         the template) or to a typed number (sample values). One at a time.
       </p>

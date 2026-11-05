@@ -135,7 +135,7 @@ export default function SetPasswordForm() {
             autoFocus
           />
           {password && (
-            <span style={{ color: STRENGTH_COLOR[score], fontSize: 12 }}>
+            <span style={{ color: STRENGTH_COLOR[score], fontSize: 13 }}>
               {STRENGTH_HINT[score]}
             </span>
           )}

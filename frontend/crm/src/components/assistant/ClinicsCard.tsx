@@ -363,7 +363,7 @@ function Members({ clinic }: { clinic: string }) {
       </p>
       {list?.length === 0 && <p className="sub2">No members yet.</p>}
       {list?.map((m) => (
-        <p key={m.id} style={{ margin: "3px 0", fontSize: 13 }}>
+        <p key={m.id} style={{ margin: "3px 0", fontSize: "var(--fs-sec)" }}>
           <b>{m.name}</b> · {m.email} · {m.role_label}
           {!m.active && (
             <span className="badge b-in" style={{ marginLeft: 6 }}>

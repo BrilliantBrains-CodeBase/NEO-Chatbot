@@ -1,3 +1,4 @@
+import Loading from "@/components/crm/Loading";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import AssistantSection from "@/components/assistant/AssistantSection";
@@ -14,7 +15,7 @@ export default function SectionPage({
 }) {
   // The section comes from the address: read inside Suspense so navigating stays instant.
   return (
-    <Suspense>
+    <Suspense fallback={<Loading />}>
       <Section params={params} />
     </Suspense>
   );

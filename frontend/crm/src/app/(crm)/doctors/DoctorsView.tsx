@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -68,7 +69,7 @@ export default function DoctorsView() {
         </div>
       </div>
       {error && <p className="warnbox">{error}</p>}
-      {!data && !error && <p className="sub2">Loading…</p>}
+      {!data && !error && <Loading />}
       {data && data.doctors.length === 0 && (
         <div className="empty">
           <h2>No doctors yet</h2>
@@ -98,8 +99,8 @@ export default function DoctorsView() {
               >
                 <b>{d.name}</b>
                 <div className="sub2">{d.role_title}</div>
-                <p style={{ margin: "8px 0", fontSize: 13 }}>{status(t)}</p>
-                <div className="row" style={{ gap: 14, fontSize: 13 }}>
+                <p style={{ margin: "8px 0", fontSize: "var(--fs-sec)" }}>{status(t)}</p>
+                <div className="row" style={{ gap: 14, fontSize: "var(--fs-sec)" }}>
                   <span>
                     <span className="av-busy">{booked}</span> booked
                   </span>

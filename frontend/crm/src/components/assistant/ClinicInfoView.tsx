@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
@@ -156,7 +157,7 @@ export default function ClinicInfoView() {
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
   if (!s || !form || !services || !reviews)
-    return <p className="sub2">Loading…</p>;
+    return <Loading />;
 
   async function save() {
     // Each changed tab is its own section of the draft; the last save shows "Draft saved".
@@ -203,7 +204,7 @@ export default function ClinicInfoView() {
         </div>
       </div>
       {error && <div className="warnbox">{error}</div>}
-      <div
+      <div className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 320px",
@@ -394,7 +395,7 @@ export default function ClinicInfoView() {
                       border: 0,
                       background: "none",
                       cursor: "pointer",
-                      fontSize: 12.5,
+                      fontSize: "var(--fs-small)",
                     }}
                     onClick={() => {
                       if (showPerDay)
@@ -532,7 +533,7 @@ function Preview({
       <h3>
         Live preview <small>&quot;Where is the clinic?&quot;</small>
       </h3>
-      <div style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
+      <div className="chat-preview" style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
         <div
           style={{ background: "#fff", borderRadius: 14, overflow: "hidden" }}
         >

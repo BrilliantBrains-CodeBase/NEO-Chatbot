@@ -176,7 +176,7 @@ export default function ReviewsTab({
                       onChange={(e) => setQuote(i, { text: e.target.value })}
                       style={{
                         font: "inherit",
-                        fontSize: 13,
+                        fontSize: "var(--fs-sec)",
                         border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: "6px 9px",
@@ -244,7 +244,7 @@ export default function ReviewsTab({
             width: "100%",
             marginTop: 6,
             font: "inherit",
-            fontSize: 13,
+            fontSize: "var(--fs-sec)",
             border: "1px solid var(--line)",
             borderRadius: 8,
             padding: "6px 9px",
@@ -280,7 +280,7 @@ export function ReviewsPreview({
     </span>
   );
   return (
-    <div
+    <div className="chat-preview"
       style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}
     >
       <span

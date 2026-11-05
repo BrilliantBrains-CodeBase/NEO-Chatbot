@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
@@ -224,7 +225,7 @@ export default function KnowledgeView() {
         {error ? (
           <p className="warnbox">{error}</p>
         ) : (
-          <p className="sub2">Loading…</p>
+          <Loading />
         )}
       </>
     );
@@ -936,7 +937,7 @@ function QaForm({
             style={{
               whiteSpace: "pre-wrap",
               color: "var(--ink)",
-              fontSize: 13.5,
+              fontSize: "var(--fs-sec)",
             }}
           >
             {preview(answer, facts, live)}

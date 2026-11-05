@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
@@ -270,9 +271,7 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               body: clinicId ? (
                 <AddLeadForm clinicId={clinicId} onDone={crm.closeModal} />
               ) : (
-                <p className="sub2" style={{ margin: 0 }}>
-                  Loading your clinics…
-                </p>
+                <Loading inline label="Loading your clinics" />
               ),
             })
           }

@@ -51,7 +51,7 @@ export default function Pager({
               height: 34,
               padding: 0,
               justifyContent: "center",
-              fontSize: 20,
+              fontSize: "var(--fs-section)",
               lineHeight: 1,
               opacity: off ? 0.45 : 1,
               cursor: off ? "not-allowed" : "pointer",

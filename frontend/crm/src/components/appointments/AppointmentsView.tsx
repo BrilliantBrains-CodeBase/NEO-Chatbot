@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { level } from "@/lib/access";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -261,7 +262,7 @@ export default function AppointmentsView() {
         <div className="warnbox">{data.error}</div>
       )}
       {!d && !(data.key === key && data.error) && (
-        <p className="sub2">Loading…</p>
+        <Loading />
       )}
 
       {d && view === "doctor" && (

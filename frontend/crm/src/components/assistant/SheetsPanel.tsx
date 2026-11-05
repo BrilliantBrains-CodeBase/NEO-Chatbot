@@ -84,7 +84,7 @@ export default function SheetsPanel({ clinicId }: { clinicId: string }) {
         paddingTop: 10,
       }}
     >
-      <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "0 0 8px", fontSize: "var(--fs-small)" }}>
         Add each Google Sheet of leads, copy its script and paste it in the
         sheet (Extensions → Apps Script), then run &quot;crmSetup&quot; once.
         Its tabs and column names appear here within 5 minutes.
@@ -136,7 +136,7 @@ export default function SheetsPanel({ clinicId }: { clinicId: string }) {
               Remove
             </button>
           </div>
-          <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12 }}>
+          <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-small)" }}>
             {s.last_seen_at
               ? `Last report ${new Date(s.last_seen_at).toLocaleString("en-IN")} · ${s.tabs.length} tab(s)`
               : "Not reported yet"}
@@ -157,7 +157,7 @@ export default function SheetsPanel({ clinicId }: { clinicId: string }) {
                 style={{
                   width: "100%",
                   fontFamily: "ui-monospace, monospace",
-                  fontSize: 12,
+                  fontSize: "var(--fs-small)",
                 }}
                 onFocus={(e) => e.target.select()}
               />
@@ -173,7 +173,7 @@ export default function SheetsPanel({ clinicId }: { clinicId: string }) {
               >
                 Copy script
               </button>
-              <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12 }}>
+              <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
                 Keep it private: its link lets this sheet send leads. If it
                 leaks, remove the sheet and add it again.
               </p>
@@ -305,7 +305,7 @@ function TabMapping({
           gap: 8,
           alignItems: "center",
           flexWrap: "wrap",
-          fontSize: 13,
+          fontSize: "var(--fs-sec)",
         }}
       >
         Tab to set up
@@ -337,7 +337,7 @@ function TabMapping({
               : `Show hidden tabs (${hiddenCount})`}
           </button>
         )}
-        <span className="sub2" style={{ fontSize: 12 }}>
+        <span className="sub2" style={{ fontSize: "var(--fs-small)" }}>
           {on.length ? `Importing: ${on.join(", ")}` : "No tab is imported yet"}
         </span>
         {edit && tab && (
@@ -412,7 +412,7 @@ function TabMapping({
               >
                 <div
                   style={{
-                    fontSize: 12.5,
+                    fontSize: "var(--fs-small)",
                     fontWeight: 600,
                     wordBreak: "break-word",
                   }}
@@ -423,7 +423,7 @@ function TabMapping({
                 <div
                   className="sub2"
                   style={{
-                    fontSize: 11.5,
+                    fontSize: "var(--fs-small)",
                     wordBreak: "break-word",
                     minHeight: 16,
                   }}
@@ -458,7 +458,7 @@ function TabMapping({
               gap: 6,
               alignItems: "center",
               marginTop: 10,
-              fontSize: 13,
+              fontSize: "var(--fs-sec)",
             }}
           >
             <input

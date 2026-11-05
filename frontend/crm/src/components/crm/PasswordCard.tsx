@@ -59,7 +59,7 @@ export default function PasswordCard() {
           onChange={(e) => setPassword(e.target.value)}
         />
         {password && (
-          <span style={{ color: STRENGTH_COLOR[score], fontSize: 12 }}>
+          <span style={{ color: STRENGTH_COLOR[score], fontSize: "var(--fs-small)" }}>
             {STRENGTH_HINT[score]}
           </span>
         )}

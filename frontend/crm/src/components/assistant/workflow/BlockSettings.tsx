@@ -96,12 +96,12 @@ function LiveSlots({ live }: { live: Live }) {
   return (
     <Row label="Free slots now (live from the CRM)">
       {days.length === 0 ? (
-        <span style={{ fontWeight: 400 }}>
+        <span style={{ fontWeight: 450 }}>
           No free slots in the next 7 days.
         </span>
       ) : (
         days.map((d) => (
-          <span key={d} style={{ fontWeight: 400 }}>
+          <span key={d} style={{ fontWeight: 450 }}>
             <b>
               {new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
                 weekday: "short",
@@ -202,11 +202,11 @@ export default function BlockSettings({
           </div>
           {block.enabled !== false && (
             <>
-              <span style={{ fontWeight: 400 }}>
+              <span style={{ fontWeight: 450 }}>
                 Schedule (optional): show only
               </span>
               <div className="wf-btn">
-                <span style={{ fontWeight: 400 }}>from</span>
+                <span style={{ fontWeight: 450 }}>from</span>
                 <input
                   type="date"
                   value={block.show_from ?? ""}
@@ -214,7 +214,7 @@ export default function BlockSettings({
                     onChange({ show_from: e.target.value || null })
                   }
                 />
-                <span style={{ fontWeight: 400 }}>to</span>
+                <span style={{ fontWeight: 450 }}>to</span>
                 <input
                   type="date"
                   value={block.show_until ?? ""}
@@ -225,7 +225,7 @@ export default function BlockSettings({
               </div>
               <label
                 style={{
-                  fontWeight: 400,
+                  fontWeight: 450,
                   display: "flex",
                   gap: 6,
                   alignItems: "center",
@@ -375,7 +375,7 @@ export default function BlockSettings({
               ["hours", "Today's hours, open / closed now"],
             ] as const
           ).map(([k, label]) => (
-            <label key={k} style={{ display: "flex", gap: 6, fontWeight: 400 }}>
+            <label key={k} style={{ display: "flex", gap: 6, fontWeight: 450 }}>
               <input
                 type="checkbox"
                 checked={s[k] !== false}
@@ -463,7 +463,7 @@ export default function BlockSettings({
         </Row>
       )}
       {block.type === "knowledge" && (
-        <span className="sub2" style={{ fontSize: 11 }}>
+        <span className="sub2" style={{ fontSize: "var(--fs-tiny)" }}>
           Answers come only from the Knowledge base&apos;s approved answers (no
           AI writing, no self-learning). Draw &quot;not found&quot; to a call
           back or a menu.
@@ -473,7 +473,7 @@ export default function BlockSettings({
         text("message", "Message asking for the phone number", 2, 300)}
       {block.type === "check_appointment" && (
         <Row label="Shows upcoming appointments from CRM → Appointments, matched by phone">
-          <label style={{ display: "flex", gap: 6, fontWeight: 400 }}>
+          <label style={{ display: "flex", gap: 6, fontWeight: 450 }}>
             <input
               type="checkbox"
               checked={!!s.otp}
@@ -515,7 +515,7 @@ export default function BlockSettings({
       {block.type === "lead_tag" &&
         text("campaign", "Campaign saved on the lead (CRM → Leads)", 1, 60)}
       {block.type === "known_patient" && (
-        <span className="sub2" style={{ fontSize: 11 }}>
+        <span className="sub2" style={{ fontSize: "var(--fs-tiny)" }}>
           Known: a lead with the phone given in this chat already exists (one
           lead per phone). Put it after the phone question.
         </span>
@@ -674,7 +674,7 @@ export default function BlockSettings({
               ))}
             </select>
           </Row>
-          <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+          <label style={{ display: "flex", gap: 6, fontSize: "var(--fs-small)" }}>
             <input
               type="checkbox"
               checked={s.required !== false}
@@ -684,7 +684,7 @@ export default function BlockSettings({
           </label>
         </>
       )}
-      <span className="sub2" style={{ fontSize: 11 }}>
+      <span className="sub2" style={{ fontSize: "var(--fs-tiny)" }}>
         Messages can use fields, e.g. Thanks {"{name}"}:{" "}
         {fields.map((f) => `{${f}}`).join(" ")}
       </span>
@@ -701,7 +701,7 @@ export default function BlockSettings({
               ),
             )}
           </select>
-          <span className="sub2" style={{ fontWeight: 400 }}>
+          <span className="sub2" style={{ fontWeight: 450 }}>
             {services
               .filter((t) => t.show && t.category === s.category)
               .map((t) => t.name)
@@ -886,7 +886,7 @@ export default function BlockSettings({
                 />
               );
             })}
-            <span style={{ fontWeight: 400 }}>
+            <span style={{ fontWeight: 450 }}>
               Answers are checked (Indian mobile, email, a bookable day, a free
               slot).
             </span>
@@ -931,7 +931,7 @@ export default function BlockSettings({
                 display: "flex",
                 gap: 6,
                 alignItems: "center",
-                fontWeight: 400,
+                fontWeight: 450,
               }}
             >
               <input
@@ -1015,17 +1015,17 @@ function Phrases({
           key={t}
           style={{ display: "flex", flexDirection: "column", gap: 3 }}
         >
-          <span style={{ fontWeight: 600, fontSize: 12 }}>{label}</span>
+          <span style={{ fontWeight: 600, fontSize: "var(--fs-small)" }}>{label}</span>
           {phrases
             .filter((p) => p.target === t)
             .map((p) => (
-              <div key={p.id} className="wf-btn" style={{ fontSize: 12 }}>
+              <div key={p.id} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
                 <span
                   className={`badge ${p.status === "approved" ? "b-vi" : "b-fu"}`}
                 >
                   {p.status === "approved" ? "Approved" : "Pending"}
                 </span>
-                <span style={{ flex: 1, fontWeight: 400 }}>{p.text}</span>
+                <span style={{ flex: 1, fontWeight: 450 }}>{p.text}</span>
                 <button
                   aria-label="Remove"
                   onClick={() => onChange(phrases.filter((x) => x.id !== p.id))}

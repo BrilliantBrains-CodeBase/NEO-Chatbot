@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon, { type IconName } from "@/components/crm/Icon";
@@ -147,7 +148,7 @@ export default function TemplatesView() {
   const s = loaded.clinic === clinicId ? loaded.s : undefined;
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s) return <p className="sub2">Loading…</p>;
+  if (!s) return <Loading />;
   const current = s.draft.template.id;
   const tpl = s.draft.template;
   const saveTpl = (
@@ -357,7 +358,7 @@ function MiniChat({
     </span>
   );
   return (
-    <div style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
+    <div className="chat-preview" style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
       <div
         style={{
           background: "#fff",

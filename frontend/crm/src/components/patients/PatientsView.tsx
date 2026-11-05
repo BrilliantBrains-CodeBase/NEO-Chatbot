@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -373,7 +374,9 @@ export default function PatientsView() {
           <tbody>
             {!d && !error && (
               <tr>
-                <td colSpan={COLUMNS}>Loading…</td>
+                <td colSpan={COLUMNS}>
+                  <Loading />
+                </td>
               </tr>
             )}
             {d && !d.items.length && (

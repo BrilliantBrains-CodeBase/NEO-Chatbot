@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { level } from "@/lib/access";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -497,7 +498,9 @@ export default function InboxView() {
           <tbody>
             {!d && !(list.key === key && list.error) && (
               <tr>
-                <td colSpan={7}>Loading…</td>
+                <td colSpan={7}>
+                  <Loading />
+                </td>
               </tr>
             )}
             {d && !d.items.length && (

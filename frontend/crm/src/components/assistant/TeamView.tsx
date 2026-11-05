@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -127,7 +128,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
             : "Your profile. Your clinic manager manages access."}
       </p>
       {error && <div className="warnbox">{error}</div>}
-      {!t && !error && <p className="sub2">Loading…</p>}
+      {!t && !error && <Loading />}
 
       {managing && pending.length > 0 && (
         <section className="card" style={{ marginBottom: 14 }}>
@@ -153,7 +154,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <b>{r.name}</b> · {r.email}
                   {r.phone ? ` · ${r.phone}` : ""}
-                  <div className="sub2" style={{ fontSize: 12 }}>
+                  <div className="sub2" style={{ fontSize: "var(--fs-small)" }}>
                     Asked to join as {label(r.role)} on {when(r.created_at)}
                   </div>
                 </div>
@@ -218,7 +219,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                 Decided requests ({decided.length})
               </summary>
               {decided.map((r) => (
-                <p key={r.id} style={{ margin: "4px 0", fontSize: 12.5 }}>
+                <p key={r.id} style={{ margin: "4px 0", fontSize: "var(--fs-small)" }}>
                   <span
                     className={`badge ${r.status === "approved" ? "b-vi" : "b-in"}`}
                   >
@@ -277,7 +278,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                         display: "grid",
                         placeItems: "center",
                         fontWeight: 700,
-                        fontSize: 13,
+                        fontSize: "var(--fs-sec)",
                         flex: "0 0 auto",
                       }}
                     >
@@ -293,7 +294,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                       {m.me && <span className="sub2"> (you)</span>}
                       <div
                         className="sub2"
-                        style={{ fontSize: 12.5, overflowWrap: "anywhere" }}
+                        style={{ fontSize: "var(--fs-small)", overflowWrap: "anywhere" }}
                       >
                         {m.email}
                         {m.phone ? ` · ${m.phone}` : ""}
@@ -333,7 +334,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
                       flexWrap: "wrap",
                       alignItems: "center",
                       paddingLeft: 48,
-                      fontSize: 13,
+                      fontSize: "var(--fs-sec)",
                     }}
                   >
                     <div
@@ -505,7 +506,7 @@ export default function TeamView({ manage }: { manage: boolean }) {
           {t && Object.keys(t.managed).length > 1 && (
             <div
               className="row"
-              style={{ gap: 12, flexWrap: "wrap", marginTop: 8, fontSize: 13 }}
+              style={{ gap: 12, flexWrap: "wrap", marginTop: 8, fontSize: "var(--fs-sec)" }}
             >
               <b>Clinics:</b>
               {Object.entries(t.managed).map(([id, name]) => {

@@ -47,7 +47,7 @@ export function HoursEditor({
         <b>{title}</b>
       </p>
       {hours.length === 0 && (
-        <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+        <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-small)" }}>
           None.
         </p>
       )}

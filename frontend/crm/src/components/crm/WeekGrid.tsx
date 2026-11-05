@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -202,7 +203,7 @@ export default function WeekGrid({
         {error ? (
           <p className="warnbox">{error}</p>
         ) : (
-          <p className="sub2">Loading…</p>
+          <Loading />
         )}
       </>
     );
@@ -365,7 +366,7 @@ export default function WeekGrid({
                     <span>{h.date}</span>
                     {any.length > 0 && (
                       <span
-                        style={{ display: "block", fontSize: 11 }}
+                        style={{ display: "block", fontSize: "var(--fs-tiny)" }}
                         title={any.map((b) => b.patient).join(", ")}
                       >
                         {any.length} any-time request
@@ -556,7 +557,7 @@ function ScheduleCard({
         time booked for one is no longer offered for the other. Profile and slot
         lengths are in Dashboard → Doctors.
       </p>
-      {!s && !error && <p className="sub2">Loading…</p>}
+      {!s && !error && <Loading />}
       {s && (
         <>
           <HoursEditor
@@ -570,7 +571,7 @@ function ScheduleCard({
             onChange={(h) => setS({ ...s, online: h })}
           />
           {s.calcom && (
-            <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+            <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
               Connected to Cal.com: online hours and leave are sent there when
               you save.
             </p>

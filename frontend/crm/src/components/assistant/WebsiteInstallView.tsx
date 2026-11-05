@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -122,7 +123,7 @@ export default function WebsiteInstallView() {
           Add website
         </button>
       </div>
-      {list === null && !error && <p className="sub2">Loading…</p>}
+      {list === null && !error && <Loading />}
       {list?.length === 0 && <p className="sub2">No websites yet.</p>}
       {list?.map((s) => (
         <div key={s.id} className="card" style={{ marginBottom: 10 }}>
@@ -188,7 +189,7 @@ export default function WebsiteInstallView() {
               Remove
             </button>
           </div>
-          <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12 }}>
+          <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
             {s.added_by
               ? `Added by ${s.added_by}`
               : "Allowed before the Dashboard"}
@@ -203,7 +204,7 @@ export default function WebsiteInstallView() {
           {s.status === "approved" && (
             <label
               className="row"
-              style={{ gap: 6, marginTop: 8, fontSize: 13, cursor: "pointer" }}
+              style={{ gap: 6, marginTop: 8, fontSize: "var(--fs-sec)", cursor: "pointer" }}
             >
               <input
                 type="checkbox"
@@ -264,10 +265,10 @@ function EmbedCode({ clinicId, sites }: { clinicId: string; sites: Site[] }) {
         </p>
       ) : (
         <>
-          <p className="sub2" style={{ margin: "0 0 6px", fontSize: 12.5 }}>
+          <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-small)" }}>
             Paste this just before <code>&lt;/body&gt;</code> on:
           </p>
-          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: 12.5 }}>
+          <ul style={{ margin: "0 0 6px", paddingLeft: 18, fontSize: "var(--fs-small)" }}>
             {sites.map((s) => (
               <li key={s.id}>
                 {s.origin}{" "}
@@ -281,7 +282,7 @@ function EmbedCode({ clinicId, sites }: { clinicId: string; sites: Site[] }) {
               </li>
             ))}
           </ul>
-          <p className="sub2" style={{ margin: "0 0 6px", fontSize: 12 }}>
+          <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-small)" }}>
             On any website that is not approved, the chatbot is refused.
           </p>
           <textarea
@@ -291,7 +292,7 @@ function EmbedCode({ clinicId, sites }: { clinicId: string; sites: Site[] }) {
             style={{
               width: "100%",
               fontFamily: "ui-monospace, monospace",
-              fontSize: 12.5,
+              fontSize: "var(--fs-small)",
             }}
             onFocus={(e) => e.target.select()}
           />
@@ -362,7 +363,7 @@ function CheckInstall({
       {result && !result.found && (
         <p
           className="sub2"
-          style={{ width: "100%", margin: "4px 0 0", fontSize: 12 }}
+          style={{ width: "100%", margin: "4px 0 0", fontSize: "var(--fs-small)" }}
         >
           {result.message}
         </p>
@@ -392,7 +393,7 @@ function Pages({
         display: "flex",
         flexDirection: "column",
         gap: 6,
-        fontSize: 13,
+        fontSize: "var(--fs-sec)",
       }}
     >
       <label style={{ display: "flex", gap: 8, alignItems: "center" }}>

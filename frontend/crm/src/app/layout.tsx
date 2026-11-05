@@ -5,7 +5,7 @@ import "./globals.css";
 
 // Two fonts, as in the approved designs: Figtree on the sign-in pages, Inter inside the CRM.
 const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] }); // variable: every weight, including 450
 
 export const metadata: Metadata = {
   title: "NEO CRM",

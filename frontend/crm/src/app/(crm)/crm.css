@@ -1,9 +1,9 @@
 /* NEO CRM screens, from the approved design (claude.ai/artifact/BHvewwn4fbDkVWC14z2Lhe), carried over
    rule for rule and scoped under .crm so nothing reaches the sign-in pages. Later rules override earlier
    ones exactly as in the design (the left menu has its own block at the end). */
-.crm {  --bg:#FFFFFF;--panel:#F7F9FC;--ink:#16202E;--soft:#5B6676;--mute:#8A94A3;--line:#E5EAF1; --brand:#1F3A5F;--brand-d:#162B47;--accent:#3E6FD9;--tint:#EEF3FC; --ok:#1F8A4C;--okt:#E8F6EE;--err:#C62828;--errt:#FDECEC;--warn:#B26A00;--warnt:#FFF4DF;--vio:#6A4FC2;--viot:#F1EDFB; --font:var(--font-inter),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif }
+.crm {  --bg:#FFFFFF;--panel:#F7F9FC;--ink:#16202E;--soft:#5B6676;--mute:#626D7C;--line:#E5EAF1; --brand:#1F3A5F;--brand-d:#162B47;--accent:#3E6FD9;--tint:#EEF3FC; --ok:#1F8A4C;--okt:#E8F6EE;--err:#C62828;--errt:#FDECEC;--warn:#B26A00;--warnt:#FFF4DF;--vio:#6A4FC2;--viot:#F1EDFB; --font:var(--font-inter),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif }
 .crm { height:100%;margin:0 }
-.crm { background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;-webkit-font-smoothing:antialiased }
+.crm { background:var(--bg);color:var(--ink);font-family:var(--font);font-size:var(--fs-body);font-weight:450;-webkit-font-smoothing:antialiased }
 .crm svg { fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;width:18px;height:18px;flex:0 0 auto }
 .crm button { font:inherit;color:inherit }
 .crm .main { display:flex;flex-direction:column;min-width:0;min-height:0 }
@@ -11,17 +11,17 @@
 .crm .search { flex:1;max-width:420px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:0 10px;color:var(--mute) }
 .crm .search input { border:0;outline:0;font:inherit;padding:8px 0;width:100%;color:var(--ink);background:none }
 .crm .ib { position:relative;border:1px solid var(--line);background:#fff;border-radius:9px;width:38px;height:38px;display:grid;place-items:center;cursor:pointer }
-.crm .ib b { position:absolute;top:-5px;right:-5px;background:var(--err);color:#fff;font-size:10.5px;border-radius:999px;padding:1px 6px }
+.crm .ib b { position:absolute;top:-5px;right:-5px;background:var(--err);color:#fff;font-size:var(--fs-tiny);border-radius:999px;padding:1px 6px }
 .crm .btn { display:inline-flex;align-items:center;gap:7px;text-decoration:none;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:700;padding:9px 14px;cursor:pointer }
 .crm .btn:hover { background:var(--brand-d) }
 .crm .btn.g { background:#fff;color:var(--ink);border:1px solid var(--line) }
 .crm .btn.g:hover { background:var(--panel) }
-.crm .btn.sm { padding:6px 10px;font-size:13px }
-.crm .av { width:34px;height:34px;border-radius:50%;background:var(--tint);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:12.5px;flex:0 0 auto }
-.crm .av.s { width:26px;height:26px;font-size:11px }
+.crm .btn.sm { padding:6px 10px;font-size:var(--fs-sec);font-weight:500 }
+.crm .av { width:34px;height:34px;border-radius:50%;background:var(--tint);color:var(--brand);display:grid;place-items:center;font-weight:700;font-size:var(--fs-small);flex:0 0 auto }
+.crm .av.s { width:26px;height:26px;font-size:var(--fs-tiny) }
 .crm .page { flex:1;overflow-y:auto;padding:20px }
 .crm .ph { display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px }
-.crm .ph h1 { font-size:22px;margin:0 }
+.crm .ph h1 { font-size:var(--fs-page);margin:0 }
 .crm .ph p { margin:3px 0 0;color:var(--soft) }
 .crm .grid4 { display:grid;grid-template-columns:repeat(4,1fr);gap:12px }
 .crm .grid2 { display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-top:12px }
@@ -31,23 +31,23 @@
   .crm .grid2, .crm .grid3 { grid-template-columns:1fr }
 }
 .crm .card { border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 16px }
-.crm .card h3 { margin:0 0 10px;font-size:14.5px;display:flex;align-items:center;justify-content:space-between }
-.crm .card h3 small { font-weight:500;color:var(--mute);font-size:12px }
+.crm .card h3 { margin:0 0 10px;font-size:var(--fs-title);display:flex;align-items:center;justify-content:space-between }
+.crm .card h3 small { font-weight:500;color:var(--mute);font-size:var(--fs-small) }
 .crm .kpi { cursor:pointer;display:flex;flex-direction:column;gap:6px }
 .crm .kpi:hover { border-color:#C9D5EA }
 .crm .kpi .t { display:flex;align-items:center;gap:8px;color:var(--soft);font-weight:600 }
 .crm .kpi .t span { width:30px;height:30px;border-radius:9px;display:grid;place-items:center }
-.crm .kpi .n { font-size:28px;font-weight:700 }
-.crm .kpi .s { font-size:12.5px;color:var(--soft) }
+.crm .kpi .n { font-size:var(--fs-num);font-weight:700 }
+.crm .kpi .s { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .kpi .s.r { color:var(--err);font-weight:600 }
 .crm .list { display:flex;flex-direction:column }
 .crm .li { display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line) }
 .crm .li:first-child { border-top:0 }
-.crm .li .tm { width:64px;font-weight:700;font-size:13px }
+.crm .li .tm { width:64px;font-weight:700;font-size:var(--fs-sec) }
 .crm .li .x { flex:1;min-width:0 }
-.crm .li .x b { display:block;font-size:13.5px }
-.crm .li .x span { font-size:12px;color:var(--soft) }
-.crm .badge { display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap }
+.crm .li .x b { display:block;font-size:var(--fs-sec);font-weight:500 }
+.crm .li .x span { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
+.crm .badge { display:inline-flex;align-items:center;gap:4px;font-size:var(--fs-tiny);font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap }
 .crm .b-new { background:var(--tint);color:var(--accent) }
 .crm .b-fu { background:var(--warnt);color:var(--warn) }
 .crm .b-bk { background:var(--viot);color:var(--vio) }
@@ -57,21 +57,21 @@
 .crm .b-on { background:#E6F3FF;color:#1E6BB8 }
 .crm .b-cl { background:#F1F2F4;color:#4A5565 }
 .crm .bar { display:flex;align-items:center;gap:10px;margin:7px 0 }
-.crm .bar span { width:110px;font-size:13px;color:var(--soft) }
+.crm .bar span { width:110px;font-size:var(--fs-sec);color:var(--soft);font-weight:500 }
 .crm .bar i { flex:1;height:10px;border-radius:5px;background:var(--panel);overflow:hidden;position:relative }
 .crm .bar i em { position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:5px }
-.crm .bar b { width:34px;text-align:right;font-size:13px }
+.crm .bar b { width:34px;text-align:right;font-size:var(--fs-sec);font-weight:500 }
 .crm .fun { display:flex;flex-direction:column;gap:8px }
 .crm .fun div { display:flex;align-items:center;justify-content:space-between;border-radius:9px;padding:8px 12px;color:#fff;font-weight:700 }
-.crm .fun span { font-weight:500;font-size:12px;opacity:.9 }
+.crm .fun span { font-weight:500;font-size:var(--fs-small);opacity:.9 }
 .crm .mini { display:grid;grid-template-columns:repeat(2,1fr);gap:8px }
 .crm .mini div { background:var(--panel);border-radius:10px;padding:10px }
-.crm .mini b { display:block;font-size:20px }
-.crm .mini span { font-size:12px;color:var(--soft) }
+.crm .mini b { display:block;font-size:var(--fs-section) }
+.crm .mini span { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .tabs { display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto }
 .crm .tabs button { border:0;background:none;padding:10px 12px;font-weight:600;color:var(--soft);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap }
 .crm .tabs button.on { color:var(--brand);border-bottom-color:var(--brand) }
-.crm .tabs button .c { font-size:11.5px;background:var(--panel);border-radius:999px;padding:1px 7px;margin-left:5px }
+.crm .tabs button .c { font-size:var(--fs-tiny);background:var(--panel);border-radius:999px;padding:1px 7px;margin-left:5px }
 .crm .tools { display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px }
 .crm .tools .search { max-width:280px;flex:none;width:280px }
 .crm .seg { display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-left:auto }
@@ -79,7 +79,7 @@
 .crm .seg button.on { background:var(--tint);color:var(--brand) }
 .crm .tw { border:1px solid var(--line);border-radius:14px;overflow:auto }
 .crm table { border-collapse:collapse;width:100%;min-width:980px }
-.crm th { text-align:left;font-size:12px;color:var(--mute);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0 }
+.crm th { text-align:left;font-size:var(--fs-small);color:var(--mute);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0 }
 .crm th .sortb { border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;white-space:nowrap }
 .crm th .sortb:hover,.crm th .sortb.on { color:var(--brand) }
 .crm td { padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle }
@@ -87,7 +87,7 @@
 .crm tbody tr { cursor:pointer }
 .crm tbody tr:hover td { background:#FAFBFD }
 .crm td .nm { font-weight:700 }
-.crm td .pn { font-size:12px;color:var(--soft);display:flex;gap:6px;align-items:center;white-space:nowrap }
+.crm td .pn { font-size:var(--fs-small);color:var(--soft);display:flex;gap:6px;align-items:center;white-space:nowrap;font-weight:500 }
 .crm .qa { display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;border:1px solid var(--line);color:var(--soft);background:#fff }
 .crm .qa svg { width:13px;height:13px }
 .crm .qa.wa { color:#1F9D55 }
@@ -95,32 +95,32 @@
 .crm .od { color:var(--err);font-weight:700 }
 .crm .kb { display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:12px;overflow-x:auto }
 .crm .kc { background:var(--panel);border-radius:14px;padding:10px;min-height:200px }
-.crm .kc h4 { margin:2px 4px 10px;font-size:13px;display:flex;justify-content:space-between }
+.crm .kc h4 { margin:2px 4px 10px;font-size:var(--fs-sec);display:flex;justify-content:space-between;font-weight:500 }
 .crm .kcard { background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;cursor:pointer }
 .crm .kcard b { display:block }
-.crm .kcard span { font-size:12px;color:var(--soft) }
+.crm .kcard span { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .ov { position:fixed;inset:0;background:rgba(22,32,46,.35);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20 }
 .crm .ov.on { opacity:1;pointer-events:auto }
 .crm .dr { position:fixed;top:0;right:0;height:100%;width:min(520px,100%);background:#fff;border-left:1px solid var(--line);transform:translateX(100%);transition:transform .25s;z-index:21;display:flex;flex-direction:column }
 .crm .dr.on { transform:none }
 .crm .dh { padding:16px 18px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:flex-start }
-.crm .dh h2 { margin:0;font-size:18px }
-.crm .dh p { margin:3px 0 0;color:var(--soft);font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap }
+.crm .dh h2 { margin:0;font-size:var(--fs-section) }
+.crm .dh p { margin:3px 0 0;color:var(--soft);font-size:var(--fs-sec);display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:500 }
 .crm .dh .x { margin-left:auto;border:0;background:none;cursor:pointer;padding:4px }
 .crm .db { flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px }
-.crm .sec h4 { margin:0 0 8px;font-size:12px;color:var(--mute);letter-spacing:.04em }
+.crm .sec h4 { margin:0 0 8px;font-size:var(--fs-small);color:var(--mute);letter-spacing:.04em;font-weight:500 }
 .crm .kv { display:grid;grid-template-columns:repeat(2,1fr);gap:8px }
 .crm .kv div { background:var(--panel);border-radius:9px;padding:8px 10px }
-.crm .kv span { display:block;font-size:11.5px;color:var(--mute) }
-.crm .kv b { font-size:13px }
+.crm .kv span { display:block;font-size:var(--fs-small);color:var(--mute);font-weight:500 }
+.crm .kv b { font-size:var(--fs-sec);font-weight:500 }
 .crm .row { display:flex;gap:8px;flex-wrap:wrap;align-items:center }
 .crm .f { font:inherit;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;color:var(--ink) }
 .crm .tl { border-left:2px solid var(--line);margin-left:6px;padding-left:14px;display:flex;flex-direction:column;gap:10px }
-.crm .tl div { position:relative;font-size:13px }
+.crm .tl div { position:relative;font-size:var(--fs-sec);font-weight:500 }
 .crm .tl div::before { content:"";position:absolute;left:-20px;top:4px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent) }
-.crm .tl small { display:block;color:var(--mute);font-size:11.5px }
+.crm .tl small { display:block;color:var(--mute);font-size:var(--fs-small);font-weight:500 }
 .crm .chat { background:var(--panel);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto }
-.crm .chat p { margin:0;max-width:85%;padding:6px 10px;border-radius:10px;font-size:12.5px }
+.crm .chat p { margin:0;max-width:85%;padding:6px 10px;border-radius:10px;font-size:var(--fs-small) }
 .crm .chat .b { background:#fff;border:1px solid var(--line);align-self:flex-start }
 .crm .chat .u { background:var(--brand);color:#fff;align-self:flex-end }
 .crm textarea.f { width:100%;min-height:64px;resize:vertical }
@@ -129,7 +129,7 @@
 .crm .toast { position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;z-index:30;font-weight:600 }
 .crm .toast.on { opacity:1;transform:translateX(-50%) }
 .crm .empty { border:1px dashed var(--line);border-radius:14px;padding:28px;text-align:center;color:var(--soft) }
-.crm .empty h2 { color:var(--ink);margin:0 0 6px;font-size:18px }
+.crm .empty h2 { color:var(--ink);margin:0 0 6px;font-size:var(--fs-section) }
 .crm .empty ul { display:inline-block;text-align:left;margin:10px 0 0;line-height:1.7 }
 @media (max-width:860px) {
   .crm .page { padding:14px }
@@ -138,18 +138,18 @@
 .crm .md.on { display:flex }
 .crm .mb { background:#fff;border-radius:16px;width:min(620px,100%);box-shadow:0 20px 50px -20px rgba(22,32,46,.45) }
 .crm .mh { display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line) }
-.crm .mh h2 { margin:0;font-size:18px }
+.crm .mh h2 { margin:0;font-size:var(--fs-section) }
 .crm .mh button { margin-left:auto;border:0;background:none;cursor:pointer }
 .crm .mc { padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px }
-.crm .mc label { display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:#2F3B4B }
+.crm .mc label { display:flex;flex-direction:column;gap:5px;font-size:var(--fs-small);font-weight:600;color:#2F3B4B }
 .crm .mc .full { grid-column:1/-1 }
-.crm .mc .f { width:100%;font-size:14px;min-height:40px }
-.crm .mc .e { font-size:11.5px;color:var(--err);font-weight:600 }
+.crm .mc .f { width:100%;font-size:var(--fs-body);min-height:40px }
+.crm .mc .e { font-size:var(--fs-small);color:var(--err);font-weight:600 }
 .crm .mc .e:empty { display:none }
 .crm .tel { display:flex }
 .crm .tel .f:first-child { width:92px;border-radius:9px 0 0 9px;border-right:0 }
 .crm .tel .f:last-child { border-radius:0 9px 9px 0 }
-.crm .dup { grid-column:1/-1;background:var(--warnt);color:#7A4A00;border-radius:10px;padding:10px 12px;font-size:13px;display:none;align-items:center;gap:10px }
+.crm .dup { grid-column:1/-1;background:var(--warnt);color:#7A4A00;border-radius:10px;padding:10px 12px;font-size:var(--fs-sec);display:none;align-items:center;gap:10px;font-weight:500 }
 .crm .dup.on { display:flex }
 .crm .dup button { margin-left:auto }
 .crm .sx { grid-column:1/-1;display:none;gap:12px;grid-template-columns:1fr 1fr;border:1px dashed #C9D5EA;border-radius:10px;padding:10px;background:#FAFCFF }
@@ -159,14 +159,14 @@
   .crm .mc { grid-template-columns:1fr }
   .crm .sx { grid-template-columns:1fr }
 }
-.crm .rq td .sub2 { font-size:12px;color:var(--soft) }
+.crm .rq td .sub2 { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .av-free { color:var(--ok);font-weight:700 }
 .crm .av-busy { color:var(--err);font-weight:700 }
 .crm .av-pend { color:var(--warn);font-weight:700 }
 .crm .wait { font-weight:700 }
 .crm .wait.r { color:var(--err) }
 .crm .slots { display:grid;grid-template-columns:repeat(4,1fr);gap:6px }
-.crm .slots button { border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 0;font-size:12.5px;font-weight:600;cursor:pointer }
+.crm .slots button { border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 0;font-size:var(--fs-small);font-weight:600;cursor:pointer }
 .crm .slots .free { border-color:#BFE3CC;color:var(--ok) }
 .crm .slots .free:hover { background:var(--okt) }
 .crm .slots .booked { background:#F3F4F6;color:#9AA3AF;cursor:not-allowed;text-decoration:line-through }
@@ -174,13 +174,13 @@
 .crm .slots .blocked, .crm .slots .past { background:#F3F4F6;color:#B8BFC9;cursor:not-allowed }
 .crm .slots .req { outline:2px dashed var(--accent);outline-offset:1px }
 .crm .slots .pick { background:var(--brand)!important;color:#fff!important;border-color:var(--brand)!important }
-.crm .lg { display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--soft);margin-top:8px }
+.crm .lg { display:flex;gap:12px;flex-wrap:wrap;font-size:var(--fs-small);color:var(--soft);margin-top:8px;font-weight:500 }
 .crm .lg i { display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px }
 .crm .box { border:1px solid var(--line);border-radius:12px;padding:10px 12px }
-.crm .box b { font-size:14px }
-.crm .box p { margin:3px 0 0;font-size:12.5px;color:var(--soft) }
-.crm .warnbox { background:var(--warnt);color:#7A4A00;border-radius:10px;padding:9px 12px;font-size:13px }
-.crm .okbox { background:var(--okt);color:#14663A;border-radius:10px;padding:9px 12px;font-size:13px }
+.crm .box b { font-size:var(--fs-body) }
+.crm .box p { margin:3px 0 0;font-size:var(--fs-small);color:var(--soft);font-weight:500 }
+.crm .warnbox { background:var(--warnt);color:#7A4A00;border-radius:10px;padding:9px 12px;font-size:var(--fs-sec);font-weight:500 }
+.crm .okbox { background:var(--okt);color:#14663A;border-radius:10px;padding:9px 12px;font-size:var(--fs-sec);font-weight:500 }
 .crm .arrow { display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center }
 .crm .btnrow { display:flex;gap:8px;flex-wrap:wrap }
 .crm .btn.red { background:var(--err) }
@@ -189,18 +189,18 @@
 .crm .dgrid { display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px }
 .crm .dcard2 { cursor:pointer }
 .crm .dcard2:hover { border-color:#C9D5EA }
-.crm .dcard2 b { font-size:15px }
-.crm .sub2 { font-size:12.5px;color:var(--soft) }
+.crm .dcard2 b { font-size:var(--fs-title) }
+.crm .sub2 { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm table.wkg { min-width:980px;table-layout:fixed }
 .crm .wkg th { text-align:center;line-height:1.3 }
 .crm .wkg th span { font-weight:500;color:var(--soft) }
 .crm .wkg th.today { color:var(--brand);background:var(--tint) }
 .crm .wkg th:first-child { width:78px }
-.crm .wkg td { padding:4px 6px;height:42px;border-right:1px solid var(--line);font-size:11.5px }
-.crm .wkg td.tm { font-size:12px;color:var(--soft);font-weight:600;text-align:right;background:#fff;position:sticky;left:0;z-index:1 }
+.crm .wkg td { padding:4px 6px;height:42px;border-right:1px solid var(--line);font-size:var(--fs-tiny) }
+.crm .wkg td.tm { font-size:var(--fs-tiny);color:var(--soft);font-weight:600;text-align:right;background:#fff;position:sticky;left:0;z-index:1 }
 .crm .wkg td.c { cursor:pointer }
 .crm .wkg td.c b, .crm .wkg td.c span { display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
-.crm .wkg td.c span { font-size:11px;opacity:.85 }
+.crm .wkg td.c span { font-size:var(--fs-tiny);opacity:.85 }
 .crm .wkg td.free { background:#F3FBF6;color:var(--ok) }
 .crm .wkg td.free:hover { background:#E1F4E8 }
 .crm .wkg td.booked { background:#F1EDFB;color:#4B3A8C }
@@ -208,16 +208,16 @@
 .crm .wkg td.pending { background:var(--warnt);color:var(--warn) }
 .crm .wkg td.blocked { background:repeating-linear-gradient(45deg,#F5F6F8,#F5F6F8 6px,#EEF0F3 6px,#EEF0F3 12px);color:#9AA3AF;cursor:default }
 .crm .wkg td.past { background:#FAFAFB;cursor:default }
-.crm .wkg td.cl { background:#F5F6F8;color:#9AA3AF;text-align:center;font-weight:700;vertical-align:middle;font-size:13px }
+.crm .wkg td.cl { background:#F5F6F8;color:#9AA3AF;text-align:center;font-weight:700;vertical-align:middle;font-size:var(--fs-small) }
 .crm .wkg td.lv { background:var(--errt);color:var(--err) }
-.crm .lgd { display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--soft);margin-left:auto }
+.crm .lgd { display:flex;gap:12px;flex-wrap:wrap;font-size:var(--fs-small);color:var(--soft);margin-left:auto;font-weight:500 }
 .crm .lgd i { display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-2px }
 .crm .cday { table-layout:fixed;min-width:760px }
 .crm .cday th:first-child { width:92px }
 .crm .cday td.tm { white-space:nowrap }
 .crm .cday td { height:44px;padding:3px;border-right:1px solid var(--line);vertical-align:top }
-.crm .cday td.tm { font-size:12px;color:var(--soft);font-weight:600;text-align:right;padding:6px 8px;position:sticky;left:0;background:#fff }
-.crm .ap { height:100%;border-radius:8px;padding:5px 8px;font-size:11.5px;cursor:pointer;border-left:3px solid var(--vio);background:#F1EDFB;color:#3E2F7A;overflow:hidden }
+.crm .cday td.tm { font-size:var(--fs-tiny);color:var(--soft);font-weight:600;text-align:right;padding:6px 8px;position:sticky;left:0;background:#fff }
+.crm .ap { height:100%;border-radius:8px;padding:5px 8px;font-size:var(--fs-tiny);cursor:pointer;border-left:3px solid var(--vio);background:#F1EDFB;color:#3E2F7A;overflow:hidden }
 .crm .ap.onl { border-left-color:#1E6BB8;background:#E6F3FF;color:#174E86 }
 .crm .ap.vis { border-left-color:var(--ok);background:var(--okt);color:#14663A }
 .crm .ap.ns { border-left-color:var(--err);background:var(--errt);color:#8E1F1F }
@@ -226,24 +226,24 @@
 .crm .ap span { opacity:.85 }
 .crm .cday td.off { background:repeating-linear-gradient(45deg,#FAFAFB,#FAFAFB 6px,#F3F4F6 6px,#F3F4F6 12px) }
 .crm .chips { display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px }
-.crm .chips span { border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600 }
+.crm .chips span { border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:var(--fs-sec);font-weight:600 }
 .crm .chips b { margin-left:4px }
 .crm .cweek td { vertical-align:top;padding:6px;min-width:120px }
-.crm .cweek .wi { display:block;font-size:11.5px;border-radius:6px;padding:3px 6px;margin-bottom:4px;cursor:pointer;background:#F1EDFB;color:#3E2F7A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.crm .cweek .wi { display:block;font-size:var(--fs-tiny);border-radius:6px;padding:3px 6px;margin-bottom:4px;cursor:pointer;background:#F1EDFB;color:#3E2F7A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
 .crm .cweek .wi.onl { background:#E6F3FF;color:#174E86 }
 .crm .cweek .wi.vis { background:var(--okt);color:#14663A }
 .crm .cweek .wi.ns { background:var(--errt);color:#8E1F1F }
 .crm .pills { display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px }
-.crm .pills .lb { font-size:12.5px;font-weight:600;color:var(--soft);margin-right:2px }
-.crm .pill { border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-weight:600;font-size:13px;cursor:pointer;color:#2F3B4B }
-.crm .pill .c { font-size:11px;color:var(--mute);margin-left:4px }
+.crm .pills .lb { font-size:var(--fs-small);font-weight:600;color:var(--soft);margin-right:2px }
+.crm .pill { border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-weight:600;font-size:var(--fs-sec);cursor:pointer;color:#2F3B4B }
+.crm .pill .c { font-size:var(--fs-tiny);color:var(--mute);margin-left:4px }
 .crm .pill.on { background:var(--brand);color:#fff;border-color:var(--brand) }
 .crm .pill.on .c { color:#C9D6EA }
-.crm .srcb { display:inline-block;font-size:11.5px;font-weight:600;background:var(--panel);border-radius:999px;padding:2px 8px;margin:1px 2px 1px 0 }
+.crm .srcb { display:inline-block;font-size:var(--fs-small);font-weight:600;background:var(--panel);border-radius:999px;padding:2px 8px;margin:1px 2px 1px 0 }
 .crm .xg { display:grid;grid-template-columns:repeat(3,1fr);gap:8px }
-.crm .xg label { flex-direction:row;align-items:center;gap:7px;font-weight:500;font-size:13.5px }
+.crm .xg label { flex-direction:row;align-items:center;gap:7px;font-weight:500;font-size:var(--fs-sec) }
 .crm .xg input { width:16px;height:16px;min-height:0;accent-color:var(--brand) }
-.crm .xsum { grid-column:1/-1;background:var(--tint);border-radius:10px;padding:10px 12px;font-size:13.5px;font-weight:600;color:var(--brand) }
+.crm .xsum { grid-column:1/-1;background:var(--tint);border-radius:10px;padding:10px 12px;font-size:var(--fs-sec);font-weight:600;color:var(--brand) }
 @media (max-width:600px) {
   .crm .xg { grid-template-columns:1fr 1fr }
 }
@@ -251,26 +251,26 @@
 .crm .mpop { position:absolute;top:calc(100% + 6px);left:0;z-index:15;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px -16px rgba(22,32,46,.4);width:300px;padding:10px }
 .crm .mpop input.f { width:100%;margin-bottom:8px }
 .crm .mpop .ml { max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:2px }
-.crm .mpop label { display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:7px;font-size:13.5px;cursor:pointer }
+.crm .mpop label { display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:7px;font-size:var(--fs-sec);cursor:pointer;font-weight:500 }
 .crm .mpop label:hover { background:var(--panel) }
 .crm .mpop label input { accent-color:var(--brand) }
 .crm .mpop .mf2 { display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line) }
-.crm .lnk { border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0;font-size:13px }
+.crm .lnk { border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:0;font-size:var(--fs-sec) }
 .crm .trsel { max-height:170px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px }
 .crm .rgrid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px }
 @media (max-width:1100px) {
   .crm .rgrid { grid-template-columns:repeat(2,1fr) }
 }
 .crm .rk { border:1px solid var(--line);border-radius:14px;padding:12px 14px }
-.crm .rk span { font-size:12.5px;color:var(--soft);font-weight:600 }
-.crm .rk b { display:block;font-size:24px;margin-top:4px }
-.crm .rk em { font-style:normal;font-size:12px;font-weight:600 }
+.crm .rk span { font-size:var(--fs-small);color:var(--soft);font-weight:600 }
+.crm .rk b { display:block;font-size:var(--fs-page);margin-top:4px }
+.crm .rk em { font-style:normal;font-size:var(--fs-small);font-weight:600 }
 .crm .up { color:var(--ok) }
 .crm .dn { color:var(--err) }
 .crm .chart { display:flex;align-items:flex-end;gap:3px;height:170px;padding:6px 0 0;border-bottom:1px solid var(--line) }
 .crm .chart div { flex:1;background:var(--accent);border-radius:4px 4px 0 0;min-width:4px;position:relative;opacity:.85 }
 .crm .chart div:hover { opacity:1 }
-.crm .chx { display:flex;justify-content:space-between;font-size:11px;color:var(--mute);margin-top:6px }
+.crm .chx { display:flex;justify-content:space-between;font-size:var(--fs-tiny);color:var(--mute);margin-top:6px }
 .crm td.num, .crm th.num { text-align:right }
 .crm .cv { display:flex;align-items:center;gap:8px;justify-content:flex-end }
 .crm .cv i { width:70px;height:6px;border-radius:3px;background:var(--panel);position:relative;overflow:hidden }
@@ -287,18 +287,18 @@
 .crm .st-p { color:var(--warn);font-weight:600 }
 .crm .st-d { color:var(--mute);font-weight:600 }
 .crm .cks { display:flex;flex-direction:column;gap:6px }
-.crm .cks label { display:flex;gap:8px;align-items:center;font-size:13.5px }
+.crm .cks label { display:flex;gap:8px;align-items:center;font-size:var(--fs-sec);font-weight:500 }
 .crm .cks input { accent-color:var(--brand);width:16px;height:16px }
 .crm .setw { display:grid;grid-template-columns:220px 1fr;gap:18px;align-items:start }
 @media (max-width:900px) {
   .crm .setw { grid-template-columns:1fr }
 }
 .crm .snav { display:flex;flex-direction:column;gap:2px;position:sticky;top:0 }
-.crm .snav button { text-align:left;border:0;background:none;padding:9px 12px;border-radius:9px;font-weight:600;color:#3A4656;cursor:pointer;font-size:14px }
+.crm .snav button { text-align:left;border:0;background:none;padding:9px 12px;border-radius:9px;font-weight:600;color:#3A4656;cursor:pointer;font-size:var(--fs-body) }
 .crm .snav button:hover { background:var(--panel) }
 .crm .snav button.on { background:var(--tint);color:var(--brand) }
 .crm .fg { display:grid;grid-template-columns:1fr 1fr;gap:12px }
-.crm .fg label { display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:#2F3B4B }
+.crm .fg label { display:flex;flex-direction:column;gap:5px;font-size:var(--fs-small);font-weight:600;color:#2F3B4B }
 .crm .fg .full { grid-column:1/-1 }
 .crm .fg .f { width:100%;min-height:40px }
 @media (max-width:600px) {
@@ -313,95 +313,95 @@
 .crm .srow { display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line) }
 .crm .srow:first-child { border-top:0 }
 .crm .srow .x { flex:1;min-width:0 }
-.crm .srow b { display:block;font-size:14px }
-.crm .srow span.d { font-size:12.5px;color:var(--soft) }
+.crm .srow b { display:block;font-size:var(--fs-body) }
+.crm .srow span.d { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .intg { display:grid;grid-template-columns:repeat(2,1fr);gap:12px }
 @media (max-width:1000px) {
   .crm .intg { grid-template-columns:1fr }
 }
 .crm .intg .card { display:flex;flex-direction:column;gap:8px }
 .crm .intg h3 { margin:0 }
-.crm .code { background:#0F1520;color:#C9D6EA;border-radius:10px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;overflow-x:auto;white-space:pre }
+.crm .code { background:#0F1520;color:#C9D6EA;border-radius:10px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:var(--fs-small);overflow-x:auto;white-space:pre }
 .crm .tagl { display:flex;flex-wrap:wrap;gap:6px }
-.crm .tagl span { background:var(--panel);border-radius:999px;padding:5px 10px;font-size:13px;font-weight:600;display:inline-flex;gap:6px;align-items:center }
-.crm .tagl span button { border:0;background:none;color:var(--mute);cursor:pointer;padding:0;font-size:14px;line-height:1 }
+.crm .tagl span { background:var(--panel);border-radius:999px;padding:5px 10px;font-size:var(--fs-sec);font-weight:600;display:inline-flex;gap:6px;align-items:center }
+.crm .tagl span button { border:0;background:none;color:var(--mute);cursor:pointer;padding:0;font-size:var(--fs-body);line-height:1 }
 .crm .pmenu { position:absolute;top:52px;right:16px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px -16px rgba(22,32,46,.4);width:220px;padding:6px;z-index:30;display:none }
 .crm .pmenu.on { display:block }
 .crm .pmenu button { display:flex;width:100%;gap:10px;align-items:center;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-weight:600;text-align:left }
 .crm .pmenu button:hover { background:var(--panel) }
 .crm .pmenu .who { padding:8px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:4px }
 .crm .pmenu .who b { display:block }
-.crm .pmenu .who span { font-size:12px;color:var(--soft) }
+.crm .pmenu .who span { font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm #avb { cursor:pointer;border:0 }
 
 /* Dashboard forms: a group of checkboxes or radio buttons under one field name, each on one line. */
-.crm .fg .fld { display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:600;color:#2F3B4B }
-.crm .fg .opt { display:flex;flex-direction:row;align-items:center;gap:8px;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer }
+.crm .fg .fld { display:flex;flex-direction:column;gap:6px;font-size:var(--fs-small);font-weight:600;color:#2F3B4B }
+.crm .fg .opt { display:flex;flex-direction:row;align-items:center;gap:8px;font-size:var(--fs-sec);font-weight:500;color:var(--ink);cursor:pointer }
 .crm .fg .opt input { margin:0;width:16px;height:16px;accent-color:var(--brand) }
 .crm .fg .fld .row { gap:18px }
 
 /* Dashboard → Clinic info: compact grouped fields and short opening hours. */
 .crm .ci { display:flex;flex-direction:column;gap:14px }
 .crm .ci section { border:1px solid var(--line);border-radius:12px;padding:10px 12px }
-.crm .ci h4 { margin:0 0 8px;font-size:12px;letter-spacing:.04em;color:var(--mute);text-transform:uppercase }
+.crm .ci h4 { margin:0 0 8px;font-size:var(--fs-small);letter-spacing:.04em;color:var(--mute);text-transform:uppercase;font-weight:500 }
 .crm .ci-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px }
-.crm .ci-grid label { display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:600;color:var(--soft) }
+.crm .ci-grid label { display:flex;flex-direction:column;gap:3px;font-size:var(--fs-small);font-weight:600;color:var(--soft) }
 .crm .ci-grid label.wide { grid-column:1/-1 }
-.crm .ci-grid input, .crm .ci-times input { font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-height:32px;background:#fff }
+.crm .ci-grid input, .crm .ci-times input { font:inherit;font-size:var(--fs-sec);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-height:32px;background:#fff }
 .crm .ci-days { display:flex;flex-wrap:wrap;gap:5px;align-items:center }
-.crm .ci-days > button { width:34px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--mute);font-weight:700;font-size:12px;cursor:pointer }
+.crm .ci-days > button { width:34px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--mute);font-weight:700;font-size:var(--fs-small);cursor:pointer }
 .crm .ci-days > button.on { background:var(--brand);border-color:var(--brand);color:#fff }
-.crm .ci-times { display:inline-flex;gap:6px;align-items:center;margin-left:8px;font-size:12.5px;color:var(--soft) }
+.crm .ci-times { display:inline-flex;gap:6px;align-items:center;margin-left:8px;font-size:var(--fs-small);color:var(--soft);font-weight:500 }
 .crm .ci-times input { width:108px;padding:4px 6px;min-height:30px }
 .crm .ci-perday { display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px }
 .crm .ci-perday .ci-times { margin-left:0 }
-.crm .ci-perday b { width:30px;color:var(--ink);font-size:12px }
+.crm .ci-perday b { width:30px;color:var(--ink);font-size:var(--fs-small);font-weight:500 }
 
 /* Clinic info → Services list. */
 .crm .svc { display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:420px;overflow-y:auto }
 .crm .svc-row { border-top:1px solid var(--line) }
 .crm .svc-row:first-child { border-top:0 }
 .crm .svc-row.on { background:#FAFBFD }
-.crm .svc-head { display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;font-size:13px }
+.crm .svc-head { display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;font-size:var(--fs-sec);font-weight:500 }
 .crm .svc-head:hover { background:var(--panel) }
 .crm .svc-head input { margin:0 }
 
 /* Dashboard → Workflow canvas. */
 .crm .wf { display:grid;grid-template-columns:230px minmax(0,1fr) 300px;gap:12px;height:calc(100vh - 170px);min-height:520px }
 .crm .wf-lib, .crm .wf-side { border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px;overflow-y:auto }
-.crm .wf-lib h4 { margin:12px 0 6px;font-size:11px;letter-spacing:.06em;color:var(--mute);text-transform:uppercase }
+.crm .wf-lib h4 { margin:12px 0 6px;font-size:var(--fs-tiny);letter-spacing:.06em;color:var(--mute);text-transform:uppercase }
 .crm .wf-item { display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;border:1px solid var(--line);border-left:4px solid;border-radius:8px;background:#fff;padding:6px 8px;margin-bottom:6px;cursor:grab;font:inherit }
-.crm .wf-item b { font-size:12.5px }
-.crm .wf-item span { font-size:11px;color:var(--soft) }
+.crm .wf-item b { font-size:var(--fs-small);font-weight:500 }
+.crm .wf-item span { font-size:var(--fs-tiny);color:var(--soft) }
 .crm .wf-canvas { border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#FAFBFD }
-.crm .wf-block { width:220px;background:#fff;border:1px solid var(--line);border-top:4px solid;border-radius:10px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px -10px rgba(22,32,46,.4) }
+.crm .wf-block { width:220px;background:#fff;border:1px solid var(--line);border-top:4px solid;border-radius:10px;padding:8px 10px;font-size:var(--fs-tiny);box-shadow:0 4px 14px -10px rgba(22,32,46,.4) }
 .crm .wf-block.on { outline:2px solid var(--brand) }
 .crm .wf-block.bad { border-color:#F3B5B5 }
-.crm .wf-kind { font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;gap:6px;align-items:center }
-.crm .wf-bad { background:var(--err);color:#fff;border-radius:999px;padding:0 6px;font-size:10px }
-.crm .wf-title { display:block;font-size:13px;margin:2px 0 }
-.crm .wf-text { margin:2px 0;color:var(--soft);font-size:11px;line-height:1.35 }
-.crm .wf-exit { position:relative;border-top:1px dashed var(--line);padding:4px 10px 4px 0;font-size:11.5px;font-weight:600;color:var(--ink) }
+.crm .wf-kind { font-size:var(--fs-tiny);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:flex;gap:6px;align-items:center }
+.crm .wf-bad { background:var(--err);color:#fff;border-radius:999px;padding:0 6px;font-size:var(--fs-tiny) }
+.crm .wf-title { display:block;font-size:var(--fs-small);margin:2px 0;font-weight:500 }
+.crm .wf-text { margin:2px 0;color:var(--soft);font-size:var(--fs-tiny);line-height:1.35 }
+.crm .wf-exit { position:relative;border-top:1px dashed var(--line);padding:4px 10px 4px 0;font-size:var(--fs-tiny);font-weight:600;color:var(--ink) }
 .crm .wf-exit.soft { color:var(--mute);font-weight:500;font-style:italic }
 .crm .wf-exit .react-flow__handle, .crm .wf-block > .react-flow__handle { width:10px;height:10px;background:var(--brand);border:2px solid #fff }
 .crm .wf-exit .react-flow__handle { right:-15px }
-.crm .wf-problem { display:flex;gap:8px;align-items:flex-start;text-align:left;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:7px 0;cursor:pointer;font:inherit;font-size:12.5px }
+.crm .wf-problem { display:flex;gap:8px;align-items:flex-start;text-align:left;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:7px 0;cursor:pointer;font:inherit;font-size:var(--fs-small);font-weight:500 }
 .crm .wf-form { display:flex;flex-direction:column;gap:10px }
-.crm .wf-row { display:flex;flex-direction:column;gap:4px;font-size:11.5px;font-weight:600;color:var(--soft) }
-.crm .wf-row input, .crm .wf-row textarea { font:inherit;font-size:13px;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px }
+.crm .wf-row { display:flex;flex-direction:column;gap:4px;font-size:var(--fs-tiny);font-weight:600;color:var(--soft) }
+.crm .wf-row input, .crm .wf-row textarea { font:inherit;font-size:var(--fs-small);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px }
 .crm .wf-seg { display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden }
 .crm .wf-seg button { border:0;background:#fff;padding:6px 12px;font:inherit;font-weight:600;cursor:pointer;color:var(--soft) }
 .crm .wf-seg button.on { background:var(--brand);color:#fff }
 .crm .wf-checks { display:flex;flex-wrap:wrap;gap:4px 12px }
-.crm .wf-checks label { display:flex;gap:5px;align-items:center;font-weight:500;color:var(--ink);font-size:12.5px }
+.crm .wf-checks label { display:flex;gap:5px;align-items:center;font-weight:500;color:var(--ink);font-size:var(--fs-small) }
 .crm .wf-btn { display:flex;gap:4px;align-items:center }
 .crm .wf-btn input[type=text], .crm .wf-btn > input { flex:1;min-width:0 }
-.crm .wf-btn > button { border:0;background:none;cursor:pointer;font-size:10px;color:var(--mute);padding:2px }
+.crm .wf-btn > button { border:0;background:none;cursor:pointer;font-size:var(--fs-tiny);color:var(--mute);padding:2px }
 
 
 /* Workflow: a slim toolbar so the canvas starts near the top and is taller. */
 .crm .ph.wf-bar { margin:-12px 0 8px;align-items:center }
-.crm .ph.wf-bar h1 { font-size:17px }
+.crm .ph.wf-bar h1 { font-size:var(--fs-title) }
 .crm .ph.wf-bar .pill, .crm .ph.wf-bar .btn { padding-top:6px;padding-bottom:6px }
 .crm .wf { height:calc(100vh - 118px) }
 /* A page can put its own buttons in the top bar (e.g. the Workflow canvas). */
@@ -412,33 +412,33 @@
 .crm .wf { height:calc(100vh - 104px) }
 /* Smaller buttons in the top bar slot. */
 .crm .wf-actions { gap:6px }
-.crm .wf-actions .pill, .crm .wf-actions .btn { font-size:12.5px;padding:4px 10px;min-height:0;border-radius:8px }
-.crm .wf-actions .badge { font-size:11px;padding:2px 8px }
+.crm .wf-actions .pill, .crm .wf-actions .btn { font-size:var(--fs-small);padding:4px 10px;min-height:0;border-radius:8px;font-weight:500 }
+.crm .wf-actions .badge { font-size:var(--fs-tiny);padding:2px 8px }
 
 /* Compact top bar: smaller text and controls everywhere in it. */
 .crm .wf { height:calc(100vh - 92px) }
 /* Shorter top bar. */
 .crm .wf { height:calc(100vh - 84px) }
 /* Workflow: easier to read blocks; button tags for buttons that do their own job. */
-.crm .wf-block { width:250px;font-size:12.5px }
-.crm .wf-title { font-size:14px }
-.crm .wf-text { font-size:11.5px }
-.crm .wf-exit { display:flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px 5px 0 }
+.crm .wf-block { width:250px;font-size:var(--fs-small) }
+.crm .wf-title { font-size:var(--fs-sec);font-weight:500 }
+.crm .wf-text { font-size:var(--fs-tiny) }
+.crm .wf-exit { display:flex;align-items:center;gap:6px;font-size:var(--fs-tiny);padding:5px 12px 5px 0 }
 .crm .wf-exit > span { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
 .crm .wf-exit.off { opacity:.45 }
-.crm .wf-tag { font-style:normal;font-size:10px;font-weight:700;color:var(--soft);background:var(--panel);border-radius:999px;padding:1px 7px;white-space:nowrap }
+.crm .wf-tag { font-style:normal;font-size:var(--fs-tiny);font-weight:700;color:var(--soft);background:var(--panel);border-radius:999px;padding:1px 7px;white-space:nowrap }
 .crm .wf-btnbox { border:1px solid var(--line);border-radius:8px;padding:5px;display:flex;flex-direction:column;gap:4px }
-.crm .wf-btn select { font:inherit;font-size:12px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;max-width:150px }
-.crm .wf-btn input:not([type=checkbox]) { font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;flex:1;min-width:0 }
+.crm .wf-btn select { font:inherit;font-size:var(--fs-tiny);border:1px solid var(--line);border-radius:6px;padding:3px 4px;max-width:150px }
+.crm .wf-btn input:not([type=checkbox]) { font:inherit;font-size:var(--fs-small);border:1px solid var(--line);border-radius:6px;padding:3px 6px;flex:1;min-width:0 }
 /* Workflow: the right panel only when a block is open or the problems are shown. */
 .crm .wf.no-side { grid-template-columns:230px minmax(0,1fr) }
 .crm .wf-side { position:relative }
-.crm .wf-close { position:absolute;top:8px;right:8px;border:0;background:none;cursor:pointer;font-size:15px;color:var(--mute) }
+.crm .wf-close { position:absolute;top:8px;right:8px;border:0;background:none;cursor:pointer;font-size:var(--fs-body);color:var(--mute) }
 .crm .wf-save { position:sticky;bottom:-10px;background:#fff;padding:10px 0 2px;margin-top:10px;border-top:1px solid var(--line);display:flex;justify-content:flex-end }
 .crm .wf-exit.live > span { color:var(--soft);font-weight:500 }
-.crm .wf-row select { font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px }
+.crm .wf-row select { font:inherit;font-size:var(--fs-small);border:1px solid var(--line);border-radius:8px;padding:6px 8px }
 .crm .wf-block.off { opacity:.45;filter:grayscale(1) }
-.crm .wf-state { margin-left:auto;font-size:9.5px;font-weight:800;color:#fff;background:var(--mute);border-radius:999px;padding:0 6px }
+.crm .wf-state { margin-left:auto;font-size:var(--fs-tiny);font-weight:700;color:#fff;background:var(--mute);border-radius:999px;padding:0 6px }
 .crm .wf-state.sched { background:#D97706 }
 /* Workflow canvas: the test chat (W6) and the block it is on */
 .crm .wf-block.live-at { box-shadow:0 0 0 3px var(--ok),0 0 14px rgba(31,138,76,.45) }
@@ -474,13 +474,21 @@
 /* One height for the top bar and the head of the left menu. */
 .crm { --head:56px }
 
+/* Loading: a turning ring, in the middle of the screen or (inline) where it is written. Under the panels and pop-ups. */
+.crm .loading { position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:4;pointer-events:none;animation:crm-appear .2s .15s both }
+.crm .loading.inline { position:static;transform:none;display:flex;justify-content:center;padding:16px 0 }
+.crm .spinner { display:block;width:44px;height:44px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:crm-turn .8s linear infinite }
+.crm .loading.inline .spinner { width:26px;height:26px;border-width:3px }
+@keyframes crm-turn { to { transform:rotate(360deg) } }
+@keyframes crm-appear { from { opacity:0 } to { opacity:1 } }
+@media (prefers-reduced-motion: reduce) { .crm .spinner { animation-duration:2.4s } }
 
 /* Left menu: a floating card that collapses to a strip of icons. All of its styling lives in this block.
    The icons stay in the same place in both states, so only the card's width and the labels animate. */
 .crm { --canvas:#E9F0F8;--menu-w:272px;--menu-ease:cubic-bezier(.4,0,.2,1);--float:0 1px 3px rgba(22,43,71,.08),0 10px 24px rgba(22,43,71,.12),0 28px 64px rgba(22,43,71,.22);background:var(--canvas) }
 .crm .app { display:grid;grid-template-columns:var(--menu-w) minmax(0,1fr);height:100%;transition:grid-template-columns .28s var(--menu-ease) }
 .crm .sb { position:relative;z-index:15;display:flex;flex-direction:column;min-height:0;margin:12px 0 12px 12px;background:#fff;border-radius:20px;box-shadow:var(--float) }
-.crm .sb-top { flex:0 0 auto;height:var(--head);box-sizing:border-box;padding:0 12px 0 21px;display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;overflow:hidden }
+.crm .sb-top { flex:0 0 auto;height:var(--head);box-sizing:border-box;padding:0 12px 0 21px;display:flex;align-items:center;gap:12px;font-size:var(--fs-title);font-weight:700;overflow:hidden }
 .crm .sb-top i { flex:0 0 auto;width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;display:grid;place-items:center;font-style:normal;font-size:15px }
 .crm .sb-name { flex:1;min-width:0;white-space:nowrap;overflow:hidden;transition:opacity .18s }
 .crm .sb-tg { position:absolute;z-index:2;top:15px;right:-13px;width:26px;height:26px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;background:#fff;color:var(--soft);cursor:pointer;box-shadow:0 2px 8px rgba(22,43,71,.16);transition:color .15s,background .15s,border-color .15s }
@@ -491,11 +499,11 @@
 .crm .nav-in { position:relative }
 .crm .sb-ind { position:absolute;top:0;left:0;border-radius:12px;background:linear-gradient(135deg,#2F5C93,var(--brand));box-shadow:0 6px 14px rgba(31,58,95,.32);opacity:0;pointer-events:none;transition:transform .26s var(--menu-ease),width .26s var(--menu-ease),height .26s var(--menu-ease) }
 
-.crm .ni { position:relative;z-index:1;display:flex;align-items:center;gap:12px;box-sizing:border-box;width:calc(100% - 28px);height:44px;margin:2px 14px;padding:0 10px 0 7px;border:0;border-radius:12px;background:none;color:var(--ink);font-size:14px;font-weight:500;text-align:left;text-decoration:none;white-space:nowrap;overflow:hidden;cursor:pointer;transition:background .15s,color .15s }
+.crm .ni { position:relative;z-index:1;display:flex;align-items:center;gap:12px;box-sizing:border-box;width:calc(100% - 28px);height:44px;margin:2px 14px;padding:0 10px 0 7px;border:0;border-radius:12px;background:none;color:var(--ink);font-size:var(--fs-body);font-weight:500;text-align:left;text-decoration:none;white-space:nowrap;overflow:hidden;cursor:pointer;transition:background .15s,color .15s }
 .crm .ni-ic { flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#EFF4FB;color:#2F5C93;transition:background .15s,color .15s,transform .15s,box-shadow .15s }
 .crm .ni-ic svg { width:19px;height:19px }
 .crm .ni-l { flex:1;min-width:0;overflow:hidden;transition:opacity .18s }
-.crm .ni .c { flex:0 0 auto;margin-left:auto;padding:1px 8px;border-radius:999px;background:var(--tint);color:var(--brand);font-size:11.5px;font-weight:600 }
+.crm .ni .c { flex:0 0 auto;margin-left:auto;padding:1px 8px;border-radius:999px;background:var(--tint);color:var(--brand);font-size:var(--fs-tiny);font-weight:600 }
 .crm .ni .chev { flex:0 0 auto;margin-left:auto;width:16px;height:16px;color:var(--mute);transition:transform .22s var(--menu-ease),opacity .18s }
 .crm .ni .c+.chev { margin-left:0 }
 .crm .ni.open .chev { transform:rotate(180deg) }
@@ -511,14 +519,14 @@
 .crm .sub.open { grid-template-rows:1fr;visibility:visible }
 .crm .sub > div { min-height:0;overflow:hidden }
 .crm .sub-in { margin:2px 14px 6px 37px;padding-left:8px;border-left:2px solid var(--line) }
-.crm .si { display:flex;align-items:center;gap:8px;padding:7px 10px;margin:1px 0;border-radius:9px;color:#2F3B4B;font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s,color .15s }
+.crm .si { display:flex;align-items:center;gap:8px;padding:7px 10px;margin:1px 0;border-radius:9px;color:#2F3B4B;font-size:var(--fs-sec);font-weight:500;text-decoration:none;transition:background .15s,color .15s }
 .crm .si-l { flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis }
 .crm .si:hover { background:var(--panel);color:var(--ink) }
 .crm .si.on { background:var(--tint);color:var(--brand);font-weight:600 }
-.crm .si .c { flex:0 0 auto;padding:1px 7px;border-radius:999px;background:var(--panel);color:var(--soft);font-size:11px;font-weight:600 }
+.crm .si .c { flex:0 0 auto;padding:1px 7px;border-radius:999px;background:var(--panel);color:var(--soft);font-size:var(--fs-tiny);font-weight:600 }
 .crm .si.on .c { background:#fff;color:var(--brand) }
 
-.crm .nav .grp { box-sizing:border-box;max-height:32px;padding:10px 21px 4px;overflow:hidden;white-space:nowrap;font-size:11px;font-weight:600;color:var(--mute);letter-spacing:.05em;transition:max-height .26s var(--menu-ease),padding .26s var(--menu-ease),opacity .18s }
+.crm .nav .grp { box-sizing:border-box;max-height:32px;padding:10px 21px 4px;overflow:hidden;white-space:nowrap;font-size:var(--fs-tiny);font-weight:600;color:var(--mute);letter-spacing:.05em;transition:max-height .26s var(--menu-ease),padding .26s var(--menu-ease),opacity .18s }
 .crm .nav .dv { margin:8px 21px;border-top:1px solid var(--line) }
 
 .crm .sb-foot { flex:0 0 auto;padding:8px 0;border-top:1px solid var(--line) }
@@ -528,8 +536,8 @@
 
 /* The icon strip's floating sub-menu and dark label. Under the panels and pop-ups. */
 .crm .sb-fly { position:fixed;z-index:3;box-sizing:border-box;width:232px;padding:8px;overflow-y:auto;border-radius:14px;background:#fff;box-shadow:var(--float);animation:crm-fly .16s var(--menu-ease) both }
-.crm .sb-fly-h { padding:6px 10px 8px;font-size:13.5px;font-weight:700;color:var(--brand) }
-.crm .sb-tip { position:fixed;z-index:4;padding:6px 10px;border-radius:7px;background:#16202E;color:#fff;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 6px 16px rgba(22,32,46,.28);transform:translateY(-50%);animation:crm-tip .12s ease-out both }
+.crm .sb-fly-h { padding:6px 10px 8px;font-size:var(--fs-sec);font-weight:700;color:var(--brand) }
+.crm .sb-tip { position:fixed;z-index:4;padding:6px 10px;border-radius:7px;background:#16202E;color:#fff;font-size:var(--fs-small);font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 6px 16px rgba(22,32,46,.28);transform:translateY(-50%);animation:crm-tip .12s ease-out both }
 .crm .sb-tip::before { content:"";position:absolute;top:50%;left:-4px;width:8px;height:8px;margin-top:-4px;background:inherit;transform:rotate(45deg) }
 @keyframes crm-fly { from { opacity:0;transform:translateX(-6px) } to { opacity:1;transform:none } }
 @keyframes crm-tip { from { opacity:0;transform:translate(-4px,-50%) } to { opacity:1;transform:translateY(-50%) } }
@@ -548,7 +556,7 @@
   :root[data-menu-mini] .crm .nav .dv { margin:6px 21px }
   :root[data-menu-mini] .crm .sub, :root[data-menu-mini] .crm .sub.open { grid-template-rows:0fr;visibility:hidden }
   /* A count becomes a small badge on the icon. */
-  :root[data-menu-mini] .crm .ni .c { position:absolute;top:1px;right:1px;min-width:16px;box-sizing:border-box;padding:0 4px;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center }
+  :root[data-menu-mini] .crm .ni .c { position:absolute;top:1px;right:1px;min-width:16px;box-sizing:border-box;padding:0 4px;background:var(--err);color:#fff;font-size:var(--fs-tiny);line-height:16px;text-align:center }
 }
 
 /* Phones: the same menu slides in from the left, over a dark backdrop. */
@@ -580,7 +588,7 @@
 .crm .tb .ham { display:none;width:38px;height:38px;flex:0 0 auto;padding:0;place-items:center;border-radius:11px }
 .crm .tb .ib { flex:0 0 auto;width:38px;height:38px;border-radius:11px }
 .crm .tb .ib[aria-expanded="true"] { background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;box-shadow:0 6px 14px rgba(31,58,95,.32);transform:none }
-.crm .tb .ib b { top:-5px;right:-5px;min-width:18px;box-sizing:border-box;padding:0 5px;border-radius:999px;background:linear-gradient(135deg,#E0484B,var(--err));color:#fff;font-size:10.5px;line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff,0 3px 6px rgba(198,40,40,.4);animation:crm-pop .3s cubic-bezier(.34,1.56,.64,1) both }
+.crm .tb .ib b { top:-5px;right:-5px;min-width:18px;box-sizing:border-box;padding:0 5px;border-radius:999px;background:linear-gradient(135deg,#E0484B,var(--err));color:#fff;font-size:var(--fs-tiny);line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff,0 3px 6px rgba(198,40,40,.4);animation:crm-pop .3s cubic-bezier(.34,1.56,.64,1) both }
 .crm .tb-bell svg { transform-origin:50% 10% }
 .crm .tb-bell:hover svg { animation:crm-ring .6s ease-in-out }
 @keyframes crm-pop { from { transform:scale(.4);opacity:0 } to { transform:none;opacity:1 } }
@@ -643,7 +651,7 @@
 .crm .tb .search input:focus-visible { outline:0 }
 
 /* The workflow canvas keeps a slim bar with its own buttons in it. */
-.crm .tb.tb-compact { min-height:44px;gap:8px;padding:4px 10px 4px 16px;font-size:13px }
+.crm .tb.tb-compact { min-height:44px;gap:8px;padding:4px 10px 4px 16px;font-size:var(--fs-small);font-weight:500 }
 .crm .tb.tb-compact > .sp { display:none }
 /* Only the canvas's own buttons scroll when they do not fit: the bell and profile always stay in view. */
 .crm .tb.tb-compact .tb-slot { flex:1 1 0;min-width:0;margin:-6px 0;padding:6px 2px;overflow:auto hidden;scrollbar-width:none }
@@ -659,15 +667,15 @@
 .crm .tb.tb-compact .tb-clinic-n { max-width:110px }
 .crm .tb.tb-compact .tb-clinic, .crm .tb.tb-compact .ib, .crm .tb.tb-compact .tb-av { height:32px }
 .crm .tb.tb-compact .ib, .crm .tb.tb-compact .tb-av { width:32px }
-.crm .tb.tb-compact .tb-av { font-size:11.5px }
+.crm .tb.tb-compact .tb-av { font-size:var(--fs-tiny) }
 .crm .tb.tb-compact .ib svg { width:16px;height:16px }
-.crm .tb.tb-compact .ib b { min-width:16px;padding:0 4px;font-size:9.5px;line-height:16px }
+.crm .tb.tb-compact .ib b { min-width:16px;padding:0 4px;font-size:var(--fs-tiny);line-height:16px }
 .crm .tb.tb-compact .tb-clinic-ic { width:24px;height:24px }
-.crm .tb.tb-compact .tb-seg button { padding:3px 9px;font-size:13px }
+.crm .tb.tb-compact .tb-seg button { padding:3px 9px;font-size:var(--fs-small);font-weight:500 }
 .crm .tb.tb-compact .tb-seg button svg { width:15px;height:15px }
-.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { padding:2px 8px;font-size:12px }
+.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { padding:2px 8px;font-size:var(--fs-tiny) }
 .crm .tb.tb-compact .wf-actions .btn { color:#fff }
-.crm .tb.tb-compact .wf-actions .badge { padding:1px 7px;font-size:10.5px }
+.crm .tb.tb-compact .wf-actions .badge { padding:1px 7px;font-size:var(--fs-tiny) }
 
 /* As the bar runs out of room, labels give way in stages (each button keeps its name for screen readers). */
 @media (max-width:1180px) {
@@ -699,4 +707,21 @@
 
 @media (prefers-reduced-motion: reduce) {
   .crm .tb *, .crm .tb { transition:none !important;animation:none !important }
+}
+
+/* The type scale: every size in the CRM comes from here, and the smallest is 12px. */
+.crm { --fs-tiny:12px;--fs-small:13px;--fs-sec:14px;--fs-body:15px;--fs-title:17px;--fs-section:20px;--fs-page:26px;--fs-num:32px }
+/* Chatbot previews and the canvas test chat show what patients see, so they keep the chatbot's own type and colours. */
+.crm .chat-preview, .crm .wf-test { font-size:14px;font-weight:400;--mute:#8A94A3 } /* type-ok */
+.crm .wf-test .pill { font-size:13px;font-weight:600 } /* type-ok */
+.crm .wf-test .warnbox { font-size:13px } /* type-ok */
+/* The Dashboard's number cards are links: they read as cards, not as blue underlined text. */
+.crm a.card { color:inherit;text-decoration:none }
+/* Phones: fields at 16px are easy to read, and iPhones do not zoom in when one is tapped. */
+@media (max-width:600px) {
+  /* A form beside its fixed-width chatbot preview stacks on a phone (the widths are set inline). */
+  .crm .split-preview { grid-template-columns:minmax(0,1fr) !important }
+  /* The chatbot preview keeps its real width, so on a phone its card scrolls sideways instead of widening the page. */
+  .crm .card:has(.chat-preview) { min-width:0;max-width:100%;overflow-x:auto }
+  .crm input:not([type=checkbox]):not([type=radio]):not(.chat-preview *), .crm select:not(.chat-preview *), .crm textarea:not(.chat-preview *) { font-size:16px !important } /* type-ok */
 }

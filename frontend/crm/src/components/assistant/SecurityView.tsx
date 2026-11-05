@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -73,7 +74,7 @@ export default function SecurityView() {
         Who controls the whole platform. 2-step login comes next.
       </p>
       {error && <div className="warnbox">{error}</div>}
-      {!main && !error && <p className="sub2">Loading…</p>}
+      {!main && !error && <Loading />}
       {main && (
         <section className="card">
           <h3 style={{ margin: "0 0 4px" }}>Main BB Admin</h3>
@@ -118,7 +119,7 @@ export default function SecurityView() {
               Only {main.email} can change this.
             </p>
           )}
-          <p className="sub2" style={{ margin: "8px 0 0", fontSize: 12 }}>
+          <p className="sub2" style={{ margin: "8px 0 0", fontSize: "var(--fs-small)" }}>
             The email must belong to a login that can already sign in (invite
             them in Team & access first). Use an email you can always open, so
             you never lock yourself out.

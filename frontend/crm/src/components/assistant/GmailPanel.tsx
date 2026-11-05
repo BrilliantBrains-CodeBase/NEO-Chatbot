@@ -84,7 +84,7 @@ export default function GmailPanel({
         marginTop: 10,
         borderTop: "1px solid var(--line)",
         paddingTop: 10,
-        fontSize: 13,
+        fontSize: "var(--fs-sec)",
       }}
     >
       {s?.connected ? (

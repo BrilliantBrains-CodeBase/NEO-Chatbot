@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Live, { Today } from "@/components/crm/Live";
+import Loading from "@/components/crm/Loading";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type Count, type Dashboard } from "@/lib/api";
 
@@ -75,6 +76,7 @@ export default function DashboardPage() {
         </div>
       </div>
       {error && <div className="warnbox">{error}</div>}
+      {!d && !error && <Loading />}
       <div className="grid4">
         {kpis.map(([t, n, s, href]) => (
           <Link key={t} href={href} className="card kpi">

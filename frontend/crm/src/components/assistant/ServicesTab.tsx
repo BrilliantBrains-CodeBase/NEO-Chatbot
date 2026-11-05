@@ -203,7 +203,7 @@ export default function ServicesTab({
                       onChange={(e) => setItem(i, { book_as: e.target.value })}
                       style={{
                         font: "inherit",
-                        fontSize: 13,
+                        fontSize: "var(--fs-sec)",
                         border: "1px solid var(--line)",
                         borderRadius: 8,
                         padding: "6px 8px",
@@ -222,7 +222,7 @@ export default function ServicesTab({
                   >
                     <label
                       className="opt"
-                      style={{ flexDirection: "row", fontSize: 12.5 }}
+                      style={{ flexDirection: "row", fontSize: "var(--fs-small)" }}
                     >
                       <input
                         type="checkbox"
@@ -339,7 +339,7 @@ function Words({
           className="pill"
           style={{
             padding: "3px 4px 3px 10px",
-            fontSize: 12,
+            fontSize: "var(--fs-small)",
             display: "inline-flex",
             gap: 4,
             alignItems: "center",
@@ -375,7 +375,7 @@ function Words({
         onBlur={add}
         style={{
           font: "inherit",
-          fontSize: 12.5,
+          fontSize: "var(--fs-small)",
           border: "1px dashed var(--line)",
           borderRadius: 999,
           padding: "4px 10px",
@@ -389,7 +389,7 @@ function Words({
 /** The chat's card for one treatment, as patients see it. */
 export function ServiceCard({ s, main }: { s: Service; main: string }) {
   return (
-    <div
+    <div className="chat-preview"
       style={{
         border: "1px solid #EFE3E6",
         borderRadius: 12,

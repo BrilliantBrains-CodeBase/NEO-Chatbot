@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useCrm } from "@/components/crm/CrmProvider";
@@ -153,7 +154,7 @@ export default function DoctorsSetupView() {
         {error ? (
           <p className="warnbox">{error}</p>
         ) : (
-          <p className="sub2">Loading…</p>
+          <Loading />
         )}
       </>
     );
@@ -257,7 +258,7 @@ export default function DoctorsSetupView() {
                 {!d.active && <span className="sub2"> · Inactive</span>}
                 {d.calcom && <span className="sub2"> · Cal.com</span>}
                 <div className="sub2">{d.role_title}</div>
-                <div className="sub2" style={{ fontSize: 12.5 }}>
+                <div className="sub2" style={{ fontSize: "var(--fs-small)" }}>
                   In-clinic{" "}
                   {lengthText(d.in_clinic_minutes, data.defaults.slot_minutes)}{" "}
                   · {d.in_clinic.length} time
@@ -475,12 +476,12 @@ function DoctorForm({
         hours={d.online}
         onChange={(h) => set({ online: h })}
       />
-      <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
         In-clinic and online hours can be the same. When a time is booked for
         one, it is no longer offered for the other.
       </p>
       {d.calcom && (
-        <p className="sub2" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+        <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
           Connected to Cal.com: online hours, leave and the online length are
           sent there when you save.
         </p>

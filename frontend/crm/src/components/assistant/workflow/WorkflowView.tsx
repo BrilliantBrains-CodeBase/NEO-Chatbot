@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import "@xyflow/react/dist/style.css";
 import {
   Background,
@@ -553,7 +554,7 @@ function Canvas() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !flow) return <p className="sub2">Loading…</p>;
+  if (!s || !flow) return <Loading />;
   const block = flow.nodes.find((n) => n.id === selected);
   const setBlock = (patch: Partial<FlowNode>) =>
     setFlow({
@@ -726,7 +727,7 @@ function Canvas() {
               </div>
             );
           })}
-          <p className="sub2" style={{ fontSize: 11 }}>
+          <p className="sub2" style={{ fontSize: "var(--fs-tiny)" }}>
             Drag a block onto the canvas, or click to add it. Drag from a dot on
             the right of a button to the next block. Select a line or block and
             press Delete to remove it.
@@ -858,7 +859,7 @@ function Canvas() {
                   <h3 style={{ margin: "0 0 6px" }}>Typed phrases</h3>
                   <p
                     className="sub2"
-                    style={{ margin: "0 0 6px", fontSize: 11.5 }}
+                    style={{ margin: "0 0 6px", fontSize: "var(--fs-tiny)" }}
                   >
                     {
                       (flow.phrases ?? []).filter(
@@ -936,7 +937,7 @@ function ChecksPanel({
     <div style={{ marginTop: 14 }}>
       <h3 style={{ margin: "0 0 6px" }}>Publish checks</h3>
       {!checks.length && (
-        <p className="sub2" style={{ margin: 0, fontSize: 11.5 }}>
+        <p className="sub2" style={{ margin: 0, fontSize: "var(--fs-tiny)" }}>
           None yet. In the test chat, click &quot;Save as a check&quot; after a
           good run.
         </p>
@@ -944,7 +945,7 @@ function ChecksPanel({
       {checks.map((c, i) => {
         const r = results?.[i];
         return (
-          <div key={i} className="wf-btn" style={{ fontSize: 12.5 }}>
+          <div key={i} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
             {r && (
               <span className={`badge ${r.ok ? "b-vi" : "b-in"}`}>
                 {r.ok ? "Pass" : "Fail"}
@@ -997,7 +998,7 @@ function ChecksPanel({
         </button>
       )}
       {err && <p className="warnbox">{err}</p>}
-      <p className="sub2" style={{ margin: "4px 0 0", fontSize: 11 }}>
+      <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-tiny)" }}>
         They run as if the clinic is open at 11 AM.
       </p>
       <TestSets clinicId={clinicId} dirty={dirty} />
@@ -1062,12 +1063,12 @@ function TestSets({
       </button>
       {err && <p className="warnbox">{err}</p>}
       {sets && !sets.length && (
-        <p className="sub2" style={{ fontSize: 11.5 }}>
+        <p className="sub2" style={{ fontSize: "var(--fs-tiny)" }}>
           This clinic has no test sets yet.
         </p>
       )}
       {sets?.map((s) => (
-        <div key={s.name} style={{ marginTop: 6, fontSize: 12.5 }}>
+        <div key={s.name} style={{ marginTop: 6, fontSize: "var(--fs-small)" }}>
           <button
             className="wf-btn"
             style={{ width: "100%", textAlign: "left", cursor: "pointer" }}
@@ -1093,7 +1094,7 @@ function TestSets({
               <p
                 key={i}
                 className="sub2"
-                style={{ margin: "3px 0 0 8px", fontSize: 11.5 }}
+                style={{ margin: "3px 0 0 8px", fontSize: "var(--fs-tiny)" }}
               >
                 “{f.message}” — expected {f.expected}
                 {f.word ? ` with “${f.word}”` : ""}, got {f.got}
@@ -1129,7 +1130,7 @@ function GlobalsPanel({
   return (
     <div style={{ marginTop: 14 }}>
       <h3 style={{ margin: "0 0 6px" }}>Whole flow</h3>
-      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+      <label className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
         <input
           type="checkbox"
           checked={nr.enabled}
@@ -1163,7 +1164,7 @@ function GlobalsPanel({
           onChange={(e) => setNr({ message: e.target.value })}
         />
       )}
-      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+      <label className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
         <input
           type="checkbox"
           checked={(globals.request_stage ?? "follow_up") === "follow_up"}
@@ -1176,7 +1177,7 @@ function GlobalsPanel({
         />
         A booking request moves the lead to Follow Up
       </label>
-      <label className="wf-btn" style={{ fontSize: 12.5 }}>
+      <label className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
         <input
           type="checkbox"
           checked={globals.emergency_alert !== false}
@@ -1187,11 +1188,11 @@ function GlobalsPanel({
         Emergency alerts the staff (urgent call back in the Inbox, email to the
         manager)
       </label>
-      <p className="sub2" style={{ margin: "8px 0 4px", fontSize: 11.5 }}>
+      <p className="sub2" style={{ margin: "8px 0 4px", fontSize: "var(--fs-tiny)" }}>
         Work from anywhere in the chat, typed or tapped:
       </p>
       {globals.triggers.map((t, i) => (
-        <div key={t.kind} className="wf-btn" style={{ fontSize: 12.5 }}>
+        <div key={t.kind} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
           <input
             type="checkbox"
             checked={t.enabled}
@@ -1252,11 +1253,11 @@ function FieldsPanel({
   return (
     <div style={{ marginTop: 14 }}>
       <h3 style={{ margin: "0 0 6px" }}>Fields</h3>
-      <p className="sub2" style={{ margin: "0 0 6px", fontSize: 11.5 }}>
+      <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-tiny)" }}>
         Built in: {BUILT_IN_FIELDS.map((f) => `{${f}}`).join(" ")}
       </p>
       {fields.map((f) => (
-        <div key={f.key} className="wf-btn" style={{ fontSize: 12.5 }}>
+        <div key={f.key} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
           <b style={{ flex: 1 }}>
             {`{${f.key}}`} <span className="sub2">{f.label}</span>
           </b>

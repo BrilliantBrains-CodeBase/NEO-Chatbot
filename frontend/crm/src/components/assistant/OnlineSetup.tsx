@@ -1,5 +1,6 @@
 "use client";
 
+import Loading from "@/components/crm/Loading";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -87,7 +88,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
     return error ? (
       <p className="warnbox">{error}</p>
     ) : (
-      <p className="sub2">Loading…</p>
+      <Loading inline />
     );
 
   return (
@@ -99,7 +100,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
       }}
     >
       <h3 style={{ margin: "0 0 4px" }}>Set up online consults</h3>
-      <p className="sub2" style={{ margin: "0 0 8px", fontSize: 12.5 }}>
+      <p className="sub2" style={{ margin: "0 0 8px", fontSize: "var(--fs-small)" }}>
         Tick the doctors who take online consults. Their online hours, leave and
         consult length come from{" "}
         <Link href="/assistant/doctors">Dashboard → Doctors</Link>; saving here
@@ -133,7 +134,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
             />
             {d.name}
           </label>
-          <p className="sub2" style={{ margin: "4px 0 0", fontSize: 12.5 }}>
+          <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-small)" }}>
             {d.consult_minutes} min consult ·{" "}
             {d.hours.length
               ? d.hours
@@ -159,7 +160,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
       ))}
       <p
         className="sub2"
-        style={{ margin: "12px 0 0", fontSize: 12.5, fontWeight: 600 }}
+        style={{ margin: "12px 0 0", fontSize: "var(--fs-small)", fontWeight: 600 }}
       >
         Clinic holidays (no consults that day)
       </p>
