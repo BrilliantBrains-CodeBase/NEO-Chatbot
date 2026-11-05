@@ -645,6 +645,11 @@
 .crm .tb-dot { flex:0 0 auto;width:8px;height:8px;margin-top:6px;align-self:flex-start;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(62,111,217,.16) }
 .crm .tb .pmenu button.tb-all { justify-content:center;margin-top:4px;color:var(--brand);font-weight:600 }
 .crm .tb .pmenu button.tb-retry { justify-content:center;color:var(--brand);font-weight:600 }
+.crm .tb .pmenu button.tb-urgent { background:#FDECEC;border-left:3px solid var(--err) }
+.crm .tb .pmenu button.tb-urgent:hover { background:#FBDCDC }
+.crm .tb-urgent .tb-dot { background:var(--err);box-shadow:0 0 0 3px rgba(198,40,40,.18) }
+.crm .tb-urgent .tb-note > span { color:var(--err);font-weight:700 }
+.crm .urgent-tag { display:inline-block;margin-right:6px;padding:0 6px;border-radius:999px;background:var(--err);color:#fff;font-size:var(--fs-tiny);font-weight:700;vertical-align:middle }
 .crm .tb-notes-empty { margin:0;padding:18px 10px;text-align:center;color:var(--soft);font-size:var(--fs-small) }
 .crm .tb .pmenu button.tb-out, .crm .tb .pmenu button.tb-out svg { color:var(--err) }
 .crm .tb .pmenu button.tb-out:hover { background:var(--errt) }

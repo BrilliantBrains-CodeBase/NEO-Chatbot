@@ -241,7 +241,8 @@ async def save_completed(conn: asyncpg.Connection, req: ChatRequest, f: Flow) ->
         )
         match = "matched" if matched else "no_match"
     data = {
-        k: f.get(k) for k in ("name", "phone", "email", "treatment", "reason", "date", "time", "booked_date")
+        k: f.get(k)
+        for k in ("name", "phone", "email", "treatment", "reason", "date", "time", "booked_date", "urgent")
     }
     request: UUID = await conn.fetchval(
         """insert into app.requests (clinic_id, lead_id, type, data, match_status, matched_appointment_id,

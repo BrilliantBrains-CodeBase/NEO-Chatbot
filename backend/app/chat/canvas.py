@@ -18,7 +18,7 @@ from app.chat import context, leads, main_template
 from app.chat.flows import normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
 from app.chat.slots import doctors_today
-from app.crm import webhooks, whatsapp
+from app.crm import alerts, webhooks, whatsapp
 from app.crm.flow_run import send, start
 
 SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose another time."
@@ -145,11 +145,20 @@ async def turn(
     lead = reply.get("lead")
     lead_note = await _save(conn, req, lead) if lead else None
     alert = reply.get("alert")
-    if alert and alert.get("phone"):  # an emergency with the patient's number: an urgent call back for staff
-        said = alert.get("said") or "emergency words"
-        urgent = {"type": "callback", "name": "Patient (emergency)", "phone": alert["phone"],
-                  "reason": f"EMERGENCY in chat: {said}"}  # fmt: skip
-        await _save(conn, req, urgent)
+    # An emergency: the managers are always emailed; with the patient's number, also an urgent call back.
+    if alert and alerts.first_time(req.session_id, bool(alert.get("phone"))):
+        code = None
+        if alert.get("phone"):
+            said = alert.get("said") or "emergency words"
+            urgent = {"type": "callback", "name": "Patient (emergency)", "phone": alert["phone"],
+                      "reason": f"EMERGENCY in chat: {said}", "urgent": True}  # fmt: skip
+            await _save(conn, req, urgent)
+            code = await conn.fetchval(
+                """select l.lead_code from app.chat_sessions s join app.leads l on l.id = s.lead_id
+                   where s.id = $1""",
+                req.session_id,
+            )
+        alerts.emergency(req.client_id, code)
     said = " ".join(m["text"] for m in reply["messages"] if m.get("text"))
     history = context.keep(state.get("canvas_history") or [], text, said)  # the last 3 messages each way
     new_state = {**state, "canvas": reply["state"], "canvas_history": history}
@@ -197,7 +206,7 @@ async def _save(conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any]
         "kind": kind, "name": lead.get("name") or "Patient", "phone": phone, "email": lead.get("email"),
         "treatment": lead.get("treatment"), "reason": lead.get("reason"), "date": lead.get("date"),
         "time": lead.get("time") or ("any" if lead.get("date") else None),
-        "booked_date": lead.get("booked_date"),
+        "booked_date": lead.get("booked_date"), "urgent": lead.get("urgent"),
     }  # fmt: skip
     if lead.get("doctor"):  # the canvas keeps the doctor's name; a booking needs their id
         f["doctor"] = await conn.fetchval(

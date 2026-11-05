@@ -261,6 +261,7 @@ export type InboxItem = {
   time: string | null;
   booked_date: string | null;
   match_status: string | null;
+  urgent?: boolean; // an emergency in the chat
   appointment: {
     id: string;
     start: string | null;

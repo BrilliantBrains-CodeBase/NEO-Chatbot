@@ -1,6 +1,7 @@
 """One chat turn: load the session, work out the reply, save everything, in one transaction."""
 
 import json
+import logging
 import time
 from datetime import timedelta
 from typing import Any
@@ -13,7 +14,9 @@ from app.chat.guard import Clinic
 from app.chat.schemas import ChatRequest, ChatResponse
 from app.chat.slots import Mode, free_slots_range
 from app.core.db import get_pool
-from app.crm import webhooks, whatsapp
+from app.crm import alerts, webhooks, whatsapp
+
+log = logging.getLogger(__name__)
 
 
 async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
@@ -34,6 +37,8 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         topic = await _intent(conn, req, state, question, steps, answered=hit is not None)
         slots, doctors = await _slots(conn, req, state)
         turn = engine.respond(req, state, slots, hit.answer if hit else None, topic, doctors)
+        if turn.emergency:
+            await raise_emergency(conn, req, state)
         if turn.completed:
             try:
                 async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the turn
@@ -72,6 +77,26 @@ async def handle(req: ChatRequest, clinic: Clinic) -> ChatResponse:
         )
         await _trace(conn, req, turn, hit, steps, started)
     return turn.reply
+
+
+async def raise_emergency(conn: asyncpg.Connection, req: ChatRequest, state: store.State) -> None:
+    """Emergency words in the classic chat: the managers are emailed; when the patient already gave a phone
+    number in this chat, an urgent call back waits in the Inbox too."""
+    flow = state.get("flow") or {}
+    phone = flow.get("phone")
+    if not alerts.first_time(req.session_id, bool(phone)):
+        return
+    code = None
+    if phone:
+        said = (req.payload.text or "emergency words").strip()[:200]
+        f = {"kind": "callback", "name": flow.get("name") or "Patient (emergency)", "phone": phone,
+             "reason": f"EMERGENCY in chat: {said}", "urgent": True}  # fmt: skip
+        try:
+            async with conn.transaction():  # a savepoint: a failed save does not undo the chat turn
+                code = await leads.save_completed(conn, req, f)
+        except (ValueError, asyncpg.PostgresError):  # the patient still gets the reply, the managers the email
+            log.exception("emergency call back for %s", req.client_id)
+    alerts.emergency(req.client_id, code)
 
 
 async def _canvas_turn(

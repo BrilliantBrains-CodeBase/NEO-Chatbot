@@ -39,6 +39,7 @@ class Turn:
     answered_by: str
     state: State = field(default_factory=dict)
     completed: dict[str, Any] | None = None  # a flow the patient just finished: the service saves it
+    emergency: bool = False  # emergency words: the service alerts the staff
 
 
 def _response(raw: dict[str, Any]) -> ChatResponse:
@@ -122,7 +123,7 @@ def respond(
         if action == "go" and value == "treatments":  # Menu buttons: "All treatments"
             return Turn(all_treatments(c), "flow", {})
         if action == "go" and value in c["nodes"]:
-            return Turn(_response(c["nodes"][value]), "flow", {})
+            return Turn(_response(c["nodes"][value]), "flow", {}, emergency=value == "emergency")
         if action == "treat" and value:
             card = treatment_card(c, value)
             if card:
@@ -176,7 +177,7 @@ def _text(
     flow = state.get("flow")
     kind, target = understand.route(text, c)
     if kind == "emergency":  # always first, and never mistaken for a tap
-        return Turn(_response(c["nodes"]["emergency"]), "rule", {})
+        return Turn(_response(c["nodes"]["emergency"]), "rule", {}, emergency=True)
     low = " ".join(text.lower().split())
     if flow and flow["step"] in INPUT_STEPS and understand.REFUSAL.match(low):
         # "no" to a form question ends the form; nothing is saved.

@@ -65,6 +65,7 @@ class InboxItem(BaseModel):
     booked_date: str | None  # cancel and reschedule: the day the patient says they were booked
     match_status: str | None  # matched | no_match
     appointment: Appt | None  # the booking's appointment, or the matched one for cancel and reschedule
+    urgent: bool = False  # an emergency in the chat
 
 
 class Inbox(BaseModel):
@@ -111,7 +112,7 @@ def _item(r: asyncpg.Record) -> InboxItem:
         lead_code=r["lead_code"], name=name, phone=r["phone_e164"], email=r["email"],
         treatment=data.get("treatment"), reason=data.get("reason"), date=data.get("date"),
         time=data.get("time"), booked_date=data.get("booked_date"), match_status=r["match_status"],
-        appointment=appt,
+        appointment=appt, urgent=bool(data.get("urgent")),
     )  # fmt: skip
 
 

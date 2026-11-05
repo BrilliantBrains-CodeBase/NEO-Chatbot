@@ -38,9 +38,12 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
   // The bell shows only the request types left on in Settings → Bell notifications.
   const bellOff = useBellOff();
-  const pending = Object.entries(crm.inbox ?? {})
-    .filter(([type]) => !bellOff.includes(type))
-    .reduce((a, [, n]) => a + n, 0);
+  const pending =
+    Object.entries(crm.inbox ?? {})
+      .filter(([type]) => !bellOff.includes(type))
+      .reduce((a, [, n]) => a + n, 0) +
+    // An emergency always counts, even when its type is turned off.
+    crm.inboxItems.filter((i) => i.urgent && bellOff.includes(i.type)).length;
   const clinicId = crm.me?.clinics.find((c) => c.name === crm.clinic)?.id;
   const path = usePathname();
   const inConsole = inDashboard(path);
@@ -97,10 +100,11 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     setOpen(null);
     router.push(href);
   };
-  // Newest first, the latest 8.
-  const latest = crm.inboxItems
-    .filter((i) => !bellOff.includes(i.type))
-    .slice(0, 8);
+  // Emergencies on top and never hidden, then newest first: 8 in all.
+  const latest = [
+    ...crm.inboxItems.filter((i) => i.urgent),
+    ...crm.inboxItems.filter((i) => !i.urgent && !bellOff.includes(i.type)),
+  ].slice(0, 8);
 
   // Until the person's clinics have loaded, no name shows (not a clinic that may not be theirs).
   const clinicName = crm.clinics.length > 0 ? crm.clinic : "";
@@ -253,15 +257,18 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               <button
                 key={i.id}
                 role="menuitem"
+                className={i.urgent ? "tb-urgent" : undefined}
                 onClick={() => go(`/inbox?tab=${i.type}&open=${i.id}`)}
               >
                 <span className="tb-dot" aria-hidden="true" />
                 <span className="tb-note">
                   <span>
-                    {NOTICE[i.type] ?? "New request"} · {i.name}
+                    {i.urgent ? "Emergency" : (NOTICE[i.type] ?? "New request")} · {i.name}
                   </span>
                   <small>
-                    {[i.treatment, ago(i.created_at)].filter(Boolean).join(" · ")}
+                    {[i.urgent ? i.reason : i.treatment, ago(i.created_at)]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </small>
                 </span>
               </button>

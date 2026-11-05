@@ -534,7 +534,10 @@ export default function InboxView() {
                   </td>
                 )}
                 <td>
-                  <div className="nm">{i.name}</div>
+                  <div className="nm">
+                    {i.urgent && <span className="urgent-tag">Emergency</span>}
+                    {i.name}
+                  </div>
                   <div className="pn">
                     {i.lead_code} · {i.phone ?? i.email}
                   </div>
