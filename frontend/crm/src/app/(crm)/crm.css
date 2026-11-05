@@ -1,32 +1,15 @@
 /* NEO CRM screens, from the approved design (claude.ai/artifact/BHvewwn4fbDkVWC14z2Lhe), carried over
    rule for rule and scoped under .crm so nothing reaches the sign-in pages. Later rules override earlier
-   ones exactly as in the design (the sidebar look is restyled at the end there too). */
+   ones exactly as in the design (the left menu has its own block at the end). */
 .crm {  --bg:#FFFFFF;--panel:#F7F9FC;--ink:#16202E;--soft:#5B6676;--mute:#8A94A3;--line:#E5EAF1; --brand:#1F3A5F;--brand-d:#162B47;--accent:#3E6FD9;--tint:#EEF3FC; --ok:#1F8A4C;--okt:#E8F6EE;--err:#C62828;--errt:#FDECEC;--warn:#B26A00;--warnt:#FFF4DF;--vio:#6A4FC2;--viot:#F1EDFB; --font:var(--font-inter),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif }
 .crm { height:100%;margin:0 }
 .crm { background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;-webkit-font-smoothing:antialiased }
 .crm svg { fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;width:18px;height:18px;flex:0 0 auto }
 .crm button { font:inherit;color:inherit }
-.crm .app { display:grid;grid-template-columns:240px 1fr;height:100% }
-.crm .sb { border-right:1px solid var(--line);background:var(--bg);display:flex;flex-direction:column;min-height:0 }
-.crm .sb-top { padding:16px 16px 10px;font-weight:700;font-size:16px;display:flex;align-items:center;gap:9px }
-.crm .sb-top i { width:30px;height:30px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-style:normal;font-size:14px }
-.crm .nav { flex:1;overflow-y:auto;padding:6px 10px 16px }
-.crm .nav a { display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;color:var(--soft);text-decoration:none;font-weight:600;cursor:pointer;margin:1px 0 }
-.crm .nav a:hover { background:var(--panel);color:var(--ink) }
-.crm .nav a.on { background:var(--tint);color:var(--brand) }
-.crm .nav a .c { margin-left:auto;font-size:11.5px;font-weight:700;background:var(--panel);color:var(--soft);border-radius:999px;padding:1px 8px }
-.crm .nav a.on .c { background:#fff }
-.crm .nav .sub { padding-left:28px }
-.crm .nav .sub a { font-weight:500;font-size:13.5px;padding:6px 10px }
-.crm .nav .grp { font-size:11px;font-weight:700;color:var(--mute);letter-spacing:.04em;padding:14px 10px 4px }
-.crm .nav .more { font-size:12.5px;color:var(--mute) }
 .crm .main { display:flex;flex-direction:column;min-width:0;min-height:0 }
-.crm .tb { display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:0;z-index:5 }
-.crm .tb .ham { display:none;border:0;background:none;padding:6px;cursor:pointer }
 .crm .sel { font:inherit;font-weight:600;border:1px solid var(--line);border-radius:9px;padding:7px 10px;background:#fff;color:var(--ink) }
 .crm .search { flex:1;max-width:420px;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:9px;padding:0 10px;color:var(--mute) }
 .crm .search input { border:0;outline:0;font:inherit;padding:8px 0;width:100%;color:var(--ink);background:none }
-.crm .tb .sp { flex:1 }
 .crm .ib { position:relative;border:1px solid var(--line);background:#fff;border-radius:9px;width:38px;height:38px;display:grid;place-items:center;cursor:pointer }
 .crm .ib b { position:absolute;top:-5px;right:-5px;background:var(--err);color:#fff;font-size:10.5px;border-radius:999px;padding:1px 6px }
 .crm .btn { display:inline-flex;align-items:center;gap:7px;text-decoration:none;border:0;border-radius:9px;background:var(--brand);color:#fff;font-weight:700;padding:9px 14px;cursor:pointer }
@@ -149,31 +132,8 @@
 .crm .empty h2 { color:var(--ink);margin:0 0 6px;font-size:18px }
 .crm .empty ul { display:inline-block;text-align:left;margin:10px 0 0;line-height:1.7 }
 @media (max-width:860px) {
-  .crm .app { grid-template-columns:1fr }
-  .crm .sb { position:fixed;inset:0 auto 0 0;width:260px;z-index:25;transform:translateX(-100%);transition:transform .25s }
-  .crm .sb.on { transform:none }
-  .crm .tb .ham { display:grid }
-  .crm .tb .hide-m { display:none }
   .crm .page { padding:14px }
 }
-.crm .nav { padding:4px 0 16px }
-.crm .nav a { font-size:15px;font-weight:500;color:var(--ink);padding:10px 16px;border-radius:0;gap:12px;margin:0 }
-.crm .nav a svg { width:20px;height:20px;color:#3A4656 }
-.crm .nav a:hover { background:var(--panel);color:var(--ink) }
-.crm .nav a.on { background:var(--brand);color:#fff }
-.crm .nav a.on svg { color:#fff }
-.crm .nav a .c { font-weight:600;background:var(--panel);color:var(--soft) }
-.crm .nav a.on .c { background:rgba(255,255,255,.18);color:#fff }
-.crm .nav .chev { margin-left:auto;width:16px;height:16px;color:var(--mute);transition:transform .15s }
-.crm .nav .c+.chev { margin-left:8px }
-.crm .nav .open>.chev { transform:rotate(180deg) }
-.crm .nav .sub { padding-left:0;background:#F7FAFD }
-.crm .nav .sub a { font-size:14.5px;font-weight:500;color:#2F3B4B;padding:9px 16px 9px 48px }
-.crm .nav .sub a.on { background:var(--tint);color:var(--brand);font-weight:600 }
-.crm .nav .sub a.on .c { background:#fff;color:var(--brand) }
-.crm .nav .dv { border-top:1px solid var(--line);margin:6px 0 }
-.crm .nav .grp { font-size:11.5px;font-weight:600;color:var(--mute);letter-spacing:.05em;padding:12px 16px 6px }
-.crm .sb-top { padding:16px;font-size:17px;border-bottom:1px solid var(--line) }
 .crm .md { position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:40;background:rgba(22,32,46,.35);overflow-y:auto }
 .crm .md.on { display:flex }
 .crm .mb { background:#fff;border-radius:16px;width:min(620px,100%);box-shadow:0 20px 50px -20px rgba(22,32,46,.45) }
@@ -438,21 +398,6 @@
 .crm .wf-btn input[type=text], .crm .wf-btn > input { flex:1;min-width:0 }
 .crm .wf-btn > button { border:0;background:none;cursor:pointer;font-size:10px;color:var(--mute);padding:2px }
 
-/* Left menu collapsed to a strip of icons (button « / » at its top). */
-.crm .sb-mini { margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;width:28px;height:28px;cursor:pointer;color:var(--soft);font-size:15px;line-height:1 }
-.crm .sb-mini:hover { color:var(--brand);border-color:var(--brand) }
-.crm .app.mini { grid-template-columns:64px 1fr }
-.crm .app.mini .sb-top { flex-direction:column;padding:12px 6px;gap:8px }
-.crm .app.mini .sb-name, .crm .app.mini .nav .grp, .crm .app.mini .nav .c, .crm .app.mini .nav .chev, .crm .app.mini .nav .sub { display:none }
-.crm .app.mini .sb-mini { margin-left:0 }
-.crm .app.mini .nav a { justify-content:center;padding:10px 0;gap:0 }
-.crm .app.mini .nav a > span { display:none }
-.crm .app.mini .nav .dv { margin:4px 10px }
-@media (max-width: 860px) {
-  /* Phones keep the slide-in menu; the collapse is for wide screens only. */
-  .crm .app.mini { grid-template-columns:1fr }
-  .crm .sb-mini { display:none }
-}
 
 /* Workflow: a slim toolbar so the canvas starts near the top and is taller. */
 .crm .ph.wf-bar { margin:-12px 0 8px;align-items:center }
@@ -466,38 +411,13 @@
 .crm .wf-actions .pill, .crm .wf-actions .btn { padding-top:6px;padding-bottom:6px;white-space:nowrap }
 .crm .wf { height:calc(100vh - 104px) }
 /* Smaller buttons in the top bar slot. */
-.crm .tb-slot { padding:4px 6px;border-radius:10px }
 .crm .wf-actions { gap:6px }
 .crm .wf-actions .pill, .crm .wf-actions .btn { font-size:12.5px;padding:4px 10px;min-height:0;border-radius:8px }
 .crm .wf-actions .badge { font-size:11px;padding:2px 8px }
 
 /* Compact top bar: smaller text and controls everywhere in it. */
-.crm .tb.tb-compact { padding:6px 16px;gap:8px;font-size:13px }
-.crm .tb.tb-compact .sel, .crm .tb.tb-compact .search input, .crm .tb.tb-compact .seg button, .crm .tb.tb-compact .btn, .crm .tb.tb-compact .pill { font-size:13px }
-.crm .tb.tb-compact .sel { padding:5px 8px }
-.crm .tb.tb-compact .search input { padding:6px 0 }
-.crm .tb.tb-compact .seg button { padding:5px 10px }
-.crm .tb.tb-compact .seg button svg { width:15px;height:15px }
-.crm .tb.tb-compact .btn { padding:6px 12px;color:#fff }
-.crm .tb.tb-compact .btn svg { width:15px;height:15px }
-.crm .tb.tb-compact .ib { width:32px;height:32px;border-radius:8px }
-.crm .tb.tb-compact .ib svg { width:16px;height:16px }
-.crm .tb.tb-compact .ib b { font-size:9.5px;padding:0 5px;top:-4px;right:-4px }
-.crm .tb.tb-compact .av { width:30px;height:30px;font-size:11.5px }
-.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { font-size:12px;padding:3px 9px }
-.crm .tb.tb-compact .wf-actions .btn { color:#fff }
-.crm .tb.tb-compact .wf-actions .badge { font-size:10.5px;padding:1px 7px }
 .crm .wf { height:calc(100vh - 92px) }
 /* Shorter top bar. */
-.crm .tb.tb-compact { padding:4px 14px }
-.crm .tb.tb-compact .sel { padding:3px 6px }
-.crm .tb.tb-compact .search input { padding:4px 0 }
-.crm .tb.tb-compact .seg button { padding:3px 9px }
-.crm .tb.tb-compact .btn { padding:4px 10px }
-.crm .tb.tb-compact .ib { width:28px;height:28px }
-.crm .tb.tb-compact .av { width:28px;height:28px;font-size:11px }
-.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { padding:2px 8px }
-.crm .tb.tb-compact .tb-slot { padding:0 }
 .crm .wf { height:calc(100vh - 84px) }
 /* Workflow: easier to read blocks; button tags for buttons that do their own job. */
 .crm .wf-block { width:250px;font-size:12.5px }
@@ -514,12 +434,6 @@
 .crm .wf.no-side { grid-template-columns:230px minmax(0,1fr) }
 .crm .wf-side { position:relative }
 .crm .wf-close { position:absolute;top:8px;right:8px;border:0;background:none;cursor:pointer;font-size:15px;color:var(--mute) }
-/* Narrower left menu. */
-.crm .app { grid-template-columns:205px 1fr }
-.crm .nav a { font-size:14px;padding:8px 14px;gap:10px }
-.crm .nav a svg { width:18px;height:18px }
-.crm .nav .grp { padding:10px 14px 4px }
-.crm .sb-top { padding:12px 14px;font-size:16px }
 .crm .wf-save { position:sticky;bottom:-10px;background:#fff;padding:10px 0 2px;margin-top:10px;border-top:1px solid var(--line);display:flex;justify-content:flex-end }
 .crm .wf-exit.live > span { color:var(--soft);font-weight:500 }
 .crm .wf-row select { font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:6px 8px }
@@ -557,8 +471,232 @@
 .crm .wf-block.note.green { background:#DCFCE7 }
 .crm .wf-block.note.pink { background:#FCE7F3 }
 .crm .wf-block.note .wf-text { white-space:pre-wrap }
-/* The top bar's bottom line meets the left menu's line under "NEO CRM": one height for both
-   (the workflow canvas keeps its compact bar). */
+/* One height for the top bar and the head of the left menu. */
 .crm { --head:56px }
-.crm .sb-top { height:var(--head);box-sizing:border-box;padding:0 14px;border-bottom:1px solid var(--line) }
-.crm .tb:not(.tb-compact) { min-height:var(--head);box-sizing:border-box;padding-top:0;padding-bottom:0 }
+
+
+/* Left menu: a floating card that collapses to a strip of icons. All of its styling lives in this block.
+   The icons stay in the same place in both states, so only the card's width and the labels animate. */
+.crm { --canvas:#E9F0F8;--menu-w:272px;--menu-ease:cubic-bezier(.4,0,.2,1);--float:0 1px 3px rgba(22,43,71,.08),0 10px 24px rgba(22,43,71,.12),0 28px 64px rgba(22,43,71,.22);background:var(--canvas) }
+.crm .app { display:grid;grid-template-columns:var(--menu-w) minmax(0,1fr);height:100%;transition:grid-template-columns .28s var(--menu-ease) }
+.crm .sb { position:relative;z-index:15;display:flex;flex-direction:column;min-height:0;margin:12px 0 12px 12px;background:#fff;border-radius:20px;box-shadow:var(--float) }
+.crm .sb-top { flex:0 0 auto;height:var(--head);box-sizing:border-box;padding:0 12px 0 21px;display:flex;align-items:center;gap:12px;font-size:16px;font-weight:700;overflow:hidden }
+.crm .sb-top i { flex:0 0 auto;width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;display:grid;place-items:center;font-style:normal;font-size:15px }
+.crm .sb-name { flex:1;min-width:0;white-space:nowrap;overflow:hidden;transition:opacity .18s }
+.crm .sb-tg { position:absolute;z-index:2;top:15px;right:-13px;width:26px;height:26px;padding:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:50%;background:#fff;color:var(--soft);cursor:pointer;box-shadow:0 2px 8px rgba(22,43,71,.16);transition:color .15s,background .15s,border-color .15s }
+.crm .sb-tg svg { width:14px;height:14px;transform:rotate(90deg);transition:transform .28s var(--menu-ease) }
+.crm .sb-tg:hover { background:var(--brand);border-color:var(--brand);color:#fff }
+
+.crm .nav { position:relative;flex:1;min-height:0;overflow:hidden auto;padding:2px 0 10px;scrollbar-width:thin }
+.crm .nav-in { position:relative }
+.crm .sb-ind { position:absolute;top:0;left:0;border-radius:12px;background:linear-gradient(135deg,#2F5C93,var(--brand));box-shadow:0 6px 14px rgba(31,58,95,.32);opacity:0;pointer-events:none;transition:transform .26s var(--menu-ease),width .26s var(--menu-ease),height .26s var(--menu-ease) }
+
+.crm .ni { position:relative;z-index:1;display:flex;align-items:center;gap:12px;box-sizing:border-box;width:calc(100% - 28px);height:44px;margin:2px 14px;padding:0 10px 0 7px;border:0;border-radius:12px;background:none;color:var(--ink);font-size:14px;font-weight:500;text-align:left;text-decoration:none;white-space:nowrap;overflow:hidden;cursor:pointer;transition:background .15s,color .15s }
+.crm .ni-ic { flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#EFF4FB;color:#2F5C93;transition:background .15s,color .15s,transform .15s,box-shadow .15s }
+.crm .ni-ic svg { width:19px;height:19px }
+.crm .ni-l { flex:1;min-width:0;overflow:hidden;transition:opacity .18s }
+.crm .ni .c { flex:0 0 auto;margin-left:auto;padding:1px 8px;border-radius:999px;background:var(--tint);color:var(--brand);font-size:11.5px;font-weight:600 }
+.crm .ni .chev { flex:0 0 auto;margin-left:auto;width:16px;height:16px;color:var(--mute);transition:transform .22s var(--menu-ease),opacity .18s }
+.crm .ni .c+.chev { margin-left:0 }
+.crm .ni.open .chev { transform:rotate(180deg) }
+.crm .ni:not(.on):hover { background:#F3F7FC }
+.crm .ni:not(.on):hover .ni-ic { background:#fff;transform:translateY(-1px);box-shadow:0 4px 10px rgba(22,43,71,.16) }
+.crm .ni.on { background:var(--brand);color:#fff;font-weight:600 }
+.crm .nav[data-marker="1"] .ni.on { background:none }
+.crm .ni.on .ni-ic { background:none;color:#fff }
+.crm .ni.on .c { background:rgba(255,255,255,.2);color:#fff }
+.crm .ni.on .chev { color:#fff }
+
+.crm .sub { display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .26s var(--menu-ease),visibility .26s }
+.crm .sub.open { grid-template-rows:1fr;visibility:visible }
+.crm .sub > div { min-height:0;overflow:hidden }
+.crm .sub-in { margin:2px 14px 6px 37px;padding-left:8px;border-left:2px solid var(--line) }
+.crm .si { display:flex;align-items:center;gap:8px;padding:7px 10px;margin:1px 0;border-radius:9px;color:#2F3B4B;font-size:13.5px;font-weight:500;text-decoration:none;transition:background .15s,color .15s }
+.crm .si-l { flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis }
+.crm .si:hover { background:var(--panel);color:var(--ink) }
+.crm .si.on { background:var(--tint);color:var(--brand);font-weight:600 }
+.crm .si .c { flex:0 0 auto;padding:1px 7px;border-radius:999px;background:var(--panel);color:var(--soft);font-size:11px;font-weight:600 }
+.crm .si.on .c { background:#fff;color:var(--brand) }
+
+.crm .nav .grp { box-sizing:border-box;max-height:32px;padding:10px 21px 4px;overflow:hidden;white-space:nowrap;font-size:11px;font-weight:600;color:var(--mute);letter-spacing:.05em;transition:max-height .26s var(--menu-ease),padding .26s var(--menu-ease),opacity .18s }
+.crm .nav .dv { margin:8px 21px;border-top:1px solid var(--line) }
+
+.crm .sb-foot { flex:0 0 auto;padding:8px 0;border-top:1px solid var(--line) }
+.crm .sb-out { color:var(--err) }
+.crm .sb-out .ni-ic { background:var(--errt);color:var(--err) }
+.crm .sb-out:not(.on):hover { background:var(--errt) }
+
+/* The icon strip's floating sub-menu and dark label. Under the panels and pop-ups. */
+.crm .sb-fly { position:fixed;z-index:3;box-sizing:border-box;width:232px;padding:8px;overflow-y:auto;border-radius:14px;background:#fff;box-shadow:var(--float);animation:crm-fly .16s var(--menu-ease) both }
+.crm .sb-fly-h { padding:6px 10px 8px;font-size:13.5px;font-weight:700;color:var(--brand) }
+.crm .sb-tip { position:fixed;z-index:4;padding:6px 10px;border-radius:7px;background:#16202E;color:#fff;font-size:12px;font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 6px 16px rgba(22,32,46,.28);transform:translateY(-50%);animation:crm-tip .12s ease-out both }
+.crm .sb-tip::before { content:"";position:absolute;top:50%;left:-4px;width:8px;height:8px;margin-top:-4px;background:inherit;transform:rotate(45deg) }
+@keyframes crm-fly { from { opacity:0;transform:translateX(-6px) } to { opacity:1;transform:none } }
+@keyframes crm-tip { from { opacity:0;transform:translate(-4px,-50%) } to { opacity:1;transform:translateY(-50%) } }
+
+.crm .ni:focus-visible, .crm .si:focus-visible, .crm .sb-tg:focus-visible { outline:2px solid var(--accent);outline-offset:-2px }
+.crm .sb-ov { display:none }
+/* On the blue page background, search boxes stay white like the other fields. */
+.crm .search { background:#fff }
+
+@media (min-width:861px) {
+  :root[data-menu-mini] .crm { --menu-w:88px }
+  :root[data-menu-mini] .crm .sb-name, :root[data-menu-mini] .crm .ni-l, :root[data-menu-mini] .crm .ni .chev { opacity:0 }
+  :root[data-menu-mini] .crm .sb-tg svg { transform:rotate(-90deg) }
+  :root[data-menu-mini] .crm .nav { scrollbar-width:none }
+  :root[data-menu-mini] .crm .nav .grp { max-height:0;padding-top:0;padding-bottom:0;opacity:0 }
+  :root[data-menu-mini] .crm .nav .dv { margin:6px 21px }
+  :root[data-menu-mini] .crm .sub, :root[data-menu-mini] .crm .sub.open { grid-template-rows:0fr;visibility:hidden }
+  /* A count becomes a small badge on the icon. */
+  :root[data-menu-mini] .crm .ni .c { position:absolute;top:1px;right:1px;min-width:16px;box-sizing:border-box;padding:0 4px;background:var(--err);color:#fff;font-size:10px;line-height:16px;text-align:center }
+}
+
+/* Phones: the same menu slides in from the left, over a dark backdrop. */
+@media (max-width:860px) {
+  .crm .app { grid-template-columns:minmax(0,1fr) }
+  .crm .sb { position:fixed;inset:0 auto 0 0;width:272px;margin:0;border-radius:0 20px 20px 0;z-index:25;box-shadow:none;visibility:hidden;transform:translateX(-100%);transition:transform .25s var(--menu-ease),visibility .25s }
+  .crm .sb.on { visibility:visible;transform:none;box-shadow:var(--float) }
+  .crm .sb-tg { display:none }
+  .crm .sb-ov { display:block;position:fixed;inset:0;z-index:24;background:rgba(22,32,46,.35);opacity:0;pointer-events:none;transition:opacity .25s }
+  .crm .sb-ov.on { opacity:1;pointer-events:auto }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm .app, .crm .sb, .crm .sb *, .crm .sb-ov { transition:none !important;animation:none !important }
+}
+
+/* Top bar: a floating card that matches the left menu (same tiles, navy gradient and shadow). Other screens
+   share .btn, .seg, .av and .search, so everything here is scoped to .tb. */
+.crm .tb { position:relative;z-index:5;flex:0 0 auto;display:flex;align-items:center;gap:10px;box-sizing:border-box;min-width:0;min-height:var(--head);margin:12px 12px 0;padding:0 12px 0 16px;border-radius:20px;background:#fff;box-shadow:var(--float) }
+.crm .tb .sp { flex:1 }
+.crm .tb-menu { position:relative;flex:0 0 auto;min-width:0 }
+.crm .tb-menu:has(> .tb-clinic) { flex:0 1 auto }
+.crm .tb .tb-menu > .tb-clinic { width:100% }
+
+/* Tiles: the phone menu button, the bell and the clinic picker. They lift on hover and press down on click. */
+.crm .tb .ham, .crm .tb .ib, .crm .tb button.tb-clinic { border:0;background:#EFF4FB;color:#2F5C93;cursor:pointer;transition:background .15s,color .15s,transform .15s,box-shadow .15s }
+.crm .tb .ham:hover, .crm .tb .ib:hover, .crm .tb button.tb-clinic:hover { background:#fff;transform:translateY(-1px);box-shadow:0 5px 12px rgba(22,43,71,.18) }
+.crm .tb .ham:active, .crm .tb .ib:active, .crm .tb button.tb-clinic:active { transform:translateY(0) scale(.97);box-shadow:0 1px 3px rgba(22,43,71,.18) }
+.crm .tb .ham { display:none;width:38px;height:38px;flex:0 0 auto;padding:0;place-items:center;border-radius:11px }
+.crm .tb .ib { flex:0 0 auto;width:38px;height:38px;border-radius:11px }
+.crm .tb .ib[aria-expanded="true"] { background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;box-shadow:0 6px 14px rgba(31,58,95,.32);transform:none }
+.crm .tb .ib b { top:-5px;right:-5px;min-width:18px;box-sizing:border-box;padding:0 5px;border-radius:999px;background:linear-gradient(135deg,#E0484B,var(--err));color:#fff;font-size:10.5px;line-height:18px;text-align:center;box-shadow:0 0 0 2px #fff,0 3px 6px rgba(198,40,40,.4);animation:crm-pop .3s cubic-bezier(.34,1.56,.64,1) both }
+.crm .tb-bell svg { transform-origin:50% 10% }
+.crm .tb-bell:hover svg { animation:crm-ring .6s ease-in-out }
+@keyframes crm-pop { from { transform:scale(.4);opacity:0 } to { transform:none;opacity:1 } }
+@keyframes crm-ring { 0%,100% { transform:none } 20% { transform:rotate(14deg) } 45% { transform:rotate(-11deg) } 70% { transform:rotate(6deg) } 88% { transform:rotate(-3deg) } }
+
+/* Clinic picker. */
+.crm .tb-clinic { display:flex;align-items:center;gap:8px;box-sizing:border-box;height:38px;max-width:240px;padding:0 10px 0 5px;border-radius:11px;font-weight:600;text-align:left }
+.crm .tb-clinic-one { flex:0 1 auto;min-width:0;padding-right:12px }
+.crm .tb-clinic-ic { flex:0 0 auto;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#2F5C93;box-shadow:0 1px 3px rgba(22,43,71,.14) }
+.crm .tb-clinic-ic svg { width:16px;height:16px }
+.crm .tb-clinic-n { flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--ink) }
+.crm .tb-clinic .chev { width:15px;height:15px;color:var(--mute);transition:transform .22s var(--menu-ease) }
+.crm .tb-clinic[aria-expanded="true"] .chev { transform:rotate(180deg) }
+
+/* CRM / Dashboard: a navy thumb slides under the chosen side. */
+.crm .tb .tb-seg { position:relative;flex:0 0 auto;display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;margin:0;padding:3px;border:0;border-radius:12px;background:#EFF4FB;overflow:visible;box-shadow:inset 0 1px 3px rgba(22,43,71,.12) }
+.crm .tb-thumb { position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 3px);border-radius:9px;background:linear-gradient(135deg,#2F5C93,var(--brand));box-shadow:0 4px 10px rgba(31,58,95,.32);transition:transform .26s var(--menu-ease) }
+.crm .tb-seg.right .tb-thumb { transform:translateX(100%) }
+.crm .tb .tb-seg button { position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;border-radius:9px;background:none;color:var(--soft);transition:color .18s }
+.crm .tb .tb-seg button svg { width:16px;height:16px }
+.crm .tb .tb-seg button:hover { color:var(--ink) }
+.crm .tb .tb-seg button.on, .crm .tb .tb-seg button.on:hover { background:none;color:#fff }
+
+/* Search: a sunken field that grows and lights up while in use. */
+.crm .tb .search { flex:1;min-width:0;max-width:380px;box-sizing:border-box;height:38px;border:1px solid transparent;border-radius:11px;background:#F3F7FC;box-shadow:inset 0 1px 3px rgba(22,43,71,.1);transition:max-width .26s var(--menu-ease),background .15s,border-color .15s,box-shadow .15s,color .15s }
+.crm .tb .search:focus-within { max-width:480px;border-color:var(--accent);background:#fff;color:var(--accent);box-shadow:0 0 0 3px rgba(62,111,217,.16),0 6px 16px rgba(22,43,71,.1) }
+
+/* Add lead. */
+.crm .tb .tb-add { flex:0 0 auto;height:38px;box-sizing:border-box;padding:0 14px;border-radius:11px;background:linear-gradient(135deg,#2F5C93,var(--brand));box-shadow:0 6px 14px rgba(31,58,95,.32);transition:transform .15s,box-shadow .15s }
+.crm .tb .tb-add:hover { background:linear-gradient(135deg,#2F5C93,var(--brand));transform:translateY(-1px);box-shadow:0 10px 20px rgba(31,58,95,.4) }
+.crm .tb .tb-add:active { transform:translateY(0) scale(.98);box-shadow:0 2px 6px rgba(31,58,95,.36) }
+.crm .tb-add svg { transition:transform .26s var(--menu-ease) }
+.crm .tb-add:hover svg { transform:rotate(90deg) }
+
+/* Profile. */
+.crm .tb .tb-av { width:36px;height:36px;padding:0;border:0;background:linear-gradient(135deg,#2F5C93,var(--brand));color:#fff;cursor:pointer;box-shadow:0 0 0 2px #fff,0 0 0 3px #CFDCEE,0 5px 12px rgba(31,58,95,.28);transition:transform .15s,box-shadow .15s }
+.crm .tb .tb-av:hover, .crm .tb .tb-av[aria-expanded="true"] { transform:translateY(-1px);box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--accent),0 8px 16px rgba(31,58,95,.34) }
+.crm .tb .tb-av:active { transform:translateY(0) scale(.97) }
+
+/* Drop-down menus: they fade and slide in from under their button. */
+.crm .tb .pmenu { display:block;top:calc(100% + 10px);right:0;box-sizing:border-box;width:240px;padding:6px;border:0;border-radius:14px;box-shadow:var(--float);visibility:hidden;opacity:0;pointer-events:none;transform:translateY(-6px) scale(.98);transform-origin:top right;transition:opacity .16s,transform .18s var(--menu-ease),visibility .18s }
+.crm .tb .pmenu.on { visibility:visible;opacity:1;pointer-events:auto;transform:none;transition:opacity .16s,transform .18s var(--menu-ease),visibility 0s }
+.crm .tb .pmenu.tb-left { left:0;right:auto;transform-origin:top left }
+.crm .tb .pmenu.tb-notes { width:320px }
+.crm .tb .pmenu button { color:var(--ink);font-weight:500;transition:background .12s,color .12s }
+.crm .tb .pmenu button svg { width:17px;height:17px;color:#2F5C93 }
+.crm .tb .pmenu button:hover { background:#F3F7FC }
+.crm .tb .pmenu .who span { display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis }
+.crm .tb-tick { margin-left:auto }
+.crm .tb .pmenu [aria-checked="true"] { background:var(--tint);color:var(--brand);font-weight:600 }
+.crm .tb-notes-list { max-height:min(52vh,380px);overflow-y:auto }
+.crm .tb-note { display:flex;flex-direction:column;min-width:0 }
+.crm .tb-note small { color:var(--soft);font-weight:500 }
+.crm .tb-dot { flex:0 0 auto;width:8px;height:8px;margin-top:6px;align-self:flex-start;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(62,111,217,.16) }
+.crm .tb .pmenu button.tb-all { justify-content:center;margin-top:4px;color:var(--brand);font-weight:600 }
+.crm .tb .pmenu button.tb-out, .crm .tb .pmenu button.tb-out svg { color:var(--err) }
+.crm .tb .pmenu button.tb-out:hover { background:var(--errt) }
+
+.crm .tb button:focus-visible, .crm .tb .search input:focus-visible { outline:2px solid var(--accent);outline-offset:2px }
+.crm .tb .search input:focus-visible { outline:0 }
+
+/* The workflow canvas keeps a slim bar with its own buttons in it. */
+.crm .tb.tb-compact { min-height:44px;gap:8px;padding:4px 10px 4px 16px;font-size:13px }
+.crm .tb.tb-compact > .sp { display:none }
+/* Only the canvas's own buttons scroll when they do not fit: the bell and profile always stay in view. */
+.crm .tb.tb-compact .tb-slot { flex:1 1 0;min-width:0;margin:-6px 0;padding:6px 2px;overflow:auto hidden;scrollbar-width:none }
+.crm .tb.tb-compact .tb-slot:empty { display:block }
+.crm .tb.tb-compact .wf-actions { margin-left:auto;flex:0 0 auto }
+.crm .tb.tb-compact .wf-actions .pill { border:0;border-radius:9px;background:#EFF4FB;color:#2F5C93;transition:background .15s,transform .15s,box-shadow .15s }
+.crm .tb.tb-compact .wf-actions button.pill:hover { background:#fff;transform:translateY(-1px);box-shadow:0 3px 8px rgba(22,43,71,.18) }
+.crm .tb.tb-compact .wf-actions .pill.on { background:var(--brand);color:#fff }
+.crm .tb.tb-compact .wf-actions .btn { border-radius:9px }
+.crm .tb.tb-compact .wf-actions .btn:not(:disabled) { background:linear-gradient(135deg,#2F5C93,var(--brand));box-shadow:0 3px 8px rgba(31,58,95,.3) }
+.crm .tb-compact + .page { padding-top:12px }
+.crm .tb.tb-compact .tb-seg button span { display:none }
+.crm .tb.tb-compact .tb-clinic-n { max-width:110px }
+.crm .tb.tb-compact .tb-clinic, .crm .tb.tb-compact .ib, .crm .tb.tb-compact .tb-av { height:32px }
+.crm .tb.tb-compact .ib, .crm .tb.tb-compact .tb-av { width:32px }
+.crm .tb.tb-compact .tb-av { font-size:11.5px }
+.crm .tb.tb-compact .ib svg { width:16px;height:16px }
+.crm .tb.tb-compact .ib b { min-width:16px;padding:0 4px;font-size:9.5px;line-height:16px }
+.crm .tb.tb-compact .tb-clinic-ic { width:24px;height:24px }
+.crm .tb.tb-compact .tb-seg button { padding:3px 9px;font-size:13px }
+.crm .tb.tb-compact .tb-seg button svg { width:15px;height:15px }
+.crm .tb.tb-compact .wf-actions .pill, .crm .tb.tb-compact .wf-actions .btn { padding:2px 8px;font-size:12px }
+.crm .tb.tb-compact .wf-actions .btn { color:#fff }
+.crm .tb.tb-compact .wf-actions .badge { padding:1px 7px;font-size:10.5px }
+
+/* As the bar runs out of room, labels give way in stages (each button keeps its name for screen readers). */
+@media (max-width:1180px) {
+  .crm .tb .tb-add { width:38px;padding:0;justify-content:center }
+  .crm .tb .tb-add .hide-m { display:none }
+  .crm .tb-clinic { max-width:170px }
+  .crm .tb .search { min-width:120px }
+}
+@media (max-width:1000px) {
+  .crm .tb .tb-seg button { padding:6px 9px }
+  .crm .tb .tb-seg button span { display:none }
+}
+
+/* Tablets and phones. */
+@media (max-width:860px) {
+  .crm .tb { margin:8px 8px 0;padding:0 10px;gap:8px;border-radius:16px }
+  .crm .tb .ham { display:grid }
+  .crm .tb .hide-m { display:none }
+}
+@media (max-width:600px) {
+  /* The clinic picker becomes just its tile: the name shows in its menu and on the page. */
+  .crm .tb .tb-clinic-n { display:none }
+  .crm .tb .pmenu .tb-clinic-n { display:block }
+  .crm .tb .tb-clinic .chev { display:none }
+  .crm .tb .tb-clinic { padding:0 5px }
+  /* A drop-down would run off a narrow screen from its button, so it spans the width instead. */
+  .crm .tb .pmenu, .crm .tb .pmenu.tb-left, .crm .tb .pmenu.tb-notes { position:fixed;top:72px;left:8px;right:8px;width:auto }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm .tb *, .crm .tb { transition:none !important;animation:none !important }
+}

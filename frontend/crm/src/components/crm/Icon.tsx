@@ -65,6 +65,12 @@ const PATHS = {
   ),
   inbox: <path d="M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6z" />,
   chev: <path d="M6 9l6 6 6-6" />,
+  clinic: (
+    <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20M12 7v6M9 10h6M10 21v-4h4v4" />
+  ),
+  logout: (
+    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9" />
+  ),
   search: (
     <>
       <circle cx="11" cy="11" r="7" />

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Figtree, Inter } from "next/font/google";
+import { MENU_BOOT } from "@/lib/menu-state";
 import "./globals.css";
 
 // Two fonts, as in the approved designs: Figtree on the sign-in pages, Inter inside the CRM.
@@ -13,7 +14,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${figtree.variable} ${inter.variable}`}>
+    // MENU_BOOT adds an attribute to <html> before React starts, which React would otherwise report.
+    <html lang="en" className={`${figtree.variable} ${inter.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MENU_BOOT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

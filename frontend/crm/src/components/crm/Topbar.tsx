@@ -1,7 +1,13 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import type { Clinic } from "@/lib/sample-data";
 import AddLeadForm from "@/components/leads/AddLeadForm";
 import { level } from "@/lib/access";
@@ -27,6 +33,8 @@ function ago(iso: string) {
   return `${Math.round(min / 1440)} d ago`;
 }
 
+type MenuName = "clinic" | "bell" | "profile";
+
 export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const crm = useCrm();
   // The bell shows only the request types left on in Settings → Bell notifications.
@@ -39,22 +47,52 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
   const inConsole = path.startsWith("/assistant");
   const compact = path === "/assistant/menu"; // the workflow canvas needs the whole page
   const router = useRouter();
-  const [open, setOpen] = useState<"profile" | "bell" | null>(null);
-  const menu = open === "profile";
-  const setMenu = (on: boolean) => setOpen(on ? "profile" : null);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState<MenuName | null>(null);
+  const clinicRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const openedByKeyboard = useRef(false);
 
-  // The menus close on any click outside them.
+  const toggleMenu = (name: MenuName, e: ReactMouseEvent) => {
+    openedByKeyboard.current = e.detail === 0; // Enter or Space, not a mouse click
+    setOpen(open === name ? null : name);
+  };
+
+  // The menus close on any click outside them and on Esc (which returns to the button that opened them).
   useEffect(() => {
     if (!open) return;
-    const ref = open === "profile" ? menuRef : bellRef;
-    const close = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(null);
+    const box = { clinic: clinicRef, bell: bellRef, profile: profileRef }[open]
+      .current;
+    if (openedByKeyboard.current)
+      box?.querySelector<HTMLElement>(".pmenu button")?.focus();
+    const onClick = (e: MouseEvent) => {
+      if (!box?.contains(e.target as Node)) setOpen(null);
     };
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(null);
+      box?.querySelector<HTMLElement>(":scope > button")?.focus();
+    };
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
+
+  // The up and down arrows move through the open menu.
+  const onMenuArrows = (e: ReactKeyboardEvent<HTMLElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const items = [
+      ...e.currentTarget.querySelectorAll<HTMLElement>(".pmenu.on button"),
+    ];
+    if (items.length === 0) return;
+    e.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const step = e.key === "ArrowDown" ? 1 : -1;
+    items[at < 0 ? 0 : (at + step + items.length) % items.length].focus();
+  };
 
   const go = (href: string) => {
     setOpen(null);
@@ -65,42 +103,89 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
     .filter((i) => !bellOff.includes(i.type))
     .slice(0, 8);
 
+  // Until the person's clinics have loaded, no name shows (not a clinic that may not be theirs).
+  const clinicName = crm.clinics.length > 0 ? crm.clinic : "";
+
   return (
-    <header className={`tb${compact ? " tb-compact" : ""}`}>
+    <header
+      className={`tb${compact ? " tb-compact" : ""}`}
+      onKeyDown={onMenuArrows}
+    >
       <button className="ham" aria-label="Open menu" onClick={onMenu}>
         <Icon name="menu" />
       </button>
-      <select
-        className="sel"
-        aria-label="Clinic"
-        value={crm.clinic}
-        onChange={(e) => crm.setClinic(e.target.value as Clinic)}
-      >
-        {crm.clinics.map((c) => (
-          <option key={c}>{c}</option>
-        ))}
-      </select>
+
+      {crm.clinics.length > 1 ? (
+        <div ref={clinicRef} className="tb-menu">
+          <button
+            className="tb-clinic"
+            aria-label={`Clinic: ${clinicName}`}
+            aria-haspopup="menu"
+            aria-expanded={open === "clinic"}
+            onClick={(e) => toggleMenu("clinic", e)}
+          >
+            <span className="tb-clinic-ic">
+              <Icon name="clinic" />
+            </span>
+            <span className="tb-clinic-n">{clinicName}</span>
+            <Icon name="chev" className="chev" />
+          </button>
+          <div
+            className={`pmenu tb-left${open === "clinic" ? " on" : ""}`}
+            role="menu"
+            aria-label="Clinic"
+          >
+            {crm.clinics.map((c) => (
+              <button
+                key={c}
+                role="menuitemradio"
+                aria-checked={c === crm.clinic}
+                onClick={() => {
+                  crm.setClinic(c as Clinic);
+                  setOpen(null);
+                }}
+              >
+                <span className="tb-clinic-n">{c}</span>
+                {c === crm.clinic && <Icon name="check" className="tb-tick" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="tb-clinic tb-clinic-one">
+          <span className="tb-clinic-ic">
+            <Icon name="clinic" />
+          </span>
+          <span className="tb-clinic-n">{clinicName}</span>
+        </div>
+      )}
+
       {level(crm.me, crm.clinic, "dash_open") !== "hidden" && (
-        <div className="seg" role="tablist" aria-label="Workspace">
+        <div
+          className={`seg tb-seg${inConsole ? " right" : ""}`}
+          role="tablist"
+          aria-label="Workspace"
+        >
+          <span className="tb-thumb" aria-hidden="true" />
           <button
             role="tab"
             aria-selected={!inConsole}
+            aria-label="CRM"
             className={inConsole ? "" : "on"}
             onClick={() => router.push("/dashboard")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <Icon name="team" />
-            CRM
+            <span>CRM</span>
           </button>
           <button
             role="tab"
             aria-selected={inConsole}
+            aria-label="Dashboard"
             className={inConsole ? "on" : ""}
             onClick={() => router.push("/assistant/appearance")}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <Icon name="dash" />
-            Dashboard
+            <span>Dashboard</span>
           </button>
         </div>
       )}
@@ -121,20 +206,23 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
       )}
       <div id="tb-slot" className="tb-slot" />
       <span className="sp" />
-      <div ref={bellRef} style={{ position: "relative" }}>
+
+      <div ref={bellRef} className="tb-menu">
         <button
-          className="ib"
-          aria-label="Notifications"
+          className="ib tb-bell"
+          aria-label={pending ? `Notifications, ${pending} waiting` : "Notifications"}
+          aria-haspopup="menu"
           aria-expanded={open === "bell"}
-          onClick={() => setOpen(open === "bell" ? null : "bell")}
+          onClick={(e) => toggleMenu("bell", e)}
         >
           <Icon name="bell" />
-          {!!pending && <b>{pending}</b>}
+          {/* Remounting on a new count replays the badge's pop. */}
+          {!!pending && <b key={pending}>{pending}</b>}
         </button>
         <div
-          className={`pmenu${open === "bell" ? " on" : ""}`}
-          style={{ top: 44, right: 0, width: 320 }}
+          className={`pmenu tb-notes${open === "bell" ? " on" : ""}`}
           role="menu"
+          aria-label="Notifications"
         >
           <div className="who">
             <b>Notifications</b>
@@ -142,41 +230,40 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
               {pending ? `${pending} waiting in the Inbox` : "Nothing waiting"}
             </span>
           </div>
-          {latest.map((i) => (
-            <button
-              key={i.id}
-              role="menuitem"
-              onClick={() => go(`/inbox?tab=${i.type}&open=${i.id}`)}
-            >
-              <span
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  minWidth: 0,
-                }}
+          <div className="tb-notes-list">
+            {latest.map((i) => (
+              <button
+                key={i.id}
+                role="menuitem"
+                onClick={() => go(`/inbox?tab=${i.type}&open=${i.id}`)}
               >
-                <span>
-                  {NOTICE[i.type] ?? "New request"} · {i.name}
+                <span className="tb-dot" aria-hidden="true" />
+                <span className="tb-note">
+                  <span>
+                    {NOTICE[i.type] ?? "New request"} · {i.name}
+                  </span>
+                  <small>
+                    {[i.treatment, ago(i.created_at)].filter(Boolean).join(" · ")}
+                  </small>
                 </span>
-                <small style={{ color: "var(--soft)", fontWeight: 500 }}>
-                  {[i.treatment, ago(i.created_at)].filter(Boolean).join(" · ")}
-                </small>
-              </span>
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
           <button
             role="menuitem"
-            style={{ color: "var(--brand)" }}
+            className="tb-all"
             onClick={() => go("/inbox")}
           >
             View all in Inbox
           </button>
         </div>
       </div>
+
       {/* Leads belong to the CRM: not shown in the Dashboard (the chatbot console). */}
       {!inConsole && level(crm.me, crm.clinic, "leads") === "edit" && (
         <button
-          className="btn"
+          className="btn tb-add"
+          aria-label="Add lead"
           onClick={() =>
             crm.openModal({
               title: "Add lead",
@@ -194,20 +281,22 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           <span className="hide-m">Add lead</span>
         </button>
       )}
-      <div ref={menuRef} style={{ position: "relative" }}>
+
+      <div ref={profileRef} className="tb-menu">
         <button
-          className="av"
+          className="av tb-av"
           id="avb"
           aria-label="Profile menu"
-          aria-expanded={menu}
-          onClick={() => setMenu(!menu)}
+          aria-haspopup="menu"
+          aria-expanded={open === "profile"}
+          onClick={(e) => toggleMenu("profile", e)}
         >
           {crm.me?.initials ?? ""}
         </button>
         <div
-          className={`pmenu${menu ? " on" : ""}`}
-          style={{ top: 44, right: 0 }}
+          className={`pmenu${open === "profile" ? " on" : ""}`}
           role="menu"
+          aria-label="Profile"
         >
           <div className="who">
             <b>{crm.me?.name}</b>
@@ -216,19 +305,22 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
             </span>
           </div>
           <button role="menuitem" onClick={() => go("/profile")}>
+            <Icon name="user" />
             My profile
           </button>
           <button role="menuitem" onClick={() => go("/settings")}>
+            <Icon name="set" />
             Settings
           </button>
           <button
             role="menuitem"
-            style={{ color: "var(--err)" }}
+            className="tb-out"
             onClick={() => {
-              setMenu(false);
+              setOpen(null);
               void crm.signOut();
             }}
           >
+            <Icon name="logout" />
             Sign out
           </button>
         </div>

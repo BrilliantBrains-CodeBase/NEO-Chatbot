@@ -30,6 +30,7 @@ function Frame({ children }: { children: ReactNode }) {
       if (e.key !== "Escape") return;
       if (modal) closeModal();
       else closeDrawer();
+      setMenuOpen(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -38,7 +39,8 @@ function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="crm">
       <div className="app">
-        <Suspense>
+        {/* The empty card holds the menu's place until its links load. */}
+        <Suspense fallback={<aside className="sb" aria-hidden="true" />}>
           <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
         </Suspense>
         <div className="main">
@@ -56,6 +58,10 @@ function Frame({ children }: { children: ReactNode }) {
         </div>
       </div>
 
+      <div
+        className={`sb-ov${menuOpen ? " on" : ""}`}
+        onClick={() => setMenuOpen(false)}
+      />
       <div className={`ov${drawer ? " on" : ""}`} onClick={closeDrawer} />
       <aside
         className={`dr${drawer ? " on" : ""}`}
