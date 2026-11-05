@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
   await page.locator('#neo-widget-CL01 .nb-launch').click();
 });
 
-test('7 cards in 3 columns above the greeting; Emergency spans the full row', async ({ page }) => {
+test('greeting above 7 cards in 3 columns; Emergency spans the full row', async ({ page }) => {
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const tiles = panel.locator('.nb-menu.cards3 .nb-tile');
   await expect(tiles).toHaveText([
@@ -29,11 +29,11 @@ test('7 cards in 3 columns above the greeting; Emergency spans the full row', as
     'WhatsApp',
     'Emergency',
   ]);
-  // Menu first, greeting under it.
+  // Greeting first, menu under it.
   const order = await panel
     .locator('.nb-body > *')
     .evaluateAll((els) => els.map((el) => el.className.split(' ')[0]));
-  expect(order.slice(0, 2)).toEqual(['nb-menu', 'nb-msg']);
+  expect(order.slice(0, 2)).toEqual(['nb-msg', 'nb-menu']);
 
   await settled(panel);
   const first = (await tiles.nth(0).boundingBox())!;

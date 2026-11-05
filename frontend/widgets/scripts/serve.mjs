@@ -13,8 +13,21 @@ const types = {
 };
 const port = Number(process.env.PORT || 4173);
 
+// The two questions the built widget asks before it shows: may it show here, and with what look.
+const answers = (pathname) => {
+  if (pathname === '/v1/widget/show') return { show: true, capture: false };
+  if (pathname.startsWith('/v1/widget/config/')) return { appearance: null, template: null };
+  return null;
+};
+
 createServer(async (req, res) => {
-  const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([/\\])+/, '');
+  const pathname = new URL(req.url, 'http://x').pathname;
+  const answer = answers(pathname);
+  if (answer) {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(answer));
+  }
+  const path = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, '');
   for (const dir of dirs) {
     const file = resolve(dir, path || 'index.html');
     if (!file.startsWith(dir)) break;
