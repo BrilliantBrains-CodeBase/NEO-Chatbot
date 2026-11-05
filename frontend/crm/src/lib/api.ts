@@ -184,6 +184,37 @@ export type LeadList = {
   items: LeadRow[];
   treatments?: string[];
 };
+export type PatientRow = {
+  code: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  source: string;
+  campaign: string | null;
+  treatment: string | null;
+  doctor: string | null;
+  stage: string;
+  assigned: string | null;
+  activity: string;
+  visits: number;
+  no_shows: number;
+  contacts: number;
+  consent: boolean;
+  first_visit: string | null;
+  last_visit: string | null;
+  next_visit: string | null;
+  last_contact_at: string;
+  created_at: string;
+};
+export type PatientList = {
+  total: number;
+  activities: Count[];
+  items: PatientRow[];
+  treatments: string[];
+  campaigns: string[];
+  doctors: { id: string; name: string }[];
+  staff: { id: string; name: string }[];
+};
 export type LeadImportNote = { row: number; name: string; reason: string };
 export type LeadImportResult = {
   ready: number;
