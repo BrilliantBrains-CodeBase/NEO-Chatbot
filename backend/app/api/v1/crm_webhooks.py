@@ -35,6 +35,9 @@ class Hook(BaseModel):
     events: list[str]
     active: bool
     log: list[LogLine]  # the last 10 attempts (send)
+    # send: the signing secret, so the receiving system can check X-Neo-Signature (admins only, like the
+    # receiving address's key)
+    secret: str | None = None
 
 
 class NewHook(BaseModel):
@@ -57,9 +60,9 @@ async def _list(clinic: str, request: Request) -> list[Hook]:
         for h in await conn.fetch(
             "select * from app.webhooks where clinic_id = $1 order by created_at", clinic
         ):
-            url = h["url"]
+            url, secret = h["url"], await vault.read(conn, h["secret"])
             if h["direction"] == "receive":
-                url = f"{base}/v1/integrations/webhooks/{h['id']}?key={await vault.read(conn, h['secret'])}"
+                url = f"{base}/v1/integrations/webhooks/{h['id']}?key={secret}"
             log = await conn.fetch(
                 "select * from app.webhook_log where webhook_id = $1 order by at desc limit 10", h["id"]
             )
@@ -71,6 +74,7 @@ async def _list(clinic: str, request: Request) -> list[Hook]:
                     url=url,
                     events=list(h["events"]),
                     active=h["active"],
+                    secret=secret if h["direction"] == "send" else None,
                     log=[
                         LogLine(
                             event=x["event"],

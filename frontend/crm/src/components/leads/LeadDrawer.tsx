@@ -239,6 +239,19 @@ export default function LeadDrawer({
                 onChange={reload}
               />
             )}
+            {lead.extra && Object.keys(lead.extra).length > 0 && (
+              <div className="sec">
+                <h4>MORE INFORMATION</h4>
+                <div className="kv">
+                  {Object.entries(lead.extra).map(([k, v]) => (
+                    <div key={k}>
+                      <span>{k}</span>
+                      <b>{v}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {lead.notes && (
               <div className="sec">
                 <h4>NOTES</h4>

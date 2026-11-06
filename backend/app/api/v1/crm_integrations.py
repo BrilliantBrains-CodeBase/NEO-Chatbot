@@ -45,6 +45,14 @@ async def integrations(
         clinic,
     )
     sheets_added = await pool.fetchval("select count(*) from app.lead_sheets where clinic_id = $1", clinic)
+    api: Any = await pool.fetchrow(
+        """select count(*) added, count(*) filter (where active) on_,
+             (select count(*) from app.api_log where clinic_id = $1 and ok
+              and at > now() - interval '7 days') n,
+             (select max(at) from app.api_log where clinic_id = $1) last
+           from app.api_endpoints where clinic_id = $1""",
+        clinic,
+    )
     wa = await pool.fetchval("select 1 from app.whatsapp_accounts where clinic_id = $1", clinic)
     gmail = await pool.fetchval("select address from app.email_senders where clinic_id = $1", clinic)
     forms = await pool.fetchrow(
@@ -88,6 +96,16 @@ async def integrations(
             detail=[f"{forms['added']} form(s) added, {forms['on_']} on",
                     f"{forms['n']} leads received in the last 7 days"],
             last=forms["last"].isoformat() if forms["last"] else None,
+        ),
+        Integration(
+            id="api", name="Lead & Booking API",
+            does="Your own address and key for any system to send leads and booking requests, matched from a "
+            "sample of its JSON.",
+            state="connected" if api["on_"] else "not_connected",
+            detail=[
+                f"{api['added']} endpoint(s), {api['on_']} on", f"{api['n']} calls taken in the last 7 days"
+            ],
+            last=api["last"].isoformat() if api["last"] else None,
         ),
         Integration(
             id="webhooks", name="Webhooks",

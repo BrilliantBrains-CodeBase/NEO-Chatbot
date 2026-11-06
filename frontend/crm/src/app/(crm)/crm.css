@@ -1055,3 +1055,131 @@
 @media (prefers-reduced-motion: reduce) {
   .crm .ch-seg, .crm .db-stale, .crm .db-kpi { transition:none }
 }
+
+/* ---------- Chatbot → Website install ---------- */
+.crm .wi { max-width:1180px }
+.crm .wi .ph { align-items:center }
+.crm .wi-pill { display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font-size:var(--fs-small);font-weight:600;white-space:nowrap;background:var(--panel);color:var(--soft) }
+.crm .wi-pill i { width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto }
+.crm .wi-pill.live { background:var(--okt);color:var(--ok) }
+.crm .wi-pill.live i { box-shadow:0 0 0 3px rgba(31,138,76,.18) }
+.crm .wi-pill.wait { background:var(--warnt);color:var(--warn) }
+.crm .wi-pill.warn { background:var(--errt);color:var(--err) }
+.crm .wi-steps { list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px }
+.crm .wi-steps li { display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:var(--fs-sec);font-weight:600;color:var(--soft) }
+.crm .wi-steps li span { width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--panel);font-size:var(--fs-small);flex:0 0 auto }
+.crm .wi-steps li.done { color:var(--ink) }
+.crm .wi-steps li.done span { background:var(--ok);color:#fff }
+.crm .wi-steps li.now { border-color:var(--accent);color:var(--brand);box-shadow:0 0 0 3px var(--tint) }
+.crm .wi-steps li.now span { background:var(--brand);color:#fff }
+.crm .wi-grid { display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:16px;align-items:start }
+.crm .wi-col { display:flex;flex-direction:column;gap:12px;min-width:0 }
+.crm .wi-col-h { display:flex;align-items:center;justify-content:space-between;gap:8px }
+.crm .wi-col-h h3, .crm .wi-guides h3 { margin:0;font-size:var(--fs-title) }
+.crm .wi-add { display:flex;flex-direction:column;gap:8px }
+.crm .wi-add label { display:flex;flex-direction:column;gap:5px;font-size:var(--fs-small);font-weight:600 }
+.crm .wi-add p { margin:0 }
+.crm .wi-empty { display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:20px }
+.crm .wi-site { display:flex;flex-direction:column;gap:10px }
+.crm .wi-site.rejected { opacity:.75 }
+.crm .wi-site-h { display:flex;align-items:center;gap:10px;flex-wrap:wrap }
+.crm .wi-avatar { width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--tint);color:var(--brand);font-weight:700;flex:0 0 auto }
+.crm .wi-site-t { display:flex;flex-direction:column;min-width:0;flex:1 }
+.crm .wi-site-t a { font-weight:700;color:var(--ink);text-decoration:none;overflow-wrap:anywhere }
+.crm .wi-site-t a:hover { color:var(--accent);text-decoration:underline }
+.crm .wi-note { margin:0;padding:8px 10px;border-radius:9px;background:var(--errt);color:var(--err);font-size:var(--fs-small);font-weight:500 }
+.crm .wi-actions { display:flex;align-items:center;gap:6px;flex-wrap:wrap }
+.crm .wi-small { margin:0;font-size:var(--fs-small) }
+.crm .wi-switch { display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-sec);font-weight:600;color:var(--soft);cursor:pointer;margin-left:4px }
+.crm .wi-switch input { position:absolute;opacity:0;width:1px;height:1px }
+.crm .wi-switch span { width:34px;height:20px;border-radius:999px;background:#CBD3DF;position:relative;transition:background .15s;flex:0 0 auto }
+.crm .wi-switch span::after { content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2) }
+.crm .wi-switch input:checked + span { background:var(--ok) }
+.crm .wi-switch input:checked + span::after { transform:translateX(14px) }
+.crm .wi-switch input:focus-visible + span { outline:2px solid var(--accent);outline-offset:2px }
+.crm .wi-more { position:relative;margin-left:auto }
+.crm .wi-more summary { list-style:none;cursor:pointer;width:32px;height:32px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;font-weight:700;color:var(--soft) }
+.crm .wi-more summary::-webkit-details-marker { display:none }
+.crm .wi-more > div { position:absolute;right:0;top:calc(100% + 6px);z-index:5;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 30px -16px rgba(22,32,46,.4);padding:6px;min-width:220px;display:flex;flex-direction:column }
+.crm .wi-more button { border:0;background:none;text-align:left;padding:8px 10px;border-radius:8px;font:inherit;font-size:var(--fs-sec);cursor:pointer;color:var(--ink) }
+.crm .wi-more button:hover { background:var(--panel) }
+.crm .wi-more button.danger { color:var(--err) }
+.crm .wi-pages { display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;background:var(--panel) }
+.crm .wi-pages .seg { margin-left:0;align-self:flex-start }
+.crm .wi-pages textarea { min-height:70px }
+.crm .wi-code { display:flex;flex-direction:column;gap:10px }
+.crm .wi-pre { margin:0;padding:12px 14px;border-radius:10px;background:#0F1A2A;color:#D7E3F7;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-small);line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;cursor:copy }
+.crm .wi-pre:hover { background:#13213A }
+.crm .wi-facts { margin:0;padding-left:18px;font-size:var(--fs-sec);color:var(--soft);display:flex;flex-direction:column;gap:4px }
+.crm .wi code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;background:var(--panel);padding:1px 5px;border-radius:5px }
+.crm .wi-pre code { background:none;padding:0;font-size:inherit }
+.crm .wi-guides { display:flex;flex-direction:column;gap:12px }
+.crm .wi-tabs { display:flex;gap:6px;flex-wrap:wrap }
+.crm .wi-tabs button { border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font:inherit;font-size:var(--fs-small);font-weight:600;color:var(--soft);cursor:pointer }
+.crm .wi-tabs button.on { background:var(--brand);border-color:var(--brand);color:#fff }
+.crm .wi-howto { margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px;font-size:var(--fs-sec);line-height:1.5 }
+.crm .wi-help { display:flex;flex-direction:column;padding:4px 16px }
+.crm .wi-help details { border-top:1px solid var(--line) }
+.crm .wi-help details:first-child { border-top:0 }
+.crm .wi-help summary { cursor:pointer;padding:12px 0;font-weight:700;font-size:var(--fs-sec) }
+.crm .wi-help ul { margin:0 0 12px;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:var(--fs-sec);line-height:1.5;color:var(--ink) }
+@media (max-width:1000px) {
+  .crm .wi-grid { grid-template-columns:minmax(0,1fr) }
+}
+@media (max-width:640px) {
+  .crm .wi-steps { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .crm .wi-more { margin-left:0 }
+  .crm .wi-site-t { flex:1 1 calc(100% - 46px) }
+  .crm .wi-site-h .wi-pill { margin-left:46px }
+}
+
+/* ---------- Chatbot → Integrations (shares the Website install pieces: .wi-*) ---------- */
+.crm .ig-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px }
+.crm .ig-tile { display:flex;flex-direction:column;gap:10px;transition:border-color .15s,box-shadow .15s }
+.crm .ig-tile:hover { border-color:#C9D5EA;box-shadow:0 6px 18px -10px rgba(22,32,46,.25) }
+.crm .ig-tile h3 { margin:0;font-size:var(--fs-title) }
+.crm .ig-tile-h { display:flex;align-items:center;justify-content:space-between;gap:8px }
+.crm .ig-icon { width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--tint);color:var(--brand);flex:0 0 auto }
+.crm .ig-icon svg { width:20px;height:20px }
+.crm .ig-icon.big { width:52px;height:52px;border-radius:14px }
+.crm .ig-icon.big svg { width:26px;height:26px }
+.crm .ig-tile.on .ig-icon { background:var(--okt);color:var(--ok) }
+.crm .ig-cat { font-size:var(--fs-small) }
+.crm .ig-line { margin:0;font-size:var(--fs-sec);line-height:1.45;color:var(--ink) }
+.crm .ig-stat { margin:0;font-size:var(--fs-small);overflow-wrap:anywhere }
+.crm .ig-foot { margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;border-top:1px solid var(--line) }
+.crm .ig-back { margin-bottom:10px;display:inline-block }
+.crm .ig-title { display:flex;align-items:center;gap:14px }
+.crm .ig-setup, .crm .ig-info { display:flex;flex-direction:column;gap:12px;min-width:0 }
+.crm .ig-info h3 { margin:0;font-size:var(--fs-title) }
+.crm .ig-block { display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line) }
+.crm .ig-label { display:flex;flex-direction:column;gap:3px;font-weight:600;font-size:var(--fs-sec) }
+.crm .ig-dev { display:flex;flex-direction:column;gap:10px;margin-bottom:12px;font-size:var(--fs-sec);line-height:1.5 }
+.crm .ig-dev p { margin:0 }
+@media (max-width:1100px) {
+  .crm .ig-grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+}
+@media (max-width:640px) {
+  .crm .ig-grid { grid-template-columns:minmax(0,1fr) }
+  .crm .ig-title { align-items:flex-start }
+}
+
+/* Integrations → Lead & Booking API */
+.crm .ig-ep { display:flex;flex-direction:column;gap:16px;padding-top:12px;border-top:1px solid var(--line) }
+.crm .ig-ep section { display:flex;flex-direction:column;gap:8px;min-width:0 }
+.crm .ig-ep h4 { margin:0;font-size:var(--fs-sec);font-weight:700 }
+.crm .ig-ep p { margin:0 }
+.crm .ig-kv { display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;font-size:var(--fs-small) }
+.crm .ig-kv > span:nth-child(3n+1) { font-weight:700;color:var(--soft) }
+.crm .ig-kv code { overflow-wrap:anywhere }
+.crm .ig-json { width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:var(--fs-small);min-height:150px }
+.crm .ig-map { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px }
+.crm .ig-map label { display:flex;flex-direction:column;gap:4px;font-size:var(--fs-small);font-weight:600;color:var(--soft);min-width:0 }
+.crm .ig-map .f { width:100%;min-width:0 }
+.crm .ig-preview { display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:10px;background:var(--panel) }
+.crm .ig-log { list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:var(--fs-small) }
+.crm .ig-log li { display:flex;gap:8px;align-items:center;flex-wrap:wrap }
+@media (max-width:640px) {
+  .crm .ig-map { grid-template-columns:minmax(0,1fr) }
+  .crm .ig-kv { grid-template-columns:minmax(0,1fr) }
+}

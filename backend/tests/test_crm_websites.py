@@ -131,7 +131,7 @@ async def test_integrations_status_never_shows_keys(
     headers = signed_in_as(monkeypatch, str(admin))
     r = await api.get("/v1/crm/console/NFHT/integrations", headers=headers)
     assert r.status_code == 200
-    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "forms", "webhooks", "whatsapp", "email"]
+    assert [i["id"] for i in r.json()] == ["calcom", "sheet", "forms", "api", "webhooks", "whatsapp", "email"]
     s = get_settings()
     for key in (s.calcom_api_key, s.sheet_webhook_secret, s.interakt_api_key):
         assert not key or key not in r.text  # keys are never sent
@@ -548,6 +548,8 @@ async def test_webhooks_send_and_receive(api: AsyncClient, monkeypatch: pytest.M
             secret = await vault.read(conn, secret_id) or ""
         sig = "sha256=" + hmac.new(secret.encode(), got[1].content, hashlib.sha256).hexdigest()
         assert got[1].headers["x-neo-signature"] == sig
+        # The signing secret is shown to admins for a sending webhook, so the other side can check signatures.
+        assert out["secret"] == secret and inbox["secret"] is None
         [listed] = [h for h in (await api.get(url, headers=headers)).json() if h["direction"] == "send"]
         assert [(x["attempt"], x["ok"]) for x in listed["log"]] == [(2, True), (1, False)]
     finally:

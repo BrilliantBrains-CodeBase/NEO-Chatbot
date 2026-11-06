@@ -23,6 +23,7 @@ type Hook = {
   events: string[];
   active: boolean;
   log: LogLine[];
+  secret?: string | null; // send: to check X-Neo-Signature on their side
 };
 
 const EVENTS: [string, string][] = [
@@ -40,6 +41,7 @@ export default function WebhooksPanel({ clinicId }: { clinicId: string }) {
   const [address, setAddress] = useState("");
   const [events, setEvents] = useState<string[]>(["lead_new"]);
   const [open, setOpen] = useState<string | null>(null);
+  const [shown, setShown] = useState<string | null>(null); // the webhook whose signing secret is shown
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const url = `/v1/crm/console/${clinicId}/integrations/webhooks`;
@@ -149,6 +151,26 @@ export default function WebhooksPanel({ clinicId }: { clinicId: string }) {
                   <p style={{ margin: "0 0 4px", wordBreak: "break-all" }}>
                     To: {h.url}
                   </p>
+                  {h.secret && (
+                    <p style={{ margin: "0 0 4px", wordBreak: "break-all" }}>
+                      Signing secret:{" "}
+                      <code>{shown === h.id ? h.secret : "••••••••••••"}</code>{" "}
+                      <button className="lnk" onClick={() => setShown(shown === h.id ? null : h.id)}>
+                        {shown === h.id ? "Hide" : "Show"}
+                      </button>{" "}
+                      <button
+                        className="lnk"
+                        onClick={() =>
+                          navigator.clipboard.writeText(h.secret ?? "").then(
+                            () => toast("Signing secret copied"),
+                            () => toast("Show it and copy it"),
+                          )
+                        }
+                      >
+                        Copy
+                      </button>
+                    </p>
+                  )}
                   <p className="sub2" style={{ margin: "0 0 6px" }}>
                     Events:{" "}
                     {h.events

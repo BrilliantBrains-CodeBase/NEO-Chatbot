@@ -241,9 +241,10 @@ class LeadDetail(LeadRow):
     verified: bool
     events: list[LeadEvent]
     chat: list[ChatLine]  # the latest chat, oldest first
+    extra: dict[str, str] = {}  # More information, from an outside system (Lead & Booking API)
 
 
-SOURCE_FILTER = "^(chatbot|meta_ads|google_ads|manual|whatsapp|website_form)$"
+SOURCE_FILTER = "^(chatbot|meta_ads|google_ads|manual|whatsapp|website_form|api)$"
 LEAD_SELECT = """select l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
     d.name doctor, l.doctor_id, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to,
     l.contact_count,
@@ -377,7 +378,7 @@ def bulk_access(user: Staff, clinic: str) -> None:
 
 SOURCE_LABEL = {
     "chatbot": "Chatbot", "meta_ads": "Meta Ads", "google_ads": "Google Ads", "manual": "Manual",
-    "whatsapp": "WhatsApp", "website_form": "Website form",
+    "whatsapp": "WhatsApp", "website_form": "Website form", "api": "API",
 }  # fmt: skip
 EXPORT_COLUMNS = ["Code", "Name", "Phone", "Email", "Treatment", "Source", "Campaign", "Doctor", "Stage",
                   "Assigned", "Created", "Last contact"]  # fmt: skip
@@ -482,7 +483,7 @@ async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> Lead
                 LEAD_SELECT.replace(
                     "l.created_at",
                     "l.created_at, l.id, l.clinic_id, l.stage_reason, l.notes,"
-                    " l.page_url, l.device, l.verified",
+                    " l.page_url, l.device, l.verified, l.extra",
                 )
             } where l.lead_code = $1 and l.deleted_at is null""",
             code,
@@ -507,6 +508,7 @@ async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> Lead
         | {
             "stage_reason": r["stage_reason"], "notes": r["notes"], "page_url": r["page_url"],
             "device": r["device"], "verified": r["verified"],
+            "extra": {str(k): str(v) for k, v in _obj(r["extra"]).items()},
             "events": [
                 {"kind": e[0], "data": json.loads(e[1]) if isinstance(e[1], str) else e[1], "by": e[2],
                  "at": e[3].isoformat()}
@@ -740,6 +742,10 @@ async def log_call(user: Annotated[Staff, Depends(staff)], code: str, body: Call
         await _event(conn, lead, user, "call", {"outcome": body.outcome, "text": body.text.strip()})
         await conn.execute("update app.leads set last_contact_at = now() where id = $1", lead["id"])
     return await lead_detail(user, code)
+
+
+def _obj(v: Any) -> dict[str, Any]:
+    return dict(json.loads(v) if isinstance(v, str) else v or {})
 
 
 class Option(BaseModel):

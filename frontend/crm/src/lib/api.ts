@@ -268,6 +268,7 @@ export type LeadDetail = LeadRow & {
     at: string;
   }[];
   chat: { role: string; text: string; at: string }[];
+  extra?: Record<string, string>; // More information (Lead & Booking API)
 };
 
 export type StaffOption = { id: string; name: string; role_label: string };

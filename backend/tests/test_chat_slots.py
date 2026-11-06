@@ -158,8 +158,10 @@ async def test_new_sources_lost_wording_and_settings(tx: asyncpg.Connection) -> 
         "values ('CL99', 'Walk In', '+919800000005', 'walk_in') returning id"
     )
     await tx.execute("update app.leads set stage = 'lost', stage_reason = 'no_response' where id = $1", lead)
+    # "Not reachable", as the CRM offers it (migration 0041); an unknown reason is still refused.
+    await tx.execute("update app.leads set stage_reason = 'not_reachable' where id = $1", lead)
     with pytest.raises(asyncpg.exceptions.CheckViolationError):
-        await tx.execute("update app.leads set stage_reason = 'not_reachable' where id = $1", lead)
+        await tx.execute("update app.leads set stage_reason = 'no_idea' where id = $1", lead)
 
 
 async def test_audit_is_trimmed_after_one_year(tx: asyncpg.Connection) -> None:

@@ -18,6 +18,7 @@ export const SOURCE: Record<string, string> = {
   manual: "Manual",
   whatsapp: "WhatsApp",
   website_form: "Website form",
+  api: "API",
 };
 export const EVENT: Record<string, string> = {
   contact: "Contacted",
