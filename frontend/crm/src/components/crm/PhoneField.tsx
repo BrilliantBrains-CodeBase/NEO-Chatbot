@@ -7,6 +7,11 @@ import { COUNTRY_CODES } from "@/lib/countries";
 
 const BY_LENGTH = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
 
+/** The country code and the number, e.g. "+91" and "9876543210". */
+export function phoneParts(value: string): { code: string; digits: string } {
+  return split(value);
+}
+
 function split(value: string): { code: string; digits: string } {
   const found = BY_LENGTH.find((c) => value.startsWith(c.code));
   return found ? { code: found.code, digits: value.slice(found.code.length) } : { code: "+91", digits: value.replace(/^\+/, "") };

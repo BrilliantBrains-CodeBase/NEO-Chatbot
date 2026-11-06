@@ -209,6 +209,7 @@ export type LeadRow = {
   last_contact_at: string;
   created_at: string;
   pending: number; // requests waiting for the owner ("Needs action")
+  doctor_id?: string | null; // the preferred doctor (Edit details)
 };
 export type LeadList = {
   total: number;

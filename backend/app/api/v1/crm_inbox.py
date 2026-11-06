@@ -619,6 +619,58 @@ async def _calcom[T](call: Awaitable[T]) -> T:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
 
 
+async def _apply(
+    conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, Any], change: Approve, user: Staff
+) -> asyncpg.Record:
+    """Changes agreed with the patient on the phone: a note, the treatment (on the request and the lead),
+    and for a booking its held time and doctor. Returns the request as it is now."""
+    kind = r["type"]
+    if change.note.strip():
+        lead = {"id": r["lead_id"], "clinic_id": r["clinic_id"]}
+        await _event(conn, lead, user, "note", {"text": change.note.strip()})
+    if change.treatment and kind in ("book", "online", "reschedule"):
+        data["treatment"] = change.treatment.strip()
+        await conn.execute(
+            "update app.leads set treatment = $2 where id = $1", r["lead_id"], data["treatment"]
+        )
+        await conn.execute(
+            "update app.requests set data = data || $2::jsonb where id = $1",
+            r["id"], json.dumps({"treatment": data["treatment"]}),
+        )  # fmt: skip
+    if kind in ("book", "online") and r["a_id"] and (change.date or change.time):
+        await _move(conn, r, change.date, change.time, change.doctor_id)
+        r = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
+    return r
+
+
+@router.post("/requests/{request_id}/change", response_model=InboxItem)
+async def change_request(user: Annotated[Staff, Depends(staff)], request_id: str, body: Approve) -> InboxItem:
+    """Save changes agreed on the phone to a waiting booking or online consult (treatment, day, time, doctor)
+    without confirming it: it stays waiting, holding the new time, until it is approved."""
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        r = await _pending(conn, user, request_id)
+        if r["type"] not in ("book", "online"):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Only a booking can be changed here.")
+        if not (body.treatment or body.date or body.time or body.note.strip()):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Nothing to change.")
+        data: dict[str, Any] = json.loads(r["data"]) if isinstance(r["data"], str) else r["data"]
+        before = (r["a_start"], r["a_day"], r["a_doctor"])
+        r = await _apply(conn, r, data, body, user)
+        lead = {"id": r["lead_id"], "clinic_id": r["clinic_id"]}
+        shown: dict[str, object] = {"type": r["type"], "status": "changed"}
+        if body.treatment:
+            shown["treatment"] = body.treatment.strip()
+        if (r["a_start"], r["a_day"], r["a_doctor"]) != before:
+            when = (
+                r["a_start"].isoformat() if r["a_start"] else (r["a_day"].isoformat() if r["a_day"] else None)
+            )
+            shown |= {"when": when, "doctor": r["a_doctor"]}
+        await _event(conn, lead, user, "request", shown)
+        row = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
+    return _item(row)
+
+
 @router.post("/requests/{request_id}/approve", response_model=InboxItem)
 async def approve(
     user: Annotated[Staff, Depends(staff)], request_id: str, body: Approve | None = None
@@ -639,21 +691,7 @@ async def approve(
                 "This patient has no email for the Meet link. Add it first.",
             )
         change = body or Approve()
-        if change.note.strip():
-            lead = {"id": r["lead_id"], "clinic_id": r["clinic_id"]}
-            await _event(conn, lead, user, "note", {"text": change.note.strip()})
-        if change.treatment and kind in ("book", "online", "reschedule"):
-            data["treatment"] = change.treatment.strip()
-            await conn.execute(
-                "update app.leads set treatment = $2 where id = $1", r["lead_id"], data["treatment"]
-            )
-            await conn.execute(
-                "update app.requests set data = data || $2::jsonb where id = $1",
-                r["id"], json.dumps({"treatment": data["treatment"]}),
-            )  # fmt: skip
-        if kind in ("book", "online") and r["a_id"] and (change.date or change.time):
-            await _move(conn, r, change.date, change.time, change.doctor_id)
-            r = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
+        r = await _apply(conn, r, data, change, user)
         if kind == "reschedule" and (change.date or change.time):
             data["date"] = change.date or data.get("date")
             data["time"] = change.time or data.get("time") or "any"
@@ -851,6 +889,53 @@ async def appointments(
             for r in rows
         ],
     )
+
+
+@router.get("/leads/{code}/appointments", response_model=list[Appointment])
+async def lead_appointments(user: Annotated[Staff, Depends(staff)], code: str) -> list[Appointment]:
+    """A lead's upcoming appointments (waiting or confirmed, today onwards), earliest first: the Lead
+    drawer's "Appointments", where a confirmed one is rescheduled."""
+    code = current_lead(code)
+    pool = await get_pool()
+    clinic = await pool.fetchval(
+        "select clinic_id from app.leads where lead_code = $1 and deleted_at is null", code
+    )
+    if clinic is None or not in_clinic(user, clinic):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
+    await perm.require(pool, user, clinic, "leads", "view")  # Who sees what
+    rows = await pool.fetch(
+        """select a.id, lower(a.slot) start, d.id doctor_id, d.name doctor, a.type, a.status, a.meet_link,
+             l.lead_code, l.full_name, l.phone_e164, l.email, l.treatment, l.stage,
+             coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date) as day,
+             to_char(lower(a.slot) at time zone c.timezone, 'HH24:MI') tm
+           from app.appointments a join app.leads l on l.id = a.lead_id
+           join app.clinics c on c.id = a.clinic_id left join app.doctors d on d.id = a.doctor_id
+           where l.lead_code = $1 and l.deleted_at is null and a.status in ('pending', 'confirmed')
+             and coalesce((lower(a.slot) at time zone c.timezone)::date, a.preferred_date)
+                 >= (now() at time zone c.timezone)::date
+           order by day, lower(a.slot) nulls last""",
+        code,
+    )
+    return [
+        Appointment(
+            id=str(r["id"]),
+            start=r["start"].isoformat() if r["start"] else None,
+            day=r["day"].isoformat(),
+            time=r["tm"],
+            doctor=r["doctor"],
+            doctor_id=str(r["doctor_id"]) if r["doctor_id"] else None,
+            type=r["type"],
+            status=r["status"],
+            meet_link=r["meet_link"],
+            lead_code=r["lead_code"],
+            name=r["full_name"],
+            phone=r["phone_e164"],
+            email=r["email"],
+            treatment=r["treatment"],
+            stage=r["stage"],
+        )  # fmt: skip
+        for r in rows
+    ]
 
 
 class StatusIn(BaseModel):

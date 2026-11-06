@@ -210,6 +210,7 @@ class LeadRow(BaseModel):
     last_contact_at: str
     created_at: str
     pending: int = 0  # requests waiting for the owner (book, cancel, call back...): "Needs action"
+    doctor_id: str | None = None  # the preferred doctor's id (Edit details)
 
 
 class LeadList(BaseModel):
@@ -244,7 +245,8 @@ class LeadDetail(LeadRow):
 
 SOURCE_FILTER = "^(chatbot|meta_ads|google_ads|manual|whatsapp|website_form)$"
 LEAD_SELECT = """select l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
-    d.name doctor, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to, l.contact_count,
+    d.name doctor, l.doctor_id, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to,
+    l.contact_count,
     l.last_contact_at, (select count(*) from app.requests rq where rq.lead_id = l.id
       and rq.status = 'pending') pending, l.created_at
   from app.leads l left join app.doctors d on d.id = l.doctor_id
@@ -259,6 +261,7 @@ def lead_row(r: Record) -> dict[str, object]:
         "assigned_id": str(r["assigned_to"]) if r["assigned_to"] else None,
         "contacts": r["contact_count"], "last_contact_at": r["last_contact_at"].isoformat(),
         "created_at": r["created_at"].isoformat(), "pending": r["pending"],
+        "doctor_id": str(r["doctor_id"]) if r["doctor_id"] else None,
     }  # fmt: skip
 
 
@@ -551,6 +554,21 @@ class LeadChange(BaseModel):
     stage: Literal["new", "follow_up", "booked", "visited", "lost", "invalid"] | None = None
     stage_reason: str | None = None  # needed for lost and invalid, from LOST / INVALID
     assigned_to: str | None = None  # a staff id, or "" to unassign
+    # Details (Edit details): only the ones sent change; "" clears email, treatment, doctor or type.
+    name: str | None = Field(default=None, max_length=100)
+    phone: str | None = Field(default=None, max_length=20)  # the number without its country code
+    phone_cc: str = Field(default="+91", pattern=r"^\+[1-9][0-9]{0,3}$")
+    email: str | None = Field(default=None, max_length=200)
+    treatment: str | None = Field(default=None, max_length=100)
+    doctor_id: str | None = None
+    type: Literal["in_clinic", "online", ""] | None = None
+
+
+DETAILS = ("name", "phone", "email", "treatment", "doctor_id", "type")
+DETAIL_LABEL = {
+    "full_name": "Name", "phone_e164": "Phone", "email": "Email", "treatment": "Treatment",
+    "doctor_id": "Doctor", "appointment_type": "Type",
+}  # fmt: skip
 
 
 class NoteIn(BaseModel):
@@ -564,8 +582,9 @@ class CallIn(BaseModel):
 
 async def _lead_for_edit(conn: Connection, user: Staff, code: str) -> Record:
     r = await conn.fetchrow(
-        "select id, clinic_id, stage, assigned_to from app.leads where lead_code = $1 and deleted_at is null "
-        "for update",
+        """select id, clinic_id, stage, assigned_to, full_name, phone_e164, phone_cc, email, treatment,
+             doctor_id, appointment_type from app.leads where lead_code = $1 and deleted_at is null
+           for update""",
         code,
     )
     if r is None or not in_clinic(user, r["clinic_id"]):
@@ -623,7 +642,83 @@ async def change_lead(user: Annotated[Staff, Depends(staff)], code: str, body: L
                 )
                 name = await conn.fetchval("select full_name from app.profiles where id::text = $1", to)
                 await _event(conn, lead, user, "assigned", {"to": name or "Unassigned"})
+        if body.model_fields_set & set(DETAILS):
+            await _change_details(conn, lead, user, body)
     return await lead_detail(user, code)
+
+
+async def _change_details(conn: Connection, lead: Record, user: Staff, body: LeadChange) -> None:
+    """Edit details: what the first call corrected or added. Each change goes on the timeline (old -> new)."""
+    sent = body.model_fields_set
+    new: dict[str, Any] = {}
+    if "name" in sent:
+        name = " ".join((body.name or "").split())
+        if not 2 <= len(name) <= 100:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Enter the patient's name.")
+        new["full_name"] = name
+    if "phone" in sent:
+        phone = normal_phone(body.phone or "", body.phone_cc)
+        if not phone:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Enter a valid mobile number.")
+        cc, number = phone.split(" ", 1)
+        other = await conn.fetchval(
+            """select lead_code from app.leads where clinic_id = $1 and phone_e164 = $2 and deleted_at is null
+                 and id <> $3""",
+            lead["clinic_id"], cc + number, lead["id"],
+        )  # fmt: skip
+        if other:
+            raise HTTPException(status.HTTP_409_CONFLICT, f"This number is already lead {other}.")
+        new["phone_e164"], new["phone_cc"] = cc + number, cc
+    if "email" in sent:
+        email = (body.email or "").strip().lower() or None
+        if email and not EMAIL.match(email):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "Enter a valid email or leave it empty."
+            )
+        new["email"] = email
+    if "treatment" in sent:
+        new["treatment"] = " ".join((body.treatment or "").split()) or None
+    if "doctor_id" in sent:
+        doctor = body.doctor_id or None
+        if doctor and not await conn.fetchval(
+            "select 1 from app.doctors where id::text = $1 and clinic_id = $2 and active",
+            doctor, lead["clinic_id"],
+        ):  # fmt: skip
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Choose one of the clinic's doctors.")
+        new["doctor_id"] = doctor
+    if "type" in sent:
+        new["appointment_type"] = body.type or None
+
+    def text(v: Any) -> str | None:
+        return None if v is None else str(v)
+
+    changed = {k: v for k, v in new.items() if text(lead[k]) != text(v)}
+    if not changed:
+        return
+    marks = ", ".join(
+        f"{k} = ${i + 2}" + ("::uuid" if k == "doctor_id" else "") for i, k in enumerate(changed)
+    )
+    await conn.execute(
+        f"update app.leads set {marks}, updated_at = now() where id = $1", lead["id"], *changed.values()
+    )
+
+    async def shown(k: str, v: Any) -> str:
+        if v is None:
+            return "—"
+        if k == "doctor_id":
+            return str(await conn.fetchval("select name from app.doctors where id::text = $1", str(v)) or "—")
+        if k == "appointment_type":
+            return "Online" if v == "online" else "In-clinic"
+        return str(v)
+
+    record = {
+        DETAIL_LABEL[k]: [await shown(k, lead[k]), await shown(k, v)]
+        for k, v in changed.items()
+        if k in DETAIL_LABEL
+    }
+    # A timeline note (the kinds of events are fixed), with the before and after kept for the record.
+    summary = "; ".join(f"{k}: {a} → {b}" for k, (a, b) in record.items())
+    await _event(conn, lead, user, "note", {"text": f"Details changed: {summary}", "changes": record})
 
 
 @router.post("/leads/{code}/notes", response_model=LeadDetail)
@@ -661,7 +756,9 @@ class LeadOptions(BaseModel):
 async def lead_options(
     user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=CLINIC_CODE)]
 ) -> LeadOptions:
-    """Choices for the Add lead form: the clinic's treatments (as in the chatbot) and active doctors."""
+    """Choices for the Add lead and Edit details forms and the booking forms: the clinic's treatments (as in
+    the chatbot) and active doctors. Treatments: the clinic's content file where it has one, else what its
+    published chat offers to book (Clinic info → Services: booking options, else the treatments listed)."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
     c = content(clinic) or {}
@@ -669,10 +766,16 @@ async def lead_options(
     rows = await pool.fetch(
         "select id, name from app.doctors where clinic_id = $1 and active order by sort_order, name", clinic
     )
-    return LeadOptions(
-        treatments=list(c.get("config", {}).get("treatments", [])),
-        doctors=[Option(id=str(r[0]), name=r[1]) for r in rows],
-    )
+    treatments = list(c.get("config", {}).get("treatments", []))
+    if not treatments:
+        raw = await pool.fetchval(
+            "select published->'services' from app.clinic_settings where clinic_id = $1", clinic
+        )
+        services = json.loads(raw) if isinstance(raw, str) else (raw or {})
+        offered = [o for o in services.get("booking_options") or [] if o not in ("Not sure yet", "Other")]
+        listed = [i["name"] for i in services.get("items") or [] if i.get("show", True) and i.get("name")]
+        treatments = list(dict.fromkeys(offered or listed))
+    return LeadOptions(treatments=treatments, doctors=[Option(id=str(r[0]), name=r[1]) for r in rows])
 
 
 class NewLead(BaseModel):

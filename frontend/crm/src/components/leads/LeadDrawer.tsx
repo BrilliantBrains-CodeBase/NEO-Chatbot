@@ -5,11 +5,20 @@ import { useCrm } from "@/components/crm/CrmProvider";
 import AssignControls from "@/components/inbox/AssignControls";
 import RequestCard from "@/components/inbox/RequestCard";
 import { level } from "@/lib/access";
-import { api, ApiError, type InboxItem, type LeadDetail, type LeadOptions } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type InboxItem,
+  type LeadDetail,
+  type LeadOptions,
+} from "@/lib/api";
+import EditDetails from "./EditDetails";
 import { EVENT, SOURCE, STAGE_LABEL, when } from "./labels";
 import LeadActions from "./LeadActions";
+import LeadAppointments from "./LeadAppointments";
 
-const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could not load this lead.");
+const errorText = (e: unknown) =>
+  e instanceof ApiError ? e.message : "Could not load this lead.";
 
 /** The lead drawer, the same from Leads and from the Inbox. A lead without an owner shows how to assign it
  * and its requests read-only; once assigned, its owner handles the requests and works the stages here. */
@@ -26,9 +35,17 @@ export default function LeadDrawer({
 }) {
   const { me, clinic, toast, refreshInbox } = useCrm();
   const [version, setVersion] = useState(0);
-  const [detail, setDetail] = useState<{ key: string; d?: LeadDetail; error?: string }>({ key: "" });
-  const [asks, setAsks] = useState<{ key: string; items: InboxItem[] }>({ key: "", items: [] });
-  const [treatments, setTreatments] = useState<string[]>([]);
+  const [detail, setDetail] = useState<{
+    key: string;
+    d?: LeadDetail;
+    error?: string;
+  }>({ key: "" });
+  const [asks, setAsks] = useState<{ key: string; items: InboxItem[] }>({
+    key: "",
+    items: [],
+  });
+  const [options, setOptions] = useState<LeadOptions | null>(null);
+  const [editing, setEditing] = useState(false);
   const key = `${code}|${version}`;
 
   useEffect(() => {
@@ -50,7 +67,7 @@ export default function LeadDrawer({
   useEffect(() => {
     if (!clinicId) return;
     api<LeadOptions>(`/v1/crm/lead-options?clinic=${clinicId}`).then(
-      (o) => setTreatments(o.treatments),
+      (o) => setOptions(o),
       () => {},
     );
   }, [clinicId]);
@@ -70,8 +87,24 @@ export default function LeadDrawer({
     reload();
   }
 
-  const inInbox = !!lead && !lead.assigned_id && lead.stage !== "lost" && lead.stage !== "invalid";
+  const inInbox =
+    !!lead &&
+    !lead.assigned_id &&
+    lead.stage !== "lost" &&
+    lead.stage !== "invalid";
   const canAct = !inInbox && level(me, clinic, "inbox") === "edit";
+  // Details: Front Desk and Admins, in the Inbox too. Appointments: once the lead has an owner.
+  const role = me?.clinics.find((c) => c.id === clinicId)?.role;
+  const canEdit =
+    !!role && role !== "doctor" && level(me, clinic, "leads") === "edit";
+  const canBook =
+    !inInbox &&
+    !!role &&
+    role !== "doctor" &&
+    level(me, clinic, "appointments") === "edit";
+  const bookingWaiting = requests.some(
+    (r) => r.type === "book" || r.type === "online",
+  );
 
   return (
     <>
@@ -80,7 +113,11 @@ export default function LeadDrawer({
           <h2>{lead?.name ?? "…"}</h2>
           <p>
             {code}
-            {lead && <span className={`badge ${STAGE_LABEL[lead.stage]?.[1]}`}>{STAGE_LABEL[lead.stage]?.[0]}</span>}
+            {lead && (
+              <span className={`badge ${STAGE_LABEL[lead.stage]?.[1]}`}>
+                {STAGE_LABEL[lead.stage]?.[0]}
+              </span>
+            )}
             {inInbox && <span className="badge b-fu">In Inbox</span>}
           </p>
         </div>
@@ -96,33 +133,73 @@ export default function LeadDrawer({
               <div className="sec assign-box">
                 <h4>ASSIGN</h4>
                 <p className="sub2" style={{ margin: "0 0 8px" }}>
-                  This lead is waiting in the Inbox. Once assigned, it moves to Leads and its owner confirms
-                  bookings and calls back from there.
+                  This lead is waiting in the Inbox. Once assigned, it moves to
+                  Leads and its owner confirms bookings and calls back from
+                  there.
                 </p>
-                <AssignControls clinicId={clinicId} codes={[lead.code]} onAssigned={reload} />
+                <AssignControls
+                  clinicId={clinicId}
+                  codes={[lead.code]}
+                  onAssigned={reload}
+                />
               </div>
             )}
-            <div className="kv">
-              {(
-                [
-                  ["Phone", lead.phone],
-                  ["Email", lead.email],
-                  ["Source", `${SOURCE[lead.source] ?? lead.source}${lead.campaign ? " · " + lead.campaign : ""}`],
-                  ["Treatment", lead.treatment],
-                  ["Doctor", lead.doctor],
-                  ["Type", lead.type === "online" ? "Online" : lead.type ? "In-clinic" : null],
-                  ["Assigned", lead.assigned ?? "Unassigned"],
-                  ["Contacts", String(lead.contacts)],
-                  ["First contact", when(lead.created_at)],
-                  ["Verified", lead.verified ? "Yes" : "No"],
-                ] as [string, string | null][]
-              ).map(([k, v]) => (
-                <div key={k}>
-                  <span>{k}</span>
-                  <b>{v || "—"}</b>
-                </div>
-              ))}
-            </div>
+            {editing ? (
+              <div className="sec">
+                <h4>EDIT DETAILS</h4>
+                <EditDetails
+                  lead={lead}
+                  options={options}
+                  onCancel={() => setEditing(false)}
+                  onSaved={() => {
+                    setEditing(false);
+                    toast("Details saved");
+                    reload();
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="kv">
+                {(
+                  [
+                    ["Phone", lead.phone],
+                    ["Email", lead.email],
+                    [
+                      "Source",
+                      `${SOURCE[lead.source] ?? lead.source}${lead.campaign ? " · " + lead.campaign : ""}`,
+                    ],
+                    ["Treatment", lead.treatment],
+                    ["Doctor", lead.doctor],
+                    [
+                      "Type",
+                      lead.type === "online"
+                        ? "Online"
+                        : lead.type
+                          ? "In-clinic"
+                          : null,
+                    ],
+                    ["Assigned", lead.assigned ?? "Unassigned"],
+                    ["Contacts", String(lead.contacts)],
+                    ["First contact", when(lead.created_at)],
+                    ["Verified", lead.verified ? "Yes" : "No"],
+                  ] as [string, string | null][]
+                ).map(([k, v]) => (
+                  <div key={k}>
+                    <span>{k}</span>
+                    <b>{v || "—"}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+            {canEdit && !editing && (
+              <button
+                className="lnk"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => setEditing(true)}
+              >
+                Edit details (name, phone, email, treatment, doctor)
+              </button>
+            )}
             {requests.length > 0 && (
               <div className="sec">
                 <h4>PENDING REQUESTS ({requests.length})</h4>
@@ -137,7 +214,7 @@ export default function LeadDrawer({
                       key={r.id}
                       item={r}
                       clinicId={clinicId}
-                      treatments={treatments}
+                      treatments={options?.treatments ?? []}
                       canAct={canAct}
                       onDone={handled}
                     />
@@ -145,7 +222,23 @@ export default function LeadDrawer({
                 </div>
               </div>
             )}
-            {!inInbox && <LeadActions key={lead.code} lead={lead} clinicId={clinicId} onChange={reload} />}
+            <LeadAppointments
+              lead={lead}
+              clinicId={clinicId}
+              options={options}
+              canChange={canBook}
+              bookingWaiting={bookingWaiting}
+              version={version}
+              onChanged={handled}
+            />
+            {!inInbox && (
+              <LeadActions
+                key={lead.code}
+                lead={lead}
+                clinicId={clinicId}
+                onChange={reload}
+              />
+            )}
             {lead.notes && (
               <div className="sec">
                 <h4>NOTES</h4>
@@ -159,9 +252,13 @@ export default function LeadDrawer({
                   {lead.events.map((e, i) => (
                     <div key={i}>
                       {EVENT[e.kind] ?? e.kind}
-                      {typeof e.data.outcome === "string" && `: ${e.data.outcome.replace("_", " ")}`}
-                      {typeof e.data.text === "string" && e.data.text && `: ${e.data.text}`}
-                      {typeof e.data.to === "string" && ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
+                      {typeof e.data.outcome === "string" &&
+                        `: ${e.data.outcome.replace("_", " ")}`}
+                      {typeof e.data.text === "string" &&
+                        e.data.text &&
+                        `: ${e.data.text}`}
+                      {typeof e.data.to === "string" &&
+                        ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
                       <small>
                         {when(e.at)}
                         {e.by ? " · " + e.by : ""}

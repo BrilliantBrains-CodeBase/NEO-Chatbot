@@ -191,7 +191,7 @@ export default function RequestCard({
           )}
           {item.type !== "cancel" && (
             <button className="lnk" style={{ alignSelf: "flex-start" }} onClick={() => setChanging(!changing)}>
-              {changing ? "Keep as asked" : "Change date, time or treatment"}
+              {changing ? "Keep as asked" : "Change date, time, doctor or treatment"}
             </button>
           )}
           {(changing || needsTime) && clinicId && item.appointment && (
@@ -255,6 +255,32 @@ export default function RequestCard({
             >
               {busy && item.type === "online" ? "Booking in Cal.com…" : APPROVE[item.type]}
             </button>
+            {changing && (item.type === "book" || item.type === "online") && (
+              // Agreed on the phone but not confirmed yet: the request keeps waiting, holding the new time.
+              <button
+                className="btn g"
+                disabled={
+                  busy ||
+                  (!pick && !newTreatment && !otherTreatment.trim()) ||
+                  (newTreatment === "Other" && otherTreatment.trim().length < 2)
+                }
+                onClick={() =>
+                  act(
+                    "change",
+                    {
+                      date: pick?.date ?? null,
+                      time: pick?.time ?? null,
+                      doctor_id: pick?.doctorId || null,
+                      treatment: (newTreatment === "Other" ? otherTreatment.trim() : newTreatment) || null,
+                      note: newTreatment !== "Other" ? otherTreatment.trim() : "",
+                    },
+                    "Changes saved: the booking is still waiting for confirmation",
+                  )
+                }
+              >
+                Save changes
+              </button>
+            )}
           </div>
           <div className="row">
             <input
