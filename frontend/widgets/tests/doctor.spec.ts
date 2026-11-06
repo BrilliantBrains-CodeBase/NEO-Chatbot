@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: handle(req) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await panel.getByRole('button', { name: 'About Doctors' }).click();
   await panel.getByRole('button', { name: 'Dr. Sandeep Mahapatra' }).click();

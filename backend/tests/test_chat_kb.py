@@ -43,18 +43,18 @@ def test_regular_matching(text: str, question: str | None) -> None:
 
 
 def test_rules_come_first_then_the_kb_then_the_lead() -> None:
-    turn = engine.respond(req("text", clinic="CL01", text="visa"), {}, None, "Yes, EMI is available.")
+    turn = engine.respond(req("text", clinic="NFHT", text="visa"), {}, None, "Yes, EMI is available.")
     assert turn.answered_by == "kb" and turn.reply.messages[0].text == "Yes, EMI is available."
-    booking = engine.respond(req("text", clinic="CL01", text="book an appointment"), {}, None, "x")
+    booking = engine.respond(req("text", clinic="NFHT", text="book an appointment"), {}, None, "x")
     assert booking.answered_by != "kb"  # a rule (start booking) wins over a KB answer
-    nothing = engine.respond(req("text", clinic="CL01", text="visa"), {}, None, None)
+    nothing = engine.respond(req("text", clinic="NFHT", text="visa"), {}, None, None)
     assert nothing.answered_by == "lead"
 
 
 def test_a_kb_answer_mid_booking_keeps_the_step() -> None:
     flow = {"kind": "book", "step": "name"}
     turn = engine.respond(
-        req("text", clinic="CL01", text="do you provide visa help?"), {"flow": flow}, None, "EMI: yes."
+        req("text", clinic="NFHT", text="do you provide visa help?"), {"flow": flow}, None, "EMI: yes."
     )
     assert turn.answered_by == "kb" and turn.reply.messages[0].text == "EMI: yes."
     assert turn.state["flow"]["step"] == "name" and "questions" not in turn.state["flow"]
@@ -77,7 +77,7 @@ async def test_only_approved_rows_answer_and_medical_never_asks_the_kb(tx: async
 
 
 async def _ask(db: asyncpg.Connection, text: str, state: dict[str, object] | None = None) -> None:
-    r = req("text", clinic="CL01", text=text)
+    r = req("text", clinic="NFHT", text=text)
     await store.open_session(db, r)
     steps: list[service.Step] = []
     hit = await service._kb(db, r, steps)
@@ -90,7 +90,7 @@ async def test_every_question_is_traced_step_by_step(tx: asyncpg.Connection) -> 
     kb._cache.clear()
     await tx.execute(  # its own answer, undone with the test: never the clinic's changing content
         """insert into app.kb_qa (clinic_id, question, variants, answer, status, approved_at)
-           values ('CL01', 'Do you provide visa assistance?', '', 'Yes, we help.', 'approved', now())"""
+           values ('NFHT', 'Do you provide visa assistance?', '', 'Yes, we help.', 'approved', now())"""
     )
     for text in ("do you provide visa assistance", "is it painful", "talk to someone", "sell shampoo?"):
         await _ask(tx, text)

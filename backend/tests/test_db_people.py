@@ -86,7 +86,9 @@ async def hours(
 
 
 async def test_neo_follicle_doctor_and_hours_are_seeded(db: asyncpg.Connection) -> None:
-    doc = await db.fetchrow("select * from app.doctors where clinic_id = 'CL01'")
+    doc = await db.fetchrow(
+        "select * from app.doctors where clinic_id = 'NFHT' and name = 'Dr. Sandeep Mahapatra'"
+    )
     assert doc["name"] == "Dr. Sandeep Mahapatra"
     rows = await db.fetch(
         """select weekday, mode, start_time::text s, end_time::text e
@@ -127,7 +129,7 @@ async def test_bad_hours_are_rejected(
 async def test_hours_cannot_point_to_another_clinics_doctor(db: asyncpg.Connection) -> None:
     doc = await doctor(db, "CL99")
     async with rejected(db):
-        await hours(db, doc, "CL01", 1, "in_clinic", "10:00", "11:00")
+        await hours(db, doc, "NFHT", 1, "in_clinic", "10:00", "11:00")
 
 
 async def test_leave_must_not_end_before_it_starts(db: asyncpg.Connection) -> None:
@@ -163,7 +165,7 @@ async def test_doctor_login_must_be_a_doctor_of_the_same_clinic(db: asyncpg.Conn
     desk = await person(db, "desk@test.invalid", "CL99", "front_desk")
     async with rejected(db):
         await doctor(db, "CL99", desk)  # not a doctor
-    other = await person(db, "other@test.invalid", "CL01", "doctor")
+    other = await person(db, "other@test.invalid", "NFHT", "doctor")
     async with rejected(db):
         await doctor(db, "CL99", other)  # doctor of another clinic
     ok = await person(db, "doc@test.invalid", "CL99", "doctor")

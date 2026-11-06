@@ -34,7 +34,7 @@ Because there is only one project, test data lives only under clinic `CL99`. The
 ## 3. Conventions
 
 - **Names**: `snake_case`, plural table names (`leads`, `appointments`).
-- **Primary keys**: `uuid` with `default gen_random_uuid()`. Exception: `clinics.id` is the readable code `CL01`, `CL02`, `CL03`.
+- **Primary keys**: `uuid` with `default gen_random_uuid()`. Exception: `clinics.id` is the readable code `NFHT`, `CL02`, `CL03`.
 - **Clinic**: every clinic-owned row has `clinic_id text not null references clinics(id)`, and every query filters by it.
 - **Time**: `timestamptz`, stored in UTC, shown in India time (`Asia/Kolkata`). Dates without time (leave days, booked date) use `date`.
 - **Audit columns**: `created_at`, `updated_at` (set by one shared trigger), `created_by`, `updated_by` (user ID or `system`).
@@ -49,7 +49,7 @@ Because there is only one project, test data lives only under clinic `CL99`. The
 
 | Table | Key columns |
 |---|---|
-| `clinics` | `id` (CL01), `name`, `bot_name`, `timezone` (Asia/Kolkata), `hours` jsonb (per weekday open and close), `closed_weekdays` int[], `slot_minutes` (15), `booking_window_days` (14), `booked_date_back_days` (60), `last_slot_before_close_min` (30), `next_lead_no` (counter for lead codes), `phone`, `whatsapp`, `allowed_origins` text[], `widget_config` jsonb, `active` |
+| `clinics` | `id` (NFHT), `name`, `bot_name`, `timezone` (Asia/Kolkata), `hours` jsonb (per weekday open and close), `closed_weekdays` int[], `slot_minutes` (15), `booking_window_days` (14), `booked_date_back_days` (60), `last_slot_before_close_min` (30), `next_lead_no` (counter for lead codes), `phone`, `whatsapp`, `allowed_origins` text[], `widget_config` jsonb, `active` |
 | `profiles` | `id` = `auth.users.id`, `full_name`, `email`, `phone`, `active`, `last_seen_at` |
 | `user_clinics` | `user_id`, `clinic_id`, `role` (`bb_admin`, `clinic_manager`, `front_desk`, `doctor`), `in_round_robin` bool, `rr_last_assigned_at`. Unique `(user_id, clinic_id)` |
 | `doctors` | `clinic_id`, `user_id` (nullable, set when the doctor has a login), `name`, `role_title`, `qualifications`, `profile` jsonb (stats, links), `sort_order`, `active` |
@@ -58,11 +58,11 @@ Because there is only one project, test data lives only under clinic `CL99`. The
 
 ### 4.2 Leads and work
 
-All leads from all clinics are kept **in one place, the `leads` table**. Each lead is tagged with its clinic code (`CL01` Neo Follicle, `CL02` Neo Fertility, `CL03` Derma Solutions) and gets a readable lead code made from it: `CL01-00001`, `CL01-00002`, `CL02-00001` and so on. Staff use this code on calls and in notes; the database still links rows by `id`.
+All leads from all clinics are kept **in one place, the `leads` table**. Each lead is tagged with its clinic code (`NFHT` Neo Follicle, `CL02` Neo Fertility, `CL03` Derma Solutions) and gets a readable lead code made from it: `NFHT-00001`, `NFHT-00002`, `CL02-00001` and so on. Staff use this code on calls and in notes; the database still links rows by `id`.
 
 | Table | Key columns |
 |---|---|
-| `leads` | `lead_code` (readable, for example `CL01-00001`), `clinic_id`, `full_name`, `phone_e164`, `phone_cc`, `email`, `source` (`chatbot`, `meta_ads`, `google_ads`, `manual`, `whatsapp`), `campaign`, `treatment`, `doctor_id`, `appointment_type`, `stage` (`new`, `follow_up`, `booked`, `visited`, `lost`, `invalid`), `stage_reason`, `assigned_to`, `contact_count`, `first_contact_at`, `last_contact_at`, `page_url`, `device`, `consent_at`, `verified` (OTP, later), `patient_id`, `notes`, `deleted_at` |
+| `leads` | `lead_code` (readable, for example `NFHT-00001`), `clinic_id`, `full_name`, `phone_e164`, `phone_cc`, `email`, `source` (`chatbot`, `meta_ads`, `google_ads`, `manual`, `whatsapp`), `campaign`, `treatment`, `doctor_id`, `appointment_type`, `stage` (`new`, `follow_up`, `booked`, `visited`, `lost`, `invalid`), `stage_reason`, `assigned_to`, `contact_count`, `first_contact_at`, `last_contact_at`, `page_url`, `device`, `consent_at`, `verified` (OTP, later), `patient_id`, `notes`, `deleted_at` |
 | `requests` | `clinic_id`, `lead_id`, `type` (`book`, `online`, `cancel`, `reschedule`, `callback`, `question`), `status` (`pending`, `done`, `rejected`), `data` jsonb (everything the patient entered), `match_status` (`matched`, `no_match`, for cancel and reschedule), `matched_appointment_id`, `question_text`, `session_id` |
 | `appointments` | `clinic_id`, `lead_id`, `request_id`, `doctor_id`, `type` (`in_clinic`, `online`), `slot` tstzrange (start and end), `preferred_window` (for "Any time"), `status` (`pending`, `confirmed`, `rejected`, `cancelled`, `rescheduled`, `visited`, `no_show`, `missed`), `rescheduled_from_id`, `meet_link`, `calendar_event_id`, `confirmed_by`, `confirmed_at` |
 | `patients` | `clinic_id`, `full_name`, `phone_e164`, `email`, `first_visit_at`, `notes`. Created when a lead reaches `visited` |
@@ -190,7 +190,7 @@ backend/supabase/migrations/
   0005_system.sql            outbox, audit_log, settings_history, triggers
   0006_rls.sql               helper functions and every policy
   0007_jobs.sql              pg_cron jobs
-backend/supabase/seed.sql    CL01 to CL03 settings and doctors only. No fake patients
+backend/supabase/seed.sql    NFHT to CL03 settings and doctors only. No fake patients
 ```
 
 - A migration file is never edited after it reaches live. A fix is a new file.

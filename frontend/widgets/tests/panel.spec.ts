@@ -4,7 +4,7 @@ import { settled } from './helpers';
 // Piece 2: panel layout (header, footer, closing). Runs on desktop and mobile projects.
 test.beforeEach(async ({ page }) => {
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   // The full widget loads on first open; wait for it and for the opening animation to finish.
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel).toBeVisible();
@@ -42,12 +42,12 @@ test('desktop panel is 380 x 580; mobile sheet is full width with a backdrop tha
   if (info.project.name === 'desktop') {
     expect(Math.round(box.width)).toBe(380);
     expect(Math.round(box.height)).toBe(580);
-    await expect(page.locator('#neo-widget-CL01 .nb-backdrop')).toBeHidden();
+    await expect(page.locator('#neo-widget-NFHT .nb-backdrop')).toBeHidden();
   } else {
     expect(Math.round(box.width)).toBe(vp.width);
     expect(Math.round(box.y + box.height)).toBe(vp.height);
     await page.mouse.click(vp.width / 2, 20); // backdrop area above the sheet
     await expect(panel).toBeHidden();
-    await expect(page.locator('#neo-widget-CL01 .nb-launch')).toBeVisible();
+    await expect(page.locator('#neo-widget-NFHT .nb-launch')).toBeVisible();
   }
 });

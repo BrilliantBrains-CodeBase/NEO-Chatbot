@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, Response
 from app.api.v1.crm_console import Appearance, Template
 from app.api.v1.crm_sheets import _lead_from_row
 from app.chat import guard, main_template
+from app.core.codes import current
 from app.core.config import get_settings
 from app.core.db import get_pool
 
@@ -45,7 +46,8 @@ def loaders() -> dict[str, str]:
     for f in sorted(folder().glob("*.js")):
         if f.name.endswith(".app.js"):
             continue
-        ids = set(re.findall(r"\bCL\d{2,3}\b", f.read_text(encoding="utf-8", errors="ignore")))
+        text = f.read_text(encoding="utf-8", errors="ignore")
+        ids = set(re.findall(r"clinicId:\s*[\"']([A-Z][A-Z0-9]{1,9})[\"']", text))
         if len(ids) == 1:  # a loader is for exactly one clinic
             out[ids.pop()] = f.stem
     _found = (time.monotonic(), out)
@@ -63,6 +65,7 @@ def page_shown(mode: str, pages: list[str], path: str) -> bool:
 @router.get("/show")
 async def show(request: Request, clinic: str, path: str = "/") -> dict[str, bool]:
     """Should the chatbot show on this page, and should the page's own forms be sent as leads (capture)?"""
+    clinic = current(clinic)  # a cached loader may still ask with a clinic's old code
     shown = await _shown(request, clinic, path)
     capture = await _capture_site(clinic, request.headers.get("origin") or "") is not None
     return {"show": shown, "capture": capture}
@@ -106,6 +109,7 @@ PHONE = re.compile(r"\+?[\d\s()-]{10,18}")
 async def captured_form(request: Request, clinic: str) -> dict[str, bool]:
     """A form submitted on the clinic's approved website (auto-capture on), sent by the chatbot script.
     It becomes a lead (source Website form) when it has a name and a phone or email."""
+    clinic = current(clinic)
     origin = request.headers.get("origin") or ""
     site = await _capture_site(clinic, origin)
     ip = guard.client_ip(request.headers, request.client.host if request.client else None)
@@ -201,6 +205,7 @@ async def _published_look(clinic: str) -> dict[str, Any] | None:
 async def config(request: Request, clinic: str) -> dict[str, Any]:
     """The clinic's published Dashboard → Appearance and Templates (the menu's style), for the widget (None
     until first published: the widget keeps its built-in look). Nothing private: what any visitor sees."""
+    clinic = current(clinic)
     if await guard.get_clinic(clinic) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such clinic.")
     saved = await _published(clinic)
@@ -227,6 +232,7 @@ def _contact(saved: Any) -> dict[str, str]:
 @router.get("/logo/{clinic}")
 async def logo(clinic: str) -> Response:
     """The clinic's uploaded logo (Dashboard → Appearance), as an image file."""
+    clinic = current(clinic)
     look = await _published_look(clinic)
     url = look["look"]["logo"] if look else ""
     head, _, data = url.partition(",")

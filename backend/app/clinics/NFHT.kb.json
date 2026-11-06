@@ -1,5 +1,5 @@
 {
- "_about": "DRAFT knowledge base for Neo Follicle (CL01), layers 1 (facts) and 2 (Q/A). English only. Sources: G = 'Neo Follicle Transplant - Chatbot Flows, Services & Knowledge Base.pdf' (section), W = 'Neo_Follicle_Website_Content.pdf' (page number in its contents list). Nothing here is live until approved. Dr. Sandeep's details are draft facts (category doctor); doctors added in the CRM come from app.doctors.",
+ "_about": "DRAFT knowledge base for Neo Follicle Hair Transplant (NFHT), layers 1 (facts) and 2 (Q/A). English only. Sources: G = 'Neo Follicle Transplant - Chatbot Flows, Services & Knowledge Base.pdf' (section), W = 'Neo_Follicle_Website_Content.pdf' (page number in its contents list). Nothing here is live until approved. Dr. Sandeep's details are draft facts (category doctor); doctors added in the CRM come from app.doctors.",
  "facts": [
   {
    "key": "clinic_name",
@@ -76,7 +76,7 @@
   {
    "key": "celebrity_clients",
    "category": "clinic_info",
-   "value": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra (radio jockey) have chosen Neo Follicle for hair restoration. Every patient gets the same doctor-led, private approach.",
+   "value": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra (radio jockey) have chosen Neo Follicle Hair Transplant for hair restoration. Every patient gets the same doctor-led, private approach.",
    "source": "G KB 3; W 1, 5"
   },
   {
@@ -184,7 +184,7 @@
   {
    "key": "media",
    "category": "clinic_info",
-   "value": "Dr. Sandeep Mahapatra has been featured in News18, Femina, Business Standard, ANI (Neo Follicle crosses 10,000 hair transplants) and other national and regional publications. https://neofollicletransplant.com/media-coverage/",
+   "value": "Dr. Sandeep Mahapatra has been featured in News18, Femina, Business Standard, ANI (Neo Follicle Hair Transplant crosses 10,000 hair transplants) and other national and regional publications. https://neofollicletransplant.com/media-coverage/",
    "source": "W 6"
   },
   {
@@ -420,7 +420,7 @@
   {
    "q": "Which celebrities have had treatment here?",
    "v": "celebrity\nfamous patients\nactors",
-   "a": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra have chosen Neo Follicle for hair restoration.",
+   "a": "Kannada actors Sri Murali, Prem, Rakshith Gowda and Sharan, and RJ Mayuraa Raghavendra have chosen Neo Follicle Hair Transplant for hair restoration.",
    "cat": "clinic_info",
    "t": "Celebrity Hair Transplants",
    "source": "G FAQ 15; W 1, 5"
@@ -508,7 +508,7 @@
   {
    "q": "What is PRP?",
    "v": "prp treatment\nplatelet rich plasma",
-   "a": "PRP (Platelet-Rich Plasma) is a non-surgical treatment that uses your own platelet-rich plasma to support weak follicles in early thinning and hair fall. Each session takes under an hour. Neo Follicle has completed 100,000+ PRP sessions.",
+   "a": "PRP (Platelet-Rich Plasma) is a non-surgical treatment that uses your own platelet-rich plasma to support weak follicles in early thinning and hair fall. Each session takes under an hour. Neo Follicle Hair Transplant has completed 100,000+ PRP sessions.",
    "cat": "treatment",
    "t": "PRP Hair Loss Treatment",
    "source": "G 3.3; W 20"
@@ -660,7 +660,7 @@
   {
    "q": "Tell me about Dr. Sandeep Mahapatra",
    "v": "about the doctor\ndoctor qualification\ndr sandeep\nwho is dr sandeep\ndoctor experience",
-   "a": "Dr. Sandeep Mahapatra, MBBS, MD (Dermatology, Venereology and Leprosy), Gold Medalist, is the Founder and Director of Neo Follicle. He is a Senior Consultant Dermatologist, Cosmetic Expert, Hair Transplant Surgeon and Certified DHI Specialist (DHI Global, Greece), with 20+ years of experience and 10,000+ hair transplants.",
+   "a": "Dr. Sandeep Mahapatra, MBBS, MD (Dermatology, Venereology and Leprosy), Gold Medalist, is the Founder and Director of Neo Follicle Hair Transplant. He is a Senior Consultant Dermatologist, Cosmetic Expert, Hair Transplant Surgeon and Certified DHI Specialist (DHI Global, Greece), with 20+ years of experience and 10,000+ hair transplants.",
    "cat": "doctor",
    "t": null,
    "source": "G KB 1; W 1, 8"

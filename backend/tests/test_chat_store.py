@@ -70,7 +70,7 @@ async def test_a_session_cannot_be_taken_over(tx: asyncpg.Connection) -> None:
     with pytest.raises(store.SessionMismatch):
         await store.open_session(tx, req(visitor="v_" + "f" * 32))  # another visitor
     with pytest.raises(store.SessionMismatch):
-        await store.open_session(tx, req(clinic="CL01"))  # another clinic
+        await store.open_session(tx, req(clinic="NFHT"))  # another clinic
 
 
 async def test_an_unknown_button_is_still_recorded(tx: asyncpg.Connection) -> None:

@@ -1,5 +1,5 @@
 # ruff: noqa: E501  (a data file: one row of cases per line reads best)
-"""T1: the big typed-message test set for CL01 (Neo Follicle), to measure what patients type that the bot does
+"""T1: the big typed-message test set for NFHT (Neo Follicle), to measure what patients type that the bot does
 not understand yet. Written from the approved KB (54 Q/A, 41 facts) and the clinic rules on 23 Oct 2026.
 
 Each case: (message, expected, a word the reply must contain; "" = any). expected:

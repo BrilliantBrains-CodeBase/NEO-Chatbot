@@ -1,5 +1,5 @@
 {
-  "_about": "DRAFT for staff approval (T4). Example phrases per chat topic (app.intent_examples) and other wordings for facts (app.kb_facts.variants), Neo Follicle CL01. Worded differently from the test set on purpose. Nothing here is used until it is approved.",
+  "_about": "DRAFT for staff approval (T4). Example phrases per chat topic (app.intent_examples) and other wordings for facts (app.kb_facts.variants), Neo Follicle Hair Transplant (NFHT). Worded differently from the test set on purpose. Nothing here is used until it is approved.",
   "intents": {
     "identity": [
       "are you a robot", "is this a real person", "am i chatting with a computer", "is this a bot or a human",

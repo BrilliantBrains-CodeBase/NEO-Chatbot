@@ -69,7 +69,7 @@ async def test_bb_admin_sees_every_active_clinic(api: AsyncClient, monkeypatch: 
     me = r.json()
     assert me["bb_admin"] and me["role_label"] == "Super Admin"
     ids = [c["id"] for c in me["clinics"]]
-    assert "CL01" in ids and "CL99" not in ids  # the test clinic is never listed
+    assert "NFHT" in ids and "CL99" not in ids  # the test clinic is never listed
     assert all(c["role"] == "bb_admin" for c in me["clinics"])
 
 
@@ -88,7 +88,7 @@ async def test_dashboard_returns_the_numbers(api: AsyncClient, monkeypatch: pyte
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    r = await api.get("/v1/crm/dashboard?clinic=CL01&days=7", headers=headers)
+    r = await api.get("/v1/crm/dashboard?clinic=NFHT&days=7", headers=headers)
     assert r.status_code == 200
     d = r.json()
     assert [f["key"] for f in d["funnel"]] == ["new", "follow_up", "booked", "visited", "lost", "invalid"]
@@ -124,13 +124,13 @@ async def test_leads_list_and_one_lead(api: AsyncClient, monkeypatch: pytest.Mon
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    r = await api.get("/v1/crm/leads?clinic=CL01&limit=5", headers=headers)
+    r = await api.get("/v1/crm/leads?clinic=NFHT&limit=5", headers=headers)
     assert r.status_code == 200
     d = r.json()
     assert [s["key"] for s in d["stages"]][0] == "new" and len(d["items"]) <= 5
     assert d["total"] == sum(s["count"] for s in d["stages"])
     assert (await api.get("/v1/crm/leads/NOPE-0", headers=headers)).status_code == 404
-    none = (await api.get("/v1/crm/leads?clinic=CL01&from=2020-01-01&to=2020-01-02", headers=headers)).json()
+    none = (await api.get("/v1/crm/leads?clinic=NFHT&from=2020-01-01&to=2020-01-02", headers=headers)).json()
     assert none["total"] == 0 and none["items"] == []
     if d["items"]:
         one = (await api.get(f"/v1/crm/leads/{d['items'][0]['code']}", headers=headers)).json()
@@ -146,7 +146,7 @@ async def test_leads_search_by_phone_with_spaces_and_by_treatment(
         "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
     )
     lead = await pool.fetchrow(
-        """select lead_code, phone_e164, treatment from app.leads where clinic_id = 'CL01'
+        """select lead_code, phone_e164, treatment from app.leads where clinic_id = 'NFHT'
            and deleted_at is null and phone_e164 like '+91%' and treatment is not null limit 1"""
     )
     if admin is None or lead is None:
@@ -155,7 +155,7 @@ async def test_leads_search_by_phone_with_spaces_and_by_treatment(
 
     async def search(q: str) -> dict[str, Any]:
         r = await api.get(
-            "/v1/crm/leads", params={"clinic": "CL01", "q": q, "limit": 200, "owner": "all"}, headers=headers
+            "/v1/crm/leads", params={"clinic": "NFHT", "q": q, "limit": 200, "owner": "all"}, headers=headers
         )
         assert r.status_code == 200
         found: dict[str, Any] = r.json()
@@ -422,7 +422,7 @@ async def test_add_lead_and_duplicate_phone(api: AsyncClient, monkeypatch: pytes
         assert lead["events"][0]["kind"] == "contact"
         dup = await api.post("/v1/crm/leads", json=body, headers=headers)
         assert dup.status_code == 409 and lead["code"] in dup.json()["detail"]
-        opts = await api.get("/v1/crm/lead-options?clinic=CL01", headers=headers)
+        opts = await api.get("/v1/crm/lead-options?clinic=NFHT", headers=headers)
         assert "Hair Transplant for Men" in opts.json()["treatments"]
     finally:
         lead_id = await pool.fetchval("select id from app.leads where lead_code = $1", lead["code"])

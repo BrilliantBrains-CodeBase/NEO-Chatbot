@@ -67,7 +67,7 @@ async def test_messages_belong_to_a_session_of_the_same_clinic(tx: asyncpg.Conne
     await tx.execute(sql, SID, "CL99", "patient", "Hi", "text", None)
     await tx.execute(sql, SID, "CL99", "bot", "Hello", None, "menu")
     async with rejected(tx):
-        await tx.execute(sql, SID, "CL01", "patient", "Hi", "text", None)  # another clinic
+        await tx.execute(sql, SID, "NFHT", "patient", "Hi", "text", None)  # another clinic
     async with rejected(tx):
         await tx.execute(sql, SID, "CL99", "patient", "Hi", None, None)  # a patient message needs its event
     async with rejected(tx):
@@ -100,7 +100,7 @@ async def test_embeddings_must_have_384_numbers(tx: asyncpg.Connection) -> None:
 async def test_chunks_cannot_point_to_another_clinics_document(tx: asyncpg.Connection) -> None:
     doc = await document(tx, "CL99")
     async with rejected(tx):
-        await chunk(tx, doc, "Wrong clinic", vec(1.0), clinic="CL01")
+        await chunk(tx, doc, "Wrong clinic", vec(1.0), clinic="NFHT")
 
 
 async def test_approved_document_needs_an_approval_time(tx: asyncpg.Connection) -> None:

@@ -1,7 +1,7 @@
 {
-  "greeting": "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?",
+  "greeting": "Hi, I'm Arya, Neo Follicle Hair Transplant's AI assistant. How can I help you today?",
   "config": {
-    "greeting": "Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?",
+    "greeting": "Hi, I'm Arya, Neo Follicle Hair Transplant's AI assistant. How can I help you today?",
     "firstSlot": 600,
     "lastSlot": 1110,
     "slotMinutes": 15,
@@ -138,7 +138,7 @@
       "ui": {
         "type": "doctor_card",
         "name": "Dr. Sandeep Mahapatra",
-        "title": "Founder and Director, Neo Follicle",
+        "title": "Founder and Director, Neo Follicle Hair Transplant",
         "quals": "MBBS, MD (Dermatology), ISHRS Gold Member, Certified DHI Specialist",
         "stats": [
           {
@@ -537,7 +537,7 @@
       "messages": [
         {
           "type": "text",
-          "text": "See real results from Neo Follicle patients."
+          "text": "See real results from Neo Follicle Hair Transplant patients."
         }
       ],
       "ui": {
@@ -974,7 +974,7 @@
   "site": "https://neofollicletransplant.com/",
   "reviews": {
     "_about": "Google reviews of the clinic listing, taken from the listing on 24 Oct 2026 (rating, count and full review texts given by the user). Only complete, positive, hair-related reviews without medical-result claims; quoted word for word; first name and last initial only. Update the rating from the CRM later.",
-    "clinic": "Neo Follicle",
+    "clinic": "Neo Follicle Hair Transplant",
     "rating": "4.8",
     "count": "1,040",
     "link": "https://www.google.com/maps/place/Neo+Follicle+Hair+Transplant/@12.9562256,77.7073554,17z/data=!4m8!3m7!1s0x3bae13439e1fc9e7:0x12fed4d549fb599a!8m2!3d12.9562256!4d77.7073554!9m1!1b1!16s%2Fg%2F11gjn959r3",

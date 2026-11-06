@@ -8,13 +8,13 @@ NEO CRM is the staff app for three clinics run by NEO Group (Bengaluru), built b
 
 | Clinic id | Clinic | Chatbot |
 |---|---|---|
-| CL01 | Neo Follicle (hair transplant) | Arya |
+| NFHT | Neo Follicle (hair transplant) | Arya |
 | CL02 | Neo Fertility | Navya |
 | CL03 | Derma Solutions | Diya |
 
 Leads come from the website chatbots (already built: `frontend/widgets` + `backend/`), Meta and Google ads (via
 Google Sheets), WhatsApp and manual entry. Staff handle leads, approve chatbot booking requests, manage
-appointments and doctors' availability. Only CL01 has live chatbot data today.
+appointments and doctors' availability. Only NFHT has live chatbot data today.
 
 ## 2. Rules from the client (do not break)
 
@@ -98,10 +98,10 @@ Sidebar items are routes: `/leads?stage=new|fu|bk|vi|lo`, `/inbox?tab=appt|onlin
 - New backend endpoint `GET /v1/crm/me` -> JSON `{ name, email, role(s), clinics }`. Clinic switcher shows only
   the user's clinics. Remove `auth-demo.ts`.
 - **Waiting on the user:** create their login in Supabase (Authentication -> Users -> Add user, Auto Confirm)
-  and tell the email; then give it the BB Admin role for CL01-CL03 (rows in `app.profiles` + `app.user_clinics`
+  and tell the email; then give it the BB Admin role for NFHT-CL03 (rows in `app.profiles` + `app.user_clinics`
   with role `bb_admin`). Supabase had 0 users on 24 Oct. Ask the user to turn public sign-ups OFF.
 
-**3b. Live Dashboard.** `GET /v1/crm/dashboard?clinic=CL01&days=7` -> JSON for: new leads, pending Inbox
+**3b. Live Dashboard.** `GET /v1/crm/dashboard?clinic=NFHT&days=7` -> JSON for: new leads, pending Inbox
 (booking, online, cancel, reschedule), callbacks waiting (+ oldest wait), follow-ups due today, today's
 appointments, doctors today, leads by source, funnel (new, contacted, booked, visited), chatbot numbers
 (chats, leads captured, KB answers; no "AI answers"), top treatments. Then the Dashboard screen as designed.
@@ -118,10 +118,10 @@ Tasks and a "Bot quality" screen are **not designed yet**: propose a design in t
 - Tables: `clinics, profiles, user_clinics (role: bb_admin|clinic_manager|front_desk|doctor, in_round_robin),
   doctors, doctor_availability, doctor_leave, clinic_holidays, leads, lead_events, patients, requests,
   appointments, slot_holds, tasks, chat_sessions, chat_messages, rag_traces, kb_facts, kb_qa, intent_examples,
-  unanswered_questions, outbox, audit_log`. Live CL01 data exists (leads, requests, appointments, 1 doctor).
+  unanswered_questions, outbox, audit_log`. Live NFHT data exists (leads, requests, appointments, 1 doctor).
 - Existing API: `POST /v1/chat/message` (chatbot) and `/v1/health`. CRM endpoints go under `/v1/crm/...`.
   `ALLOWED_ORIGINS` in `backend/.env` must include the CRM origin (http://localhost:3000 in dev).
-- Lead stages (fixed): New, Follow Up, Booked, Visited, Lost, Invalid. Lead code like `CL01-00001`.
+- Lead stages (fixed): New, Follow Up, Booked, Visited, Lost, Invalid. Lead code like `NFHT-00001`.
 - Slots are 15 minutes by default (the design's 30 is wrong for this client).
 
 ## 8. Agreed flows

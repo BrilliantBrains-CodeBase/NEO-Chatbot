@@ -17,8 +17,8 @@ OPENING = {"id": "opening", "type": "opening", "settings": {"buttons": [{"id": "
 BOOK = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone"]}}
 
 
-def test_cl01_imports_completely_with_no_problems() -> None:
-    flow = import_content(content("CL01") or {})
+def test_nfht_imports_completely_with_no_problems() -> None:
+    flow = import_content(content("NFHT") or {})
     types = [n["type"] for n in flow["nodes"]]
     assert types.count("opening") == 1 and "treatment_card" not in types and "link" not in types
     assert {"book", "online", "cancel", "reschedule", "callback", "emergency"} <= set(types)
@@ -90,7 +90,7 @@ async def test_test_chat_runs_the_draft(api: AsyncClient, monkeypatch: pytest.Mo
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    url = "/v1/crm/console/CL01/flow/test"  # reads the draft only; nothing is saved
+    url = "/v1/crm/console/NFHT/flow/test"  # reads the draft only; nothing is saved
     r = (await api.post(url, json={}, headers=headers)).json()
     assert r["at"] == "opening" and r["messages"][0]["buttons"]
     nxt = (await api.post(url, json={"state": r["state"], "tap": "m2"}, headers=headers)).json()
@@ -130,7 +130,7 @@ async def test_test_leads_go_to_cl99_and_are_deleted(
     )
     assert row["page_url"] == "crm:test-chat" and row["n"] == 2
     assert (await _save_test_lead(user, {"type": "callback", "name": "No contact"}, "desktop"))["error"]
-    r = await api.delete("/v1/crm/console/CL01/flow/test-leads", headers=headers)
+    r = await api.delete("/v1/crm/console/NFHT/flow/test-leads", headers=headers)
     assert r.status_code == 200 and r.json()["deleted"] >= 1
     assert await pool.fetchval("select count(*) from app.leads where lead_code = $1", saved["code"]) == 0
 

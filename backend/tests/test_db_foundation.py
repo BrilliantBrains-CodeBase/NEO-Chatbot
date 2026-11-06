@@ -111,18 +111,18 @@ async def test_new_tables_get_no_rights_by_default(db: asyncpg.Connection) -> No
 
 async def test_clinics_are_seeded(db: asyncpg.Connection) -> None:
     rows = {r["id"]: r for r in await db.fetch("select * from app.clinics")}
-    assert rows["CL01"]["name"] == "Neo Follicle"
-    assert rows["CL01"]["bot_name"] == "Arya AI"
-    assert rows["CL01"]["closed_weekdays"] == [2]
-    assert rows["CL01"]["is_test"] is False
+    assert rows["NFHT"]["name"] == "Neo Follicle Hair Transplant"
+    assert rows["NFHT"]["bot_name"] == "Arya AI"
+    assert rows["NFHT"]["closed_weekdays"] == [2]
+    assert rows["NFHT"]["is_test"] is False
     assert rows["CL99"]["is_test"] is True
 
 
 @pytest.mark.parametrize(
     "column, value",
     [
-        ("id", "X1"),
-        ("id", "CL1"),
+        ("id", "x1"),  # capitals only
+        ("id", "1BF"),  # starts with a letter
         ("close_time", "09:00"),  # before open_time
         ("closed_weekdays", [7]),
         ("slot_minutes", 0),

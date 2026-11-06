@@ -87,7 +87,7 @@ async def test_a_code_cannot_be_chosen_or_changed(tx: asyncpg.Connection) -> Non
     async with rejected(tx):
         await tx.execute("update app.leads set lead_code = 'CL99-99999' where id = $1", row["id"])
     async with rejected(tx):
-        await tx.execute("update app.leads set clinic_id = 'CL01' where id = $1", row["id"])
+        await tx.execute("update app.leads set clinic_id = 'NFHT' where id = $1", row["id"])
 
 
 # ---------- one lead per person per clinic
@@ -145,13 +145,13 @@ async def test_stage_rules(tx: asyncpg.Connection, stage: str, reason: str | Non
 
 async def test_links_must_stay_in_the_same_clinic(tx: asyncpg.Connection) -> None:
     row = await lead(tx)
-    async with rejected(tx):  # a CL01 request for a CL99 lead
+    async with rejected(tx):  # a NFHT request for a CL99 lead
         await tx.execute(
-            "insert into app.requests (clinic_id, lead_id, type) values ('CL01', $1, 'callback')", row["id"]
+            "insert into app.requests (clinic_id, lead_id, type) values ('NFHT', $1, 'callback')", row["id"]
         )
-    cl01_doctor = await tx.fetchval("select id from app.doctors where clinic_id = 'CL01' limit 1")
-    async with rejected(tx):  # a CL01 doctor on a CL99 lead
-        await tx.execute("update app.leads set doctor_id = $2 where id = $1", row["id"], cl01_doctor)
+    nfht_doctor = await tx.fetchval("select id from app.doctors where clinic_id = 'NFHT' limit 1")
+    async with rejected(tx):  # a NFHT doctor on a CL99 lead
+        await tx.execute("update app.leads set doctor_id = $2 where id = $1", row["id"], nfht_doctor)
     uid = await tx.fetchval(
         "insert into auth.users (id, email) values (gen_random_uuid(), 'x@test.invalid') returning id"
     )
@@ -159,9 +159,9 @@ async def test_links_must_stay_in_the_same_clinic(tx: asyncpg.Connection) -> Non
         "insert into app.profiles (id, full_name, email) values ($1, 'Staff', 'x@test.invalid')", uid
     )
     await tx.execute(
-        "insert into app.user_clinics (user_id, clinic_id, role) values ($1, 'CL01', 'front_desk')", uid
+        "insert into app.user_clinics (user_id, clinic_id, role) values ($1, 'NFHT', 'front_desk')", uid
     )
-    async with rejected(tx):  # CL01 staff assigned to a CL99 lead
+    async with rejected(tx):  # NFHT staff assigned to a CL99 lead
         await tx.execute("update app.leads set assigned_to = $2 where id = $1", row["id"], uid)
 
 

@@ -22,7 +22,7 @@ const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could no
 export default function LeadsView() {
   const { clinic, me, toast, openModal } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  // The stage tab and the open lead live in the address (?stage=booked&open=CL01-00003), so the menu
+  // The stage tab and the open lead live in the address (?stage=booked&open=NFHT-00003), so the menu
   // links and Add lead can open them.
   const router = useRouter();
   const params = useSearchParams();

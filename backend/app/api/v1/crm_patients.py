@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.api.v1.crm import TZ, Count, can_see, plain_text
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
@@ -139,7 +140,7 @@ def _seen_by(doctor: Any) -> str:
 @router.get("/patients", response_model=PatientList)
 async def patients(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     q: Annotated[str, Query(max_length=100)] = "",
     activity: Annotated[str | None, Query(pattern="^(never|new|returning|regular|inactive)$")] = None,
     stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,

@@ -47,8 +47,8 @@ class Chat:
         return [b["label"] for m in self.r["messages"] for b in m.get("buttons", [])]
 
 
-def test_cl01_imported_flow_opens_and_follows_taps_and_typos() -> None:
-    chat = Chat(import_content(content("CL01") or {}))
+def test_nfht_imported_flow_opens_and_follows_taps_and_typos() -> None:
+    chat = Chat(import_content(content("NFHT") or {}))
     assert chat.r["messages"][0]["text"].startswith("Hi, I'm Arya")
     chat(tap="m2")  # Explore Treatments
     assert chat.at != "opening" and chat.labels()
@@ -631,7 +631,7 @@ def test_an_inbox_item_shows_the_name_typed_when_the_phone_has_another_lead() ->
 
     row = {
         "id": "r1", "type": "book", "status": "pending", "created_at": datetime.now(UTC),
-        "lead_code": "CL01-00016", "full_name": "almas", "phone_e164": "+919875555552", "email": None,
+        "lead_code": "NFHT-00016", "full_name": "almas", "phone_e164": "+919875555552", "email": None,
         "data": {"name": "faz", "treatment": "FUE"}, "match_status": None, "a_id": None,
     }  # fmt: skip
     assert _item(row).name == "faz · existing lead almas (same phone)"

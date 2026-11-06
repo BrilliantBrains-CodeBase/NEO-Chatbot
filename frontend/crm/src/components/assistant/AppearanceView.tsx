@@ -296,7 +296,7 @@ export default function AppearanceView() {
               <>
                 <Field
                   label="Assistant name"
-                  hint='For example "Arya" or "Neo Follicle Assistant".'
+                  hint='For example "Arya" or "Neo Follicle Hair Transplant Assistant".'
                 >
                   <input
                     className="f"

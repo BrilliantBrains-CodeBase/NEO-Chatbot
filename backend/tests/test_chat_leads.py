@@ -133,17 +133,17 @@ async def test_inbox_assignment_leaves_the_lead_for_the_inbox(tx: asyncpg.Connec
 
 def test_confirm_hands_the_finished_flow_to_the_service() -> None:
     f = flow() | {"step": "summary"}
-    turn = engine.respond(req("button", clinic="CL01", action="confirm"), {"flow": f})
+    turn = engine.respond(req("button", clinic="NFHT", action="confirm"), {"flow": f})
     assert turn.completed is not None and turn.completed["kind"] == "book" and "flow" not in turn.state
-    assert engine.respond(req("button", clinic="CL01", action="menu"), {"flow": f}).completed is None
+    assert engine.respond(req("button", clinic="NFHT", action="menu"), {"flow": f}).completed is None
 
 
 def test_a_taken_slot_asks_for_the_time_again() -> None:
     f = flow() | {"step": "summary"}
-    turn = engine.slot_taken(req(clinic="CL01"), f, {MON.isoformat(): ["11:00"]})
+    turn = engine.slot_taken(req(clinic="NFHT"), f, {MON.isoformat(): ["11:00"]})
     assert turn.reply.messages[0].text == engine.SLOT_TAKEN
     assert turn.state["flow"]["step"] == "time" and turn.state["flow"]["time"] is None
-    assert engine.slot_taken(req(clinic="CL01"), f, {}).state["flow"]["step"] == "date"
+    assert engine.slot_taken(req(clinic="NFHT"), f, {}).state["flow"]["step"] == "date"
 
 
 OTHER = "s_" + "a" * 32

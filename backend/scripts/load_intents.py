@@ -2,8 +2,8 @@
 APPROVED, so the bot uses them. Run it only after the person responsible has approved the file. Safe to run
 again: phrases already there are kept, Q/A and fact wordings are added to what staff have (never removed).
 
-    uv run python -m scripts.load_intents CL01            # shows what would change
-    uv run python -m scripts.load_intents CL01 --apply    # saves it
+    uv run python -m scripts.load_intents NFHT            # shows what would change
+    uv run python -m scripts.load_intents NFHT --apply    # saves it
 """
 
 import asyncio

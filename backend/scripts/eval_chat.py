@@ -3,8 +3,8 @@ Uses the real clinic content and APPROVED knowledge base (read only; nothing is 
 
     uv run python -m scripts.eval_chat            # failures only
     uv run python -m scripts.eval_chat --all      # every message and conversation
-    uv run python -m scripts.eval_chat --big      # the big set (scripts/eval_set_cl01.py)
-    uv run python -m scripts.eval_chat --big --draft   # with the DRAFT phrases of CL01.intents.json (memory only)
+    uv run python -m scripts.eval_chat --big      # the big set (scripts/eval_set_nfht.py)
+    uv run python -m scripts.eval_chat --big --draft   # with the DRAFT phrases of NFHT.intents.json (memory only)
 """
 
 import asyncio
@@ -19,8 +19,8 @@ from app.chat import context, embed, engine, intents, kb, service, store
 from app.chat.content import content
 from app.chat.schemas import ChatRequest
 from app.core.config import get_settings
-from scripts.eval_set_buttons_cl01 import CASES as BUTTONS
-from scripts.eval_set_cl01 import CASES as BIG
+from scripts.eval_set_buttons_nfht import CASES as BUTTONS
+from scripts.eval_set_nfht import CASES as BIG
 
 CLINICS = Path(__file__).resolve().parent.parent / "app" / "clinics"
 
@@ -104,7 +104,7 @@ def req(text: str) -> ChatRequest:
         _, action, value = text.split(" ", 2)
         event, payload = "button", {"action": action, "value": value}
     return ChatRequest.model_validate(
-        {"client_id": "CL01", "session_id": "s_" + "0" * 32, "visitor_id": "v_" + "0" * 32, "event": event,
+        {"client_id": "NFHT", "session_id": "s_" + "0" * 32, "visitor_id": "v_" + "0" * 32, "event": event,
          "payload": payload, "context": {"page_url": "https://example.com", "device": "desktop", "lang": "en"}}
     )  # fmt: skip
 
@@ -113,7 +113,7 @@ async def turn_of(
     conn: asyncpg.Connection, text: str, state: dict[str, Any]
 ) -> tuple[str, str, dict[str, Any]]:
     """One message as the service runs it (nothing saved): (layer, reply, new state)."""
-    c = content("CL01")
+    c = content("NFHT")
     assert c is not None
     r = req(text)
     said = store.patient_text(r, state)
@@ -165,7 +165,7 @@ async def main(show_all: bool, big: bool, draft: bool, buttons: bool = False) ->
     await embed.warm()
     conn = await asyncpg.connect(get_settings().database_url, statement_cache_size=0)
     if draft:
-        await use_draft(conn, "CL01")
+        await use_draft(conn, "NFHT")
     cases = BIG if big else BUTTONS if buttons else CASES
     passed = talks = 0
     by_want: dict[str, list[int]] = {}

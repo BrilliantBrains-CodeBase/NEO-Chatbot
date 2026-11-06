@@ -21,7 +21,7 @@ def test_by_words_is_the_phrase_or_a_small_typo(text: str, want: str | None) -> 
 
 
 def _text(text: str, intent: str | None, kb_answer: str | None = None) -> engine.Turn:
-    return engine.respond(req("text", clinic="CL01", text=text), {}, None, kb_answer, intent)
+    return engine.respond(req("text", clinic="NFHT", text=text), {}, None, kb_answer, intent)
 
 
 def test_a_topic_does_what_its_rule_does() -> None:
@@ -46,7 +46,7 @@ def test_a_topic_never_beats_an_answer_or_the_medical_guard() -> None:
      ("Asha Rao", {"flow": {"kind": "book", "step": "name"}}, False)],
 )  # fmt: skip
 def test_only_what_nothing_else_understood_is_looked_up(text: str, state: dict, want: bool) -> None:  # type: ignore[type-arg]
-    assert engine.wants_intent(req("text", clinic="CL01", text=text), state, text) is want
+    assert engine.wants_intent(req("text", clinic="NFHT", text=text), state, text) is want
 
 
 @pytest.mark.skipif(not get_settings().database_url, reason="DATABASE_URL not set")
@@ -69,7 +69,7 @@ async def test_only_approved_phrases_and_wordings_count(tx: asyncpg.Connection) 
     fact = await kb.fact(tx, "CL99", "insta id")
     assert fact and fact.answer == "Instagram: @test"
     medical: list[service.Step] = [{"step": "medical", "result": "matched"}]
-    r = req("text", clinic="CL01", text="are you a robot")
+    r = req("text", clinic="NFHT", text="are you a robot")
     assert await service._intent(tx, r, {}, "are you a robot", medical) is None  # never after the guard
     assert medical == [{"step": "medical", "result": "matched"}]  # and not even looked up
     intents._rows.clear()

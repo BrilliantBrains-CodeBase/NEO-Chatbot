@@ -1,5 +1,5 @@
-"""The main template: Neo Follicle's (CL01) canvas, Templates and Appearance. A clinic that follows a part
-shows the main's for-all version of it (``shared``, set when CL01 publishes for all) instead of its own, with
+"""The main template: NFHT's canvas, Templates and Appearance. A clinic that follows a part
+shows the main's for-all version of it (``shared``, set when NFHT publishes for all) instead of its own, with
 the main's clinic name, bot name, website, phone and WhatsApp swapped for its own. The Appearance's bot name,
 avatar letter, logo, location and on/off switch always stay the clinic's own. Changing a part makes it the
 clinic's own.
@@ -11,7 +11,7 @@ from typing import Any
 
 import asyncpg
 
-MAIN = "CL01"
+MAIN = "NFHT"
 PARTS = ("flow", "template", "appearance")
 OWN_LOOK = ("name", "avatar_letter", "logo", "location", "enabled")  # always the clinic's own
 

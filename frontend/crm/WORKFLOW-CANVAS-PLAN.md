@@ -11,7 +11,7 @@ one-level Menu buttons screen. Status: **planned, not built**. Built on the `saa
 - **No self-training.** Typed phrases and answers are suggested, **approved by staff**, then published.
 - **Draft → publish → versions** (migration 0019), so any change can be rolled back.
 - **Publish is blocked** until the checks pass: no loose ends, and the test sets (buttons 72/72, typed 313/313,
-  small 80/80 for CL01) still pass.
+  small 80/80 for NFHT) still pass.
 - **One source of data:** blocks read Clinic info (Services, Contact & hours, Reviews), Doctors and Appearance,
   so a price or a phone number is changed once and every block shows it.
 - **Everything lands in the CRM pipeline:** Leads, Inbox, Appointments, Cal.com, as the chat does today.
@@ -143,14 +143,14 @@ consults (exists), reminders 24 h and 1 h before.
   traces the bot already records).
 - **Tools:** copy, paste, duplicate; copy a flow to another clinic; sticky notes; version history and compare.
 - **Templates:** whole starter flows (Hair clinic, Fertility clinic, Skin clinic) and block groups (e.g. "Full
-  booking" = consent + questions + slot picker + save lead). CL01's chat today is imported as the first flow.
+  booking" = consent + questions + slot picker + save lead). NFHT's chat today is imported as the first flow.
 - Canvas library: **React Flow** (`@xyflow/react`, MIT).
 
 ## 6. Build order
 
 | Step | What |
 |---|---|
-| **W1** | Backend: the flow format (triggers, blocks, lines, settings per block type, canvas positions), checks, import of CL01's menu, 19 pages and booking questions; tests |
+| **W1** | Backend: the flow format (triggers, blocks, lines, settings per block type, canvas positions), checks, import of NFHT's menu, 19 pages and booking questions; tests |
 | **W2** | Canvas: library, drag, connect, zoom, mini-map, auto-arrange; settings panel for Choice, Answer, WhatsApp, Call, Emergency |
 | **W3** | Treatment blocks (categories → list → card → cost), reading from Services |
 | **W4** | Appointment blocks with Form / Step by step and field settings, Consent, Choose a doctor, Slot picker; saving into Leads, Inbox, Appointments |
@@ -160,7 +160,7 @@ consults (exists), reminders 24 h and 1 h before.
 | **W8** | Templates (Hair, Fertility, Skin) and block groups |
 | **W9** | Stats on the canvas (reach and drop-off per block) |
 | **W10** | Engagement blocks (rating, Google review, offers), A/B test, messages out |
-| **W11** | (With the user's OK) the live chatbot runs the published flow instead of `CL01.json` |
+| **W11** | (With the user's OK) the live chatbot runs the published flow instead of `NFHT.json` |
 
 ## 7. More from other tools (Voiceflow, Botpress, Typebot, Landbot, ManyChat)
 

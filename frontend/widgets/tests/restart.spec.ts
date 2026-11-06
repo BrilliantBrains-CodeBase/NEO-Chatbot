@@ -13,7 +13,7 @@ test('restart clears the chat, starts a new session and greets again', async ({ 
     await route.fulfill({ json: handle(req) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const bot = panel.locator('.nb-msg.bot:not(.nb-typing)');
   await expect(bot).toHaveText([GREETING]);
@@ -23,7 +23,7 @@ test('restart clears the chat, starts a new session and greets again', async ({ 
   expect(sent.map((r) => r.event)).toEqual(['start', 'restart']);
   expect(sent[1].session_id).toMatch(/^s_[0-9a-f]{32}$/);
   expect(sent[1].session_id).not.toBe(sent[0].session_id);
-  const stored = await page.evaluate(() => localStorage.getItem('neo_sid_CL01'));
+  const stored = await page.evaluate(() => localStorage.getItem('neo_sid_NFHT'));
   expect(JSON.parse(stored!).id).toBe(sent[1].session_id);
 });
 
@@ -39,7 +39,7 @@ test('a reply that arrives after restart is dropped', async ({ page }) => {
     await route.fulfill({ json: handle(req) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await panel.getByRole('button', { name: 'Restart chat' }).click();
 

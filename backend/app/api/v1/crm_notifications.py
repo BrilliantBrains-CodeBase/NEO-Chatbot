@@ -11,13 +11,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.v1.crm import can_see
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
 
-CLINIC = Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
+CLINIC = Annotated[str, Query(pattern=CLINIC_CODE)]
 Kind = Literal[
     "book", "online", "cancel", "reschedule", "callback", "question", "callback_late", "booking_late",
     "lead_new", "lead_assigned", "access_request", "integration_failed",

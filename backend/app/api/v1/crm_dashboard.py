@@ -13,13 +13,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.api.v1.crm import STAGES, TZ, Count, can_see
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
 
-CLINIC = r"^CL\d{2,3}$"
+CLINIC = CLINIC_CODE
 DAY = f"coalesce((lower(a.slot) at time zone '{TZ}')::date, a.preferred_date)"  # an appointment's day
 AT = f"::date::timestamp at time zone '{TZ}'"  # a clinic day's start, as a moment
 COUNTED = "('rejected', 'rescheduled')"  # not a booking: refused, or replaced by its new time

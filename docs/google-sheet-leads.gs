@@ -10,12 +10,12 @@
 //     It adds a "CRM" column and runs crmSend every 5 minutes from then on.
 //
 // Every 5 minutes, each row whose CRM cell is empty, or which changed since it was sent, goes to the CRM.
-// The CRM cell then shows the lead code, e.g. "CL01-00012 ✓", or the reason it was not accepted.
+// The CRM cell then shows the lead code, e.g. "NFHT-00012 ✓", or the reason it was not accepted.
 // Rows Meta adds do not fire edit triggers (Google only fires them for people), so a timer is used.
 
 const CRM_CONFIG = {
   url: "https://YOUR-BACKEND-ADDRESS/v1/integrations/sheet-leads",
-  clinic: "CL01", // Neo Follicle
+  clinic: "NFHT", // Neo Follicle
   tab: "", // the tab Meta writes to; "" = the first tab
   column: "CRM", // the status column added after the last header
   perRun: 50, // rows sent per run at most (the rest follow 5 minutes later)

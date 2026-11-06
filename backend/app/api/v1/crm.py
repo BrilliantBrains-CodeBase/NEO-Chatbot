@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from app.chat.content import content
 from app.chat.flows import EMAIL, normal_phone
+from app.core.codes import CLINIC_CODE, current_lead
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm import webhooks, whatsapp
@@ -24,8 +25,8 @@ router = APIRouter(prefix="/crm", tags=["crm"])
 
 
 class ClinicAccess(BaseModel):
-    id: str  # CL01
-    name: str  # Neo Follicle
+    id: str  # NFHT
+    name: str  # Neo Follicle Hair Transplant
     role: str  # bb_admin
     role_label: str  # Super Admin
     access: dict[str, str] = {}  # Who sees what: screen -> hidden / view / edit (time-limited too)
@@ -310,7 +311,8 @@ def _lead_filter(
     where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
     where += " and ($6::text is null or l.treatment = $6)"
     where += owner_where(owner) + request_where(request)
-    return where, [clinic, source, plain_text(q), date_from, date_to, treatment]
+    # A search for an old lead code (CL01-00003) finds the lead under its new one.
+    return where, [clinic, source, plain_text(current_lead(q.strip())), date_from, date_to, treatment]
 
 
 # The newest lead first; imported leads share one moment, so the code keeps the pages in a fixed order.
@@ -320,7 +322,7 @@ LEAD_ORDER = "order by l.created_at desc, l.lead_code desc"
 @router.get("/leads", response_model=LeadList)
 async def leads(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,
     source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
     q: Annotated[str, Query(max_length=100)] = "",
@@ -425,7 +427,7 @@ def _csv_file(clinic: str, rows: list[Record]) -> Response:
 
 
 class ExportPicked(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     codes: list[str] = Field(min_length=1, max_length=5000)
 
 
@@ -445,7 +447,7 @@ async def export_picked_leads(user: Annotated[Staff, Depends(staff)], body: Expo
 @router.get("/leads/export")
 async def export_leads(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     stage: Annotated[str | None, Query(pattern="^(new|follow_up|booked|visited|lost|invalid)$")] = None,
     source: Annotated[str | None, Query(pattern=SOURCE_FILTER)] = None,
     q: Annotated[str, Query(max_length=100)] = "",
@@ -468,6 +470,8 @@ async def export_leads(
 @router.get("/leads/{code}", response_model=LeadDetail)
 async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> LeadDetail:
     """One lead with its timeline and latest chat. The clinic comes from the lead itself."""
+    # A renamed clinic's old lead code (CL01-00003, from an older message or link) opens the lead.
+    code = current_lead(code)
     pool = await get_pool()
     async with pool.acquire() as conn:
         r = await conn.fetchrow(
@@ -529,7 +533,7 @@ class StaffOption(BaseModel):
 
 @router.get("/staff", response_model=list[StaffOption])
 async def staff_list(
-    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=CLINIC_CODE)]
 ) -> list[StaffOption]:
     """People a lead can be assigned to: active staff of the clinic, not doctors."""
     can_see(user, clinic)
@@ -585,6 +589,7 @@ async def _event(
 @router.patch("/leads/{code}", response_model=LeadDetail)
 async def change_lead(user: Annotated[Staff, Depends(staff)], code: str, body: LeadChange) -> LeadDetail:
     """Change the stage (Lost and Invalid need a reason) or the owner. Each change goes on the timeline."""
+    code = current_lead(code)
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         lead = await _lead_for_edit(conn, user, code)
@@ -623,6 +628,7 @@ async def change_lead(user: Annotated[Staff, Depends(staff)], code: str, body: L
 
 @router.post("/leads/{code}/notes", response_model=LeadDetail)
 async def add_note(user: Annotated[Staff, Depends(staff)], code: str, body: NoteIn) -> LeadDetail:
+    code = current_lead(code)
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         lead = await _lead_for_edit(conn, user, code)
@@ -632,6 +638,7 @@ async def add_note(user: Annotated[Staff, Depends(staff)], code: str, body: Note
 
 @router.post("/leads/{code}/calls", response_model=LeadDetail)
 async def log_call(user: Annotated[Staff, Depends(staff)], code: str, body: CallIn) -> LeadDetail:
+    code = current_lead(code)
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         lead = await _lead_for_edit(conn, user, code)
@@ -652,7 +659,7 @@ class LeadOptions(BaseModel):
 
 @router.get("/lead-options", response_model=LeadOptions)
 async def lead_options(
-    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
+    user: Annotated[Staff, Depends(staff)], clinic: Annotated[str, Query(pattern=CLINIC_CODE)]
 ) -> LeadOptions:
     """Choices for the Add lead form: the clinic's treatments (as in the chatbot) and active doctors."""
     can_see(user, clinic)
@@ -669,7 +676,7 @@ async def lead_options(
 
 
 class NewLead(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     name: str = Field(min_length=2, max_length=100)
     phone: str = Field(max_length=20)  # 10-digit Indian mobile, or digits with phone_cc
     phone_cc: str = Field(default="+91", pattern=r"^\+[1-9][0-9]{0,3}$")
@@ -733,7 +740,7 @@ class ImportRow(BaseModel):
 
 
 class LeadImport(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     rows: list[ImportRow] = Field(min_length=1, max_length=2000)
     confirm: bool = False  # False: only checks the rows and saves nothing
 

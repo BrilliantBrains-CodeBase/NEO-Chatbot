@@ -54,7 +54,7 @@ def test_times(text: str, want: str | None) -> None:
     ],
 )  # fmt: skip
 def test_rules(text: str, want: tuple[str, str]) -> None:
-    c = content("CL01")
+    c = content("NFHT")
     assert c is not None
     assert understand.route(text, c) == want
 
@@ -68,7 +68,7 @@ class Chat:
     def type(self, text: str, event: str = "text") -> str:
         payload: dict[str, Any] = {"text": text} if event == "text" else {}
         req = ChatRequest.model_validate(
-            {"client_id": "CL01", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32, "event": event,
+            {"client_id": "NFHT", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32, "event": event,
              "payload": payload,
              "context": {"page_url": "https://neofollicletransplant.com/", "device": "desktop", "lang": "en"}}
         )  # fmt: skip
@@ -151,11 +151,11 @@ def test_questions_about_the_bot_get_the_greeting(text: str) -> None:
 
 
 def _r(text: str) -> ChatRequest:
-    return store_req("text", clinic="CL01", text=text)
+    return store_req("text", clinic="NFHT", text=text)
 
 
 def test_tapping_a_date_or_time_that_became_unavailable_says_why() -> None:
-    cfg = content("CL01")["config"] | {"slots_by_day": {"2026-10-28": ["11:00"]}}  # type: ignore[index]
+    cfg = content("NFHT")["config"] | {"slots_by_day": {"2026-10-28": ["11:00"]}}  # type: ignore[index]
     f = {
         "kind": "book",
         "step": "date",

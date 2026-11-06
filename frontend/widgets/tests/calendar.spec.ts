@@ -17,7 +17,7 @@ async function open(page: Page, block: Omit<CalendarBlock, 'type' | 'action' | '
     });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const cal = page.getByRole('dialog', { name: 'Arya AI chat' }).locator('.nb-cal').first();
   await expect(cal).toBeVisible();
   return cal;

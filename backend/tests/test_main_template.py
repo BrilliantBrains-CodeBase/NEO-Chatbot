@@ -44,7 +44,7 @@ async def test_follow_make_own_and_follow_again(api: AsyncClient, monkeypatch: p
     before = {r["id"] for r in await pool.fetch("select id from app.clinics")}
     code = None
     try:
-        body = {"name": "Test Follow Clinic", "bot_name": "Mira", "copy_from": "CL01"}
+        body = {"name": "Test Follow Clinic", "bot_name": "Mira", "copy_from": "NFHT"}
         r = await api.post("/v1/crm/clinics", json=body, headers=headers)
         assert r.status_code == 201, r.text
         code = next(c["id"] for c in r.json() if c["id"] not in before)
@@ -54,7 +54,7 @@ async def test_follow_make_own_and_follow_again(api: AsyncClient, monkeypatch: p
         assert sorted(s["follows"]) == ["appearance", "flow", "template"]
         assert all(s["draft"][k] == s["published"][k] for k in main_template.PARTS)  # nothing to publish
         assert s["draft"]["appearance"]["look"]["name"] == "Mira"  # its own bot name
-        main = await pool.fetchval("select shared from app.clinic_settings where clinic_id = 'CL01'")
+        main = await pool.fetchval("select shared from app.clinic_settings where clinic_id = 'NFHT'")
         assert ("Neo Follicle" in str(main)) == ("Test Follow Clinic" in str(s["draft"]["flow"]))  # swapped
 
         # Saving a followed part makes it the clinic's own; the live chat keeps the main's until publish
@@ -75,7 +75,7 @@ async def test_follow_make_own_and_follow_again(api: AsyncClient, monkeypatch: p
         r = await api.post(f"{url}/publish?for_all=true", headers=headers)
         assert r.status_code == 400
         r = await api.put(
-            "/v1/crm/console/CL01/main-template", json={"part": "flow", "follow": True}, headers=headers
+            "/v1/crm/console/NFHT/main-template", json={"part": "flow", "follow": True}, headers=headers
         )
         assert r.status_code == 400
     finally:

@@ -1,6 +1,6 @@
 // Mock backend: answers like the real FastAPI backend will, using the contract in core/types.ts.
 // Used by the dev playground and the Playwright tests only; it is never part of a clinic's widget file.
-// Arya (CL01) has the full flows; Navya and Diya only greet until their faces are built.
+// Arya (NFHT) has the full flows; Mira (DS, NF) only greets in the mock until their faces are built.
 import type { ChatRequest, ChatResponse, Choice, UiBlock } from '../core/types';
 import { addDays, fmtDate, fmtTime, weekday } from '../core/dates';
 import {
@@ -32,9 +32,9 @@ import {
 import { isMenu, isYes, matchOption, parseDate, parseTime } from './typing';
 
 const GREETING: Record<string, string> = {
-  CL01: ARYA.greeting,
-  CL02: "Hi, I'm Navya, Neo Fertility's AI assistant. How can I help you today?",
-  CL03: "Hi, I'm Diya, Derma Solutions' AI assistant. How can I help you today?",
+  NFHT: ARYA.greeting,
+  NF: "Hi, I'm Mira, Neo Fertility's AI assistant. How can I help you today?",
+  DS: "Hi, I'm Mira, Derma Solutions' AI assistant. How can I help you today?",
 };
 
 // Nothing known: a call back is offered first; the form starts only on yes (same as the real backend).
@@ -350,7 +350,7 @@ function confirmed(f: Flow): ChatResponse {
   return reply([text], DONE);
 }
 
-const menu = (client: string, text: string) => reply([text], client === 'CL01' ? MENU : null);
+const menu = (client: string, text: string) => reply([text], client === 'NFHT' ? MENU : null);
 
 // ---------- steps ----------
 
@@ -478,7 +478,7 @@ function vague(f: Flow | null, mem: Memory | undefined): ChatResponse {
   if (topic && TREATMENT_INFO[topic] && (isCard || !choices.length || last?.type === 'menu'))
     return topicMore(topic);
   if (choices.length) return reply([WHICH], last);
-  return menu('CL01', 'How can I help you today?');
+  return menu('NFHT', 'How can I help you today?');
 }
 
 // A question typed in the middle of a flow: answered briefly (or noted), then the same step is asked
@@ -720,7 +720,7 @@ function respond(req: ChatRequest): ChatResponse {
     sessions.set(req.session_id, null);
     return menu(client, GREETING[client] ?? 'Hi, how can I help you today?');
   }
-  if (client !== 'CL01') return reply([NO_ANSWER]);
+  if (client !== 'NFHT') return reply([NO_ANSWER]);
 
   if (req.event === 'button') {
     // Main menu and every main card stop the current flow.

@@ -17,7 +17,7 @@ async function mock(page: Page) {
 }
 
 async function open(page: Page) {
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   return page.getByRole('dialog', { name: 'Arya AI chat' });
 }
 
@@ -26,10 +26,10 @@ async function seed(page: Page, chatAgeMs: number, sessionAgeMs?: number) {
   await page.addInitScript(
     ([chatAge, sessionAge]) => {
       const entries = [{ id: 0, from: 'me', text: 'OLD QUESTION' }];
-      localStorage.setItem('neo_chat_CL01', JSON.stringify({ t: Date.now() - chatAge, entries }));
+      localStorage.setItem('neo_chat_NFHT', JSON.stringify({ t: Date.now() - chatAge, entries }));
       if (sessionAge !== null)
         localStorage.setItem(
-          'neo_sid_CL01',
+          'neo_sid_NFHT',
           JSON.stringify({ id: 's_' + 'a'.repeat(32), t: Date.now() - sessionAge }),
         );
     },
@@ -87,6 +87,6 @@ test('restart clears the saved chat', async ({ page }) => {
   await expect(panel.locator('.nb-msg.me')).toHaveCount(0);
   await expect(panel.locator('.nb-msg.bot', { hasText: GREETING })).toBeVisible();
   // Only the new greeting and menu are kept: no patient messages from before the restart.
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('neo_chat_CL01') ?? '{}'));
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('neo_chat_NFHT') ?? '{}'));
   expect(saved.entries.filter((e: { from: string }) => e.from === 'me')).toEqual([]);
 });

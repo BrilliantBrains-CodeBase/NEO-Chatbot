@@ -7,7 +7,7 @@ import { handle } from '../mock/engine';
 // The focused element inside the widget's Shadow DOM.
 const focused = (page: Page) =>
   page.evaluate(() => {
-    const el = document.querySelector('#neo-widget-CL01')!.shadowRoot!.activeElement as HTMLElement | null;
+    const el = document.querySelector('#neo-widget-NFHT')!.shadowRoot!.activeElement as HTMLElement | null;
     return {
       text: el?.innerText.trim() ?? '',
       label: el?.getAttribute('aria-label') ?? '',

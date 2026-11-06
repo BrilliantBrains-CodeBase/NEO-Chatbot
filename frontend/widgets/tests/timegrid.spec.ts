@@ -26,7 +26,7 @@ async function open(page: Page, slots = SLOTS, anyTime = true) {
     });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const grid = panel.locator('.nb-times');
   await expect(grid).toBeVisible();

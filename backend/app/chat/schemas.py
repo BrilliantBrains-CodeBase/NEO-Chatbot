@@ -6,7 +6,9 @@ Every field is checked here, so nothing unexpected reaches the flows or the data
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.core.codes import CLINIC_CODE, current
 
 ID_HEX = r"[0-9a-f]{32}"
 
@@ -30,12 +32,17 @@ class Context(Strict):
 
 
 class ChatRequest(Strict):
-    client_id: str = Field(pattern=r"^CL[0-9]{2,3}$")
+    client_id: str = Field(pattern=CLINIC_CODE)
     session_id: str = Field(pattern=rf"^s_{ID_HEX}$")
     visitor_id: str = Field(pattern=rf"^v_{ID_HEX}$")
     event: Literal["start", "text", "button", "restart"]
     payload: Payload = Field(default_factory=Payload)
     context: Context
+
+    @field_validator("client_id")
+    @classmethod
+    def _renamed(cls, v: str) -> str:
+        return current(v)  # a cached widget file may still send a clinic's old code (CL01)
 
 
 class BotMessage(BaseModel):

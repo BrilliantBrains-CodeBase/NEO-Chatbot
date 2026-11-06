@@ -13,7 +13,7 @@ async function open(page: Page, reply: (req: ChatRequest) => ChatResponse = hand
     await route.fulfill({ json: reply(req) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-msg.bot:not(.nb-typing)')).toHaveCount(1);
   return panel;

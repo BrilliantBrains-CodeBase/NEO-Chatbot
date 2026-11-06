@@ -1019,12 +1019,12 @@ def _always(value: Any) -> Any:
 
 
 def _test_sets(clinic: str) -> dict[str, list[tuple[str, str, str]]]:
-    """The clinic's typed-message test sets (only CL01 has them so far)."""
-    if clinic != "CL01":
+    """The clinic's typed-message test sets (only NFHT has them so far)."""
+    if clinic != "NFHT":
         return {}
     from scripts.eval_chat import CASES as SMALL
-    from scripts.eval_set_buttons_cl01 import CASES as BUTTONS
-    from scripts.eval_set_cl01 import CASES as BIG
+    from scripts.eval_set_buttons_nfht import CASES as BUTTONS
+    from scripts.eval_set_nfht import CASES as BIG
 
     return {"Buttons typed": BUTTONS, "Typed messages": BIG, "Small set": SMALL}
 
@@ -1039,7 +1039,7 @@ async def run_test_sets(user: Annotated[Staff, Depends(staff)], clinic: str) -> 
 
 # Publish needs at least these scores (the canvas flow's scores on 28 Oct 2026, with the live chat's approved
 # phrases). Raise them as the flow gets better; never lower them.
-TEST_SET_BARS = {"CL01": {"Buttons typed": 70, "Typed messages": 317, "Small set": 80}}
+TEST_SET_BARS = {"NFHT": {"Buttons typed": 70, "Typed messages": 317, "Small set": 80}}
 
 
 async def _score_sets(clinic: str, draft: dict[str, Any]) -> list[dict[str, Any]]:

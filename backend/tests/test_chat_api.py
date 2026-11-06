@@ -15,13 +15,13 @@ from app.core.config import get_settings
 from app.main import create_app
 
 SITE = "https://neofollicletransplant.com"
-ARYA = guard.Clinic("CL01", "Arya AI", (SITE,))
+ARYA = guard.Clinic("NFHT", "Arya AI", (SITE,))
 TAKEN = "s_" + "9" * 32
 
 
 def body(**over: Any) -> dict[str, Any]:
     b: dict[str, Any] = {
-        "client_id": "CL01",
+        "client_id": "NFHT",
         "session_id": "s_" + "a" * 32,
         "visitor_id": "v_" + "b" * 32,
         "event": "start",
@@ -35,7 +35,7 @@ def body(**over: Any) -> dict[str, Any]:
 @pytest.fixture
 async def api(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[AsyncClient]:
     async def fake_clinic(clinic_id: str) -> guard.Clinic | None:
-        return ARYA if clinic_id == "CL01" else None
+        return ARYA if clinic_id == "NFHT" else None
 
     async def fake_handle(req: ChatRequest, clinic: guard.Clinic) -> ChatResponse:
         # The front door only: no database. Saving is tested on CL99 in test_chat_store.py.

@@ -16,9 +16,9 @@ import { CheckIcon, InfoIcon } from "./icons";
 
 type Field = "name" | "phone" | "email" | "clinic" | "role" | "password" | "confirm" | "terms";
 
-// The clinic is asked as its code (e.g. CL01 or CL101, given by the admin), so this public page never lists
+// The clinic is asked as its code (e.g. NFHT, given by the admin), so this public page never lists
 // the clinics that use the CRM. Only Super Admin approves an Admin request.
-const CLINIC_CODE = /^CL\d{2,3}$/;
+const CLINIC_CODE = /^[A-Z][A-Z0-9]{1,9}$/; // as the backend (app/core/codes.py): NFHT, BF2, CL99
 const ROLES: [string, string][] = [
   ["front_desk", "Front Desk"],
   ["doctor", "Doctor"],
@@ -45,7 +45,7 @@ export default function CreateAccountForm() {
       email: EMAIL.test(v("email")) ? undefined : "Enter a valid work email.",
       clinic: CLINIC_CODE.test(v("clinic").toUpperCase())
         ? undefined
-        : "Enter the clinic code your admin gave you, e.g. CL01 or CL101.",
+        : "Enter the clinic code your admin gave you, e.g. NFHT.",
       role: v("role") ? undefined : "Select your role.",
       password: score >= 3 ? undefined : "Use 8+ characters with a number and a capital letter.",
       confirm: v("confirm") && f.get("confirm") === password ? undefined : "Passwords do not match.",
@@ -135,7 +135,7 @@ export default function CreateAccountForm() {
             Clinic code
             <input
               name="clinic"
-              placeholder="e.g. CL01 or CL101"
+              placeholder="e.g. NFHT"
               maxLength={5}
               autoCapitalize="characters"
               aria-invalid={!!errors.clinic}

@@ -138,7 +138,7 @@ export default function GmailPanel({
         <input
           className="f"
           style={{ flex: 1, minWidth: 140 }}
-          placeholder="Sender name, e.g. Neo Follicle"
+          placeholder="Sender name, e.g. Neo Follicle Hair Transplant"
           maxLength={80}
           value={form.from_name}
           onChange={(e) => setForm({ ...form, from_name: e.target.value })}

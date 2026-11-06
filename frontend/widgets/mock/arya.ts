@@ -1,4 +1,4 @@
-// Arya (Neo Follicle, CL01) content for the mock backend. Wording from frontend.md and the approved mockup.
+// Arya (Neo Follicle Hair Transplant, NFHT) content for the mock backend. Wording from frontend.md and the approved mockup.
 import type { ChatResponse, Choice, MenuBlock } from '../core/types';
 
 export const TYPE: ChatResponse['input'] = { mode: 'text', placeholder: 'Type your question' };
@@ -446,7 +446,7 @@ export const NODES: Record<string, ChatResponse> = {
   ),
 };
 
-// Google reviews (same data as backend/app/clinics/CL01.json "reviews", taken from the listing on 24 Oct 2026).
+// Google reviews (same data as backend/app/clinics/NFHT.json "reviews", taken from the listing on 24 Oct 2026).
 export const REVIEWS = {
   clinic: 'Neo Follicle',
   rating: '4.8',

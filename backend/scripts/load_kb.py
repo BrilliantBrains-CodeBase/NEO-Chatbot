@@ -1,8 +1,8 @@
 """Loads a clinic's knowledge base file (app/clinics/<CLxx>.kb.json) into app.kb_facts and app.kb_qa
 as DRAFTS. Approved or retired rows are never changed. Safe to run again.
 
-    uv run python -m scripts.load_kb CL01            # shows what would change
-    uv run python -m scripts.load_kb CL01 --apply    # saves it
+    uv run python -m scripts.load_kb NFHT            # shows what would change
+    uv run python -m scripts.load_kb NFHT --apply    # saves it
 """
 
 import asyncio
@@ -70,5 +70,5 @@ class _DryRun(Exception):
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if a != "--apply"]
     if len(args) != 1 or not (ROOT / f"{args[0]}.kb.json").exists():
-        sys.exit("usage: python -m scripts.load_kb CL01 [--apply]")
+        sys.exit("usage: python -m scripts.load_kb NFHT [--apply]")
     asyncio.run(main(args[0], "--apply" in sys.argv))

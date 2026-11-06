@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.chat.leads import _assignee
+from app.core.codes import CLINIC_CODE, current, current_lead
 from app.core.config import get_settings
 from app.core.db import get_pool
 from app.crm import calcom, vault
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
 class SheetRow(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     secret: str = Field(max_length=200)
     sheet: str = Field(default="", max_length=200)  # the sheet's name, for the timeline
     row_number: int = Field(default=0, ge=0)
@@ -63,6 +64,9 @@ def _phone(raw: str) -> tuple[str, str] | None:
 
 @router.post("/sheet-leads", response_model=SheetResult)
 async def sheet_lead(body: SheetRow) -> SheetResult:
+    # The sheet's script may still send a clinic's old code, and the old lead codes it wrote (CL01-00003).
+    body.clinic = current(body.clinic)
+    body.lead_code = current_lead(body.lead_code) if body.lead_code else None
     secret = get_settings().sheet_webhook_secret
     if not secret or not hmac.compare_digest(body.secret, secret):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong secret.")
@@ -129,6 +133,7 @@ async def sheet_lead(body: SheetRow) -> SheetResult:
 # ---------- Cal.com: bookings changed in the clinic's Cal.com come back to the CRM ----------
 @router.post("/calcom/{clinic}")
 async def calcom_event(clinic: str, request: Request) -> dict[str, str]:
+    clinic = current(clinic)  # the webhook address Cal.com was given may hold the old code
     """Cal.com's webhook (created when the clinic connected its Cal.com). Signed with the webhook's secret
     (Vault): X-Cal-Signature-256 = HMAC-SHA256 of the body. A booking cancelled or moved in Cal.com updates
     its appointment; a booking made by the CRM is already known (the same uid)."""

@@ -16,7 +16,7 @@ from app.chat import embed
 
 CACHE_S = 60  # approved phrases change rarely; a minute keeps CRM edits quick to show
 WORDS_MIN = 92  # the phrase itself with a small typo ("r u a bto")
-# Measured on CL01 (scripts/eval_chat --big --draft): right topics scored 0.83 to 0.97; "my hair is thinning
+# Measured on NFHT (scripts/eval_chat --big --draft): right topics scored 0.83 to 0.97; "my hair is thinning
 # what should i do" (not to be answered) scored 0.827. Medical messages never reach this step.
 MEANING_MIN = 0.83
 MEANING_GAP = 0.03  # clearly closer to this topic than to any other

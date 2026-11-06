@@ -2,11 +2,11 @@
 
 import { useCrm } from "@/components/crm/CrmProvider";
 
-// The main template (Neo Follicle): its canvas, Templates and Appearance are what other clinics show until they
-// change that part. On Neo Follicle: "Publish for all clinics" (Super Admin only). Elsewhere: whether this part
-// follows Neo Follicle or is the clinic's own, and the switch between them.
+// The main template (Neo Follicle Hair Transplant): its canvas, Templates and Appearance are what other clinics show until they
+// change that part. On Neo Follicle Hair Transplant: "Publish for all clinics" (Super Admin only). Elsewhere: whether this part
+// follows Neo Follicle Hair Transplant or is the clinic's own, and the switch between them.
 
-export const MAIN = "CL01";
+export const MAIN = "NFHT";
 export type Part = "flow" | "template" | "appearance";
 const NAMES: Record<Part, string> = {
   flow: "canvas",
@@ -14,9 +14,9 @@ const NAMES: Record<Part, string> = {
   appearance: "appearance",
 };
 
-/** The Publish button's words: on Neo Follicle it changes Neo Follicle only. */
+/** The Publish button's words: on Neo Follicle Hair Transplant it changes Neo Follicle Hair Transplant only. */
 export const publishLabel = (clinicId?: string) =>
-  clinicId === MAIN ? "Publish for Neo Follicle only" : "Publish";
+  clinicId === MAIN ? "Publish for Neo Follicle Hair Transplant only" : "Publish";
 
 export default function MainTemplateBar({
   clinicId,
@@ -47,7 +47,7 @@ export default function MainTemplateBar({
   const name = NAMES[part];
 
   if (clinicId === MAIN) {
-    if (!me?.bb_admin) return null; // managers see Neo Follicle's own Publish only
+    if (!me?.bb_admin) return null; // managers see Neo Follicle Hair Transplant's own Publish only
     return (
       <div
         className="card row"
@@ -60,10 +60,10 @@ export default function MainTemplateBar({
       >
         <span className="badge b-vi">Main template</span>
         <span className="sub2" style={{ flex: 1 }}>
-          Clinics that follow Neo Follicle show its {name}, with their own
+          Clinics that follow Neo Follicle Hair Transplant show its {name}, with their own
           clinic and bot name.{" "}
           {mainBehind && !changed
-            ? "Neo Follicle's live version is not yet for all clinics."
+            ? "Neo Follicle Hair Transplant's live version is not yet for all clinics."
             : ""}
         </span>
         <button
@@ -72,7 +72,7 @@ export default function MainTemplateBar({
           onClick={() => {
             if (
               window.confirm(
-                "Publish Neo Follicle's canvas, Templates and Appearance for every clinic that follows it?",
+                "Publish Neo Follicle Hair Transplant's canvas, Templates and Appearance for every clinic that follows it?",
               )
             )
               void call(
@@ -102,13 +102,13 @@ export default function MainTemplateBar({
     >
       <span className={`badge ${following ? "b-vi" : "b-bk"}`}>
         {following
-          ? "Following Neo Follicle (main template)"
+          ? "Following Neo Follicle Hair Transplant (main template)"
           : "This clinic's own"}
       </span>
       <span className="sub2" style={{ flex: 1 }}>
         {following
-          ? `This ${name} comes from Neo Follicle, with your clinic and bot name. Saving a change makes it your own.`
-          : `Changes to Neo Follicle's ${name} do not reach this clinic.`}
+          ? `This ${name} comes from Neo Follicle Hair Transplant, with your clinic and bot name. Saving a change makes it your own.`
+          : `Changes to Neo Follicle Hair Transplant's ${name} do not reach this clinic.`}
       </span>
       <button
         className="btn g"
@@ -123,14 +123,14 @@ export default function MainTemplateBar({
             );
           else if (
             window.confirm(
-              `Follow Neo Follicle's ${name} again? This clinic's own ${name} is set aside.`,
+              `Follow Neo Follicle Hair Transplant's ${name} again? This clinic's own ${name} is set aside.`,
             )
           )
             void call(
               "main-template",
               "PUT",
               { part, follow: true },
-              `Following Neo Follicle's ${name} again`,
+              `Following Neo Follicle Hair Transplant's ${name} again`,
             );
         }}
       >

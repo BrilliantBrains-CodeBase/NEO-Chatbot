@@ -11,13 +11,14 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field, field_validator
 
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm/clinic-settings", tags=["crm"])
 
-CLINIC = Annotated[str, Path(pattern=r"^CL\d{2,3}$")]
+CLINIC = Annotated[str, Path(pattern=CLINIC_CODE)]
 PHONE = r"^\+[1-9][0-9]{6,14}$"
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 TYPES = r"png|jpeg|webp|svg\+xml|x-icon|vnd\.microsoft\.icon"

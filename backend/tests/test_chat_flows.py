@@ -21,7 +21,7 @@ class Chat:
     def send(self, event: str, **payload: Any) -> str:
         req = ChatRequest.model_validate(
             {
-                "client_id": "CL01",
+                "client_id": "NFHT",
                 "session_id": "s_" + "a" * 32,
                 "visitor_id": "v_" + "b" * 32,
                 "event": event,

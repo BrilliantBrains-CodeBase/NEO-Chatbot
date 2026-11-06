@@ -174,7 +174,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
 // bundled there.
 const DEV_API = 'http://127.0.0.1:8000';
 // Clinics the real backend has content for; the others use the mock until theirs is built.
-const ON_BACKEND = ['CL01'];
+const ON_BACKEND = ['NFHT', 'DS', 'NF', 'NS6'];
 function devFetch(clinicId: string): typeof fetch | undefined {
   const q = new URLSearchParams(location.search);
   const mock = import.meta.env.DEV

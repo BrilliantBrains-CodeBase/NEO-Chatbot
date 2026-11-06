@@ -6,7 +6,7 @@ from app.chat import engine
 from app.chat.schemas import ChatRequest
 
 
-def req(event: str = "start", clinic: str = "CL01", **payload: Any) -> ChatRequest:
+def req(event: str = "start", clinic: str = "NFHT", **payload: Any) -> ChatRequest:
     return ChatRequest.model_validate(
         {
             "client_id": clinic,
@@ -25,7 +25,9 @@ def texts(turn: engine.Turn) -> list[str]:
 
 def test_start_greets_with_the_seven_card_menu() -> None:
     turn = engine.respond(req(), {})
-    assert texts(turn) == ["Hi, I'm Arya, Neo Follicle's AI assistant. How can I help you today?"]
+    assert texts(turn) == [
+        "Hi, I'm Arya, Neo Follicle Hair Transplant's AI assistant. How can I help you today?"
+    ]
     ui = turn.reply.ui or {}
     assert ui["layout"] == "cards3"
     assert [i["label"] for i in ui["items"]] == [

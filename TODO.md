@@ -96,7 +96,7 @@ Each piece was checked (typecheck, lint, build, Playwright on desktop and mobile
 Done so far: database D1 to D6 (13 migrations), chat backend B1 to B6 (API front door, sessions, Arya menus and flows, typing = tapping and rules), widget preview on Vercel.
 
 - [x] B5: real slots from doctor availability, leave, holidays and existing appointments; 5-minute hold while the patient checks the summary
-- [x] B6: save leads (CL01-00001), requests, appointments, tasks, timeline, noted questions; queue the "request received" email
+- [x] B6: save leads (NFHT-00001), requests, appointments, tasks, timeline, noted questions; queue the "request received" email
 - [ ] B7: widget switched from the mock to the real backend; backend deployed on Vercel (Mumbai, bom1)
 - [ ] R1 to R4: knowledge base and RAG: rag_traces table, PDF chunking and import, hybrid search (Postgres full-text + pgvector), LLM (Groq then Gemini) with grounding checks; embedding model measured on Vercel. Needs the clinic PDFs and the Groq key
 - [ ] Email through Gmail SMTP (app password as a Vercel secret): request received, appointment confirmed

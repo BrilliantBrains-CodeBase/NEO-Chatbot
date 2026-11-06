@@ -9,7 +9,7 @@ Pictures of the design in [RAG-AND-LEADS.md](RAG-AND-LEADS.md). GitHub draws the
 ```mermaid
 flowchart TB
   subgraph Sites["Clinic websites (one script tag each)"]
-    W1["neofollicletransplant.com<br/>Arya AI · CL01"]
+    W1["neofollicletransplant.com<br/>Arya AI · NFHT"]
     W2["neofertility.co.in<br/>Navya AI · CL02"]
     W3["dermasolutions.co.in<br/>Diya AI · CL03"]
   end

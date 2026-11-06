@@ -186,8 +186,9 @@ async def test_staff_book_a_free_time(api: AsyncClient, monkeypatch: pytest.Monk
         )
         assert a["status"] == "pending" and a["len"].seconds == 600
         assert a["type"] == "book" and a["rstatus"] == "pending" and a["stage"] == "new"
-        inbox = (await api.get("/v1/crm/inbox?clinic=CL99&type=book", headers=headers)).json()
-        assert r.json()["request_id"] in str(inbox)
+        # Booked by staff: the lead is theirs (not left in the Inbox) and the request waits on it in Leads.
+        waiting = (await api.get(f"/v1/crm/leads/{r.json()['lead_code']}/requests", headers=headers)).json()
+        assert r.json()["request_id"] in [w["id"] for w in waiting]
 
         r = await api.post(url, json=visit | {"patient": None, "lead_code": code}, headers=headers)
         assert r.status_code == 409  # held by the request

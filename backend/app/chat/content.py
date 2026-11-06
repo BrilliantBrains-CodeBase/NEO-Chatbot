@@ -1,6 +1,6 @@
 """Clinic content (menus, fixed answers, treatments), read-only JSON in app/clinics.
 
-CL01.json is exported from the approved Arya mock (frontend/widgets/mock/arya.ts), so the wording and
+NFHT.json is exported from the approved Arya mock (frontend/widgets/mock/arya.ts), so the wording and
 links are exactly the ones the widget tests check.
 """
 

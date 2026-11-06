@@ -11,7 +11,7 @@ let n = 0;
 function chat() {
   clock.now = () => new Date('2026-10-21T03:30:00Z');
   const session_id = 's_' + String(++n).padStart(32, '0');
-  const base = { client_id: 'CL01', session_id, visitor_id: 'v_' + '0'.repeat(32), payload: {} };
+  const base = { client_id: 'NFHT', session_id, visitor_id: 'v_' + '0'.repeat(32), payload: {} };
   const ctx = { page_url: 'https://neofollicletransplant.com/', device: 'desktop', lang: 'en' } as const;
   handle({ ...base, event: 'start', context: ctx } as ChatRequest);
   const text = (t: string, cc?: string): ChatResponse =>
@@ -104,7 +104,7 @@ test('in the widget: a booking made by typing only', async ({ page }) => {
     await r.fulfill({ json: handle(r.request().postDataJSON() as ChatRequest) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const bot = (p: Locator) => p.locator('.nb-msg.bot:not(.nb-typing)').last();
   const type = async (t: string, expected: string | RegExp) => {

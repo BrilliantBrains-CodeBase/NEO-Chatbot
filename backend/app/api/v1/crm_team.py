@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.api.v1.crm_security import main_email
 from app.chat import guard
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import supabase_admin
 from app.crm.auth import ROLE_LABEL, Staff, staff
@@ -458,7 +459,7 @@ class AccessRequest(BaseModel):
     phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
     email: str = Field(max_length=120, pattern=EMAIL)
     password: str = Field(min_length=8, max_length=72)
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")  # the clinic code the manager gives, e.g. CL01
+    clinic: str = Field(pattern=CLINIC_CODE)  # the clinic code the manager gives, e.g. NFHT
     role: Role
 
     @field_validator("email")

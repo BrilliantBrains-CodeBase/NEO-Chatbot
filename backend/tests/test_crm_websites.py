@@ -56,7 +56,7 @@ async def test_embed_code(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> 
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    code = (await api.get("/v1/crm/console/CL01/websites/embed", headers=headers)).json()["code"]
+    code = (await api.get("/v1/crm/console/NFHT/websites/embed", headers=headers)).json()["code"]
     assert (
         code == '<script src="http://test/v1/widget/neo-follicle.js" defer></script>'
     )  # this backend's address
@@ -129,7 +129,7 @@ async def test_integrations_status_never_shows_keys(
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    r = await api.get("/v1/crm/console/CL01/integrations", headers=headers)
+    r = await api.get("/v1/crm/console/NFHT/integrations", headers=headers)
     assert r.status_code == 200
     assert [i["id"] for i in r.json()] == ["calcom", "sheet", "forms", "webhooks", "whatsapp", "email"]
     s = get_settings()
@@ -629,15 +629,15 @@ async def test_button_links_open_the_right_page(api: AsyncClient) -> None:
     pool = await get_pool()
     maps = await pool.fetchval(
         "select coalesce(nullif(published->'contact', 'null'::jsonb), draft->'contact')->>'maps_link' "
-        "from app.clinic_settings where clinic_id = 'CL01'"
+        "from app.clinic_settings where clinic_id = 'NFHT'"
     )
     if not maps:
-        pytest.skip("CL01 has no map link in this database")
-    r = await api.get("/v1/r/CL01/map", follow_redirects=False)
+        pytest.skip("NFHT has no map link in this database")
+    r = await api.get("/v1/r/NFHT/map", follow_redirects=False)
     assert r.status_code == 302 and r.headers["location"] == maps
-    menu = await api.get("/v1/r/CL01/menu/page-clinic/b1", follow_redirects=False)
+    menu = await api.get("/v1/r/NFHT/menu/page-clinic/b1", follow_redirects=False)
     assert menu.status_code == 302 and menu.headers["location"].startswith("https://")
-    assert (await api.get("/v1/r/CL01/nothing", follow_redirects=False)).status_code == 404
+    assert (await api.get("/v1/r/NFHT/nothing", follow_redirects=False)).status_code == 404
 
 
 @needs_db

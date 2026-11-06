@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 test('first open shows typing dots, then the greeting; the request is the JSON contract', async ({
   page,
 }) => {
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-typing')).toBeVisible();
   const bot = panel.locator('.nb-msg.bot:not(.nb-typing)');
@@ -28,7 +28,7 @@ test('first open shows typing dots, then the greeting; the request is the JSON c
 
   expect(sent).toHaveLength(1);
   const req = sent[0];
-  expect(req.client_id).toBe('CL01');
+  expect(req.client_id).toBe('NFHT');
   expect(req.event).toBe('start');
   expect(req.session_id).toMatch(/^s_[0-9a-f]{32}$/);
   expect(req.visitor_id).toMatch(/^v_[0-9a-f]{32}$/);
@@ -38,7 +38,7 @@ test('first open shows typing dots, then the greeting; the request is the JSON c
 });
 
 test('closing and reopening keeps the conversation and does not start again', async ({ page }) => {
-  const launcher = page.locator('#neo-widget-CL01 .nb-launch');
+  const launcher = page.locator('#neo-widget-NFHT .nb-launch');
   await launcher.click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-msg.bot:not(.nb-typing)')).toHaveCount(1);
@@ -65,7 +65,7 @@ test('a web address in bot text is a link that opens in a new tab; text around i
       },
     }),
   );
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const link = panel.locator('.nb-msg.bot a.nb-link');
   await expect(link).toHaveText('https://maps.app.goo.gl/jKaWhcfQuKZXRvE48');

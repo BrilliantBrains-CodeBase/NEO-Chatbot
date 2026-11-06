@@ -12,10 +12,10 @@ Build one screen at a time, show it, wait for "next" (see CRM-HANDOFF.md). The m
 
 - **No LLM in answers.** The bot answers with rules and meaning matching only.
 - **No self-training.** Every new answer, phrase or button is suggested, **approved by staff**, then published.
-- **Buttons are trained.** Typing "book appointment" works like tapping it (CL01: 72/72 buttons). Adding or
+- **Buttons are trained.** Typing "book appointment" works like tapping it (NFHT: 72/72 buttons). Adding or
   renaming a button asks for example phrases; the test sets must still pass (buttons 72/72, big set 313/313,
   small set 80/80) before it goes live.
-- **Settings live in the database**, one record per clinic (today `backend/app/clinics/CL01.json`), so the bot
+- **Settings live in the database**, one record per clinic (today `backend/app/clinics/NFHT.json`), so the bot
   uses changes without a redeploy.
 - **JSON only** between the CRM and the backend; the backend checks every value; every change is logged.
 - **Draft → publish:** changes are saved as a draft, previewed, then published; each publish is a version.

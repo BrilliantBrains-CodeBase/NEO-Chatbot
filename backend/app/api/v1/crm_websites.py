@@ -127,7 +127,7 @@ async def embed_code(user: Annotated[Staff, Depends(staff)], clinic: str, reques
     await _manager(user, clinic)
     base = (get_settings().public_url or str(request.base_url)).rstrip("/")
     name = widget.loaders().get(clinic)
-    if name:  # a clinic with its own built file (e.g. CL01's neo-follicle.js) keeps its line
+    if name:  # a clinic with its own built file (e.g. NFHT's neo-follicle.js) keeps its line
         url = f"{base}/v1/widget/{name}.js"
         return Embed(code=f'<script src="{url}" defer></script>', file=url)
     url = f"{base}/v1/widget/clinic.js"  # the shared loader, told which clinic it is

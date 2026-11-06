@@ -91,7 +91,7 @@ async def test_require_follows_the_rules_and_time_limited_access() -> None:
     with pytest.raises(HTTPException):
         await perm.require(pool, doctor, "CL99", "reports", "view")  # Hidden for Doctors
     with pytest.raises(HTTPException):
-        await perm.require(pool, doctor, "CL01", "appointments", "view")  # not their clinic
+        await perm.require(pool, doctor, "NFHT", "appointments", "view")  # not their clinic
     desk = Staff(id=str(uuid.uuid4()), name="Desk", email="f@example.com", roles={"CL99": "front_desk"},
                  bb_admin=False)  # fmt: skip
     mine = await perm.for_person(pool, "CL99", desk.id, "front_desk")

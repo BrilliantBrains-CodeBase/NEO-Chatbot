@@ -21,13 +21,14 @@ from app.api.v1.crm_doctors import Schedule
 from app.chat import slots
 from app.chat.flows import EMAIL
 from app.chat.leads import _free_doctors
+from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm", tags=["crm"])
 
-CLINIC = Annotated[str, Query(pattern=r"^CL\d{2,3}$")]
+CLINIC = Annotated[str, Query(pattern=CLINIC_CODE)]
 
 
 class Span(BaseModel):

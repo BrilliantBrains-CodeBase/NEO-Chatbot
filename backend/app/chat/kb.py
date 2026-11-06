@@ -172,7 +172,7 @@ async def search(conn: asyncpg.Connection, clinic_id: str, text: str) -> Answer 
 
 # --- Semantic matching (meaning, not words): only when regular matching found nothing -------------------
 
-SEMANTIC_MIN = 0.83  # measured on CL01: right answers scored 0.83 to 0.93, unrelated questions up to 0.79
+SEMANTIC_MIN = 0.83  # measured on NFHT: right answers scored 0.83 to 0.93, unrelated questions up to 0.79
 _filled: dict[str, float] = {}
 
 
@@ -218,7 +218,7 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
 
 # --- Facts (layer 1): approved single facts (clinic name, email, languages...), matched by their NAME and
 # their other wordings (T3: "insta id" -> social), never by their text.
-# Measured on CL01: patient questions scored 0.78 to 1.00 against the right fact's name ("clinic name") and at
+# Measured on NFHT: patient questions scored 0.78 to 1.00 against the right fact's name ("clinic name") and at
 # most 0.73 against any fact when no fact fits; against name + full text the two overlapped, so the name only.
 
 FACT_MIN = 0.76

@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({ json: handle(req) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
 });
 
 test('Book Consultation shows 4 pills and Main menu; a tapped pill turns solid and sends its action', async ({

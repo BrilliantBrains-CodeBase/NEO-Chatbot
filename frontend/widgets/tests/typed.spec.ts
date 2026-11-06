@@ -40,7 +40,7 @@ async function open(page: Page) {
     await r.fulfill({ json: handle(r.request().postDataJSON() as ChatRequest) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-menu')).toBeVisible();
   return panel;
@@ -161,7 +161,7 @@ test('emergency in the middle of a booking takes over', async ({ page }) => {
 test.describe('identity and refusal', () => {
   const say = (session: string, text: string) =>
     handle({
-      client_id: 'CL01',
+      client_id: 'NFHT',
       session_id: session,
       visitor_id: 'v_' + 'a'.repeat(32),
       event: 'text',

@@ -23,7 +23,7 @@ Sources: [README.md](../README.md), [frontend.md](../frontend.md), the 3 chatbot
 
 | Clinic ID | Clinic | Bot | Hours | Closed | Slots (15 min) |
 |---|---|---|---|---|---|
-| CL01 | Neo Follicle | Arya AI | Wed to Mon, 10:00 to 19:00 | Tuesday | 10:00 to 18:30 |
+| NFHT | Neo Follicle | Arya AI | Wed to Mon, 10:00 to 19:00 | Tuesday | 10:00 to 18:30 |
 | CL02 | Neo Fertility | Navya AI | Mon to Sun, 09:30 to 18:30 | None | 09:30 to 18:00 |
 | CL03 | Derma Solutions | Diya AI | Mon and Wed to Sun, 10:00 to 20:00 | Tuesday | 10:00 to 19:30 |
 
@@ -106,7 +106,7 @@ Name -> contact number -> email -> "Thanks, <name>. Our team will contact you on
 
 ### 4.1 Source and ingestion
 
-- One PDF per clinic in `docs/source/kb/` (named by clinic). Loaded by an admin command: `python -m app.kb.ingest --clinic CL01 path.pdf`.
+- One PDF per clinic in `docs/source/kb/` (named by clinic). Loaded by an admin command: `python -m app.kb.ingest --clinic NFHT path.pdf`.
 - Text is extracted per page, split by headings into sections of about 300 to 500 words, with 50 words of overlap. Question and answer pairs, if present, are stored as single chunks.
 - Each chunk gets: `clinic_id`, `title`, `text`, `source_file`, `page`, `category` (clinic info, treatment, cost, doctor, policy), `embedding` (bge-small-en-v1.5, 384 dimensions), `tsv` (Postgres full-text vector).
 - A new upload creates a new `kb_version`. Chunks are switched over in one transaction and the answer cache for that clinic is cleared.
@@ -241,7 +241,7 @@ All tables have `id`, `clinic_id` (except `clinics` and `users`), `created_at`, 
 
 | Table | Purpose |
 |---|---|
-| clinics | ID (CL01...), name, bot name, hours, closed days, slot length, booking window, phones, WhatsApp, allowed origins, widget config JSON |
+| clinics | ID (NFHT...), name, bot name, hours, closed days, slot length, booking window, phones, WhatsApp, allowed origins, widget config JSON |
 | users, user_clinics | Staff and doctors, role per clinic |
 | doctors, doctor_availability, doctor_leave | Doctor profiles, weekly hours (in-clinic, online), leave |
 | leads | Section 7.2 |

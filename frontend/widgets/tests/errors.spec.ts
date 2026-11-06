@@ -16,7 +16,7 @@ test('server error: widget retries twice by itself, then shows the message; Try 
     return route.fulfill({ json: handle(route.request().postDataJSON() as ChatRequest) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
 
   const error = panel.locator('.nb-msg.bot', { hasText: 'Something went wrong. Please try again.' });
@@ -32,7 +32,7 @@ test('server error: widget retries twice by itself, then shows the message; Try 
 test('connection lost: shows the offline message with Try again', async ({ page }) => {
   await page.route('**/v1/chat/message', (route) => route.abort('internetdisconnected'));
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   const error = panel.locator('.nb-msg.bot', {
     hasText: 'You seem to be offline. Please check your connection and try again.',

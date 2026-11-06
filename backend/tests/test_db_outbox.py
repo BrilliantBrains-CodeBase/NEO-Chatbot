@@ -69,7 +69,7 @@ async def test_bad_channel_or_kind_is_rejected(tx: asyncpg.Connection) -> None:
 async def test_same_clinic_and_deleted_with_the_lead(tx: asyncpg.Connection) -> None:
     lead = await new_lead(tx)
     async with rejected(tx):
-        await queue(tx, lead, clinic="CL01")  # a CL99 lead under CL01
+        await queue(tx, lead, clinic="NFHT")  # a CL99 lead under NFHT
     msg = await queue(tx, lead)
     await tx.execute("delete from app.leads where id = $1", lead)
     assert await tx.fetchval("select count(*) from app.outbox where id = $1", msg) == 0

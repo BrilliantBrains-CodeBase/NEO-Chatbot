@@ -495,7 +495,7 @@ export default function MenuView() {
                   setTpl({ ...tpl, columns: Number(e.target.value) })
                 }
               >
-                <option value={3}>3 per row (Neo Follicle today)</option>
+                <option value={3}>3 per row (Neo Follicle Hair Transplant today)</option>
                 <option value={2}>2 per row (Neo Fertility design)</option>
               </select>
             </label>

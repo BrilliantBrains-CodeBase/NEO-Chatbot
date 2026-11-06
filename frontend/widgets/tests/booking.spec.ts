@@ -12,7 +12,7 @@ async function open(page: Page, now = '2026-10-21T03:30:00Z') {
     await route.fulfill({ json: handle(route.request().postDataJSON() as ChatRequest) });
   });
   await page.goto('/host.html?clinic=neo-follicle');
-  await page.locator('#neo-widget-CL01 .nb-launch').click();
+  await page.locator('#neo-widget-NFHT .nb-launch').click();
   const panel = page.getByRole('dialog', { name: 'Arya AI chat' });
   await expect(panel.locator('.nb-menu')).toBeVisible();
   return panel;

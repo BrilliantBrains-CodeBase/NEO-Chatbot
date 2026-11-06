@@ -1,7 +1,7 @@
 # ruff: noqa: E501  (a data file: one row of cases per line reads best)
-"""Button test set for CL01: for every button, how a patient might TYPE it instead of tapping (English).
-Worded differently from the training phrases (app/clinics/CL01.intents.json) on purpose, so the score shows
-what new patients get. Same format as eval_set_cl01.py; the word proves the right screen opened.
+"""Button test set for NFHT: for every button, how a patient might TYPE it instead of tapping (English).
+Worded differently from the training phrases (app/clinics/NFHT.intents.json) on purpose, so the score shows
+what new patients get. Same format as eval_set_nfht.py; the word proves the right screen opened.
 
     uv run python -m scripts.eval_chat --buttons
 """

@@ -4,7 +4,7 @@ Website chatbots and a shared clinic CRM for the NEO Group clinics, built by **B
 
 | Clinic ID | Clinic | Website | Chatbot |
 |---|---|---|---|
-| CL01 | Neo Follicle | neofollicletransplant.com | Arya AI |
+| NFHT | Neo Follicle | neofollicletransplant.com | Arya AI |
 | CL02 | Neo Fertility | neofertility.co.in | Navya AI |
 | CL03 | Derma Solutions | dermasolutions.co.in | Diya AI |
 | CL04 | Clinic 4 | Placeholder | Added later by config |

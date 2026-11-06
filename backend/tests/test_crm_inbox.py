@@ -125,7 +125,7 @@ async def test_inbox_search_dates_treatment_and_export(
         rows_out = list(csv.DictReader(io.StringIO(ticked.text.lstrip("\ufeff"))))
         assert [r["Treatment"] for r in rows_out] == ["ZZ Other Treatment"]
         elsewhere = await api.post(
-            "/v1/crm/inbox/export", json={"clinic": "CL01", "ids": [ids[1]]}, headers=headers
+            "/v1/crm/inbox/export", json={"clinic": "NFHT", "ids": [ids[1]]}, headers=headers
         )
         assert (
             elsewhere.text.lstrip("\ufeff").strip().count("\n") == 0

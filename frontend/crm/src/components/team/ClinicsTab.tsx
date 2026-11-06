@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Loading from "@/components/crm/Loading";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, type Me } from "@/lib/api";
+import { MAIN } from "@/components/assistant/MainTemplateBar";
 import { Confirm, message, RowMenu, type MenuItem } from "./shared";
 
 // Team → Clinics (Super Admin): every clinic in the project, Add clinic (the next free code, a copy of another
@@ -84,7 +85,7 @@ export default function ClinicsTab({ onOpen }: { onOpen: () => void }) {
               }),
           },
         ]),
-    ...(!c.is_test && c.id !== "CL01"
+    ...(!c.is_test && c.id !== MAIN
       ? [
           {
             label: "Delete",
@@ -208,7 +209,7 @@ function AddClinicForm({
   add: (body: object, name: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({ ...EMPTY, copy_from: clinics[0]?.id ?? "CL01" });
+  const [form, setForm] = useState({ ...EMPTY, copy_from: clinics[0]?.id ?? MAIN });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>

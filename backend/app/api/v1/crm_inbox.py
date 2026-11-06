@@ -35,6 +35,7 @@ from app.api.v1.crm import (
 from app.chat import slots
 from app.chat.leads import _free_doctors as free_doctors
 from app.chat.leads import slot_length
+from app.core.codes import CLINIC_CODE, current_lead
 from app.core.db import get_pool
 from app.crm import calcom, vault, webhooks, whatsapp
 from app.crm import permissions as perm
@@ -187,7 +188,7 @@ EXPORT_COLUMNS = ["Code", "Name", "Phone", "Email", "Type", "Treatment", "Asked 
 @router.get("/inbox/export")
 async def export_inbox(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     type: Annotated[RequestType | None, Query()] = None,
     done: bool = False,
     q: Annotated[str, Query(max_length=100)] = "",
@@ -205,7 +206,7 @@ async def export_inbox(
 
 
 class ExportPicked(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     ids: list[UUID] = Field(min_length=1, max_length=5000)
 
 
@@ -245,7 +246,7 @@ WAITING = "select 1 from app.requests rq where rq.lead_id = l.id and rq.status =
 @router.get("/inbox", response_model=Inbox)
 async def inbox(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     type: Annotated[InboxType | None, Query()] = None,
     q: Annotated[str, Query(max_length=100)] = "",
     date_from: Annotated[date | None, Query(alias="from")] = None,
@@ -326,7 +327,7 @@ async def inbox(
 
 
 class AssignIn(BaseModel):
-    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    clinic: str = Field(pattern=CLINIC_CODE)
     codes: list[str] = Field(min_length=1, max_length=500)
     to: UUID | None = None  # left out: me
 
@@ -384,6 +385,7 @@ async def assign_from_inbox(user: Annotated[Staff, Depends(staff)], body: Assign
 @router.get("/leads/{code}/requests", response_model=list[InboxItem])
 async def lead_requests(user: Annotated[Staff, Depends(staff)], code: str) -> list[InboxItem]:
     """A lead's requests waiting for its owner, oldest first: the Lead drawer's "Pending requests"."""
+    code = current_lead(code)
     pool = await get_pool()
     clinic = await pool.fetchval(
         "select clinic_id from app.leads where lead_code = $1 and deleted_at is null", code
@@ -502,7 +504,7 @@ class Slots(BaseModel):
 @router.get("/slots", response_model=Slots)
 async def free_times(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     mode: Literal["in_clinic", "online"],
     doctor_id: str | None = None,
     days: Annotated[int, Query(ge=1, le=60)] = 14,
@@ -775,7 +777,7 @@ class Appointments(BaseModel):
 @router.get("/appointments", response_model=Appointments)
 async def appointments(
     user: Annotated[Staff, Depends(staff)],
-    clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
+    clinic: Annotated[str, Query(pattern=CLINIC_CODE)],
     date_from: Annotated[date, Query(alias="from")],
     date_to: Annotated[date | None, Query(alias="to")] = None,
     status_: Annotated[str, Query(alias="status", pattern="^(active|all)$")] = "active",

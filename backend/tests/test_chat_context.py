@@ -12,7 +12,7 @@ from tests.test_chat_store import req as store_req
 
 
 def _content() -> dict[str, Any]:
-    c = content("CL01")
+    c = content("NFHT")
     assert c is not None
     return c
 
@@ -26,7 +26,7 @@ class Chat:
 
     def send(self, event: str, **payload: Any) -> str:
         req = ChatRequest.model_validate(
-            {"client_id": "CL01", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32,
+            {"client_id": "NFHT", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32,
              "event": event,
              "payload": payload, "context": {"page_url": "https://x.com/", "device": "desktop", "lang": "en"}}
         )  # fmt: skip
@@ -199,7 +199,7 @@ def test_real_names_are_still_names(name: str) -> None:
 
 def test_a_knowledge_base_answer_shows_only_the_main_menu_link() -> None:
     req = ChatRequest.model_validate(
-        {"client_id": "CL01", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32, "event": "text",
+        {"client_id": "NFHT", "session_id": "s_" + "a" * 32, "visitor_id": "v_" + "b" * 32, "event": "text",
          "payload": {"text": "clinic address"},
          "context": {"page_url": "https://x.com/", "device": "desktop", "lang": "en"}}
     )  # fmt: skip
@@ -289,7 +289,7 @@ def test_cost_for_a_named_pattern_opens_that_cost_option(text: str, node: str) -
 
 def test_naming_a_treatment_opens_its_card_but_a_question_gets_the_answer() -> None:
     def respond(text: str) -> engine.Turn:
-        return engine.respond(store_req("text", clinic="CL01", text=text), {}, None, "Approved answer.")
+        return engine.respond(store_req("text", clinic="NFHT", text=text), {}, None, "Approved answer.")
 
     assert respond("fue hair transplant").reply.messages[0].text.startswith("**Direct Hair Transplant")
     assert respond("qr678 sessions needed").answered_by == "kb"
@@ -305,7 +305,7 @@ def test_reviews_show_the_rating_and_three_fitting_quotes(text: str, first: str)
     c = Chat()
     c.type(text)
     texts = [m.text for m in c.reply.messages]
-    assert texts[0].startswith("Neo Follicle is rated **4.8") and len(texts) == 4
+    assert texts[0].startswith("Neo Follicle Hair Transplant is rated **4.8") and len(texts) == 4
     assert texts[1].endswith(first)
     links = [o.get("href") for o in c.reply.ui["options"]]  # type: ignore[index]
     assert C["reviews"]["link"] in links

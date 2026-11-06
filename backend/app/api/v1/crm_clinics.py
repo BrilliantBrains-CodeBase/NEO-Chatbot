@@ -1,5 +1,5 @@
 """Login & security → Clinics (Super Admin only), JSON only. All clinics live in the one project: a new clinic
-is a new row with the next free code (CL02 … CL98, CL99 is the test clinic, then CL100 … CL999). It copies
+is a new row with a code from its name (first letter of each word: NFHT; a number added if taken). It copies
 another clinic's working setup (hours, slots, booking window, lead assignment) and its chat (canvas,
 Appearance, Templates, Menu wording), published and running on the canvas; never its contact details,
 services, reviews, doctors, websites or keys. The first Admin can be invited at once. Clinics are
@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.api.v1.crm_team import give_role, one_clinic, roles_of
 from app.chat import main_template
+from app.core.codes import CLINIC_CODE, code_from_name
 from app.core.db import get_pool
 from app.crm import supabase_admin
 from app.crm.auth import Staff, staff
@@ -39,7 +40,7 @@ class Clinic(BaseModel):
 class NewClinic(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     bot_name: str = Field(min_length=2, max_length=40)
-    copy_from: str = Field(pattern=r"^CL\d{2,3}$")
+    copy_from: str = Field(pattern=CLINIC_CODE)
     phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
     whatsapp: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
     website: str | None = Field(default=None, max_length=200, pattern=r"^https://\S+$")
@@ -70,13 +71,12 @@ async def _list() -> list[Clinic]:
     return [Clinic(**dict(r)) for r in rows]
 
 
-def next_code(taken: set[str]) -> str:
-    """The first free code: CL02 … CL98 (CL99 is the test clinic), then CL100 … CL999."""
-    for n in [*range(2, 99), *range(100, 1000)]:
-        code = f"CL{n:02d}"
-        if code not in taken:
-            return code
-    raise HTTPException(status.HTTP_409_CONFLICT, "No clinic codes left.")
+def next_code(name: str, taken: set[str]) -> str:
+    """The new clinic's code, from its name (app.core.codes.code_from_name)."""
+    try:
+        return code_from_name(name, taken)
+    except ValueError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "No free clinic code for this name.") from None
 
 
 @router.get("", response_model=list[Clinic])
@@ -110,7 +110,7 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
         source = await conn.fetchrow("select * from app.clinics where id = $1", body.copy_from)
         if source is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "The clinic to copy from does not exist.")
-        code = next_code({r["id"] for r in await conn.fetch("select id from app.clinics")})
+        code = next_code(body.name, {r["id"] for r in await conn.fetch("select id from app.clinics")})
         cols = ["id", "name", "bot_name", "phone", "whatsapp", "website", *SETUP]
         values = [code, body.name.strip(), body.bot_name.strip(), body.phone, body.whatsapp, body.website,
                   *(source[c] for c in SETUP)]  # fmt: skip
@@ -167,7 +167,7 @@ async def delete_clinic(user: Annotated[Staff, Depends(staff)], clinic: str) -> 
     """Deletes a clinic that holds no patient or business data (e.g. added by mistake): its setup, its team
     access, then the clinic. With leads, chats, doctors or integrations it is refused: deactivate it."""
     _bb(user)
-    if clinic in ("CL01", "CL99"):
+    if clinic in (main_template.MAIN, "CL99"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This clinic cannot be deleted.")
     pool = await get_pool()
     try:
