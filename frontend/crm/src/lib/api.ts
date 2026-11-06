@@ -8,6 +8,8 @@ const BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 /** How often lists and the bell read again by themselves (paused while the tab is hidden). */
 export const REFRESH_MS = 30_000;
+// The main clinic (Neo Follicle Hair Transplant): the main template, and the CRM's first clinic by default.
+export const MAIN_CLINIC = "NFHT";
 
 /** The backend's answer when 2-step login needs this sign-in's emailed code (app/crm/auth.py CODE_NEEDED). */
 export const CODE_NEEDED = "Enter the sign-in code sent to your email.";

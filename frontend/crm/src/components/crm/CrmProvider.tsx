@@ -13,7 +13,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { level } from "@/lib/access";
-import { api, ApiError, CODE_NEEDED, REFRESH_MS, type Branding, type Inbox, type Me } from "@/lib/api";
+import { api, ApiError, CODE_NEEDED, MAIN_CLINIC, REFRESH_MS, type Branding, type Inbox, type Me } from "@/lib/api";
 import {
   desktopAlert,
   playTone,
@@ -24,6 +24,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 export type Clinic = string; // a clinic's name, as the backend lists them
+const CLINIC_KEY = "neo_crm_clinic:"; // + the person's id: the clinic they last chose in this browser
 type Modal = { title: string; body: ReactNode };
 
 type Crm = {
@@ -116,8 +117,34 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   }, [router]);
   // Every clinic this person may see, as the backend lists them (any clinic added in Login & security).
   const clinics = useMemo(() => (me?.clinics ?? []).map((c) => c.name as Clinic), [me]);
-  const [chosen, setClinic] = useState<Clinic | null>(null);
-  const clinic = chosen && clinics.includes(chosen) ? chosen : (clinics[0] ?? "");
+  // The chosen clinic. It is remembered in this browser for this person (by its code, so a renamed clinic
+  // stays chosen), so a reload, a refresh or a new tab keeps it. Without a remembered one: the main clinic,
+  // else the first. (Before, a reload always fell back to the first clinic by code.)
+  const [chosen, setChosen] = useState<Clinic | null>(null);
+  const remembered = useMemo(() => {
+    if (!me) return null;
+    try {
+      const id = localStorage.getItem(CLINIC_KEY + me.id);
+      return me.clinics.find((c) => c.id === id)?.name ?? null;
+    } catch {
+      return null; // storage blocked: the default below
+    }
+  }, [me]);
+  const main = me?.clinics.find((c) => c.id === MAIN_CLINIC)?.name ?? null;
+  const clinic = (chosen && clinics.includes(chosen) ? chosen : null) ?? remembered ?? main ?? clinics[0] ?? "";
+  const setClinic = useCallback(
+    (c: Clinic) => {
+      setChosen(c);
+      const id = me?.clinics.find((x) => x.name === c)?.id;
+      if (!me || !id) return;
+      try {
+        localStorage.setItem(CLINIC_KEY + me.id, id);
+      } catch {
+        // storage blocked: chosen for this visit only
+      }
+    },
+    [me],
+  );
   const ready = useBrowserNow() !== null;
 
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
@@ -297,7 +324,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
       openModal: setModal,
       closeModal: () => setModal(null),
     };
-  }, [ready, me, clinics, clinic, clinicId, branding, setBranding, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canBell, refreshInbox, toast, toastText, drawer, modal]);
+  }, [ready, me, clinics, clinic, setClinic, clinicId, branding, setBranding, signOut, inbox, noted, setNotes, clinicNotes, prefs, savePrefs, inboxFailed, canBell, refreshInbox, toast, toastText, drawer, modal]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

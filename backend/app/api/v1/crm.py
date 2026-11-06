@@ -515,7 +515,7 @@ async def lead_detail(user: Annotated[Staff, Depends(staff)], code: str) -> Lead
 
 
 LOST = ["not_reachable", "not_interested", "price", "chose_another_clinic", "other"]
-INVALID = ["wrong_number", "spam", "duplicate", "test"]
+INVALID = ["wrong_number", "spam", "duplicate", "test", "booking_rejected"]
 
 
 def can_edit(user: Staff, clinic: str) -> None:

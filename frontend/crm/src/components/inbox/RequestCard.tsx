@@ -274,6 +274,11 @@ export default function RequestCard({
               Reject
             </button>
           </div>
+          {(item.type === "book" || item.type === "online") && (
+            <p className="sub2" style={{ margin: 0 }}>
+              Rejecting moves a new lead to Invalid (Booking rejected), unless it has another request waiting.
+            </p>
+          )}
         </div>
       )}
     </div>

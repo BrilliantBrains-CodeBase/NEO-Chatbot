@@ -722,13 +722,30 @@ async def approve(
 
 @router.post("/requests/{request_id}/reject", response_model=InboxItem)
 async def reject(user: Annotated[Staff, Depends(staff)], request_id: str, body: Reject) -> InboxItem:
-    """Not possible as asked (the reason goes on the lead's timeline). A booking's appointment is rejected."""
+    """Not possible as asked (the reason goes on the lead's timeline). A booking's appointment is rejected,
+    and a new lead (New or Follow Up) with nothing else waiting moves to Invalid, reason "booking_rejected".
+    A lead that is already a patient (Booked, Visited) or has another request waiting keeps its stage."""
     pool = await get_pool()
     async with pool.acquire() as conn, conn.transaction():
         r = await _pending(conn, user, request_id)
         if r["type"] in ("book", "online") and r["a_id"]:
             await _set_appt(conn, r["a_id"], user, "rejected")
         await _close(conn, r, user, "rejected", {"text": body.reason.strip()})
+        if r["type"] in ("book", "online"):
+            stage = await conn.fetchval("select stage from app.leads where id = $1 for update", r["lead_id"])
+            waiting = await conn.fetchval(
+                "select exists (select 1 from app.requests where lead_id = $1 and status = 'pending')",
+                r["lead_id"],
+            )
+            if stage in ("new", "follow_up") and not waiting:
+                await conn.execute(
+                    """update app.leads set stage = 'invalid', stage_reason = 'booking_rejected',
+                         updated_at = now() where id = $1""",
+                    r["lead_id"],
+                )
+                lead = {"id": r["lead_id"], "clinic_id": r["clinic_id"]}
+                await _event(conn, lead, user, "stage_change",
+                             {"from": stage, "to": "invalid", "reason": "booking_rejected"})  # fmt: skip
         row = await conn.fetchrow(f"{SELECT} where r.id = $1", r["id"])
     return _item(row)
 

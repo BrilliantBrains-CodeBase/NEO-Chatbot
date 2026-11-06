@@ -27,6 +27,7 @@ const REASONS: Record<string, [string, string][]> = {
     ["spam", "Spam"],
     ["duplicate", "Duplicate"],
     ["test", "Test"],
+    ["booking_rejected", "Booking rejected"],
   ],
 };
 const CALLS: [string, string][] = [

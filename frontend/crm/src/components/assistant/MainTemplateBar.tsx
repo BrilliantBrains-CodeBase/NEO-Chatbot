@@ -1,12 +1,13 @@
 "use client";
 
 import { useCrm } from "@/components/crm/CrmProvider";
+import { MAIN_CLINIC } from "@/lib/api";
 
 // The main template (Neo Follicle Hair Transplant): its canvas, Templates and Appearance are what other clinics show until they
 // change that part. On Neo Follicle Hair Transplant: "Publish for all clinics" (Super Admin only). Elsewhere: whether this part
 // follows Neo Follicle Hair Transplant or is the clinic's own, and the switch between them.
 
-export const MAIN = "NFHT";
+export const MAIN = MAIN_CLINIC;
 export type Part = "flow" | "template" | "appearance";
 const NAMES: Record<Part, string> = {
   flow: "canvas",

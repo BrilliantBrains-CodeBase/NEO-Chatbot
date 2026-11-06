@@ -205,8 +205,60 @@ async def test_inbox_approve_reject_and_done(api: AsyncClient, monkeypatch: pyte
             f"/v1/crm/requests/{ids['online']}/reject", json={"reason": "No slots"}, headers=headers
         )
         assert r.json()["status"] == "rejected"
+        # Already Booked (a patient): a rejected consult leaves the stage as it is.
+        assert await pool.fetchval("select stage from app.leads where id = $1", lead) == "booked"
         kinds = [k for (k,) in await pool.fetch("select kind from app.lead_events where lead_id = $1", lead)]
         assert kinds.count("request") == 3 and "call" in kinds
+    finally:
+        await pool.execute("select app.delete_patient_data($1)", lead)
+
+
+@needs_db
+async def test_a_rejected_booking_moves_a_new_lead_to_invalid(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A new lead whose booking is rejected goes to Invalid (Booking rejected), once nothing else waits."""
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no Super Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    lead = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source)
+           values ('CL99', 'Rejected Booking', '+919000000004', 'chatbot') returning id"""
+    )
+    try:
+        ids = [
+            str(
+                await pool.fetchval(
+                    f"""insert into app.requests (clinic_id, lead_id, type, data)
+                       values ('CL99', $1, $2, '{{"date": "{MONDAY}", "time": "any"}}') returning id""",
+                    lead, kind,
+                )
+            )
+            for kind in ("book", "callback")
+        ]  # fmt: skip
+        r = await api.post(f"/v1/crm/requests/{ids[0]}/reject", json={"reason": "Not a fit"}, headers=headers)
+        assert r.status_code == 200
+        stage = "select stage, stage_reason from app.leads where id = $1"
+        assert tuple(await pool.fetchrow(stage, lead)) == ("new", None)  # the call back still waits
+        await api.post(f"/v1/crm/requests/{ids[1]}/done", json={"outcome": "answered"}, headers=headers)
+        again = str(
+            await pool.fetchval(
+                "insert into app.requests (clinic_id, lead_id, type, data) "
+                "values ('CL99', $1, 'online', '{}') returning id",
+                lead,
+            )
+        )
+        r = await api.post(f"/v1/crm/requests/{again}/reject", json={"reason": "No doctor"}, headers=headers)
+        assert r.status_code == 200
+        assert tuple(await pool.fetchrow(stage, lead)) == ("invalid", "booking_rejected")
+        moved = await pool.fetchval(
+            "select data->>'to' from app.lead_events where lead_id = $1 and kind = 'stage_change'", lead
+        )
+        assert moved == "invalid"  # on the lead's timeline
     finally:
         await pool.execute("select app.delete_patient_data($1)", lead)
 
