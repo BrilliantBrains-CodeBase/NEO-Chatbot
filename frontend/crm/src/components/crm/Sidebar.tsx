@@ -351,11 +351,11 @@ export default function Sidebar({
           ) : (
             <>
               <div className="grp">MAIN</div>
+              {/* In the order a lead moves: it arrives in the Inbox, is worked in Leads, booked in
+                  Appointments, and becomes a Patient. The doctors' hours come after. */}
               {item("/dashboard", "dash", "Dashboard", path === "/dashboard")}
-              {group("leads", "appt")}
               {item("/inbox", "req", "Inbox", path === "/inbox", inboxTotal || undefined)}
-              {group("doctors", "doc")}
-              <div className="dv" />
+              {group("leads", "appt")}
               {item(
                 "/appointments",
                 "cal",
@@ -364,6 +364,8 @@ export default function Sidebar({
               )}
               {/* Tasks and Reports are turned off for everyone. */}
               {item("/patients", "con", "Patients", path === "/patients")}
+              <div className="dv" />
+              {group("doctors", "doc")}
             </>
           )}
           {/* The same place on both sides of the switch. */}

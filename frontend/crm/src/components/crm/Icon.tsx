@@ -1,6 +1,7 @@
 // The CRM design's icon set, drawn exactly as there.
 const PATHS = {
   dash: <path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 4v3h6V4z" />,
+  chat: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.4A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01" />,
   appt: (
     <>
       <rect x="3" y="5" width="18" height="16" rx="3" />

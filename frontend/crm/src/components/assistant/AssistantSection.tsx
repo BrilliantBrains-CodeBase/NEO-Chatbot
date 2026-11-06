@@ -42,7 +42,7 @@ export default function AssistantSection({ section }: { section: Section }) {
     <Placeholder
       title={section.label}
       description={`${clinic} · ${section.desc}`}
-      next={[`Built in stage ${section.stage} of the Dashboard`]}
+      next={[`Built in stage ${section.stage} of the Chatbot settings`]}
     />
   );
 }

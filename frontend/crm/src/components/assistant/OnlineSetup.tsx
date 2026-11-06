@@ -103,7 +103,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
       <p className="sub2" style={{ margin: "0 0 8px", fontSize: "var(--fs-small)" }}>
         Tick the doctors who take online consults. Their online hours, leave and
         consult length come from{" "}
-        <Link href="/assistant/doctors">Dashboard → Doctors</Link>; saving here
+        <Link href="/assistant/doctors">Chatbot → Doctors</Link>; saving here
         sends them to Cal.com (one consult per doctor, with Google Meet).
       </p>
       {setup.doctors.map((d, i) => (
@@ -153,7 +153,7 @@ export default function OnlineSetup({ clinicId }: { clinicId: string }) {
           </p>
           {d.online && !d.hours.length && (
             <p className="warnbox" style={{ margin: "6px 0 0" }}>
-              Add {d.name}&apos;s online hours in Dashboard → Doctors first.
+              Add {d.name}&apos;s online hours in Chatbot → Doctors first.
             </p>
           )}
         </div>

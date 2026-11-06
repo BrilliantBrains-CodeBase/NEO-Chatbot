@@ -149,7 +149,7 @@ export default function RolesTab({
             </tr>
           </thead>
           <tbody>
-            {["CRM", "Dashboard"].map((g) => [
+            {["CRM", "Chatbot"].map((g) => [
               <tr key={g} className="tm-group">
                 <td colSpan={r.roles.length + 1}>{g}</td>
               </tr>,
@@ -378,7 +378,7 @@ function GrantForm({
             <option value="">Choose a screen</option>
             {screens.map((s) => (
               <option key={s.key} value={s.key}>
-                {s.group === "Dashboard" ? `Dashboard: ${s.label}` : s.label}
+                {s.group === "Chatbot" ? `Chatbot: ${s.label}` : s.label}
               </option>
             ))}
           </select>

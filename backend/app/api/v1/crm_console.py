@@ -435,7 +435,7 @@ def _filled(saved: dict[str, Any]) -> dict[str, Any]:
 
 async def _manager(user: Staff, clinic: str) -> None:
     if not (user.bb_admin or user.roles.get(clinic) == "clinic_manager" or perm.granted(user, clinic)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "The Dashboard is for admins and Super Admin.")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "The Chatbot settings are for admins and Super Admin.")
 
 
 async def _load(clinic: str) -> Settings:

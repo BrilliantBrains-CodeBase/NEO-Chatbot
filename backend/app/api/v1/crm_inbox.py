@@ -583,7 +583,7 @@ async def _online(conn: asyncpg.Connection, r: asyncpg.Record, data: dict[str, A
     if acc.key and not acc.event:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "This doctor has no online consults in Cal.com yet (Dashboard → Integrations → Cal.com).",
+            "This doctor has no online consults in Cal.com yet (Chatbot → Integrations → Cal.com).",
         )
     try:
         booked = await calcom.book(

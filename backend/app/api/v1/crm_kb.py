@@ -127,10 +127,10 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
             Fact(id=str(f["id"]), key=f["key"], category=f["category"], value=f["value"],
                  variants=f["variants"],
                  status=f["status"], used_by=used.get(f["key"], 0), updated_at=f["updated_at"].isoformat(),
-                 replaced=SOURCE.get(f["key"], "Dashboard") if f["key"] in live else None)
+                 replaced=SOURCE.get(f["key"], "Chatbot settings") if f["key"] in live else None)
             for f in facts
         ],
-        live=[Live(key=k, value=v, source=SOURCE.get(k, "Dashboard")) for k, v in live.items()],
+        live=[Live(key=k, value=v, source=SOURCE.get(k, "Chatbot settings")) for k, v in live.items()],
         qa=[
             Qa(id=str(q["id"]), question=q["question"], variants=q["variants"], answer=q["answer"],
                category=q["category"], treatment=q["treatment"], status=q["status"],
@@ -153,7 +153,7 @@ async def _not_live(clinic: str, key: str) -> None:
         if key in await live_facts(conn, clinic) or key in SOURCE:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                f"{{{key}}} is answered in {SOURCE.get(key, 'the Dashboard')}: change it there.",
+                f"{{{key}}} is answered in {SOURCE.get(key, 'the Chatbot settings')}: change it there.",
             )
 
 
@@ -318,7 +318,7 @@ async def import_rows(user: Annotated[Staff, Depends(staff)], clinic: str, body:
             try:
                 category = r.category.strip().lower() or ("clinic_info" if r.kind == "fact" else "other")
                 if r.kind == "fact" and (r.key.strip() in live or r.key.strip() in SOURCE):
-                    where = SOURCE.get(r.key.strip(), "the Dashboard")
+                    where = SOURCE.get(r.key.strip(), "the Chatbot settings")
                     problems.append(
                         f"Row {r.row}: {{{r.key.strip()}}} is answered in {where}; change it there"
                     )

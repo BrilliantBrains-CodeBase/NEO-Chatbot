@@ -154,7 +154,7 @@ async def save_setup(user: Annotated[Staff, Depends(staff)], clinic: str, body: 
         if d.doctor_id in online and not d.hours:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
-                f"Add {d.name}'s online hours in Dashboard → Doctors first.",
+                f"Add {d.name}'s online hours in Chatbot → Doctors first.",
             )
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)

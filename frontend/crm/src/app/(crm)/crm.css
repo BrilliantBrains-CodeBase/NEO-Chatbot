@@ -1020,6 +1020,7 @@
 .crm .db-day.has { background:var(--tint) }
 .crm .db-day.today { background:var(--brand);color:#fff }
 .crm .db-day.today em { color:#fff }
+.crm a.db-day.today:hover { background:var(--brand-d) } /* stays dark: its white number stays readable */
 .crm .db-cal-today { margin-top:10px }
 
 /* Today's schedule */

@@ -163,12 +163,12 @@ export default function Topbar({ onMenu }: { onMenu: () => void }) {
           <button
             role="tab"
             aria-selected={inConsole}
-            aria-label="Dashboard"
+            aria-label="Chatbot"
             className={inConsole ? "on" : ""}
             onClick={() => router.push("/assistant/appearance")}
           >
-            <Icon name="dash" />
-            <span>Dashboard</span>
+            <Icon name="chat" />
+            <span>Chatbot</span>
           </button>
         </div>
       )}

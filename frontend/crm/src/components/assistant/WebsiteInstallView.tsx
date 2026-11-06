@@ -192,7 +192,7 @@ export default function WebsiteInstallView() {
           <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
             {s.added_by
               ? `Added by ${s.added_by}`
-              : "Allowed before the Dashboard"}
+              : "Allowed before the Chatbot settings"}
             {s.decided_at &&
               ` · ${LABEL[s.status]}${s.decided_by ? ` by ${s.decided_by}` : ""} on ${new Date(s.decided_at).toLocaleDateString("en-IN")}`}
           </p>

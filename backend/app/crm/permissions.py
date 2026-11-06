@@ -29,8 +29,8 @@ DASHBOARD = {
 }  # fmt: skip
 SCREENS: dict[str, tuple[str, str]] = (
     {k: (v, "CRM") for k, v in CRM.items()}
-    | {"dash_open": ("Open the Dashboard", "Dashboard")}  # the whole Dashboard; its tabs below
-    | {f"dash_{k}": (v, "Dashboard") for k, v in DASHBOARD.items()}
+    | {"dash_open": ("Open the Chatbot settings", "Chatbot")}  # the whole chatbot console; its tabs below
+    | {f"dash_{k}": (v, "Chatbot") for k, v in DASHBOARD.items()}
 )
 
 # Rows the "Who sees what" table leaves out: screens turned off for everyone, and screens whose access is

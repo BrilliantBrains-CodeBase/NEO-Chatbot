@@ -529,7 +529,7 @@ export default function KnowledgeView() {
         (show === "all" || show === "approved") && (
           <details className="card" style={{ padding: 12, marginBottom: 12 }}>
             <summary style={{ cursor: "pointer" }}>
-              <b>From the Dashboard &amp; CRM ({k.live.length})</b>{" "}
+              <b>From the Chatbot settings &amp; CRM ({k.live.length})</b>{" "}
               <span className="sub2">
                 Read live, never typed here. Link them in answers as {"{key}"};
                 change them where they live.
@@ -551,7 +551,7 @@ export default function KnowledgeView() {
                   {l.value}
                 </span>
                 <a className="lnk" href={editAt(l.source)} title={l.source}>
-                  Edit in {l.source.replace("Dashboard → ", "")}
+                  Edit in {l.source.replace("Chatbot → ", "")}
                 </a>
               </div>
             ))}

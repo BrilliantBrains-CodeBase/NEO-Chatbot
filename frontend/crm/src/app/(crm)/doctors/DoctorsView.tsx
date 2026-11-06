@@ -73,7 +73,7 @@ export default function DoctorsView() {
       {data && data.doctors.length === 0 && (
         <div className="empty">
           <h2>No doctors yet</h2>
-          Add doctors in Dashboard → Doctors.
+          Add doctors in Chatbot → Doctors.
         </div>
       )}
       {data && (
