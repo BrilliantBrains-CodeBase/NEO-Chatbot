@@ -14,7 +14,7 @@ import { fitImage, ImageError, type Fit } from "@/lib/image";
 // The chatbot keeps its own contact details (Dashboard → Clinic info): nothing here changes what patients see.
 // Each person's own bell choices are on My profile.
 
-type Assign = "round_robin" | "manual" | "manager";
+type Assign = "inbox" | "round_robin" | "manager";
 type Stored = Record<string, string | null>;
 type Alerts = { emergency_admins: boolean; emergency_emails: string[] };
 type Settings = { id: string; details: Stored; alerts: Alerts; can_edit: boolean };
@@ -33,9 +33,13 @@ const TABS = [
 type Tab = (typeof TABS)[number][0];
 
 const ASSIGN: [Assign, string, string][] = [
-  ["round_robin", "Share among Front Desk", "Each new lead goes to the next Front Desk member who takes part in lead sharing (Team)."],
-  ["manager", "Give to the Admin", "Every new lead goes to the clinic's first Admin."],
-  ["manual", "Leave unassigned", "New leads wait in Leads for someone to assign them."],
+  [
+    "inbox",
+    "Assign from the Inbox (recommended)",
+    "New leads wait in the Inbox. Front Desk takes them, or an Admin assigns them; they then move to Leads.",
+  ],
+  ["round_robin", "Share among Front Desk", "Each new lead goes straight to the next Front Desk member who takes part in lead sharing (Team), skipping the Inbox."],
+  ["manager", "Give to the Admin", "Every new lead goes straight to the clinic's first Admin, skipping the Inbox."],
 ];
 
 const LOGO: Fit = { width: 480, height: 160, type: "image/png" };
@@ -45,7 +49,9 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 function toForm(d: Stored): Form {
   const f = Object.fromEntries(FIELDS.map((k) => [k, d[k] ?? ""])) as Form;
   f.country ||= "India";
-  f.lead_assignment = (d.lead_assignment as Assign) || "round_robin";
+  // "manual" is the old name of the Inbox setting.
+  const saved = d.lead_assignment === "manual" ? "inbox" : (d.lead_assignment as Assign);
+  f.lead_assignment = saved || "inbox";
   return f;
 }
 

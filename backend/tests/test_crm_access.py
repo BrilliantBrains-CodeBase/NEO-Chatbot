@@ -157,6 +157,51 @@ async def test_another_clinics_lead_answers_not_found(
     assert (await api.post(f"{url}/notes", json={"text": "x"}, headers=headers)).status_code == 404
     mine = f"/v1/crm/leads/{world['lead']['lead_code']}"
     assert (await api.get(mine, headers=headers)).status_code == 200
+    assert (await api.get(f"{url}/requests", headers=headers)).status_code == 404
+    assert (await api.get(f"{mine}/requests", headers=headers)).status_code == 200
+
+
+@needs_db
+async def test_inbox_leads_are_taken_by_front_desk_or_assigned_by_an_admin(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    """A new lead waits in the Inbox. Front Desk takes it for themselves (not for others); an Admin assigns
+    anyone; a doctor cannot. Once taken it leaves the Inbox for Leads, and nobody takes it twice."""
+    code = world["lead"]["lead_code"]
+    other = world["other_lead"]["lead_code"]
+    pool = await get_pool()
+    desk = signed_in_as(monkeypatch, world["desk"]["id"])
+    try:
+        inbox = await api.get("/v1/crm/inbox", params={"clinic": "CL99", "q": code}, headers=desk)
+        assert [i["code"] for i in inbox.json()["items"]] == [code]
+        assign = {"clinic": "CL99", "codes": [code]}
+        for_manager = {**assign, "to": world["manager"]["id"]}
+        r = await api.post("/v1/crm/inbox/assign", json=for_manager, headers=desk)
+        assert r.status_code == 403  # Front Desk: only for themselves
+        doctor = signed_in_as(monkeypatch, world["doctor"]["id"])
+        assert (await api.post("/v1/crm/inbox/assign", json=assign, headers=doctor)).status_code == 403
+        manager = signed_in_as(monkeypatch, world["manager"]["id"])
+        to_doctor = {**assign, "to": world["doctor"]["id"]}
+        assert (await api.post("/v1/crm/inbox/assign", json=to_doctor, headers=manager)).status_code == 422
+        # Another clinic's lead is never touched, whatever the codes say.
+        both = {"clinic": "CL99", "codes": [code, other], "to": world["desk"]["id"]}
+        r = await api.post("/v1/crm/inbox/assign", json=both, headers=manager)
+        assert r.status_code == 200 and r.json() == {"assigned": [code], "taken": [other], "to": "Test desk"}
+        again = await api.post("/v1/crm/inbox/assign", json=assign, headers=desk)
+        assert again.json()["assigned"] == [] and again.json()["taken"] == [code]  # already someone's
+        assert (
+            await pool.fetchval("select assigned_to::text from app.leads where lead_code = $1", code)
+            == world["desk"]["id"]
+        )
+        assert await pool.fetchval("select assigned_to from app.leads where lead_code = $1", other) is None
+        desk = signed_in_as(monkeypatch, world["desk"]["id"])
+        inbox = await api.get("/v1/crm/inbox", params={"clinic": "CL99", "q": code}, headers=desk)
+        assert inbox.json()["items"] == []
+        leads = await api.get("/v1/crm/leads", params={"clinic": "CL99", "q": code}, headers=desk)
+        assert [(i["code"], i["assigned"]) for i in leads.json()["items"]] == [(code, "Test desk")]
+    finally:
+        await pool.execute("delete from app.lead_events where lead_id = $1", world["lead"]["id"])
+        await pool.execute("delete from app.notifications where lead_id = $1", world["lead"]["id"])
 
 
 @needs_db

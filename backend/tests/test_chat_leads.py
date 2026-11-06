@@ -107,6 +107,7 @@ async def test_cancel_is_matched_to_the_booking(tx: asyncpg.Connection) -> None:
 async def test_new_leads_take_turns_in_the_front_desk(tx: asyncpg.Connection) -> None:
     a: UUID = await person(tx, "ria", "CL99", "front_desk")
     b: UUID = await person(tx, "sam", "CL99", "front_desk")
+    await tx.execute("update app.clinics set lead_assignment = 'round_robin' where id = 'CL99'")
     await tx.execute("update app.user_clinics set in_round_robin = true where user_id = any($1)", [a, b])
     await tx.execute("update app.user_clinics set in_round_robin = false where clinic_id = 'CL99' "
                      "and user_id <> all($1)", [a, b])  # fmt: skip
@@ -117,10 +118,17 @@ async def test_new_leads_take_turns_in_the_front_desk(tx: asyncpg.Connection) ->
     assert set(owners[:2]) == {a, b} and owners[2] == owners[0]
 
 
-async def test_manual_assignment_leaves_the_lead_open(tx: asyncpg.Connection) -> None:
-    await tx.execute("update app.clinics set lead_assignment = 'manual' where id = 'CL99'")
+async def test_inbox_assignment_leaves_the_lead_for_the_inbox(tx: asyncpg.Connection) -> None:
+    """The default: a new lead waits unassigned in the Inbox; its booking task goes to the Admin meanwhile."""
+    admin: UUID = await person(tx, "ada", "CL99", "clinic_manager")
+    await tx.execute("update app.clinics set lead_assignment = 'inbox' where id = 'CL99'")
+    await tx.execute(
+        "update app.user_clinics set created_at = now() - interval '100 years' where user_id = $1", admin
+    )  # the first Admin
     code = await save(tx, flow("callback"))
-    assert await tx.fetchval("select assigned_to from app.leads where lead_code = $1", code) is None
+    lead = await tx.fetchrow("select id, assigned_to from app.leads where lead_code = $1", code)
+    assert lead["assigned_to"] is None
+    assert await tx.fetchval("select assigned_to from app.tasks where lead_id = $1", lead["id"]) == admin
 
 
 def test_confirm_hands_the_finished_flow_to_the_service() -> None:

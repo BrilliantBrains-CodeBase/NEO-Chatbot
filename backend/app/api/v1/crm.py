@@ -208,6 +208,7 @@ class LeadRow(BaseModel):
     contacts: int
     last_contact_at: str
     created_at: str
+    pending: int = 0  # requests waiting for the owner (book, cancel, call back...): "Needs action"
 
 
 class LeadList(BaseModel):
@@ -243,7 +244,8 @@ class LeadDetail(LeadRow):
 SOURCE_FILTER = "^(chatbot|meta_ads|google_ads|manual|whatsapp|website_form)$"
 LEAD_SELECT = """select l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
     d.name doctor, l.appointment_type, l.stage, p.full_name assigned, l.assigned_to, l.contact_count,
-    l.last_contact_at, l.created_at
+    l.last_contact_at, (select count(*) from app.requests rq where rq.lead_id = l.id
+      and rq.status = 'pending') pending, l.created_at
   from app.leads l left join app.doctors d on d.id = l.doctor_id
   left join app.profiles p on p.id = l.assigned_to"""
 
@@ -255,13 +257,37 @@ def lead_row(r: Record) -> dict[str, object]:
         "type": r["appointment_type"], "stage": r["stage"], "assigned": r["assigned"],
         "assigned_id": str(r["assigned_to"]) if r["assigned_to"] else None,
         "contacts": r["contact_count"], "last_contact_at": r["last_contact_at"].isoformat(),
-        "created_at": r["created_at"].isoformat(),
+        "created_at": r["created_at"].isoformat(), "pending": r["pending"],
     }  # fmt: skip
 
 
 def plain_text(q: str) -> str:
     """What staff typed, searched as plain text: % and _ are not wildcards, a backslash is no escape."""
     return q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+# Whose leads: those with an owner (Leads), those waiting in the Inbox for one, or both.
+Owner = Literal["assigned", "unassigned", "all"]
+REQUEST_TYPES = ("book", "online", "cancel", "reschedule", "callback", "question")
+# Leads with a request waiting: of any type, or of one.
+RequestFilter = Literal["any", "book", "online", "cancel", "reschedule", "callback", "question"]
+
+
+def owner_where(owner: Owner) -> str:
+    return {"assigned": " and l.assigned_to is not null", "unassigned": " and l.assigned_to is null"}.get(
+        owner, ""
+    )
+
+
+def request_where(request: RequestFilter | None) -> str:
+    """Only from the fixed list above (validated by the route), so it is safe in the SQL."""
+    if request is None:
+        return ""
+    if request != "any" and request not in REQUEST_TYPES:
+        raise ValueError(request)
+    kind = "" if request == "any" else f" and rq.type = '{request}'"
+    waiting = "select 1 from app.requests rq where rq.lead_id = l.id and rq.status = 'pending'"
+    return f" and exists ({waiting}{kind})"
 
 
 def _lead_filter(
@@ -271,8 +297,11 @@ def _lead_filter(
     date_from: date | None,
     date_to: date | None,
     treatment: str | None,
+    owner: Owner = "all",
+    request: RequestFilter | None = None,
 ) -> tuple[str, list[Any]]:
-    """The Leads filters, shared by the list and the export."""
+    """The Leads filters, shared by the list and the export. Leads shows assigned leads; unassigned ones wait
+    in the Inbox (an Admin can list them here too)."""
     where = "l.clinic_id = $1 and l.deleted_at is null and ($2::text is null or l.source = $2)"
     where += " and ($3 = '' or l.full_name ilike '%'||$3||'%'"
     where += " or l.phone_e164 like '%'||nullif(regexp_replace($3, '[\\s-]', '', 'g'), '')||'%'"
@@ -280,6 +309,7 @@ def _lead_filter(
     where += f" and ($4::date is null or (l.created_at at time zone '{TZ}')::date >= $4)"
     where += f" and ($5::date is null or (l.created_at at time zone '{TZ}')::date <= $5)"
     where += " and ($6::text is null or l.treatment = $6)"
+    where += owner_where(owner) + request_where(request)
     return where, [clinic, source, plain_text(q), date_from, date_to, treatment]
 
 
@@ -299,13 +329,17 @@ async def leads(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     treatment: Annotated[str | None, Query(max_length=200)] = None,
+    owner: Owner = "assigned",
+    request: RequestFilter | None = None,
 ) -> LeadList:
     """Leads of one clinic, newest first. `q` matches name, phone (spaces and dashes ignored),
     treatment, email or lead code; `from` and `to` (days in clinic time, both included) keep leads created in
-    that range; `treatment` keeps leads of exactly that treatment."""
+    that range; `treatment` keeps leads of exactly that treatment. `owner`: assigned leads (default; the
+    unassigned wait in the Inbox), unassigned or all. `request`: leads with a request waiting ("any", or one
+    type), the "Needs action" filter."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
-    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment)
+    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment, owner, request)
     pool = await get_pool()
     async with pool.acquire() as conn:
         counts = {r[0]: r[1] for r in await conn.fetch(
@@ -418,11 +452,13 @@ async def export_leads(
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
     treatment: Annotated[str | None, Query(max_length=200)] = None,
+    owner: Owner = "assigned",
+    request: RequestFilter | None = None,
 ) -> Response:
     """Every lead matching the Leads filters (all pages), as a CSV for Excel."""
     bulk_access(user, clinic)
     await perm.require(await get_pool(), user, clinic, "leads", "view")  # Who sees what
-    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment)
+    where, args = _lead_filter(clinic, source, q, date_from, date_to, treatment, owner, request)
     rows = await (await get_pool()).fetch(
         f"{EXPORT_SELECT} where {where} and ($7::text is null or l.stage = $7) {LEAD_ORDER}", *args, stage
     )

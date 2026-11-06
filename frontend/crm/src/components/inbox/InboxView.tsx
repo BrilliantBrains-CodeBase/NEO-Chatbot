@@ -1,100 +1,36 @@
 "use client";
 
 import Loading from "@/components/crm/Loading";
-import { level } from "@/lib/access";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
-import Icon from "@/components/crm/Icon";
 import Pager from "@/components/crm/Pager";
-import { SOURCE, useDebounced } from "@/components/leads/LeadsView";
-import {
-  api,
-  apiBlob,
-  ApiError,
-  INBOX_TABS,
-  REFRESH_MS,
-  saveFile,
-  type Inbox,
-  type InboxItem,
-  type LeadOptions,
-} from "@/lib/api";
-import SlotPicker, { type Pick } from "./SlotPicker";
-
-// The box under the treatment: for Other it is the treatment itself (required); for every other choice it
-// is an optional note on the lead's timeline, so the next person who calls knows what the patient said.
-const placeholder = (choice: string) =>
-  choice === "Other"
-    ? "Write the treatment"
-    : "Note for the team: what the patient said (optional)";
+import LeadDrawer from "@/components/leads/LeadDrawer";
+import { SOURCE, useDebounced, when } from "@/components/leads/labels";
+import { api, ApiError, INBOX_TABS, REFRESH_MS, type Assigned, type Inbox, type InboxRequest } from "@/lib/api";
+import AssignControls, { useAssignRights } from "./AssignControls";
+import { asked, day, requestLabel } from "./RequestCard";
 
 const PAGE_SIZE = 30;
 const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
-const OUTCOMES: [string, string][] = [
-  ["answered", "Answered"],
-  ["no_answer", "No answer"],
-  ["busy", "Busy"],
-  ["wrong_number", "Wrong number"],
-];
-const APPROVE: Record<string, string> = {
-  book: "Approve booking",
-  online: "Approve consult",
-  cancel: "Confirm cancellation",
-  reschedule: "Confirm new time",
-};
+// The type chips: every request type, then leads that came without one (a website form, an import...).
+const CHIPS: [string, string][] = [...INBOX_TABS, ["none", "No request"]];
 
-const clockOf = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-const day = (iso: string | null) =>
-  iso
-    ? new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString(
-        "en-IN",
-        { day: "numeric", month: "short", year: "numeric" },
-      )
-    : "";
-const at = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-function asked(i: InboxItem) {
-  if (!i.date) return "";
-  if (!i.time || i.time === "any") return `${day(i.date)}, any time`;
-  const [h, m] = i.time.split(":").map(Number);
-  return `${day(i.date)} at ${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-}
-function apptText(i: InboxItem) {
-  const a = i.appointment;
-  if (!a)
-    return i.type === "cancel" || i.type === "reschedule"
-      ? "No matching appointment found"
-      : "";
-  const when = a.start ? at(a.start) : `${day(a.day)}, any time`;
-  return [
-    when,
-    a.doctor,
-    a.type === "online" ? "Online" : "In-clinic",
-    a.status,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+function askedText(r: InboxRequest) {
+  return r.reason ?? (asked(r) || (r.booked_date ? `Booked on ${day(r.booked_date)}` : ""));
 }
 
+/** The Inbox: new leads from every source wait here without an owner. Front Desk takes them; an Admin
+ * assigns them to anyone. Assigned leads move to Leads, where their owner handles the requests. */
 export default function InboxView() {
-  const { clinic, me, refreshInbox, toast } = useCrm();
+  const { clinic, me, toast, refreshInbox } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
-  const role = me?.clinics.find((c) => c.id === clinicId)?.role;
+  const { canAssign, canTake } = useAssignRights(clinicId);
   const router = useRouter();
   const params = useSearchParams();
-  const asked_tab = params.get("tab") ?? "book";
-  const tab = INBOX_TABS.some(([k]) => k === asked_tab) ? asked_tab : "book";
-  const [handled, setHandled] = useState(false);
+  const openCode = params.get("open");
+  const askedType = params.get("type") ?? "";
+  const [type, setType] = useState(CHIPS.some(([k]) => k === askedType) ? askedType : "");
   const [version, setVersion] = useState(0);
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
@@ -103,67 +39,41 @@ export default function InboxView() {
   const [treatment, setTreatment] = useState("");
   const [source, setSource] = useState("");
   const [page, setPage] = useState(1);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [taking, setTaking] = useState("");
+
   const filter = new URLSearchParams();
+  if (type) filter.set("type", type);
   if (q) filter.set("q", q);
   if (from) filter.set("from", from);
   if (to) filter.set("to", to);
   if (treatment) filter.set("treatment", treatment);
   if (source) filter.set("source", source);
   const filterQuery = filter.toString();
-  // The requests ticked for Export (across pages), or every request matching the filters.
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [pickedAll, setPickedAll] = useState(false);
-  const clearPicked = () => {
-    setPicked(new Set());
-    setPickedAll(false);
-  };
-  const filters = `${clinicId}|${tab}|${handled}|${filterQuery}`;
+  const filters = `${clinicId}|${filterQuery}`;
   const [seenFilters, setSeenFilters] = useState(filters);
   if (filters !== seenFilters) {
     setSeenFilters(filters);
     setPage(1);
-    clearPicked(); // what is ticked always belongs to the list on screen
+    setPicked(new Set()); // what is ticked always belongs to the list on screen
   }
-  const shownQuery = `clinic=${clinicId}&type=${tab}${handled ? "&done=true" : ""}&${filterQuery}`;
-  const listUrl = `/v1/crm/inbox?${shownQuery}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`;
-  const [exporting, setExporting] = useState(false);
-  const canExport = !!clinicId && (me?.bb_admin || role === "clinic_manager");
+  const listUrl = `/v1/crm/inbox?clinic=${clinicId}&${filterQuery}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`;
   const key = `${filters}|${page}|${version}`;
-  const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({
-    key: "",
-  });
-  // The open request is in the address (?open=id), so a notification opens it.
-  const openId = params.get("open");
-  const [reason, setReason] = useState("");
-  const [note, setNote] = useState("");
-  // Changes agreed with the patient on the phone, applied when approving.
-  const [changing, setChanging] = useState(false);
-  const [pick, setPick] = useState<Pick | null>(null); // doctor, day and free time chosen
-  const [otherTreatment, setOtherTreatment] = useState("");
-  const [newTreatment, setNewTreatment] = useState("");
-  const [treatments, setTreatments] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({ key: "" });
 
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
     api<Inbox>(listUrl).then(
       (d) => live && setList({ key, d }),
-      (e) =>
-        live &&
-        setList({
-          key,
-          error:
-            e instanceof ApiError ? e.message : "Could not load the Inbox.",
-        }),
+      (e) => live && setList({ key, error: e instanceof ApiError ? e.message : "Could not load the Inbox." }),
     );
     return () => {
       live = false;
     };
   }, [clinicId, listUrl, key]);
 
-  // Quietly, without "Loading…": the same list again while the tab is in view (CrmProvider keeps the counts fresh).
+  // Quietly, without "Loading…": the same list again while the tab is in view.
   useEffect(() => {
     if (!clinicId) return;
     const timer = setInterval(() => {
@@ -176,50 +86,23 @@ export default function InboxView() {
     return () => clearInterval(timer);
   }, [clinicId, listUrl, key]);
 
-  useEffect(() => {
-    if (!clinicId) return;
-    api<LeadOptions>(`/v1/crm/lead-options?clinic=${clinicId}`).then(
-      (o) => setTreatments(o.treatments),
-      () => {},
-    );
-  }, [clinicId]);
-
   const d = list.key === key ? list.d : undefined;
-  const onPage = d?.items.find((i) => i.id === openId);
-  // Opened from a notification or the calendar, it may be on another page or hidden by a search: read by itself.
-  const [fetched, setFetched] = useState<InboxItem | null>(null);
-  useEffect(() => {
-    if (!openId || !d || onPage) return;
-    let live = true;
-    api<InboxItem>(`/v1/crm/requests/${encodeURIComponent(openId)}`).then(
-      (i) => live && setFetched(i),
-      () => {},
-    );
-    return () => {
-      live = false;
-    };
-  }, [openId, d, onPage]);
-  const item = onPage ?? (fetched?.id === openId ? fetched : undefined);
-
+  const error = list.key === key ? list.error : undefined;
   const total = d?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  if (d && page > pages) setPage(pages); // the last page emptied (e.g. its requests were handled)
-  const rowIds = d?.items.map((i) => i.id) ?? [];
-  const pageTicked = rowIds.length > 0 && rowIds.every((c) => picked.has(c));
-  const pickedCount = pickedAll ? total : picked.size;
+  if (d && page > pages) setPage(pages); // the last page emptied (its leads were assigned)
+  const rows = d?.items.map((l) => l.code) ?? [];
+  const pageTicked = rows.length > 0 && rows.every((c) => picked.has(c));
 
-  function tick(id: string, on: boolean) {
-    // Unticking one out of "all": everything else on this screen stays ticked.
-    const next = new Set(pickedAll ? rowIds : picked);
-    if (on) next.add(id);
-    else next.delete(id);
-    setPickedAll(false);
+  function tick(code: string, on: boolean) {
+    const next = new Set(picked);
+    if (on) next.add(code);
+    else next.delete(code);
     setPicked(next);
   }
 
-  function tickPage(on: boolean) {
-    if (!on) return clearPicked();
-    setPicked(new Set([...picked, ...rowIds]));
+  function open(code: string | null) {
+    router.replace(code ? `/inbox?open=${encodeURIComponent(code)}` : "/inbox", { scroll: false });
   }
 
   function goPage(n: number) {
@@ -227,135 +110,53 @@ export default function InboxView() {
     document.querySelector(".crm .page")?.scrollTo(0, 0);
   }
 
-  function range(days: number | null) {
-    const today = ymd(new Date());
-    setFrom(days === null ? "" : today);
-    setTo(days === null ? "" : today);
+  function range(today: boolean) {
+    const t = today ? ymd(new Date()) : "";
+    setFrom(t);
+    setTo(t);
   }
   const isToday = !!from && from === to && from === ymd(new Date());
 
-  async function exportInbox() {
-    setExporting(true);
-    try {
-      const file = await (picked.size && !pickedAll
-        ? apiBlob("/v1/crm/inbox/export", {
-            method: "POST",
-            body: JSON.stringify({ clinic: clinicId, ids: [...picked] }),
-          })
-        : apiBlob(`/v1/crm/inbox/export?${shownQuery}`));
-      saveFile(
-        file,
-        `inbox-${clinicId}-${tab}-${new Date().toLocaleDateString("en-CA")}.csv`,
-      );
-      toast("Inbox exported");
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not export the Inbox.");
-    } finally {
-      setExporting(false);
-    }
-  }
-  const canAct =
-    !!role &&
-    level(me, clinic, "inbox") === "edit" &&
-    item?.status === "pending";
-  // An online consult for "Any time" needs the time agreed with the patient before Cal.com can book it.
-  // An online consult needs an exact time for Cal.com: a request for "Any time" (new booking or reschedule)
-  // opens the time picker.
-  const needsTime =
-    (item?.type === "online" &&
-      !!item.appointment &&
-      !item.appointment.start) ||
-    (item?.type === "reschedule" &&
-      item.appointment?.type === "online" &&
-      (!item.time || item.time === "any"));
-
-  function open(id: string | null) {
-    router.replace(`/inbox?tab=${tab}${id ? `&open=${id}` : ""}`, {
-      scroll: false,
-    });
-    setReason("");
-    setNote("");
-    setPick(null);
-    setOtherTreatment("");
-    setChanging(false);
-    setNewTreatment("");
-    setError("");
+  function assigned(r: Assigned) {
+    setPicked(new Set([...picked].filter((c) => !r.assigned.includes(c))));
+    setVersion((v) => v + 1);
   }
 
-  async function act(path: string, body: object | undefined, done: string) {
-    if (!item) return;
-    setBusy(true);
-    setError("");
+  // One lead, taken from its row.
+  async function take(code: string) {
+    setTaking(code);
     try {
-      await api<InboxItem>(`/v1/crm/requests/${item.id}/${path}`, {
+      const r = await api<Assigned>("/v1/crm/inbox/assign", {
         method: "POST",
-        body: body ? JSON.stringify(body) : undefined,
+        body: JSON.stringify({ clinic: clinicId, codes: [code] }),
       });
-      open(null);
-      setVersion((v) => v + 1);
+      toast(r.assigned.length ? `${code} is yours: it is in Leads now` : "Already assigned by someone else");
       refreshInbox();
-      toast(done);
+      assigned(r);
     } catch (e) {
-      setError(
-        e instanceof ApiError ? e.message : "Could not save. Please try again.",
-      );
+      toast(e instanceof ApiError ? e.message : "Could not assign. Please try again.");
     } finally {
-      setBusy(false);
+      setTaking("");
     }
   }
 
+  const cols = 6 + (canAssign ? 1 : 0) + (canTake ? 1 : 0);
   return (
     <>
       <div className="ph">
         <div>
           <h1>Inbox</h1>
-          <p>
-            Approve bookings, handle cancellations and reschedules, and call
-            back patients.
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {canExport && (
-            <button
-              className="btn g"
-              disabled={exporting}
-              onClick={exportInbox}
-            >
-              <Icon name="download" />
-              {exporting
-                ? "Exporting…"
-                : pickedCount
-                  ? `Export (${pickedCount})`
-                  : "Export all"}
-            </button>
-          )}
-          <div className="seg">
-            <button
-              className={handled ? "" : "on"}
-              onClick={() => setHandled(false)}
-            >
-              Pending
-            </button>
-            <button
-              className={handled ? "on" : ""}
-              onClick={() => setHandled(true)}
-            >
-              Handled
-            </button>
-          </div>
+          <p>New leads from every source wait here. Assign each one to move it to Leads.</p>
         </div>
       </div>
-      <div className="tabs">
-        {INBOX_TABS.map(([k, label]) => (
-          <button
-            key={k}
-            className={tab === k ? "on" : ""}
-            onClick={() => router.replace(`/inbox?tab=${k}`, { scroll: false })}
-          >
+      <div className="tabs" aria-label="What the lead asked for">
+        <button className={type ? "" : "on"} onClick={() => setType("")}>
+          All<span className="c">{d?.all ?? "…"}</span>
+        </button>
+        {CHIPS.map(([k, label]) => (
+          <button key={k} className={type === k ? "on" : ""} onClick={() => setType(k)}>
             {label}
-            <span className="c">
-              {d?.pending.find((c) => c.key === k)?.count ?? "…"}
-            </span>
+            <span className="c">{d?.types.find((c) => c.key === k)?.count ?? "…"}</span>
           </button>
         ))}
       </div>
@@ -367,23 +168,11 @@ export default function InboxView() {
             placeholder="Search name, phone, treatment, email or code"
           />
         </label>
-        <div
-          className="pills"
-          style={{ margin: 0 }}
-          aria-label="Date asked for"
-        >
-          <button
-            type="button"
-            className={`pill${isToday ? " on" : ""}`}
-            onClick={() => range(1)}
-          >
+        <div className="pills" style={{ margin: 0 }} aria-label="Came in">
+          <button type="button" className={`pill${isToday ? " on" : ""}`} onClick={() => range(true)}>
             Today
           </button>
-          <button
-            type="button"
-            className={`pill${!from && !to ? " on" : ""}`}
-            onClick={() => range(null)}
-          >
+          <button type="button" className={`pill${!from && !to ? " on" : ""}`} onClick={() => range(false)}>
             All time
           </button>
         </div>
@@ -391,7 +180,7 @@ export default function InboxView() {
           className="sel"
           type="date"
           aria-label="From"
-          title="Date asked for"
+          title="Came in from"
           value={from}
           max={to || undefined}
           onChange={(e) => setFrom(e.target.value)}
@@ -401,17 +190,12 @@ export default function InboxView() {
           className="sel"
           type="date"
           aria-label="To"
-          title="Date asked for"
+          title="Came in to"
           value={to}
           min={from || undefined}
           onChange={(e) => setTo(e.target.value)}
         />
-        <select
-          className="sel"
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-          aria-label="Source"
-        >
+        <select className="sel" value={source} onChange={(e) => setSource(e.target.value)} aria-label="Source">
           <option value="">All sources</option>
           {Object.entries(SOURCE).map(([k, v]) => (
             <option key={k} value={k}>
@@ -431,399 +215,127 @@ export default function InboxView() {
               {t}
             </option>
           ))}
-          {treatment && d && !d.treatments?.includes(treatment) && (
-            <option value={treatment}>{treatment}</option>
-          )}
+          {treatment && d && !d.treatments?.includes(treatment) && <option value={treatment}>{treatment}</option>}
         </select>
       </div>
-      {canExport && pickedCount > 0 && d && (
-        <p
-          className="sub2"
-          style={{
-            margin: "0 0 8px",
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+      {canAssign && picked.size > 0 && (
+        <div className="bulkbar">
           <span>
-            {pickedAll
-              ? `All ${total} requests selected.`
-              : `${picked.size} request${picked.size === 1 ? "" : "s"} selected.`}
+            {picked.size} lead{picked.size === 1 ? "" : "s"} selected
           </span>
-          {!pickedAll && pageTicked && total > picked.size && (
-            <button
-              type="button"
-              className="btn g sm"
-              onClick={() => setPickedAll(true)}
-            >
-              Select all {total}
-            </button>
-          )}
-          <button type="button" className="btn g sm" onClick={clearPicked}>
+          <AssignControls clinicId={clinicId} codes={[...picked]} onAssigned={assigned} compact />
+          <button type="button" className="btn g sm" onClick={() => setPicked(new Set())}>
             Clear
           </button>
-        </p>
+        </div>
       )}
-      {list.key === key && list.error && (
-        <div className="warnbox">{list.error}</div>
-      )}
+      {error && <div className="warnbox">{error}</div>}
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
-              {canExport && (
+              {canAssign && (
                 <th style={{ width: 36 }}>
                   <input
                     type="checkbox"
-                    aria-label="Select all requests on this page"
-                    checked={pickedAll || pageTicked}
-                    onChange={(e) => tickPage(e.target.checked)}
+                    aria-label="Select all leads on this page"
+                    checked={pageTicked}
+                    onChange={(e) => setPicked(e.target.checked ? new Set([...picked, ...rows]) : new Set())}
                   />
                 </th>
               )}
-              <th>Patient</th>
+              <th>Lead</th>
+              <th>Asked for</th>
+              <th>Source</th>
               <th>Treatment</th>
-              <th>
-                {tab === "callback" || tab === "question"
-                  ? "Reason"
-                  : "Asked for"}
-              </th>
-              <th>Appointment</th>
-              <th>Received</th>
-              <th>Status</th>
+              <th>Came in</th>
+              <th>Last contact</th>
+              {canTake && <th aria-label="Assign" />}
             </tr>
           </thead>
           <tbody>
-            {!d && !(list.key === key && list.error) && (
+            {!d && !error && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={cols}>
                   <Loading />
                 </td>
               </tr>
             )}
             {d && !d.items.length && (
               <tr>
-                <td colSpan={7}>
-                  {filterQuery
-                    ? "No requests match."
-                    : handled
-                      ? "Nothing handled yet."
-                      : "Nothing waiting. All done."}
-                </td>
+                <td colSpan={cols}>{filterQuery ? "No leads match." : "Nothing waiting. Every lead has an owner."}</td>
               </tr>
             )}
-            {d?.items.map((i) => (
-              <tr
-                key={i.id}
-                onClick={() => open(i.id)}
-                style={{ cursor: "pointer" }}
-              >
-                {canExport && (
-                  <td
-                    style={{ cursor: "default" }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${i.name}`}
-                      checked={pickedAll || picked.has(i.id)}
-                      onChange={(e) => tick(i.id, e.target.checked)}
-                    />
+            {d?.items.map((l) => {
+              const first = l.requests[0];
+              return (
+                <tr key={l.code} onClick={() => open(l.code)} style={{ cursor: "pointer" }}>
+                  {canAssign && (
+                    <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${l.name}`}
+                        checked={picked.has(l.code)}
+                        onChange={(e) => tick(l.code, e.target.checked)}
+                      />
+                    </td>
+                  )}
+                  <td>
+                    <div className="nm">
+                      {l.requests.some((r) => r.urgent) && <span className="urgent-tag">Emergency</span>}
+                      {l.name}
+                    </div>
+                    <div className="pn">
+                      {l.code} · {l.phone ?? l.email}
+                    </div>
                   </td>
-                )}
-                <td>
-                  <div className="nm">
-                    {i.urgent && <span className="urgent-tag">Emergency</span>}
-                    {i.appointment?.status === "missed" && !handled && (
-                      <span className="passed-tag">Time passed</span>
+                  <td>
+                    {l.requests.length ? (
+                      <>
+                        <div className="rq-tags">
+                          {[...new Set(l.requests.map((r) => r.type))].map((t) => (
+                            <span key={t} className="badge b-new">
+                              {requestLabel(t)}
+                            </span>
+                          ))}
+                        </div>
+                        {first && askedText(first) && <div className="pn">{askedText(first)}</div>}
+                      </>
+                    ) : (
+                      <span className="sub2">No request</span>
                     )}
-                    {i.name}
-                  </div>
-                  <div className="pn">
-                    {i.lead_code} · {i.phone ?? i.email}
-                  </div>
-                </td>
-                <td>{i.treatment ?? "—"}</td>
-                <td>
-                  {i.reason ??
-                    (asked(i) ||
-                      (i.booked_date
-                        ? `Booked on ${day(i.booked_date)}`
-                        : "—"))}
-                </td>
-                <td>{apptText(i) || "—"}</td>
-                <td>{at(i.created_at)}</td>
-                <td>
-                  <span
-                    className={`badge ${i.status === "pending" ? "b-fu" : i.status === "done" ? "b-vi" : "b-lo"}`}
-                  >
-                    {i.status === "pending"
-                      ? "Pending"
-                      : i.status === "done"
-                        ? "Done"
-                        : "Rejected"}
-                  </span>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    {SOURCE[l.source] ?? l.source}
+                    {l.campaign && <div className="pn">{l.campaign}</div>}
+                  </td>
+                  <td>{l.treatment ?? first?.treatment ?? "—"}</td>
+                  <td>{when(l.created_at)}</td>
+                  <td>{when(l.last_contact_at)}</td>
+                  {canTake && (
+                    <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+                      <button className="btn sm" disabled={!!taking} onClick={() => take(l.code)}>
+                        {taking === l.code ? "Assigning…" : "Assign to me"}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      {d && total > 0 && (
-        <Pager
-          page={page}
-          size={PAGE_SIZE}
-          shown={d.items.length}
-          total={total}
-          onPage={goPage}
-        />
-      )}
+      {d && total > 0 && <Pager page={page} size={PAGE_SIZE} shown={d.items.length} total={total} onPage={goPage} />}
 
-      <div className={`ov${item ? " on" : ""}`} onClick={() => open(null)} />
-      <aside className={`dr${item ? " on" : ""}`} aria-hidden={!item}>
-        {item && (
-          <>
-            <div className="dh">
-              <div>
-                <h2>{item.name}</h2>
-                <p>
-                  <Link className="lnk" href={`/leads?open=${item.lead_code}`}>
-                    {item.lead_code}
-                  </Link>
-                  {INBOX_TABS.find(([k]) => k === item.type)?.[1]}
-                </p>
-              </div>
-              <button
-                className="x"
-                onClick={() => open(null)}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="db">
-              {error && <div className="warnbox">{error}</div>}
-              <div className="kv">
-                {(
-                  [
-                    ["Phone", item.phone],
-                    ["Email", item.email],
-                    ["Treatment", item.treatment],
-                    ["Asked for", asked(item)],
-                    ["Booked on", day(item.booked_date)],
-                    ["Reason", item.reason],
-                    ["Doctor", item.appointment?.doctor ?? null],
-                    [
-                      "Date",
-                      item.appointment
-                        ? day(item.appointment.start ?? item.appointment.day)
-                        : null,
-                    ],
-                    [
-                      "Time",
-                      item.appointment
-                        ? item.appointment.start
-                          ? clockOf(item.appointment.start)
-                          : "Any time"
-                        : null,
-                    ],
-                    [
-                      "Type",
-                      item.appointment
-                        ? item.appointment.type === "online"
-                          ? "Online"
-                          : "In-clinic"
-                        : null,
-                    ],
-                    ["Status", item.appointment?.status ?? null],
-                    [
-                      "Appointment",
-                      item.appointment ? null : apptText(item) || null,
-                    ],
-                    ["Meet link", item.appointment?.meet_link ?? null],
-                    ["Received", at(item.created_at)],
-                  ] as [string, string | null][]
-                )
-                  .filter(([, v]) => v)
-                  .map(([k, v]) => (
-                    <div key={k}>
-                      <span>{k}</span>
-                      <b>
-                        {k === "Meet link" && v ? (
-                          <a
-                            className="lnk"
-                            href={v}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {v}
-                          </a>
-                        ) : (
-                          v
-                        )}
-                      </b>
-                    </div>
-                  ))}
-              </div>
-              {canAct &&
-                (item.type === "callback" || item.type === "question") && (
-                  <div className="sec">
-                    <h4>CALL OUTCOME</h4>
-                    <textarea
-                      className="f"
-                      rows={2}
-                      maxLength={2000}
-                      placeholder="Note (optional)"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      style={{ width: "100%", marginBottom: 8 }}
-                    />
-                    <div className="row">
-                      {OUTCOMES.map(([k, v]) => (
-                        <button
-                          key={k}
-                          className="pill"
-                          disabled={busy}
-                          onClick={() =>
-                            act("done", { outcome: k, note }, "Callback done")
-                          }
-                        >
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              {canAct && APPROVE[item.type] && (
-                <div className="sec">
-                  <h4>DECISION</h4>
-                  {item.type === "online" && (
-                    <p className="sub2" style={{ marginTop: 0 }}>
-                      Approving books the consult in Cal.com: the patient gets
-                      the Google Meet link by email.
-                    </p>
-                  )}
-                  {item.type !== "cancel" && (
-                    <button
-                      className="lnk"
-                      style={{
-                        border: 0,
-                        background: "none",
-                        padding: 0,
-                        marginBottom: 8,
-                        cursor: "pointer",
-                      }}
-                      onClick={() => setChanging(!changing)}
-                    >
-                      {changing
-                        ? "Keep as asked"
-                        : "Change date, time or treatment"}
-                    </button>
-                  )}
-                  {(changing || needsTime) && clinicId && item.appointment && (
-                    <SlotPicker
-                      key={item.id}
-                      clinicId={clinicId}
-                      mode={item.appointment.type}
-                      doctorId={item.appointment.doctor_id}
-                      value={pick}
-                      onChange={setPick}
-                    />
-                  )}
-                  {changing && (
-                    <div className="row" style={{ marginBottom: 8 }}>
-                      <select
-                        className="f"
-                        aria-label="Treatment"
-                        value={newTreatment}
-                        onChange={(e) => setNewTreatment(e.target.value)}
-                      >
-                        <option value="">Same treatment</option>
-                        {treatments.map((t) => (
-                          <option key={t}>{t}</option>
-                        ))}
-                        {!treatments.includes("Other") && (
-                          <option>Other</option>
-                        )}
-                      </select>
-                      {
-                        <input
-                          className="f"
-                          style={{ flex: 1 }}
-                          aria-label={
-                            newTreatment === "Other"
-                              ? "Other treatment"
-                              : "Note for the team"
-                          }
-                          placeholder={placeholder(newTreatment)}
-                          maxLength={newTreatment === "Other" ? 100 : 500}
-                          value={otherTreatment}
-                          onChange={(e) => setOtherTreatment(e.target.value)}
-                        />
-                      }
-                    </div>
-                  )}
-                  <div className="row" style={{ marginBottom: 8 }}>
-                    <button
-                      className="btn"
-                      disabled={
-                        busy ||
-                        (needsTime && !pick) ||
-                        (changing &&
-                          newTreatment === "Other" &&
-                          otherTreatment.trim().length < 2)
-                      }
-                      onClick={() =>
-                        act(
-                          "approve",
-                          {
-                            date: pick?.date ?? null,
-                            time: pick?.time ?? null,
-                            doctor_id: pick?.doctorId || null,
-                            treatment: changing
-                              ? (newTreatment === "Other"
-                                  ? otherTreatment.trim()
-                                  : newTreatment) || null
-                              : null,
-                            note:
-                              changing && newTreatment !== "Other"
-                                ? otherTreatment.trim()
-                                : "",
-                          },
-                          item.type === "online"
-                            ? "Approved, Meet link sent"
-                            : "Approved",
-                        )
-                      }
-                    >
-                      {busy && item.type === "online"
-                        ? "Booking in Cal.com…"
-                        : APPROVE[item.type]}
-                    </button>
-                  </div>
-                  <div className="row">
-                    <input
-                      className="f"
-                      style={{ flex: 1 }}
-                      placeholder="Reason to reject (the patient is told by phone)"
-                      maxLength={500}
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                    />
-                    <button
-                      className="pill"
-                      disabled={busy || reason.trim().length < 3}
-                      onClick={() => act("reject", { reason }, "Rejected")}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
+      <div className={`ov${openCode ? " on" : ""}`} onClick={() => open(null)} />
+      <aside className={`dr${openCode ? " on" : ""}`} aria-hidden={!openCode}>
+        {openCode && (
+          <LeadDrawer
+            code={openCode}
+            clinicId={clinicId}
+            onClose={() => open(null)}
+            onChanged={() => setVersion((v) => v + 1)}
+          />
         )}
       </aside>
     </>

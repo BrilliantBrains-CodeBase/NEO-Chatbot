@@ -201,7 +201,7 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
     const readInbox = () =>
       // One row is enough: the counts come with any page of the list.
       api<Inbox>(`/v1/crm/inbox?clinic=${clinicId}&limit=1`).then((d) => {
-        if (live) setInbox({ clinic: clinicId, counts: Object.fromEntries(d.pending.map((c) => [c.key, c.count])) });
+        if (live) setInbox({ clinic: clinicId, counts: { all: d.all } }); // leads waiting for an owner
       });
     const read = () => {
       lastRead = Date.now();

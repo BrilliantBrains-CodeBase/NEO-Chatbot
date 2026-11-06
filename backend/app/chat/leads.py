@@ -30,19 +30,25 @@ async def _clinic(conn: asyncpg.Connection, clinic_id: str) -> asyncpg.Record:
     return row
 
 
+async def first_manager(conn: asyncpg.Connection, clinic_id: str) -> UUID | None:
+    """The clinic's first active Admin."""
+    uid: UUID | None = await conn.fetchval(
+        """select uc.user_id from app.user_clinics uc join app.profiles p on p.id = uc.user_id
+           where uc.clinic_id = $1 and uc.role = 'clinic_manager' and uc.active and p.active
+           order by uc.created_at limit 1""",
+        clinic_id,
+    )
+    return uid
+
+
 async def _assignee(conn: asyncpg.Connection, clinic: asyncpg.Record) -> UUID | None:
-    """Who gets a new lead, per the clinic's setting. Round robin: the front desk member whose last lead is
-    the oldest (locked, so two leads at once go to two people)."""
-    if clinic["lead_assignment"] == "manual":
+    """Who gets a new lead, per the clinic's setting. Inbox (the default; 'manual' before migration 0039):
+    nobody, so it waits in the Inbox to be assigned. Manager: the first Admin. Round robin: the front desk
+    member whose last lead is the oldest (locked, so two leads at once go to two people)."""
+    if clinic["lead_assignment"] in ("inbox", "manual"):
         return None
     if clinic["lead_assignment"] == "manager":
-        uid: UUID | None = await conn.fetchval(
-            """select uc.user_id from app.user_clinics uc join app.profiles p on p.id = uc.user_id
-               where uc.clinic_id = $1 and uc.role = 'clinic_manager' and uc.active and p.active
-               order by uc.created_at limit 1""",
-            clinic["id"],
-        )
-        return uid
+        return await first_manager(conn, clinic["id"])
     row = await conn.fetchrow(
         """select uc.user_id from app.user_clinics uc join app.profiles p on p.id = uc.user_id and p.active
            where uc.clinic_id = $1 and uc.role = 'front_desk' and uc.active and uc.in_round_robin
@@ -255,7 +261,9 @@ async def save_completed(conn: asyncpg.Connection, req: ChatRequest, f: Flow) ->
         await _book(conn, f, clinic, lead, request, req.session_id) if kind in ("book", "online") else None
     )
 
+    # The lead's owner; while it waits in the Inbox, the Admin until someone is assigned (assigning moves it).
     owner = await conn.fetchval("select assigned_to from app.leads where id = $1", lead)
+    owner = owner or await first_manager(conn, req.client_id)
     await conn.execute(
         """insert into app.tasks (clinic_id, lead_id, appointment_id, type, title, due_at, assigned_to)
            values ($1, $2, $3, $4, $5, now() + interval '30 minutes', $6)""",

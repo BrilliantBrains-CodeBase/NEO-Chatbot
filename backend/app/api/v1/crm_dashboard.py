@@ -105,9 +105,11 @@ async def dashboard(
         args = (clinic, start, first)
         k = await conn.fetchrow(
             f"""select
-              (select count(*) from app.requests where clinic_id=$1 and status='pending') ip,
-              (select count(*) from app.requests where clinic_id=$1 and status='pending'
-                 and type='callback') cb,
+              (select count(*) from app.leads where clinic_id=$1 and deleted_at is null
+                 and assigned_to is null and stage not in ('lost','invalid')) ip,
+              (select count(*) from app.requests r join app.leads l on l.id = r.lead_id
+                 where r.clinic_id=$1 and r.status='pending' and r.type='callback'
+                   and l.assigned_to is not null) cb,
               (select count(*) from app.tasks where clinic_id=$1 and status='open'
                  and due_at < ($2{AT})) fu,
               (select count(*) from app.unanswered_questions where clinic_id=$1 and not reviewed) un""",

@@ -96,7 +96,7 @@ export default function DashboardView() {
   const vs = `vs previous ${days} days`;
 
   return (
-    <div className="db">
+    <div className="dash">
       <div className="db-head ph">
         <div>
           <h1>
@@ -165,8 +165,8 @@ export default function DashboardView() {
 /** The things waiting for staff right now (not tied to the period). */
 function Needs({ d, see }: { d: Dashboard; see: (p: string) => boolean }) {
   const items: [string, number, string, ReactNode, boolean][] = [
-    ["Callbacks waiting", d.callbacks_waiting, "/inbox?tab=callback", I.phone, d.callbacks_waiting > 0],
-    ["Pending in Inbox", d.inbox_pending, "/inbox", I.inbox, false],
+    ["Callbacks waiting", d.callbacks_waiting, "/leads?request=callback", I.phone, d.callbacks_waiting > 0],
+    ["Waiting in Inbox", d.inbox_pending, "/inbox", I.inbox, d.inbox_pending > 0],
     ["Follow-ups due", d.followups_due, "/tasks", I.clock, d.followups_due > 0],
     ["Unanswered chat questions", d.unanswered, "", I.help, false],
   ];

@@ -109,10 +109,24 @@
 .crm .dh .x { margin-left:auto;border:0;background:none;cursor:pointer;padding:4px }
 .crm .db { flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:14px }
 .crm .sec h4 { margin:0 0 8px;font-size:var(--fs-small);color:var(--mute);letter-spacing:.04em;font-weight:500 }
-.crm .kv { display:grid;grid-template-columns:repeat(2,1fr);gap:8px }
+.crm .kv { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px }
 .crm .kv div { background:var(--panel);border-radius:9px;padding:8px 10px }
 .crm .kv span { display:block;font-size:var(--fs-small);color:var(--mute);font-weight:500 }
-.crm .kv b { font-size:var(--fs-sec);font-weight:500 }
+.crm .kv b { font-size:var(--fs-sec);font-weight:500;overflow-wrap:anywhere }
+/* Requests waiting on a lead (Lead drawer), and assigning Inbox leads */
+.crm .rq-list { display:flex;flex-direction:column;gap:10px }
+.crm .rq { border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0 }
+.crm .rq-h { display:flex;align-items:center;gap:8px;flex-wrap:wrap }
+.crm .rq-h b { font-size:var(--fs-sec);font-weight:700 }
+.crm .rq-h .urgent-tag, .crm .rq-h .passed-tag { margin-right:0 }
+.crm .rq-act { display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px }
+.crm .rq-act textarea.f { min-height:52px }
+.crm .rq-tags { display:flex;gap:4px;flex-wrap:wrap;margin-bottom:2px }
+.crm .assign-box { background:var(--warnt);border-radius:12px;padding:12px }
+.crm .assign { display:flex;flex-direction:column;gap:8px }
+.crm .assign .sel { min-width:0;max-width:100% }
+.crm .bulkbar { display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);font-size:var(--fs-sec);font-weight:600 }
+.crm .bulkbar .assign.compact .warnbox { order:2 }
 .crm .row { display:flex;gap:8px;flex-wrap:wrap;align-items:center }
 .crm .f { font:inherit;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;color:var(--ink) }
 .crm .tl { border-left:2px solid var(--line);margin-left:6px;padding-left:14px;display:flex;flex-direction:column;gap:10px }
@@ -876,13 +890,13 @@
    Chart colours: the validated categorical order (dataviz palette; slots below 3:1 always carry a visible
    label or legend), status colours for outcomes (each with an icon and a word), an ordinal blue ramp for the
    funnel. Text never wears a series colour. */
-.crm .db { --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;
+.crm .dash { --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948;
   --prev:#A3ACB9;--good:#0ca30c;--serious:#ec835a;--critical:#d03b3b;--idle:#C3CBD6;--f1:#104281;--f2:#256abf;--f3:#5598e7;
   --grid:#EDF0F5;--axis:#C9D0DA;
   display:grid;grid-template-columns:minmax(0,1fr) 330px;column-gap:16px;align-items:start;
   grid-template-areas:"head head" "needs rail" "kpis rail" "charts rail" }
-.crm .db > .db-head { grid-area:head }
-.crm .db > .db-full, .crm .db > .loading { grid-column:1 / -1 }
+.crm .dash > .db-head { grid-area:head }
+.crm .dash > .db-full, .crm .dash > .loading { grid-column:1 / -1 }
 .crm .db-needs { grid-area:needs }
 .crm .db-kpis { grid-area:kpis }
 .crm .db-rail { grid-area:rail;grid-row:2 / span 3;display:flex;flex-direction:column;gap:14px;position:sticky;top:0 }
@@ -1020,7 +1034,7 @@
 .crm .db-tl-s { display:block;font-size:var(--fs-small);color:var(--soft);font-weight:500;margin-top:2px }
 
 @media (max-width:1360px) {
-  .crm .db { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "needs" "kpis" "rail" "charts" }
+  .crm .dash { grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "needs" "kpis" "rail" "charts" }
   .crm .db-rail { grid-row:auto;position:static;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start }
 }
 @media (max-width:1100px) {

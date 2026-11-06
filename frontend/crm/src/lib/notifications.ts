@@ -53,13 +53,15 @@ export function noteTitle(n: BellNote): string {
   return n.kind === "emergency" ? `${what} · no phone number given` : what;
 }
 
-/** Where a notification opens. None: an emergency with no phone number has nothing to open. */
+/** Where a notification opens. None: an emergency with no phone number has nothing to open. A request or a
+ * lead opens the lead's drawer: from the Inbox while it waits for an owner (it shows how to assign it), from
+ * Leads once it has one (its owner handles the request there). */
 export function noteHref(n: BellNote): string | null {
-  if (n.request_id) return `/inbox?tab=${n.tab}&open=${n.request_id}`;
+  const code = n.lead_code ? encodeURIComponent(n.lead_code) : null;
   if (n.kind === "access_request") return "/team";
   if (n.kind === "integration_failed") return "/assistant/integrations";
-  if (n.kind === "lead_new" || n.kind === "lead_assigned")
-    return n.lead_code ? `/leads?q=${encodeURIComponent(n.lead_code)}` : "/leads";
+  if (n.kind === "lead_new") return code ? `/inbox?open=${code}` : "/inbox";
+  if (n.request_id || n.kind === "lead_assigned") return code ? `/leads?open=${code}` : "/leads";
   return null;
 }
 

@@ -206,6 +206,7 @@ export type LeadRow = {
   contacts: number;
   last_contact_at: string;
   created_at: string;
+  pending: number; // requests waiting for the owner ("Needs action")
 };
 export type LeadList = {
   total: number;
@@ -299,14 +300,30 @@ export type InboxItem = {
     meet_link: string | null;
   } | null;
 };
+/** A request waiting on an Inbox lead, as a summary (its owner handles it after assigning). */
+export type InboxRequest = {
+  id: string;
+  type: string;
+  created_at: string;
+  treatment: string | null;
+  reason: string | null;
+  date: string | null;
+  time: string | null;
+  booked_date: string | null;
+  urgent: boolean;
+};
+/** The Inbox: new leads waiting for an owner. */
+export type InboxLead = LeadRow & { requests: InboxRequest[] };
 export type Inbox = {
-  pending: Count[];
-  items: InboxItem[];
-  total?: number;
+  total: number;
+  all: number; // the same without the type filter
+  types: Count[]; // leads per waiting request type, and "none"
+  items: InboxLead[];
   treatments?: string[];
 };
+export type Assigned = { assigned: string[]; taken: string[]; to: string };
 
-/** Inbox tabs, in the menu's order. */
+/** Request types, in order: the Inbox's and Leads' filters and badges. */
 export const INBOX_TABS: [string, string][] = [
   ["book", "Booking requests"],
   ["online", "Online consults"],

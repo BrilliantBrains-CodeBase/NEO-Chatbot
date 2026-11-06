@@ -154,7 +154,9 @@ async def test_leads_search_by_phone_with_spaces_and_by_treatment(
     headers = signed_in_as(monkeypatch, str(admin))
 
     async def search(q: str) -> dict[str, Any]:
-        r = await api.get("/v1/crm/leads", params={"clinic": "CL01", "q": q, "limit": 200}, headers=headers)
+        r = await api.get(
+            "/v1/crm/leads", params={"clinic": "CL01", "q": q, "limit": 200, "owner": "all"}, headers=headers
+        )
         assert r.status_code == 200
         found: dict[str, Any] = r.json()
         return found
@@ -343,27 +345,33 @@ async def test_import_export_and_pages_newest_first(
         kinds = await pool.fetch("select kind, data from app.lead_events where lead_id = $1", one["id"])
         assert [k["kind"] for k in kinds] == ["contact"] and "imported" in kinds[0]["data"]
 
-        listed = (await api.get("/v1/crm/leads?clinic=CL99&limit=2", headers=headers)).json()
+        listed = (await api.get("/v1/crm/leads?clinic=CL99&limit=2&owner=all", headers=headers)).json()
         assert len(listed["items"]) == 2 and listed["total"] >= 3
         codes = {i["code"] for i in listed["items"]}
         assert existing["lead_code"] not in codes  # the imported leads are newer, so they come first
-        second = (await api.get("/v1/crm/leads?clinic=CL99&limit=2&offset=2", headers=headers)).json()
+        second = (
+            await api.get("/v1/crm/leads?clinic=CL99&limit=2&offset=2&owner=all", headers=headers)
+        ).json()
         assert not codes & {i["code"] for i in second["items"]}  # pages never repeat a lead
 
-        r = await api.get("/v1/crm/leads/export", params={"clinic": "CL99", "q": "7002"}, headers=headers)
+        r = await api.get(
+            "/v1/crm/leads/export", params={"clinic": "CL99", "q": "7002", "owner": "all"}, headers=headers
+        )
         assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
         sheet = list(csv.reader(io.StringIO(r.text.lstrip("\ufeff"))))
         assert sheet[0][:3] == ["Code", "Name", "Phone"] and len(sheet) == 2
         assert sheet[1][1] == "'=Two" and sheet[1][2] == "+91 9000007002" and sheet[1][3] == "two@example.com"
 
         by_treatment = await api.get(
-            "/v1/crm/leads", params={"clinic": "CL99", "treatment": "PRP"}, headers=headers
+            "/v1/crm/leads", params={"clinic": "CL99", "treatment": "PRP", "owner": "all"}, headers=headers
         )
         assert {i["treatment"] for i in by_treatment.json()["items"]} == {"PRP"}
         assert "PRP" in by_treatment.json()["treatments"]
         assert one["lead_code"] in {i["code"] for i in by_treatment.json()["items"]}
         file = await api.get(
-            "/v1/crm/leads/export", params={"clinic": "CL99", "treatment": "PRP"}, headers=headers
+            "/v1/crm/leads/export",
+            params={"clinic": "CL99", "treatment": "PRP", "owner": "all"},
+            headers=headers,
         )
         assert one["lead_code"] in file.text and existing["lead_code"] not in file.text
 

@@ -706,9 +706,9 @@ function BookCard({
         }),
       });
       refreshInbox();
-      toast(`Added (${r.lead_code}): confirm it in the Inbox`);
+      toast(`Added (${r.lead_code}): confirm it from the lead`);
       onClose(true);
-      router.push(`/inbox?tab=${r.tab}&open=${r.request_id}`);
+      router.push(`/leads?open=${encodeURIComponent(r.lead_code)}`);
     } catch (e) {
       setError(
         e instanceof ApiError ? e.message : "Could not book. Please try again.",
@@ -988,7 +988,6 @@ function DetailCard({
 
   const h = head(date);
   const kind = b.type === "online" ? "Online consult" : "In-clinic visit";
-  const tab = b.type === "online" ? "online" : "book";
   const open = b.status === "pending" || b.status === "confirmed";
   const needReason = reason.trim().length < 3;
   return (
@@ -1027,10 +1026,10 @@ function DetailCard({
               className="btn"
               disabled={busy}
               onClick={() =>
-                router.push(`/inbox?tab=${tab}&open=${b.request_id}`)
+                router.push(`/leads?open=${encodeURIComponent(b.lead_code)}`)
               }
             >
-              Open in Inbox to confirm
+              Open the lead to confirm
             </button>
             <button
               className="btn red"

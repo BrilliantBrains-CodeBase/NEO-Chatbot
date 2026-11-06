@@ -66,7 +66,8 @@ class Details(BaseModel):
     country: str = Field(default="India", min_length=2, max_length=60)
     registration_no: str | None = Field(default=None, max_length=60)
     gstin: str | None = Field(default=None, pattern=r"^[0-9]{2}[A-Z0-9]{13}$")
-    lead_assignment: Literal["round_robin", "manual", "manager"] = "round_robin"
+    # "manual" is the old name of "inbox" (before migration 0039).
+    lead_assignment: Literal["inbox", "round_robin", "manager", "manual"] = "inbox"
 
     @field_validator(
         "name", "email", "phone", "alt_phone", "whatsapp", "website", "address", "city", "state",

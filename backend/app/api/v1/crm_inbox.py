@@ -1,4 +1,6 @@
-"""CRM Inbox (JSON only): the requests patients made in the chatbot, and what staff do with them."""
+"""CRM Inbox (JSON only). The Inbox is the intake queue: new leads from every source wait there, unassigned,
+until the clinic manager or a front desk member assigns them. Their requests (bookings, cancellations, call
+backs...) are then handled by the lead's owner from the Lead drawer, with the routes below."""
 
 import json
 from collections.abc import Awaitable
@@ -12,16 +14,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from app.api.v1.crm import (
+    LEAD_SELECT,
     SOURCE_FILTER,
     Count,
+    LeadRow,
     Option,
     _event,
+    _lead_filter,
     bulk_access,
     can_edit,
     can_see,
     cell,
     csv_file,
     export_phone,
+    in_clinic,
+    lead_row,
     own_doctor,
     plain_text,
 )
@@ -68,11 +75,30 @@ class InboxItem(BaseModel):
     urgent: bool = False  # an emergency in the chat
 
 
+class InboxRequest(BaseModel):
+    """A request waiting on an Inbox lead, as a summary: the owner handles it after assigning."""
+
+    id: str
+    type: str
+    created_at: str
+    treatment: str | None
+    reason: str | None
+    date: str | None
+    time: str | None
+    booked_date: str | None
+    urgent: bool = False
+
+
+class InboxLead(LeadRow):
+    requests: list[InboxRequest]  # waiting, newest first
+
+
 class Inbox(BaseModel):
-    pending: list[Count]  # pending requests per type, with the filters applied (none: the menu and the bell)
-    items: list[InboxItem]
-    total: int = 0  # requests matching the filters on this tab, across all pages
-    treatments: list[str] = []  # every treatment this clinic's requests have, for the filter
+    total: int  # unassigned leads matching the filters, across all pages
+    all: int = 0  # the same without the type filter: the "All" chip, the menu and the Dashboard
+    types: list[Count]  # leads per waiting request type, and "none" (a lead with no request, e.g. a form)
+    items: list[InboxLead]
+    treatments: list[str] = []  # every treatment these leads have, for the filter
 
 
 SELECT = """select r.id, r.type, r.status, r.created_at, r.data, r.match_status, r.clinic_id, r.lead_id,
@@ -210,14 +236,17 @@ def _inbox_csv(clinic: str, rows: list[asyncpg.Record]) -> Response:
     return csv_file(f"inbox-{clinic}", EXPORT_COLUMNS, out)
 
 
+InboxType = Literal["book", "online", "cancel", "reschedule", "callback", "question", "none"]
+# In the Inbox: no owner yet, and not closed as Lost or Invalid.
+INBOX_WHERE = " and l.stage not in ('lost', 'invalid')"
+WAITING = "select 1 from app.requests rq where rq.lead_id = l.id and rq.status = 'pending'"
+
+
 @router.get("/inbox", response_model=Inbox)
 async def inbox(
     user: Annotated[Staff, Depends(staff)],
     clinic: Annotated[str, Query(pattern=r"^CL\d{2,3}$")],
-    type: Annotated[
-        Literal["book", "online", "cancel", "reschedule", "callback", "question"] | None, Query()
-    ] = None,
-    done: bool = False,
+    type: Annotated[InboxType | None, Query()] = None,
     q: Annotated[str, Query(max_length=100)] = "",
     date_from: Annotated[date | None, Query(alias="from")] = None,
     date_to: Annotated[date | None, Query(alias="to")] = None,
@@ -226,42 +255,148 @@ async def inbox(
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Inbox:
-    """Pending or handled requests, newest first, a page at a time. The tabs' counts follow the filters, as on
-    Leads; with none (the menu and the bell) they are every pending request. `from` and `to` (days, both
-    included) keep requests by the day asked for (a cancellation: the booked day; else the day received)."""
+    """New leads waiting for an owner, latest contact first, each with its waiting requests. `type` keeps
+    leads with a request of that type waiting ("none": with no request, e.g. a website form). `from` and `to`
+    (days, both included) keep leads created then. The counts per type follow the other filters."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
+    base, args = _lead_filter(clinic, source, q, date_from, date_to, treatment, "unassigned")
+    base += INBOX_WHERE
+    where = base
+    if type == "none":
+        where += f" and not exists ({WAITING})"
+    elif type:  # from the fixed list above, validated by FastAPI
+        where += f" and exists ({WAITING} and rq.type = '{type}')"
     pool = await get_pool()
     async with pool.acquire() as conn:
-        waiting, wait_args = _inbox_filter(clinic, None, False, q, date_from, date_to, treatment, source)
         counts = {
             r[0]: r[1]
             for r in await conn.fetch(
-                f"""select r.type, count(*) from app.requests r join app.leads l on l.id = r.lead_id
-                    join app.clinics c on c.id = r.clinic_id where {waiting} group by 1""",
-                *wait_args,
+                f"""select rq.type, count(distinct l.id) from app.leads l
+                    join app.requests rq on rq.lead_id = l.id and rq.status = 'pending'
+                    where {base} group by 1""",
+                *args,
             )
         }
-        where, args = _inbox_filter(clinic, type, done, q, date_from, date_to, treatment, source)
-        total = await conn.fetchval(
-            f"""select count(*) from app.requests r join app.leads l on l.id = r.lead_id
-                join app.clinics c on c.id = r.clinic_id where {where}""",
+        every, waiting = await conn.fetchrow(
+            f"""select count(*), count(*) filter (where exists ({WAITING}))
+                from app.leads l where {base}""",
             *args,
         )
+        total = await conn.fetchval(f"select count(*) from app.leads l where {where}", *args)
         rows = await conn.fetch(
-            f"{SELECT} where {where} {REQUEST_ORDER} limit $8 offset $9", *args, limit, offset
+            f"""{LEAD_SELECT.replace("l.created_at", "l.created_at, l.id")} where {where}
+                order by l.last_contact_at desc, l.lead_code desc limit $7 offset $8""",
+            *args, limit, offset,
+        )  # fmt: skip
+        asks = await conn.fetch(
+            """select id, lead_id, type, created_at, data from app.requests
+               where lead_id = any($1::uuid[]) and status = 'pending' order by created_at desc""",
+            [r["id"] for r in rows],
         )
         treatments = await conn.fetch(
-            """select distinct data->>'treatment' from app.requests
-               where clinic_id = $1 and nullif(data->>'treatment', '') is not null order by 1""",
-            clinic,
+            f"""select distinct l.treatment from app.leads l where {base} and l.treatment is not null
+                order by 1""",
+            *args,
+        )
+    by_lead: dict[Any, list[InboxRequest]] = {}
+    for a in asks:
+        data: dict[str, Any] = json.loads(a["data"]) if isinstance(a["data"], str) else a["data"]
+        by_lead.setdefault(a["lead_id"], []).append(
+            InboxRequest(
+                id=str(a["id"]),
+                type=a["type"],
+                created_at=a["created_at"].isoformat(),
+                treatment=data.get("treatment"),
+                reason=data.get("reason"),
+                date=data.get("date"),
+                time=data.get("time"),
+                booked_date=data.get("booked_date"),
+                urgent=bool(data.get("urgent")),
+            )  # fmt: skip
         )
     return Inbox(
-        pending=[Count(key=t, count=counts.get(t, 0)) for t in TYPES],
-        items=[_item(r) for r in rows],
         total=total,
+        all=every,
+        types=[Count(key=t, count=counts.get(t, 0)) for t in TYPES]
+        + [Count(key="none", count=every - waiting)],
+        items=[InboxLead.model_validate(lead_row(r) | {"requests": by_lead.get(r["id"], [])}) for r in rows],
         treatments=[r[0] for r in treatments],
     )
+
+
+class AssignIn(BaseModel):
+    clinic: str = Field(pattern=r"^CL\d{2,3}$")
+    codes: list[str] = Field(min_length=1, max_length=500)
+    to: UUID | None = None  # left out: me
+
+
+class Assigned(BaseModel):
+    assigned: list[str]  # lead codes now owned by `to`
+    taken: list[str]  # assigned by someone else meanwhile (or not in the Inbox): left as they are
+    to: str  # the owner's name
+
+
+@router.post("/inbox/assign", response_model=Assigned)
+async def assign_from_inbox(user: Annotated[Staff, Depends(staff)], body: AssignIn) -> Assigned:
+    """Give Inbox leads an owner, moving them to Leads. Front Desk takes leads for themselves; an Admin (or
+    Super Admin) assigns to anyone who can take leads. Only leads still unassigned change, so two people
+    taking the same lead at once never take it from each other. The leads' open tasks follow the new owner."""
+    can_edit(user, body.clinic)
+    await perm.require(await get_pool(), user, body.clinic, "inbox", "edit")  # Who sees what
+    to = str(body.to or user.id)
+    if to != user.id and not (user.bb_admin or user.roles.get(body.clinic) == "clinic_manager"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can assign leads to yourself only.")
+    codes = list(dict.fromkeys(body.codes))
+    pool = await get_pool()
+    async with pool.acquire() as conn, conn.transaction():
+        # Who did it, for the audit (and the "assigned to you" notification skips taking it yourself).
+        await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
+        name = await conn.fetchval(
+            """select p.full_name from app.user_clinics u join app.profiles p on p.id = u.user_id
+               where u.user_id = $1::uuid and u.clinic_id = $2 and u.active and p.active
+                 and u.role <> 'doctor'""",
+            to, body.clinic,
+        )  # fmt: skip
+        if name is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "That person cannot take leads here.")
+        done = await conn.fetch(
+            """update app.leads set assigned_to = $3::uuid, updated_at = now()
+               where clinic_id = $1 and lead_code = any($2::text[]) and assigned_to is null
+                 and deleted_at is null
+               returning id, clinic_id, lead_code""",
+            body.clinic, codes, to,
+        )  # fmt: skip
+        for lead in done:
+            await _event(conn, lead, user, "assigned", {"to": name, "from": "inbox"})
+        if done:
+            await conn.execute(
+                """update app.tasks set assigned_to = $2::uuid, updated_at = now()
+                   where lead_id = any($1::uuid[]) and status = 'open'""",
+                [r["id"] for r in done], to,
+            )  # fmt: skip
+    got = {r["lead_code"] for r in done}
+    return Assigned(
+        assigned=[c for c in codes if c in got], taken=[c for c in codes if c not in got], to=name
+    )
+
+
+@router.get("/leads/{code}/requests", response_model=list[InboxItem])
+async def lead_requests(user: Annotated[Staff, Depends(staff)], code: str) -> list[InboxItem]:
+    """A lead's requests waiting for its owner, oldest first: the Lead drawer's "Pending requests"."""
+    pool = await get_pool()
+    clinic = await pool.fetchval(
+        "select clinic_id from app.leads where lead_code = $1 and deleted_at is null", code
+    )
+    if clinic is None or not in_clinic(user, clinic):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found.")
+    await perm.require(pool, user, clinic, "leads", "view")  # Who sees what
+    rows = await pool.fetch(
+        f"{SELECT} where l.lead_code = $1 and l.deleted_at is null and r.status = 'pending' "
+        "order by r.created_at, r.id",
+        code,
+    )
+    return [_item(r) for r in rows]
 
 
 @router.get("/requests/{request_id}", response_model=InboxItem)

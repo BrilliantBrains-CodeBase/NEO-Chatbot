@@ -375,6 +375,14 @@ async def book(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Patient not found in this clinic.")
         if email and email != lead["email"]:
             await conn.execute("update app.leads set email = $2 where id = $1", lead["id"], email)
+        # Booked by staff: a lead still waiting in the Inbox becomes theirs (not a doctor's): it opens in
+        # Leads.
+        await conn.execute(
+            """update app.leads set assigned_to = $2::uuid, updated_at = now()
+               where id = $1 and assigned_to is null and exists (select 1 from app.user_clinics
+                 where user_id = $2::uuid and clinic_id = $3 and active and role <> 'doctor')""",
+            lead["id"], user.id, clinic,
+        )  # fmt: skip
         clinic_row = await conn.fetchrow("select id, timezone from app.clinics where id = $1", clinic)
         found = await _free_doctors(conn, clinic_row, body.type, start, "s_crm", doctor_id)
         if not found:

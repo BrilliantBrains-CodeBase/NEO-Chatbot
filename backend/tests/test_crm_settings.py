@@ -34,7 +34,7 @@ DETAILS = {
     "country": "India",
     "registration_no": "",
     "gstin": "29abcde1234f1z5",
-    "lead_assignment": "manual",
+    "lead_assignment": "manager",
 }
 
 
@@ -73,7 +73,7 @@ async def test_admins_save_the_clinic_and_front_desk_cannot(
     d = put.json()["details"]
     assert d["email"] == "front@test.invalid" and d["address"] == "1st floor, Test House"
     assert (
-        d["gstin"] == "29ABCDE1234F1Z5" and d["registration_no"] is None and d["lead_assignment"] == "manual"
+        d["gstin"] == "29ABCDE1234F1Z5" and d["registration_no"] is None and d["lead_assignment"] == "manager"
     )
     assert put.json()["alerts"] == {"emergency_admins": False, "emergency_emails": ["desk@test.invalid"]}
 

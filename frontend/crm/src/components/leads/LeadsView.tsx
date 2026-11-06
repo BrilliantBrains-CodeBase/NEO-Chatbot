@@ -6,35 +6,18 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon from "@/components/crm/Icon";
 import Pager from "@/components/crm/Pager";
-import { api, apiBlob, ApiError, REFRESH_MS, saveFile, type LeadDetail, type LeadList } from "@/lib/api";
+import { api, apiBlob, ApiError, INBOX_TABS, REFRESH_MS, saveFile, type LeadList } from "@/lib/api";
 import ImportLeadsForm from "./ImportLeadsForm";
-import LeadActions from "./LeadActions";
+import LeadDrawer from "./LeadDrawer";
+import { SOURCE, STAGE_LABEL, useDebounced, when } from "./labels";
+
+export { SOURCE, STAGE_LABEL, useDebounced };
 
 const PAGE_SIZE = 30;
-
-export const STAGE_LABEL: Record<string, [string, string]> = {
-  new: ["New", "b-new"],
-  follow_up: ["Follow Up", "b-fu"],
-  booked: ["Booked", "b-bk"],
-  visited: ["Visited", "b-vi"],
-  lost: ["Lost", "b-lo"],
-  invalid: ["Invalid", "b-in"],
-};
-export const SOURCE: Record<string, string> = { chatbot: "Chatbot", meta_ads: "Meta Ads", google_ads: "Google Ads", manual: "Manual", whatsapp: "WhatsApp", website_form: "Website form" };
-const EVENT: Record<string, string> = { contact: "Contacted", stage_change: "Stage changed", assigned: "Assigned", call: "Call", note: "Note", request: "Request", appointment: "Appointment" };
+const REQUESTS = ["any", ...INBOX_TABS.map(([k]) => k)];
 
 const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
-const when = (iso: string) => new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could not load leads.");
-
-export function useDebounced(value: string, ms = 300) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return v;
-}
 
 export default function LeadsView() {
   const { clinic, me, toast, openModal } = useCrm();
@@ -67,6 +50,17 @@ export default function LeadsView() {
     if (askedQ !== null) setSearch(askedQ);
   }
   const q = useDebounced(search.trim());
+  // "Needs action": leads with a request waiting for their owner (any, or one type). In the address, so the
+  // Dashboard's "Callbacks waiting" opens it.
+  const askedRequest = params.get("request");
+  const [request, setRequest] = useState(askedRequest && REQUESTS.includes(askedRequest) ? askedRequest : "");
+  const [seenRequest, setSeenRequest] = useState(askedRequest);
+  if (askedRequest !== seenRequest) {
+    setSeenRequest(askedRequest);
+    if (askedRequest && REQUESTS.includes(askedRequest)) setRequest(askedRequest);
+  }
+  // Leads shows assigned leads; an Admin can also look at those still waiting in the Inbox.
+  const [unassigned, setUnassigned] = useState(false);
   const [page, setPage] = useState(1);
   // The leads ticked for Export (across pages), or every lead matching the filters.
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -75,7 +69,7 @@ export default function LeadsView() {
     setPicked(new Set());
     setPickedAll(false);
   };
-  const filters = `${clinicId}|${stage}|${source}|${treatment}|${q}|${from}|${to}`;
+  const filters = `${clinicId}|${stage}|${source}|${treatment}|${q}|${from}|${to}|${request}|${unassigned}`;
   const [seenFilters, setSeenFilters] = useState(filters);
   if (filters !== seenFilters) {
     setSeenFilters(filters);
@@ -91,10 +85,11 @@ export default function LeadsView() {
   if (q) shown.set("q", q);
   if (from) shown.set("from", from);
   if (to) shown.set("to", to);
+  if (request) shown.set("request", request);
+  if (unassigned) shown.set("owner", "unassigned");
   const filterQuery = shown.toString();
   const listUrl = `/v1/crm/leads?clinic=${clinicId}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&${filterQuery}`;
   const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
-  const [detail, setDetail] = useState<{ code: string; d?: LeadDetail; error?: string }>({ code: "" });
 
   useEffect(() => {
     if (!clinicId) return;
@@ -140,31 +135,12 @@ export default function LeadsView() {
     return from === ymd(start) && to === ymd(new Date());
   };
 
-  useEffect(() => {
-    if (!openCode) return;
-    let live = true;
-    api<LeadDetail>(`/v1/crm/leads/${encodeURIComponent(openCode)}`).then(
-      (d) => live && setDetail({ code: openCode, d }),
-      (e) => live && setDetail({ code: openCode, error: errorText(e) }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [openCode]);
-
-  function changed(d: LeadDetail) {
-    setDetail({ code: d.code, d });
-    setVersion((v) => v + 1);
-  }
-
   const show = (code: string) => go(stage, code);
   const close = () => go(stage, null);
-  const open: typeof detail | null = openCode ? (detail.code === openCode ? detail : { code: openCode }) : null;
 
   const d = list.key === key ? list.d : undefined;
   const error = list.key === key ? list.error : undefined;
   const all = d?.stages.reduce((n, s) => n + s.count, 0);
-  const lead = open?.d;
   const pages = d ? Math.max(1, Math.ceil(d.total / PAGE_SIZE)) : 1;
   if (d && page > pages) setPage(pages); // the last page emptied (e.g. leads moved to another stage)
   // A lead opened from outside the page shown (just added): the newest are on the first page.
@@ -222,8 +198,11 @@ export default function LeadsView() {
     setSource("");
     setFrom("");
     setTo("");
+    setRequest("");
     setPage(1);
     setVersion((v) => v + 1);
+    // Imported leads have no owner yet: they wait in the Inbox.
+    setUnassigned(true);
     go("", null);
   }
 
@@ -232,7 +211,7 @@ export default function LeadsView() {
       <div className="ph">
         <div>
           <h1>Leads</h1>
-          <p>Every lead from chatbot, ads, calls and walk-ins.</p>
+          <p>Assigned leads: confirm their bookings, call back and move them through the stages.</p>
         </div>
         {canBulk && (
           <div style={{ display: "flex", gap: 8 }}>
@@ -302,6 +281,21 @@ export default function LeadsView() {
           ))}
           {treatment && d && !d.treatments?.includes(treatment) && <option value={treatment}>{treatment}</option>}
         </select>
+        <select className="sel" value={request} onChange={(e) => setRequest(e.target.value)} aria-label="Needs action">
+          <option value="">All leads</option>
+          <option value="any">Needs action (any request)</option>
+          {INBOX_TABS.map(([k, label]) => (
+            <option key={k} value={k}>
+              Needs action: {label}
+            </option>
+          ))}
+        </select>
+        {canBulk && (
+          <label className="sub2" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" checked={unassigned} onChange={(e) => setUnassigned(e.target.checked)} />
+            Waiting in Inbox (unassigned)
+          </label>
+        )}
       </div>
       {error && <div className="warnbox">{error}</div>}
       {canBulk && pickedCount > 0 && d && (
@@ -368,7 +362,14 @@ export default function LeadsView() {
                   </td>
                 )}
                 <td>
-                  <div className="nm">{l.name}</div>
+                  <div className="nm">
+                    {l.name}
+                    {l.pending > 0 && (
+                      <span className="badge b-fu" style={{ marginLeft: 6 }} title="Requests waiting for the owner">
+                        {l.pending} to handle
+                      </span>
+                    )}
+                  </div>
                   <div className="pn">
                     {l.code} · {l.phone ?? l.email}
                   </div>
@@ -391,96 +392,10 @@ export default function LeadsView() {
       </div>
       {d && d.total > 0 && <Pager page={page} size={PAGE_SIZE} shown={d.items.length} total={d.total} onPage={goPage} />}
 
-      <div className={`ov${open ? " on" : ""}`} onClick={close} />
-      <aside className={`dr${open ? " on" : ""}`} aria-hidden={!open}>
-        {open && (
-          <>
-            <div className="dh">
-              <div>
-                <h2>{lead?.name ?? "…"}</h2>
-                <p>
-                  {open.code}
-                  {lead && <span className={`badge ${STAGE_LABEL[lead.stage]?.[1]}`}>{STAGE_LABEL[lead.stage]?.[0]}</span>}
-                </p>
-              </div>
-              <button className="x" onClick={close} aria-label="Close">
-                ✕
-              </button>
-            </div>
-            <div className="db">
-              {open.error && <div className="warnbox">{open.error}</div>}
-              {lead && (
-                <>
-                  <div className="kv">
-                    {(
-                      [
-                        ["Phone", lead.phone],
-                        ["Email", lead.email],
-                        ["Source", `${SOURCE[lead.source] ?? lead.source}${lead.campaign ? " · " + lead.campaign : ""}`],
-                        ["Treatment", lead.treatment],
-                        ["Doctor", lead.doctor],
-                        ["Type", lead.type === "online" ? "Online" : lead.type ? "In-clinic" : null],
-                        ["Assigned", lead.assigned ?? "Unassigned"],
-                        ["Contacts", String(lead.contacts)],
-                        ["First contact", when(lead.created_at)],
-                        ["Verified", lead.verified ? "Yes" : "No"],
-                      ] as [string, string | null][]
-                    ).map(([k, v]) => (
-                      <div key={k}>
-                        <span>{k}</span>
-                        <b>{v || "—"}</b>
-                      </div>
-                    ))}
-                  </div>
-                  <LeadActions key={lead.code} lead={lead} clinicId={clinicId} onChange={changed} />
-                  {lead.notes && (
-                    <div className="sec">
-                      <h4>NOTES</h4>
-                      <p>{lead.notes}</p>
-                    </div>
-                  )}
-                  <div className="sec">
-                    <h4>TIMELINE</h4>
-                    {lead.events.length ? (
-                      <div className="tl">
-                        {lead.events.map((e, i) => (
-                          <div key={i}>
-                            {EVENT[e.kind] ?? e.kind}
-                            {typeof e.data.outcome === "string" && `: ${e.data.outcome.replace("_", " ")}`}
-                            {typeof e.data.text === "string" && e.data.text && `: ${e.data.text}`}
-                            {typeof e.data.to === "string" && ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
-                            <small>
-                              {when(e.at)}
-                              {e.by ? " · " + e.by : ""}
-                            </small>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="sub2">Nothing yet.</p>
-                    )}
-                  </div>
-                  <div className="sec">
-                    <h4>LATEST CHAT</h4>
-                    {lead.chat.length ? (
-                      <div className="list">
-                        {lead.chat.map((m, i) => (
-                          <div className="li" key={i}>
-                            <div className="x">
-                              <b>{m.role === "bot" ? "Bot" : "Patient"}</b>
-                              <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="sub2">No chat with this lead.</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </>
+      <div className={`ov${openCode ? " on" : ""}`} onClick={close} />
+      <aside className={`dr${openCode ? " on" : ""}`} aria-hidden={!openCode}>
+        {openCode && (
+          <LeadDrawer code={openCode} clinicId={clinicId} onClose={close} onChanged={() => setVersion((v) => v + 1)} />
         )}
       </aside>
     </>

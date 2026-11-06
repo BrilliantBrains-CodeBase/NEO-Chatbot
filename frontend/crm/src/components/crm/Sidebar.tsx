@@ -16,14 +16,13 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { INBOX_TABS } from "@/lib/api";
 import { ON_SECTIONS } from "@/lib/assistant";
 import { useDoctors } from "@/lib/availability";
 import { isMenuRail, subscribeMenu, toggleMenuMini } from "@/lib/menu-state";
 import { useCrm } from "./CrmProvider";
 import Icon, { type IconName } from "./Icon";
 
-type Group = "leads" | "inbox" | "doctors";
+type Group = "leads" | "doctors";
 
 // Stage links open that tab of the Leads screen (live counts are on its tabs).
 const LEAD_STAGES = [
@@ -37,7 +36,6 @@ const LEAD_STAGES = [
 
 const GROUP_PAGE: Record<Group, string> = {
   leads: "/leads",
-  inbox: "/inbox",
   doctors: "/doctors",
 };
 const groupOf = (path: string) =>
@@ -60,7 +58,6 @@ export default function Sidebar({
   const activeGroup = groupOf(path);
   const [expanded, setExpanded] = useState<Record<Group, boolean>>({
     leads: true,
-    inbox: activeGroup === "inbox",
     doctors: activeGroup === "doctors",
   });
   const [seenGroup, setSeenGroup] = useState(activeGroup);
@@ -156,8 +153,8 @@ export default function Sidebar({
   }, [flyGroup]);
 
   const stage = params.get("stage") ?? "";
-  const tab = params.get("tab") ?? "book";
-  const inboxTotal = Object.values(crm.inbox ?? {}).reduce((a, b) => a + b, 0);
+  // New leads waiting for an owner (one link: the Inbox has its own type filters).
+  const inboxTotal = crm.inbox?.all ?? 0;
   const doc = params.get("doc") ?? "";
   // The clinic's real doctors (Dashboard → Doctors), each opening their week.
   const doctors = useDoctors(
@@ -185,7 +182,7 @@ export default function Sidebar({
     marker.style.height = `${row.offsetHeight}px`;
     marker.style.opacity = "1";
   }, []);
-  useLayoutEffect(() => placeMarker(true), [placeMarker, path, stage, tab, doc]);
+  useLayoutEffect(() => placeMarker(true), [placeMarker, path, stage, doc]);
   // Sub-menus opening above it, or the menu collapsing, move the row: the marker follows exactly.
   useEffect(() => {
     if (!innerRef.current) return;
@@ -238,14 +235,6 @@ export default function Sidebar({
     leads: LEAD_STAGES.map(([key, label]) =>
       subItem(`/leads?stage=${key}`, label, path === "/leads" && stage === key),
     ),
-    inbox: INBOX_TABS.map(([key, label]) =>
-      subItem(
-        `/inbox?tab=${key}`,
-        label,
-        path === "/inbox" && tab === key,
-        crm.inbox?.[key] || undefined,
-      ),
-    ),
     doctors: (
       <>
         {subItem("/doctors", "All doctors", path === "/doctors" && !doc)}
@@ -261,7 +250,6 @@ export default function Sidebar({
   };
   const groupLabel: Record<Group, string> = {
     leads: "Leads",
-    inbox: "Inbox",
     doctors: "Doctors Availability",
   };
 
@@ -365,7 +353,7 @@ export default function Sidebar({
               <div className="grp">MAIN</div>
               {item("/dashboard", "dash", "Dashboard", path === "/dashboard")}
               {group("leads", "appt")}
-              {group("inbox", "req", inboxTotal || undefined)}
+              {item("/inbox", "req", "Inbox", path === "/inbox", inboxTotal || undefined)}
               {group("doctors", "doc")}
               <div className="dv" />
               {item(

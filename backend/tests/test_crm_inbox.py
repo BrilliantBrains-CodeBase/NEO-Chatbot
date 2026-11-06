@@ -34,13 +34,15 @@ async def test_inbox_search_dates_treatment_and_export(
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    a = await pool.fetchval(
-        """insert into app.leads (clinic_id, full_name, phone_e164, source)
-           values ('CL99', 'Searchable Almas', '+919000007101', 'chatbot') returning id"""
+    a, a_code = await pool.fetchrow(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source, treatment)
+           values ('CL99', 'Searchable Almas', '+919000007101', 'chatbot', 'ZZ Rare Treatment')
+           returning id, lead_code"""
     )
-    b = await pool.fetchval(
-        """insert into app.leads (clinic_id, full_name, phone_e164, source)
-           values ('CL99', 'Other Person', '+919000007102', 'chatbot') returning id"""
+    b, b_code = await pool.fetchrow(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source, treatment)
+           values ('CL99', 'Other Person', '+919000007102', 'chatbot', 'ZZ Other Treatment')
+           returning id, lead_code"""
     )
     made = [
         (
@@ -63,25 +65,26 @@ async def test_inbox_search_dates_treatment_and_export(
             for lead, kind, data in made
         ]  # fmt: skip
 
-        async def found(**params: str) -> set[int]:
+        # The Inbox lists unassigned leads (one row each), with their waiting requests.
+        ours = {a_code: "A", b_code: "B"}
+
+        async def found(**params: str) -> set[str]:
             r = await api.get("/v1/crm/inbox", params={"clinic": "CL99", **params}, headers=headers)
             assert r.status_code == 200
-            return {ids.index(i["id"]) for i in r.json()["items"] if i["id"] in ids}
+            return {ours[i["code"]] for i in r.json()["items"] if i["code"] in ours}
 
-        assert await found() == {0, 1, 2}  # no filter: as the bell and menu read it
-        assert await found(q="almas") == {0, 2}  # the lead's name
-        assert await found(q="faz family") == {0}  # the name typed in this request
-        assert await found(q="+91 90000-07102") == {1}  # the phone, typed with a space and a dash
-        assert await found(q="zz rare") == {0}  # treatment
-        assert await found(type="cancel", q="almas") == {2}
-        assert await found(treatment="ZZ Other Treatment") == {1}
-        assert await found(**{"from": "2031-03-15"}) == {1}  # by the day asked for
-        assert await found(**{"from": "2031-03-10", "to": "2031-03-10"}) == {0, 2}  # the booked day too
-        assert await found(**{"to": "2020-01-01"}) == set()
+        assert await found() == {"A", "B"}
+        assert await found(q="almas") == {"A"}  # the lead's name
+        assert await found(q="+91 90000-07102") == {"B"}  # the phone, typed with a space and a dash
+        assert await found(q="zz rare") == {"A"}  # treatment
+        assert await found(type="cancel") == {"A"}  # a cancellation waiting
+        assert await found(type="none", q="zz") == set()  # both have a request waiting
+        assert await found(treatment="ZZ Other Treatment") == {"B"}
+        assert await found(**{"to": "2020-01-01"}) == set()  # by the day the lead came in
+        assert await found(**{"from": date.today().isoformat()}) == {"A", "B"}
         for odd in ("-", "%", "_", "\\"):
             assert await found(q=odd) == set(), odd  # plain text, and never an error
-        assert await found(q="almas", done="true") == set()  # none of them handled yet
-        assert await found(source="chatbot", q="almas") == {0, 2}
+        assert await found(source="chatbot", q="almas") == {"A"}
         assert await found(source="manual", q="almas") == set()
 
         async def order(**params: str) -> dict[str, Any]:
@@ -92,13 +95,23 @@ async def test_inbox_search_dates_treatment_and_export(
             shown: dict[str, Any] = r.json()
             return shown
 
-        page = await order(type="book", limit="1")  # the two book requests with a "ZZ" treatment
-        assert page["total"] == 2 and [i["id"] for i in page["items"]] == [ids[1]]  # newest first
-        second = await order(type="book", limit="1", offset="1")
-        assert second["total"] == 2 and [i["id"] for i in second["items"]] == [ids[0]]  # the next page
-        assert {c["key"]: c["count"] for c in page["pending"]}["book"] == 2  # counts follow the search
-        no_filter = await api.get("/v1/crm/inbox", params={"clinic": "CL99"}, headers=headers)
-        assert {c["key"]: c["count"] for c in no_filter.json()["pending"]}["book"] >= 2
+        page = await order(limit="1")  # the two "ZZ" leads, latest contact first
+        assert page["total"] == 2 and [i["code"] for i in page["items"]] == [b_code]
+        second = await order(limit="1", offset="1")
+        assert second["total"] == 2 and [i["code"] for i in second["items"]] == [a_code]  # the next page
+        types = {c["key"]: c["count"] for c in page["types"]}
+        assert types["book"] == 2 and types["cancel"] == 1 and types["none"] == 0  # follow the search
+        asked = {r["type"] for r in second["items"][0]["requests"]}
+        assert asked == {"book", "cancel"} and second["items"][0]["pending"] == 2
+        # Not in Leads until assigned; an Admin can still list them there.
+        leads = await api.get("/v1/crm/leads", params={"clinic": "CL99", "q": "zz"}, headers=headers)
+        assert {i["code"] for i in leads.json()["items"]} & set(ours) == set()
+        leads = await api.get(
+            "/v1/crm/leads", params={"clinic": "CL99", "q": "zz", "owner": "unassigned"}, headers=headers
+        )
+        assert set(ours) <= {i["code"] for i in leads.json()["items"]}
+        waiting = await api.get(f"/v1/crm/leads/{a_code}/requests", headers=headers)
+        assert waiting.status_code == 200 and [r["id"] for r in waiting.json()] == [ids[0], ids[2]]
 
         one = await api.get(f"/v1/crm/requests/{ids[0]}", headers=headers)
         assert one.status_code == 200 and one.json()["id"] == ids[0]
@@ -119,7 +132,7 @@ async def test_inbox_search_dates_treatment_and_export(
         )  # headings only: not that clinic's request
 
         r = await api.get("/v1/crm/inbox", params={"clinic": "CL99"}, headers=headers)
-        assert "ZZ Rare Treatment" in r.json()["treatments"]
+        assert "ZZ Rare Treatment" in r.json()["treatments"]  # the leads' treatments
 
         file = await api.get("/v1/crm/inbox/export", params={"clinic": "CL99", "q": "almas"}, headers=headers)
         assert file.status_code == 200 and file.headers["content-type"].startswith("text/csv")
@@ -168,11 +181,11 @@ async def test_inbox_approve_reject_and_done(api: AsyncClient, monkeypatch: pyte
             lead,
             ids["book"],
         )
-        r = await api.get("/v1/crm/inbox?clinic=CL99", headers=headers)
+        r = await api.get("/v1/crm/inbox?clinic=CL99&q=%2B919000000003", headers=headers)
         assert r.status_code == 200
-        pending = {c["key"]: c["count"] for c in r.json()["pending"]}
-        assert pending["book"] >= 1 and pending["callback"] >= 1
-        mine = [i for i in r.json()["items"] if i["id"] in ids.values()]
+        types = {c["key"]: c["count"] for c in r.json()["types"]}
+        assert types["book"] == 1 and types["callback"] == 1
+        mine = r.json()["items"][0]["requests"]
         assert {i["type"] for i in mine} == {"book", "callback", "online"}
 
         r = await api.post(f"/v1/crm/requests/{ids['book']}/approve", headers=headers)
