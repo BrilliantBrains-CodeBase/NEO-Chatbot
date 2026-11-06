@@ -1,8 +1,8 @@
-/* Neo Fertility (Mira): plum. Tokens from frontend.md. */
+/* Neo Fertility (Mira): pink, as neofertility.co.in (--primary: pink-600, ink: plum-900). */
 :host {
-  --rose: #3d203f;
-  --rose-d: #2b152d;
-  --blush: #8e5a92;
-  --tint: #f5eef6;
+  --rose: #ce3a92;
+  --rose-d: #bf2a85;
+  --blush: #e89dc2;
+  --tint: #ffe7f2;
   --honey: #ffce3e; /* gold-400 from neofertility.co.in */
 }

@@ -65,7 +65,7 @@ class Dashboard(BaseModel):
     new_leads: int  # = now.leads, kept for older screens
     inbox_pending: int
     callbacks_waiting: int
-    followups_due: int
+    followups_due: int  # leads in the Follow Up stage (Leads → Follow Up)
     now: Totals
     before: Totals  # the same number of days just before
     series: list[Day]
@@ -105,16 +105,16 @@ async def dashboard(
         # $1 clinic, $2 the period's first day, $3 the period before's first day
         args = (clinic, start, first)
         k = await conn.fetchrow(
-            f"""select
+            """select
               (select count(*) from app.leads where clinic_id=$1 and deleted_at is null
                  and assigned_to is null and stage not in ('lost','invalid')) ip,
               (select count(*) from app.requests r join app.leads l on l.id = r.lead_id
                  where r.clinic_id=$1 and r.status='pending' and r.type='callback'
                    and l.assigned_to is not null) cb,
-              (select count(*) from app.tasks where clinic_id=$1 and status='open'
-                 and due_at < ($2{AT})) fu,
+              (select count(*) from app.leads where clinic_id=$1 and deleted_at is null
+                 and stage='follow_up' and assigned_to is not null) fu,
               (select count(*) from app.unanswered_questions where clinic_id=$1 and not reviewed) un""",
-            clinic, today + timedelta(days=1),
+            clinic,
         )  # fmt: skip
         leads = await conn.fetchrow(
             f"""select count(*) filter (where created_at >= ($2{AT})) n,

@@ -172,7 +172,7 @@ export type Dashboard = {
   new_leads: number;
   inbox_pending: number;
   callbacks_waiting: number;
-  followups_due: number;
+  followups_due: number; // leads in the Follow Up stage
   now: Totals;
   before: Totals; // the same number of days just before
   series: { day: string; leads: number; leads_before: number; bookings: number; visits: number; chats: number }[];
