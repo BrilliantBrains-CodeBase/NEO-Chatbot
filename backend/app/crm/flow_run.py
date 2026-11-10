@@ -48,6 +48,18 @@ AUTO = {
 MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
 # Too general to name one treatment by themselves ("hair" is in many names).
+# Words of a treatment's name that need not be typed for it ("prp" is PRP Treatment).
+NAME_FILLER = {
+    "treatment",
+    "treatments",
+    "therapy",
+    "procedure",
+    "surgery",
+    "surgeries",
+    "program",
+    "and",
+    "&",
+}
 GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "laser", "stem"}
 # The answer box the widget shows for each question (phone: with the country picker).
 INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
@@ -619,7 +631,18 @@ class Run:
             self.say(found)  # only the answer: the buttons already on screen are not sent again
         elif treatment := self.named_treatment(low):
             self.matched = {"how": "treatment name", "text": treatment}
-            self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
+            if self.only_part_of(treatment, low):
+                # "acne treatment" for Acne Scar Treatment: maybe another thing, so asked, never assumed
+                yes = {
+                    "id": "t:" + treatment,
+                    "label": "Yes, show it",
+                    "action": "treatment",
+                    "value": treatment,
+                }
+                no = {"id": "medical:no", "label": "No, main menu", "action": "menu"}
+                self.say(f"Did you mean {treatment}?", buttons=[yes, no])
+            else:
+                self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
         elif page := self.page_rule(low):
             self.matched = {"how": "rule", "text": page}  # "price?" -> the cost page
             self.enter(page)
@@ -766,6 +789,12 @@ class Run:
             if t.get("show") and (t["name"] == name or treatment_topic(t["name"]) == name):
                 return str(t["name"])
         return None
+
+    def only_part_of(self, name: str, low: str) -> bool:
+        """Typed only part of the treatment's name: a word of it that says what it is was left out ("acne
+        treatment" for Acne Scar Treatment; "prp" for PRP Treatment is the whole of it)."""
+        typed = set(norm(low).split())
+        return any(w not in typed and w not in NAME_FILLER for w in norm(name).split())
 
     def named_treatment(self, low: str, full_only: bool = False) -> str | None:
         """A treatment typed by name ("female hair transplant"), or by a first word only one treatment has

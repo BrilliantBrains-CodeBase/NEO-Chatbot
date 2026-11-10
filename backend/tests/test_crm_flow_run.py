@@ -1087,3 +1087,19 @@ def test_a_success_rate_is_not_a_price_question_but_rates_still_are() -> None:
         "hair growth rate",
     ):
         assert not cost.search(outcome), outcome
+
+
+def test_part_of_a_treatment_name_asks_did_you_mean_and_the_whole_of_it_opens_the_card() -> None:
+    scar = {"name": "Acne Scar Treatment", "category": "Skin", "show": True, "description": "For old scars."}
+    prp = {"name": "PRP Treatment", "category": "Hair", "show": True, "description": "Your own plasma."}
+    c = Context(today=WED, minutes=11 * 60, services=[scar, prp])
+    flow = {"nodes": [opening(("m1", "Hi"))], "edges": []}
+
+    chat = Chat(flow, c)
+    assert chat("acne treatment") == ["Did you mean Acne Scar Treatment?"]  # acne is not acne scars
+    assert chat.labels() == ["Yes, show it", "No, main menu"]
+    assert chat(tap="t:Acne Scar Treatment")[0].startswith("Acne Scar Treatment")
+    chat = Chat(flow, c)
+    assert chat("acne scar treatment")[0].startswith("Acne Scar Treatment")  # the whole name: the card
+    chat = Chat(flow, c)
+    assert chat("prp")[0].startswith("PRP Treatment")  # "treatment" need not be typed
