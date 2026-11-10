@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const CLINICS = [
-  { id: 'neo-fertility', cl: 'NF', bot: 'Mira', rose: 'rgb(61, 32, 63)' },
+  { id: 'neo-fertility', cl: 'NF', bot: 'Mira', rose: 'rgb(206, 58, 146)' },
   { id: 'neo-follicle', cl: 'NFHT', bot: 'Arya AI', rose: 'rgb(62, 116, 217)' },
   { id: 'derma-solutions', cl: 'DS', bot: 'Mira', rose: 'rgb(72, 30, 11)' },
 ];
