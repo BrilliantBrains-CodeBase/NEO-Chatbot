@@ -411,9 +411,37 @@ class Run:
         if node.type in ("link", "whatsapp", "call"):
             value = s.get("url") or s.get("number", "")
             more["open"] = {"action": node.type, "value": value}
-        if node.type == "carousel" and s.get("source") == "custom":
-            more["cards"] = s["cards"]
+        if node.type == "carousel":
+            more["cards"] = self.cards(node)
         self.say(text, buttons=self.buttons(node), **more)
+
+    def cards(self, node: Node) -> list[dict[str, Any]]:
+        """A carousel's cards, each with its own buttons: the clinic's own cards (a button id "card<i>:<id>",
+        doing its own job), or the category's treatments from Services (each "View" opens its card)."""
+        s = node.settings
+        if s.get("source") == "custom":
+            return [
+                {
+                    "title": c["title"], "text": c.get("text", ""), "image": c.get("image", ""),
+                    "buttons": [
+                        b | {"id": f"card{i}:{b['id']}"}
+                        for b in c.get("buttons") or []
+                        if b.get("visible", True)
+                    ],
+                }
+                for i, c in enumerate(s.get("cards") or [])
+            ]  # fmt: skip
+        cat = s.get("category")
+        out = []
+        for t in self.ctx.services:
+            if not t.get("show") or (cat and t.get("category") != cat):
+                continue
+            price = f"From ₹{t['price']:,}" if t.get("show_price") and t.get("price") is not None else ""
+            text = price or str(t.get("description") or "")[:120]
+            out.append({"title": t["name"], "text": text, "image": t.get("photo") or "", "buttons": [
+                self._treat(t) | {"label": "View"}
+            ]})  # fmt: skip
+        return out
 
     def treatment_text(self, name: str) -> str:
         t = next((x for x in self.ctx.services if x.get("name") == name), None)
@@ -437,6 +465,8 @@ class Run:
             b = {"id": button_id, "action": "slot", "value": name}  # a taken one: the booking refuses it
         if b is None and kind == "medical":  # the medical offer: a call back about the question, or the menu
             b = {"id": button_id, "action": "callback" if name == "yes" else "menu", "value": ""}
+        if b is None and node.type == "carousel" and kind.startswith("card"):  # a button on one of its cards
+            b = next((x for c in self.cards(node) for x in c["buttons"] if x["id"] == button_id), None)
         if b is None:
             self.say("Please choose one of the options.")
             self.render(node)

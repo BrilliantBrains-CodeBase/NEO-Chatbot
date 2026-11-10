@@ -13,7 +13,7 @@ type Msg = {
   buttons?: Btn[];
   media?: { kind: string; url: string };
   open?: { action: string; value: string };
-  cards?: { title: string }[];
+  cards?: { title: string; text?: string; buttons?: Btn[] }[];
   note?: boolean; // from the test chat itself, not the flow
   input?: { mode: string }; // the answer box (phone: with the country picker)
 };
@@ -289,11 +289,25 @@ export default function TestChat({
                 [{l.msg.media.kind}] {l.msg.media.url}
               </p>
             )}
-            {l.msg.cards && (
-              <p className="wf-test-note">
-                Cards: {l.msg.cards.map((c) => c.title).join(" · ")}
-              </p>
-            )}
+            {l.msg.cards?.map((c, ci) => (
+              <div key={ci} className="wf-test-note">
+                <b>{c.title}</b>
+                {c.text ? ` · ${c.text}` : ""}
+                {!!c.buttons?.length && (
+                  <div className="wf-test-btns">
+                    {c.buttons.map((b) => (
+                      <button
+                        key={b.id}
+                        className="pill"
+                        onClick={() => send({ state, tap: b.id }, b.label)}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
             {l.msg.open && (
               <p className="wf-test-note">
                 {OPEN[l.msg.open.action] ?? "Opens"}: {l.msg.open.value}
@@ -301,18 +315,25 @@ export default function TestChat({
             )}
             {!!l.msg.buttons?.length && (
               <div className="wf-test-btns">
-                {l.msg.buttons.map((b) => (
-                  <button
-                    key={b.id}
-                    className="pill"
-                    disabled={
-                      i !== last && l.from === "bot" && !b.id.includes(":")
-                    }
-                    onClick={() => send({ state, tap: b.id }, b.label)}
-                  >
-                    {b.label}
-                  </button>
-                ))}
+                {l.msg.buttons
+                  .filter(
+                    (b) =>
+                      !l.msg.cards?.some((c) =>
+                        c.buttons?.some((x) => x.id === b.id),
+                      ),
+                  ) /* a treatment's View is on its card already */
+                  .map((b) => (
+                    <button
+                      key={b.id}
+                      className="pill"
+                      disabled={
+                        i !== last && l.from === "bot" && !b.id.includes(":")
+                      }
+                      onClick={() => send({ state, tap: b.id }, b.label)}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import type {
+  CarouselBlock,
   ChipsBlock,
   Choice,
   DoctorCardBlock,
@@ -179,6 +180,30 @@ function Media({ block }: { block: MediaBlock }) {
   );
 }
 
+// A Carousel block: cards side by side, swiped (or scrolled) sideways, each with its own buttons.
+function Carousel({ block, onChoose }: { block: CarouselBlock; onChoose: OnChoose }) {
+  return (
+    <>
+      <div class="nb-cards">
+        {block.cards.map((c, i) => (
+          <div key={i} class="nb-card">
+            {c.image && <img src={c.image} alt="" loading="lazy" />}
+            <b>{c.title}</b>
+            {c.text && <p>{c.text}</p>}
+            {c.options.map((choice) => (
+              <Tap key={choice.label} choice={choice} class="nb-chip" onChoose={onChoose} />
+            ))}
+          </div>
+        ))}
+      </div>
+      <Chips
+        block={{ type: 'chips', options: block.options, back: block.back, main: block.main }}
+        onChoose={onChoose}
+      />
+    </>
+  );
+}
+
 // Every block stays visible and usable after a choice, so the patient can change their mind.
 export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose }) {
   switch (block.type) {
@@ -194,5 +219,7 @@ export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose 
       return <DoctorCard block={block} onChoose={onChoose} />;
     case 'media':
       return <Media block={block} />;
+    case 'carousel':
+      return <Carousel block={block} onChoose={onChoose} />;
   }
 }

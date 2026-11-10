@@ -884,3 +884,56 @@ def test_the_live_chat_shows_a_media_block_in_its_place_with_its_caption() -> No
         ("See you soon.", None),
     ]  # the image first, then the chat goes on
     assert res.messages[0].media and res.messages[0].media.url == "https://example.com/clinic.jpg"
+
+
+def test_carousel_cards_buttons_work_and_show_as_cards_in_the_live_chat() -> None:
+    from app.chat.canvas import _widget
+
+    cards = [
+        {"title": "Offer A", "text": "10% off", "image": "https://example.com/a.jpg",
+         "buttons": [{"id": "b1", "label": "Book this", "action": "book", "value": "FUE"}]},
+        {"title": "Offer B",
+         "buttons": [{"id": "b1", "label": "Call us", "action": "call", "value": "+919000000000"}]},
+    ]  # fmt: skip
+    carousel = {"id": "car", "type": "carousel", "settings": {"source": "custom", "cards": cards}}
+    book = {"id": "book", "type": "book", "settings": {"fields": ["treatment", "name"], "consent": False}}
+    flow = {"nodes": [opening(("m1", "Offers")), carousel, book], "edges": [line("opening", "m1", "car")]}
+    chat = Chat(flow)
+    chat(tap="m1")
+    pub = {"flow": chat.flow, "contact": {"phone": ""}}
+    ui = _widget(chat.r, pub, None).ui or {}
+    assert ui["type"] == "carousel" and ui["main"] is True and ui["options"] == []
+    assert [(c["title"], c["image"]) for c in ui["cards"]] == [
+        ("Offer A", "https://example.com/a.jpg"),
+        ("Offer B", ""),
+    ]
+    assert ui["cards"][0]["options"] == [{"label": "Book this", "action": "canvas", "value": "card0:b1"}]
+    assert ui["cards"][1]["options"][0]["href"] == "tel:+919000000000"
+    # the card's button does its own job: Book with the treatment filled in, so it is not asked
+    assert chat(tap="card0:b1") == ["May I know your full name?"]
+    assert chat.at == "book"
+
+    live = {
+        "id": "car",
+        "type": "carousel",
+        "settings": {"source": "treatments", "category": "Hair transplant"},
+    }
+    flow = {"nodes": [opening(("m1", "Treatments")), live], "edges": [line("opening", "m1", "car")]}
+    chat = Chat(flow)
+    chat(tap="m1")
+    ui = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None).ui or {}
+    assert [(c["title"], c["text"]) for c in ui["cards"]] == [("FUE", "From ₹50,000")]
+    assert ui["cards"][0]["options"] == [{"label": "View", "action": "canvas", "value": "t:FUE"}]
+    assert ui["options"] == []  # its View is on the card, not again under the cards
+    assert chat(tap="t:FUE")[0].startswith("FUE")
+
+
+def test_a_doctor_card_without_buttons_is_still_shown_as_the_card() -> None:
+    from app.chat.canvas import _widget
+
+    card = {"id": "doc", "type": "doctor_card", "settings": {"doctor": "Dr. Asha", "title": "Consultant"}}
+    flow = {"nodes": [opening(("m1", "Doctors")), card], "edges": [line("opening", "m1", "doc")]}
+    chat = Chat(flow)
+    chat(tap="m1")
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    assert res.messages == [] and (res.ui or {})["type"] == "doctor_card" and (res.ui or {})["options"] == []

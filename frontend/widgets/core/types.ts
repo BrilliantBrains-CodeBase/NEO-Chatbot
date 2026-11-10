@@ -89,7 +89,15 @@ export interface DoctorCardBlock extends Nav {
   profile_url?: string; // https://
 }
 
-export type UiBlock = MenuBlock | ChipsBlock | CalendarBlock | TimeGridBlock | DoctorCardBlock | MediaBlock;
+// A Carousel block: swipeable cards, each with its own buttons; the block's other buttons under them.
+export interface CarouselBlock extends Nav {
+  type: 'carousel';
+  cards: { title: string; text: string; image: string; options: Choice[] }[];
+  options: Choice[];
+}
+
+export type UiBlock =
+  MenuBlock | ChipsBlock | CalendarBlock | TimeGridBlock | DoctorCardBlock | MediaBlock | CarouselBlock;
 
 export type InputMode = 'text' | 'phone' | 'email';
 

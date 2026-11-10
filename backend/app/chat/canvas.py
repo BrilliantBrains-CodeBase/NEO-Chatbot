@@ -276,7 +276,14 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         elif m.get("text") and not (texts and not texts[-1].media and texts[-1].text == m["text"]):
             texts.append(BotMessage(text=m["text"]))  # the same text twice in a row once (greeting, opening)
     texts += [BotMessage(text=note)] if note else []
-    last = next((m for m in reversed(reply["messages"]) if m.get("buttons") or m.get("open")), None)
+    last = next(
+        (
+            m
+            for m in reversed(reply["messages"])
+            if any(m.get(k) for k in ("buttons", "open", "card", "cards"))
+        ),
+        None,
+    )  # the last thing to tap or see: buttons, a link to open, a doctor's card or a carousel
     choices: list[dict[str, Any]] = []
     if last and last.get("open"):  # a link / call block: one button to open it
         o = last["open"]
@@ -284,7 +291,7 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         c = _choice({"id": "open", "label": label, "action": o.get("action"), "value": o.get("value")}, phone)
         choices = [c] if c else []
     elif last:
-        choices = [c for b in last["buttons"] if (c := _choice(b, phone))]
+        choices = [c for b in last.get("buttons") or [] if (c := _choice(b, phone))]
     at = next((n for n in pub["flow"]["nodes"] if n["id"] == reply.get("at")), None)
     ui: dict[str, Any] | None = None
     pick = (last or {}).get("pick") or {}
@@ -295,6 +302,21 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
               "min": dates[0], "max": dates[-1], "closed_weekdays": [], "dates": dates}  # fmt: skip
     elif pick.get("kind") == "time" and pick.get("times"):
         ui = {"type": "time_grid", "action": "canvas", "slots": pick["times"], "first": 8, "any_time": True}
+    elif last and last.get("cards"):
+        # A carousel: swipeable cards, each with its own buttons; the block's other buttons under them.
+        on_cards = {str(b["id"]) for c in last["cards"] for b in c["buttons"]}
+        cards = [
+            {
+                "title": c["title"], "text": c.get("text") or "",
+                "image": c["image"] if str(c.get("image") or "").startswith("https://") else "",
+                "options": [x for b in c["buttons"] if (x := _choice(b, phone))],
+            }
+            for c in last["cards"]
+        ]  # fmt: skip
+        rest = [
+            c for b in last.get("buttons") or [] if str(b["id"]) not in on_cards if (c := _choice(b, phone))
+        ]
+        ui = {"type": "carousel", "cards": cards, "options": rest, "main": True}
     elif last and last.get("card"):
         # A doctor's card: the widget's card (photo, about, figures, profile link) with its buttons; its text
         # is in the card, so not sent again as a message.

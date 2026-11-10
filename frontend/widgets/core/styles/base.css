@@ -719,6 +719,40 @@
 .nb-msg.nb-doc {
   max-width: 100%;
 }
+/* Carousel block: cards in a row, swiped sideways, each stopping at its start. */
+.nb-cards {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 6px;
+  margin-bottom: 6px;
+}
+.nb-card {
+  flex: 0 0 72%;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.nb-card img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.nb-card p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--mute);
+}
+.nb-card .nb-chip {
+  margin-top: auto;
+}
 /* Media block: an image or video as wide as the bubble, the caption under it. */
 .nb-media img,
 .nb-media video {
