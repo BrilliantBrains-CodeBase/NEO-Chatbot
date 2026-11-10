@@ -75,6 +75,7 @@ SWITCH = [
 QUESTION = re.compile(
     r"\?\s*$|^(what|how|when|where|why|which|who|is|are|do|does|can|will|kya|kitna|kab|kahan)\b"
 )
+ASKED = re.compile(r"(any|anything|tell me|i want to know)\s")  # also a question ("any offers?")
 # Typed at "May I know your full name?" but no name: a question ("will" left out: Will is a name), a long
 # sentence, or a word a name never has. It is then answered (Knowledge base / the clinic's page) and the name
 # asked again, instead of "Thanks, what is the price".
@@ -570,10 +571,7 @@ class Run:
         # offer as the live chat, a call back about the question. A booking answer is still taken as typed.
         if MEDICAL.search(text.lower()) and (not self.ask or self.ask["kind"] == "knowledge"):
             self.ask = None
-            self.fields["reason"] = text[:200]  # what the call back is about
-            offer = [{"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""}]
-            offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
-            self.say(NO_ANSWER, buttons=offer)
+            self.offer_callback(text)
             return self.reply()
         low = " ".join(text.lower().split())
         if BACK.fullmatch(norm(text)):
@@ -638,12 +636,24 @@ class Run:
             )
             if topic:
                 self.enter(topic)
+            elif (QUESTION.search(low) or ASKED.match(low)) and self.first("callback"):
+                # A real question with no approved answer: no dead end, the team calls back about it.
+                self.matched = {"how": "no answer", "text": text}
+                self.offer_callback(text)
             else:
                 fallback = next(
                     (n.settings.get("fallback") for n in self.flow.nodes if n.type == "opening"), ""
                 )
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
         return self.reply()
+
+    def offer_callback(self, text: str) -> None:
+        """No confirmed answer (a medical question, or one the Knowledge base does not have): a call back
+        about it, or the menu."""
+        self.fields["reason"] = text[:200]  # what the call back is about
+        offer = [{"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""}]
+        offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
+        self.say(NO_ANSWER, buttons=offer)
 
     # ---------- typed text beside the flow ----------
     def small(self, low: str) -> str | None:

@@ -1041,3 +1041,34 @@ def test_book_with_this_doctor_keeps_the_doctor_and_offers_their_free_times() ->
     chat("Asha Patient")
     chat(tap="2026-10-29")
     assert chat.r["lead"]["doctor"] == "Dr. Asha"  # saved with the doctor chosen on the card
+
+
+def test_an_unanswered_question_offers_a_call_back_about_it_not_a_dead_end() -> None:
+    cb = {
+        "id": "cb",
+        "type": "callback",
+        "settings": {"fields": ["name", "phone", "reason"], "consent": False},
+    }
+    flow = {"nodes": [opening(("m1", "Call back")), cb], "edges": [line("opening", "m1", "cb")]}
+    chat = Chat(flow)
+    assert chat("do you accept insurance?")[0].startswith("I don't have a confirmed answer for that yet.")
+    assert chat.labels() == ["Yes, call me back", "No, thanks"]
+    assert chat.r["matched"] == {"how": "no answer", "text": "do you accept insurance?"}
+    assert chat(tap="medical:yes") == ["May I know your full name?"]
+    chat("Asha Rao")
+    chat("9876543210")
+    assert chat.r["lead"]["reason"] == "do you accept insurance?"  # the team knows what to call about
+    chat = Chat(flow)
+    assert chat("zxqw blorp") == [
+        "Sorry, I didn't get that. Please choose one of the options."
+    ]  # no question
+    no_cb = {"nodes": [opening(("m1", "Hi"))], "edges": []}
+    assert Chat(no_cb)("do you accept insurance?") == [
+        "Sorry, I didn't get that. Please choose one of the options."
+    ]
+
+
+def test_any_offers_counts_as_a_question_for_the_call_back_offer() -> None:
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name"], "consent": False}}
+    chat = Chat({"nodes": [opening(("m1", "Call back")), cb], "edges": [line("opening", "m1", "cb")]})
+    assert chat("any offers or discounts")[0].startswith("I don't have a confirmed answer")
