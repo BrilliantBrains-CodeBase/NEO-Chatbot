@@ -16,7 +16,7 @@ import asyncpg
 
 from app.chat import context, leads, main_template
 from app.chat.flows import ist_now, normal_phone
-from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
+from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Media
 from app.chat.slots import doctors_today
 from app.crm import alerts, webhooks, whatsapp
 from app.crm.flow_run import send, start
@@ -266,9 +266,16 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
     """The canvas's reply in the widget's blocks: its texts, then the last buttons it offered (the opening's
     as the menu, in the chosen Template), and the typing mode it asked for."""
     phone = pub["contact"].get("phone") or ""
-    said = [m["text"] for m in reply["messages"] if m.get("text")]
-    said = [t for i, t in enumerate(said) if i == 0 or t != said[i - 1]]  # greeting, then the opening
-    texts = [BotMessage(text=t) for t in said] + ([BotMessage(text=note)] if note else [])
+    texts: list[BotMessage] = []
+    for m in reply["messages"]:
+        media = m.get("media")
+        if media and str(media.get("url") or "").startswith("https://"):  # in its place, its caption with it
+            texts.append(
+                BotMessage(text=m.get("text") or "", media=Media(kind=media["kind"], url=media["url"]))
+            )
+        elif m.get("text") and not (texts and not texts[-1].media and texts[-1].text == m["text"]):
+            texts.append(BotMessage(text=m["text"]))  # the same text twice in a row once (greeting, opening)
+    texts += [BotMessage(text=note)] if note else []
     last = next((m for m in reversed(reply["messages"]) if m.get("buttons") or m.get("open")), None)
     choices: list[dict[str, Any]] = []
     if last and last.get("open"):  # a link / call block: one button to open it

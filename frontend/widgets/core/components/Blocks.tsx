@@ -1,6 +1,15 @@
 import { useState } from 'preact/hooks';
-import type { ChipsBlock, Choice, DoctorCardBlock, MenuBlock, MenuTemplate, UiBlock } from '../types';
+import type {
+  ChipsBlock,
+  Choice,
+  DoctorCardBlock,
+  MediaBlock,
+  MenuBlock,
+  MenuTemplate,
+  UiBlock,
+} from '../types';
 import { Icon } from '../icons';
+import { Rich } from '../rich';
 import t from '../i18n/en.json';
 import { Calendar } from './Calendar';
 import { TimeGrid } from './TimeGrid';
@@ -151,6 +160,25 @@ function DoctorCard({ block, onChoose }: { block: DoctorCardBlock; onChoose: OnC
   );
 }
 
+// A Media block: an image shown inline, a video file played inline (other video links, a file or a map open
+// in a new tab), with its caption.
+function Media({ block }: { block: MediaBlock }) {
+  const playable = block.kind === 'video' && /\.(mp4|webm)(\?|$)/i.test(block.url);
+  const label = { video: t.open_video, file: t.open_file, map: t.open_map, image: '' }[block.kind];
+  return (
+    <div class="nb-msg bot nb-media">
+      {block.kind === 'image' && <img src={block.url} alt={block.caption} loading="lazy" />}
+      {playable && <video src={block.url} controls preload="metadata" />}
+      {block.caption && <Rich text={block.caption} />}
+      {block.kind !== 'image' && !playable && (
+        <a class="nb-doc-link" href={block.url} target="_blank" rel="noopener noreferrer">
+          {label}
+        </a>
+      )}
+    </div>
+  );
+}
+
 // Every block stays visible and usable after a choice, so the patient can change their mind.
 export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose }) {
   switch (block.type) {
@@ -164,5 +192,7 @@ export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose 
       return <TimeGrid block={block} onChoose={onChoose} />;
     case 'doctor_card':
       return <DoctorCard block={block} onChoose={onChoose} />;
+    case 'media':
+      return <Media block={block} />;
   }
 }

@@ -861,3 +861,26 @@ def test_the_live_chat_shows_the_doctor_card_with_photo_figures_and_profile() ->
     assert ui["stats"] == [{"value": "10,000+", "label": "Patients"}]
     assert ui["today"].endswith("Choose a time to book your appointment today:")
     assert [o["label"] for o in ui["options"]] == ["11:00 AM", "Book with Dr. Asha"]
+
+
+def test_the_live_chat_shows_a_media_block_in_its_place_with_its_caption() -> None:
+    from app.chat.canvas import _widget
+
+    media = {
+        "id": "pic", "type": "media",
+        "settings": {"kind": "image", "url": "https://example.com/clinic.jpg", "caption": "Our clinic"},
+    }  # fmt: skip
+    after = {"id": "after", "type": "answer", "settings": {"text": "See you soon."}}
+    flow = {
+        "nodes": [opening(("m1", "Photo")), media, after],
+        "edges": [line("opening", "m1", "pic"), line("pic", "next", "after")],
+    }
+    chat = Chat(flow)
+    chat(tap="m1")
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    shown = [(m.text, m.media.kind if m.media else None) for m in res.messages]
+    assert shown == [
+        ("Our clinic", "image"),
+        ("See you soon.", None),
+    ]  # the image first, then the chat goes on
+    assert res.messages[0].media and res.messages[0].media.url == "https://example.com/clinic.jpg"

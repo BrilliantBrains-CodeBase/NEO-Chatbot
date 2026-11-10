@@ -6,7 +6,14 @@ Every field is checked here, so nothing unexpected reaches the flows or the data
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+)
 
 from app.core.codes import CLINIC_CODE, current
 
@@ -45,9 +52,22 @@ class ChatRequest(Strict):
         return current(v)  # a cached widget file may still send a clinic's old code (CL01)
 
 
+class Media(BaseModel):
+    kind: Literal["image", "video", "file", "map"]
+    url: str = Field(pattern=r"^https://\S+$")
+
+
 class BotMessage(BaseModel):
     type: Literal["text"] = "text"
     text: str
+    media: Media | None = None  # a canvas Media block: the widget shows it here, the text as its caption
+
+    @model_serializer(mode="wrap")
+    def _media_only_when_set(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        out: dict[str, Any] = handler(self)
+        if out.get("media") is None:
+            out.pop("media", None)  # a plain text message stays {"type": "text", "text": ...}
+        return out
 
 
 class Input(BaseModel):

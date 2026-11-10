@@ -16,6 +16,17 @@ export interface BotMessage {
   type: 'text';
   // Plain text. "**bold**" is shown in bold and "\n" starts a new line; nothing else is interpreted.
   text: string;
+  // A Media block (Dashboard → Menu buttons): shown in its place in the chat, the text as its caption.
+  media?: { kind: MediaKind; url: string } | null;
+}
+
+export type MediaKind = 'image' | 'video' | 'file' | 'map';
+
+export interface MediaBlock {
+  type: 'media';
+  kind: MediaKind;
+  url: string; // https://
+  caption: string;
 }
 
 // Anything the patient can tap. With href it opens a link (call, WhatsApp, website) instead of sending an event.
@@ -78,7 +89,7 @@ export interface DoctorCardBlock extends Nav {
   profile_url?: string; // https://
 }
 
-export type UiBlock = MenuBlock | ChipsBlock | CalendarBlock | TimeGridBlock | DoctorCardBlock;
+export type UiBlock = MenuBlock | ChipsBlock | CalendarBlock | TimeGridBlock | DoctorCardBlock | MediaBlock;
 
 export type InputMode = 'text' | 'phone' | 'email';
 

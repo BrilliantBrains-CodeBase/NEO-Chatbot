@@ -51,7 +51,16 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
   // A reply's block goes into the conversation too, under the text it belongs to
   // (the greeting sits above the main menu).
   const addReply = (res: ChatResponse) => {
-    const texts: Entry[] = res.messages.map((m) => ({ id: nextId.current++, from: 'bot', text: m.text }));
+    // A message with media (image, video, file, map) becomes its media block, the text as the caption.
+    const texts: Entry[] = res.messages.map((m) =>
+      m.media && /^https:\/\//.test(m.media.url)
+        ? {
+            id: nextId.current++,
+            from: 'ui',
+            block: { type: 'media', kind: m.media.kind, url: m.media.url, caption: m.text },
+          }
+        : { id: nextId.current++, from: 'bot', text: m.text },
+    );
     const ui: Entry[] = res.ui ? [{ id: nextId.current++, from: 'ui', block: res.ui }] : [];
     setEntries((list) => [...list, ...texts, ...ui]);
   };
