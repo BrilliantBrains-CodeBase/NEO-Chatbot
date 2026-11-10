@@ -100,7 +100,11 @@ class Context:
     returning: bool = False  # a lead with this phone already exists
     services: list[dict[str, Any]] = field(default_factory=list)  # Clinic info → Services
     open_now: dict[str, bool] = field(default_factory=lambda: {"in_clinic": True, "online": True})
-    location: str = ""  # Contact & hours, as text
+    location: str = ""  # Contact & hours: the address and landmark, as text
+    maps_link: str = ""  # Contact & hours: the Google Maps link (a Location block's "Map link")
+    hours_today: str = (
+        ""  # today's in-clinic hours and open / closed now (a Location block's "Today's hours")
+    )
     booking_options: list[str] = field(default_factory=list)  # Services → booking list ("Which treatment?")
     # A booking choice -> the services set to "book as" it (Clinic info → Services), when 2 or more: asked
     # next ("Which treatment exactly?"), e.g. "Non-Surgical Treatment" -> PRP, GFC, QR678.
@@ -212,6 +216,10 @@ class Run:
                 for x, label in (("book", "Book"), ("more", "More treatments"))
                 if self._leads(node.id, x)
             ] + self.read_more(node.settings.get("treatment", ""))
+        if node.type == "location" and node.settings.get("map", True) and self.ctx.maps_link:
+            out.append(
+                {"id": "map", "label": "Open in Google Maps", "action": "link", "value": self.ctx.maps_link}
+            )
         for b in getattr(s, "buttons", []):
             if not b.visible or (not b.action and not self._leads(node.id, b.id)):
                 continue  # hidden, or its line leads nowhere / to a block that is off
@@ -406,7 +414,8 @@ class Run:
             text = self.treatment_text(s["treatment"])
             more.update(self.photo(s["treatment"]))
         if node.type == "location":
-            text = "\n".join(x for x in (text, self.ctx.location) if x)
+            hours = self.ctx.hours_today if s.get("hours", True) else ""
+            text = "\n".join(x for x in (text, self.ctx.location, hours) if x)
         if node.type == "reviews":
             text = "\n\n".join([text, *self.ctx.reviews[: int(s.get("count", 3))]]).strip()
         if node.type in ("link", "whatsapp", "call"):

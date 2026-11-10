@@ -959,3 +959,23 @@ def test_a_treatment_shows_its_photo_duration_and_read_more_page() -> None:
     assert options[1] == {"label": "Read more", "href": "https://example.com/prp"}  # opens the page at once
     assert chat(tap="read:PRP") == [""]  # the test chat: the page to open
     assert chat.r["messages"][0]["open"] == {"action": "link", "value": "https://example.com/prp"}
+
+
+def test_the_location_block_shows_todays_hours_and_a_map_button_when_switched_on() -> None:
+    where = {"id": "loc", "type": "location", "settings": {"message": "Find us here:"}}
+    flow = {"nodes": [opening(("m1", "Location")), where], "edges": [line("opening", "m1", "loc")]}
+    c = Context(
+        today=WED, minutes=11 * 60, location="1st floor, Scorpio House", maps_link="https://maps.app.goo.gl/x",
+        hours_today="Today: 10:00 AM – 7:00 PM (open now).",
+    )  # fmt: skip
+    chat = Chat(flow, c)
+    assert chat(tap="m1") == [
+        "Find us here:\n1st floor, Scorpio House\nToday: 10:00 AM – 7:00 PM (open now)."
+    ]
+    assert chat.r["messages"][-1]["buttons"][0] == {
+        "id": "map", "label": "Open in Google Maps", "action": "link", "value": "https://maps.app.goo.gl/x"
+    }  # fmt: skip
+    off = {**where, "settings": {"message": "Find us here:", "map": False, "hours": False}}
+    chat = Chat({"nodes": [opening(("m1", "Location")), off], "edges": flow["edges"]}, c)
+    assert chat(tap="m1") == ["Find us here:\n1st floor, Scorpio House"]
+    assert chat.labels() == []

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.chat import canvas, embed, kb, main_template, slots
 from app.chat.content import content
-from app.chat.flows import ist_now, normal_phone
+from app.chat.flows import fmt_time, ist_now, normal_phone
 from app.core.db import get_pool
 from app.crm import permissions as perm
 from app.crm.auth import Staff, staff
@@ -792,7 +792,12 @@ def _context(draft: dict[str, Any], device: str) -> Context:
     day = next((d for d in contact["hours"] if d["day"] == WEEKDAYS[today.weekday()]), None)
     hm = f"{minutes // 60:02d}:{minutes % 60:02d}"
     open_now = bool(day and day["open"] and day["start"] <= hm < day["end"])
-    where = [contact["address"], contact["landmark"], contact["maps_link"]]
+    where = [contact["address"], contact["landmark"]]
+    if day and day["open"]:
+        now = "open now" if open_now else "closed now"
+        hours_today = f"Today: {fmt_time(day['start'])} – {fmt_time(day['end'])} ({now})."
+    else:
+        hours_today = "Closed today."
     return Context(
         today=today, minutes=minutes, device=device,
         services=draft["services"]["items"],
@@ -800,6 +805,8 @@ def _context(draft: dict[str, Any], device: str) -> Context:
         techniques=techniques(draft["services"]["items"]),
         open_now={"in_clinic": open_now, "online": open_now},
         location="\n".join(x for x in where if x),
+        maps_link=contact["maps_link"],
+        hours_today=hours_today,
         phone=contact["phone"],
         reviews=[f"“{q['text']}” — {q['name']}" for q in reviews["quotes"] if q["show"]],
     )  # fmt: skip
