@@ -288,6 +288,20 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
               "min": dates[0], "max": dates[-1], "closed_weekdays": [], "dates": dates}  # fmt: skip
     elif pick.get("kind") == "time" and pick.get("times"):
         ui = {"type": "time_grid", "action": "canvas", "slots": pick["times"], "first": 8, "any_time": True}
+    elif last and last.get("card"):
+        # A doctor's card: the widget's card (photo, about, figures, profile link) with its buttons; its text
+        # is in the card, so not sent again as a message.
+        c = last["card"]
+        photo = str(c.get("photo") or "")
+        ui = {
+            "type": "doctor_card", "name": c.get("name") or "", "title": c.get("title") or "",
+            "quals": c.get("quals") or "", "about": c.get("about") or "", "today": c.get("today") or "",
+            "stats": [x for x in c.get("stats") or [] if x.get("value") and x.get("label")][:3],
+            "photo": photo if photo.startswith(("https://", "data:image/")) else "",
+            "profile_url": c["profile_url"] if str(c.get("profile_url") or "").startswith("https://") else "",
+            "options": choices, "main": True,
+        }  # fmt: skip
+        texts = [m for m in texts if m.text != last.get("text")]
     elif choices and at and at["type"] == "opening":
         ui = {"type": "menu", "layout": "cards3", "items": choices}
     elif choices:

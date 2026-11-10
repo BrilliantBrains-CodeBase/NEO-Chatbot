@@ -719,7 +719,34 @@
 .nb-msg.nb-doc {
   max-width: 100%;
 }
+.nb-doc-h {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.nb-doc-photo {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+.nb-doc-about,
+.nb-doc-today {
+  margin: 8px 0 0;
+}
+.nb-doc-today {
+  font-weight: 600;
+}
+.nb-doc-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--rose);
+  font-weight: 600;
+}
 .nb-q {
+  display: block;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--mute);

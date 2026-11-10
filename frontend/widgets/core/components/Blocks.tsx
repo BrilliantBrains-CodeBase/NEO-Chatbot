@@ -117,19 +117,31 @@ function DoctorCard({ block, onChoose }: { block: DoctorCardBlock; onChoose: OnC
   return (
     <>
       <div class="nb-msg bot nb-doc">
-        <b>{block.name}</b>
-        <br />
-        {block.title}
-        <br />
-        <span class="nb-q">{block.quals}</span>
-        <div class="nb-stats">
-          {block.stats.map((s) => (
-            <div key={s.label}>
-              <b>{s.value}</b>
-              <span>{s.label}</span>
-            </div>
-          ))}
+        <div class="nb-doc-h">
+          {block.photo && <img class="nb-doc-photo" src={block.photo} alt="" loading="lazy" />}
+          <div>
+            <b>{block.name}</b>
+            {block.title && <div>{block.title}</div>}
+            {block.quals && <span class="nb-q">{block.quals}</span>}
+          </div>
         </div>
+        {block.about && <p class="nb-doc-about">{block.about}</p>}
+        {block.stats.length > 0 && (
+          <div class="nb-stats">
+            {block.stats.map((s) => (
+              <div key={s.label}>
+                <b>{s.value}</b>
+                <span>{s.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {block.profile_url && (
+          <a class="nb-doc-link" href={block.profile_url} target="_blank" rel="noopener noreferrer">
+            {t.view_profile}
+          </a>
+        )}
+        {block.today && <p class="nb-doc-today">{block.today}</p>}
       </div>
       <Chips
         block={{ type: 'chips', options: block.options, back: block.back, main: block.main }}

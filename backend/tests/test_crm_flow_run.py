@@ -823,3 +823,41 @@ def test_the_live_chat_shows_free_dates_as_a_calendar_and_times_as_a_grid() -> N
     }
     chat(tap="11:15")
     assert chat.r["lead"]["date"] == "2026-10-29" and chat.r["lead"]["time"] == "11:15"
+
+
+def test_the_live_chat_shows_the_doctor_card_with_photo_figures_and_profile() -> None:
+    from app.chat.canvas import _widget
+
+    settings = {
+        "doctor": "Dr. Asha", "title": "Consultant", "qualifications": "MBBS, MD", "about": "20 years.",
+        "photo": "https://example.com/asha.jpg", "profile_url": "https://example.com/asha",
+        "stats": [{"value": "10,000+", "label": "Patients"}], "book_label": "Book with Dr. Asha",
+    }  # fmt: skip
+    card = {"id": "doc", "type": "doctor_card", "settings": settings}
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"], "consent": False}}
+    flow = {
+        "nodes": [opening(("m1", "Doctors")), card, book],
+        "edges": [line("opening", "m1", "doc"), line("doc", "book", "book")],
+    }
+    today = {
+        "Dr. Asha": {
+            "in_clinic": [("10:00", "13:00")], "online": [], "on_leave": False, "closed": False,
+            "times": ["11:00"], "next": None,
+        }
+    }  # fmt: skip
+    chat = Chat(flow, ctx(doctor_today=today))
+    chat(tap="m1")
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    ui = res.ui or {}
+    assert res.messages == []  # the card says it all, no repeated text
+    assert ui["type"] == "doctor_card" and ui["main"] is True  # always a way back to the menu
+    assert (ui["name"], ui["title"], ui["quals"], ui["about"]) == (
+        "Dr. Asha",
+        "Consultant",
+        "MBBS, MD",
+        "20 years.",
+    )
+    assert ui["photo"] == "https://example.com/asha.jpg" and ui["profile_url"] == "https://example.com/asha"
+    assert ui["stats"] == [{"value": "10,000+", "label": "Patients"}]
+    assert ui["today"].endswith("Choose a time to book your appointment today:")
+    assert [o["label"] for o in ui["options"]] == ["11:00 AM", "Book with Dr. Asha"]

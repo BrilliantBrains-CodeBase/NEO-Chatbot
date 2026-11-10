@@ -72,6 +72,10 @@ export interface DoctorCardBlock extends Nav {
   quals: string;
   stats: { value: string; label: string }[];
   options: Choice[];
+  photo?: string; // https:// or data:image/ (Dashboard → Menu buttons → the doctor's card)
+  about?: string;
+  today?: string; // the doctor's day today, e.g. "In the clinic today: 10 AM – 7 PM."
+  profile_url?: string; // https://
 }
 
 export type UiBlock = MenuBlock | ChipsBlock | CalendarBlock | TimeGridBlock | DoctorCardBlock;

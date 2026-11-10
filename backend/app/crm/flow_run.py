@@ -247,7 +247,7 @@ class Run:
             if not parts:
                 parts.append("The clinic is closed today." if d["closed"] else "Not in the clinic today.")
         if d["times"]:
-            parts.append("Free times today:")
+            parts.append("Choose a time to book your appointment today:")
         else:
             if d["in_clinic"]:
                 parts.append("No free times left today.")
@@ -396,7 +396,12 @@ class Run:
                 )
                 if x
             )
-            more["card"] = {k: s.get(k) for k in ("photo", "about", "stats", "profile_url")}
+            more["card"] = {k: s.get(k) for k in ("photo", "about", "stats", "profile_url")} | {
+                "name": s["doctor"],
+                "title": s.get("title", ""),
+                "quals": s.get("qualifications", ""),
+                "today": self.today_line(s["doctor"]),
+            }
         if node.type == "treatment_card":
             text = self.treatment_text(s["treatment"])
         if node.type == "location":
