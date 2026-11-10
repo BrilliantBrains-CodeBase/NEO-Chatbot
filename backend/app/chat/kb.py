@@ -6,6 +6,7 @@ answered; anything else goes on to the lead. Semantic matching is added on top l
 import logging
 import re
 import time
+from collections.abc import Collection
 from dataclasses import dataclass
 
 import asyncpg
@@ -56,6 +57,7 @@ class _Row:
     question: str
     answer: str
     keys: tuple[str, ...]  # the question and each wording, as content words
+    category: str = "other"  # its Knowledge base category (a Knowledge block's topics limit to some)
 
 
 _cache: dict[str, tuple[float, list[_Row]]] = {}
@@ -114,14 +116,15 @@ async def _rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
     values = await fact_values(conn, clinic_id)
     rows = []
     for r in await conn.fetch(
-        "select id, question, variants, answer from app.kb_qa where clinic_id = $1 and status = 'approved'",
+        "select id, question, variants, answer, category from app.kb_qa"
+        " where clinic_id = $1 and status = 'approved'",
         clinic_id,
     ):
         answer = fill(r["answer"], values)
         if answer is None:  # a linked fact is missing: this answer is not given
             continue
         keys = tuple(k for k in (words(x) for x in [r["question"], *r["variants"].splitlines()]) if k)
-        rows.append(_Row(str(r["id"]), r["question"], answer, keys))
+        rows.append(_Row(str(r["id"]), r["question"], answer, keys, r["category"]))
     _cache[clinic_id] = (now, rows)
     return rows
 
@@ -166,8 +169,15 @@ def best(rows: list[_Row], text: str) -> Answer | None:
     return Answer(top[2].id, top[2].question, top[2].answer, top[0]) if top else None
 
 
-async def search(conn: asyncpg.Connection, clinic_id: str, text: str) -> Answer | None:
-    return best(await _rows(conn, clinic_id), text)
+def _within(rows: list[_Row], topics: Collection[str]) -> list[_Row]:
+    """Only the rows of these categories (a Knowledge block's topics); no topics: all."""
+    return [r for r in rows if r.category in topics] if topics else rows
+
+
+async def search(
+    conn: asyncpg.Connection, clinic_id: str, text: str, topics: Collection[str] = ()
+) -> Answer | None:
+    return best(_within(await _rows(conn, clinic_id), topics), text)
 
 
 # --- Semantic matching (meaning, not words): only when regular matching found nothing -------------------
@@ -193,7 +203,9 @@ async def _fill(conn: asyncpg.Connection, clinic_id: str) -> None:
     _filled[clinic_id] = now
 
 
-async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple[Answer | None, float | None]:
+async def semantic(
+    conn: asyncpg.Connection, clinic_id: str, text: str, topics: Collection[str] = ()
+) -> tuple[Answer | None, float | None]:
     """The closest approved question by meaning, if close enough; also the best score, for the trace.
     (None, None) while the model is still loading."""
     if not embed.ready():
@@ -203,9 +215,11 @@ async def semantic(conn: asyncpg.Connection, clinic_id: str, text: str) -> tuple
     row = await conn.fetchrow(
         """select id, question, answer, 1 - (embedding operator(extensions.<=>) $2::extensions.vector) as sim
            from app.kb_qa where clinic_id = $1 and status = 'approved' and embedding is not null
+             and ($3::text[] is null or category = any($3::text[]))
            order by embedding operator(extensions.<=>) $2::extensions.vector limit 1""",
         clinic_id,
         q,
+        list(topics) or None,
     )
     if row is None:
         return None, None
@@ -243,32 +257,35 @@ async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
         return hit[1]
     rows = []
     for r in await conn.fetch(
-        "select id, key, value, variants from app.kb_facts where clinic_id = $1 and status = 'approved'",
+        "select id, key, value, variants, category from app.kb_facts"
+        " where clinic_id = $1 and status = 'approved'",
         clinic_id,
     ):
         name = r["key"].replace("_", " ")
         said = [name, *[v.strip() for v in r["variants"].splitlines() if v.strip()]]
         keys = tuple(k for k in (words(w) for w in said) if k)
-        rows.append(_Row(str(r["id"]), name, fact_text(r["key"], r["value"]), keys))
+        rows.append(_Row(str(r["id"]), name, fact_text(r["key"], r["value"]), keys, r["category"]))
         _fact_wordings[str(r["id"])] = said
     _facts[clinic_id] = (now, rows)
     return rows
 
 
-async def fact(conn: asyncpg.Connection, clinic_id: str, text: str) -> Answer | None:
+async def fact(
+    conn: asyncpg.Connection, clinic_id: str, text: str, topics: Collection[str] = ()
+) -> Answer | None:
     """The approved fact whose name the question uses ("clinic name", "email id"), if confident."""
-    hit = best(await _fact_rows(conn, clinic_id), text)
+    hit = best(_within(await _fact_rows(conn, clinic_id), topics), text)
     return Answer(hit.id, hit.question, hit.answer, hit.score, "fact") if hit else None
 
 
 async def fact_semantic(
-    conn: asyncpg.Connection, clinic_id: str, text: str
+    conn: asyncpg.Connection, clinic_id: str, text: str, topics: Collection[str] = ()
 ) -> tuple[Answer | None, float | None]:
     """The approved fact closest by meaning ("which languages do you speak" -> languages spoken), if close
     enough and clearly ahead of the next one; also the best score, for the trace."""
     if not embed.ready():
         return None, None
-    rows = await _fact_rows(conn, clinic_id)
+    rows = _within(await _fact_rows(conn, clinic_id), topics)
     if not rows:
         return None, None
     ranked = await _fact_scores(await embed.vector(text), rows)

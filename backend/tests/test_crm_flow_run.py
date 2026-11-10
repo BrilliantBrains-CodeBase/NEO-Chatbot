@@ -979,3 +979,28 @@ def test_the_location_block_shows_todays_hours_and_a_map_button_when_switched_on
     chat = Chat({"nodes": [opening(("m1", "Location")), off], "edges": flow["edges"]}, c)
     assert chat(tap="m1") == ["Find us here:\n1st floor, Scorpio House"]
     assert chat.labels() == []
+
+
+def test_a_knowledge_block_limits_answers_to_its_topics() -> None:
+    import pytest
+
+    from app.chat.kb import _Row, _within, best
+    from app.crm.flow import FlowError
+    from app.crm.flow_run import kb_topics
+
+    rows = [
+        _Row("1", "what does it cost", "From Rs 50,000.", ("cost",), "cost"),
+        _Row("2", "who is the doctor", "Dr. Asha.", ("doctor",), "doctor"),
+    ]
+    assert _within(rows, ()) == rows  # no topics: all
+    assert [r.id for r in _within(rows, ("doctor",))] == ["2"]
+    assert best(_within(rows, ("doctor",)), "cost") is None  # a cost answer is not given in a doctors block
+
+    ask = {"id": "ask", "type": "knowledge", "settings": {"topics": ["doctor", "policy"]}}
+    flow = normalise({"nodes": [opening(("m1", "Ask")), ask], "edges": [line("opening", "m1", "ask")]})
+    chat = Chat(flow)
+    chat(tap="m1")
+    assert kb_topics(chat.flow, chat.r["state"]) == ("doctor", "policy")  # waiting for its question
+    assert kb_topics(chat.flow, start(chat.flow, ctx())["state"]) == ()  # elsewhere: all topics
+    with pytest.raises(FlowError, match="clinic_info"):
+        normalise({"nodes": [opening(), {**ask, "settings": {"topics": ["anything"]}}], "edges": []})

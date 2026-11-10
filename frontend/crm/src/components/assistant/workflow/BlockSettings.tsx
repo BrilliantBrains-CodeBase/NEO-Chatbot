@@ -386,6 +386,41 @@ export default function BlockSettings({
           ))}
         </Row>
       )}
+      {block.type === "knowledge" && (
+        <Row label="Answer only from these Knowledge base topics (none ticked: all)">
+          {(
+            [
+              ["clinic_info", "Clinic info"],
+              ["treatment", "Treatments"],
+              ["cost", "Costs"],
+              ["doctor", "Doctors"],
+              ["policy", "Policies"],
+              ["other", "Other"],
+            ] as const
+          ).map(([k, label]) => {
+            const topics = (s.topics as string[] | undefined) ?? [];
+            return (
+              <label
+                key={k}
+                style={{ display: "flex", gap: 6, fontWeight: 450 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={topics.includes(k)}
+                  onChange={(e) =>
+                    set({
+                      topics: e.target.checked
+                        ? [...topics, k]
+                        : topics.filter((x) => x !== k),
+                    })
+                  }
+                />
+                {label}
+              </label>
+            );
+          })}
+        </Row>
+      )}
       {block.type === "reviews" && (
         <Row label="How many reviews (newest first, from Clinic info → Reviews)">
           <select
@@ -674,7 +709,9 @@ export default function BlockSettings({
               ))}
             </select>
           </Row>
-          <label style={{ display: "flex", gap: 6, fontSize: "var(--fs-small)" }}>
+          <label
+            style={{ display: "flex", gap: 6, fontSize: "var(--fs-small)" }}
+          >
             <input
               type="checkbox"
               checked={s.required !== false}
@@ -1015,11 +1052,17 @@ function Phrases({
           key={t}
           style={{ display: "flex", flexDirection: "column", gap: 3 }}
         >
-          <span style={{ fontWeight: 600, fontSize: "var(--fs-small)" }}>{label}</span>
+          <span style={{ fontWeight: 600, fontSize: "var(--fs-small)" }}>
+            {label}
+          </span>
           {phrases
             .filter((p) => p.target === t)
             .map((p) => (
-              <div key={p.id} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
+              <div
+                key={p.id}
+                className="wf-btn"
+                style={{ fontSize: "var(--fs-small)" }}
+              >
                 <span
                   className={`badge ${p.status === "approved" ? "b-vi" : "b-fu"}`}
                 >

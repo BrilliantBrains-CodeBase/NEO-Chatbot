@@ -4,6 +4,7 @@ Admins and Super Admin only. The live chatbot does not read these settings until
 
 import json
 import re
+from collections.abc import Collection
 from datetime import timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -21,7 +22,7 @@ from app.crm.auth import Staff, staff
 from app.crm.flow import Flow, FlowError, Problem, import_content, normalise
 from app.crm.flow import check as check_flow
 from app.crm.flow_eval import passed
-from app.crm.flow_run import Context, run_checks, send, start
+from app.crm.flow_run import Context, kb_topics, run_checks, send, start
 
 router = APIRouter(prefix="/crm/console", tags=["crm"])
 
@@ -900,7 +901,7 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
     # The engine is synchronous: what it may ask for this message is looked up first, live.
     waiting = (body.state.get("ask") or {}).get("kind")
     if body.text and waiting in (None, "knowledge", "lead", "question"):  # typed questions, mid-booking too
-        found = await _kb_answer(clinic, body.text)
+        found = await _kb_answer(clinic, body.text, kb_topics(draft["flow"], body.state))
         ctx.kb = lambda q: found
     if waiting == "check" and body.text:
         booked = await _upcoming(clinic, body.text)
@@ -970,24 +971,25 @@ async def _nearest_phrase(flow: dict[str, Any], text: str) -> dict[str, Any] | N
     return {"target": best["target"], "text": best["text"], "score": round(score * 100, 1)}
 
 
-async def _kb_answer(clinic: str, text: str) -> str | None:
+async def _kb_answer(clinic: str, text: str, topics: Collection[str] = ()) -> str | None:
     """The clinic's approved Knowledge base, as the live chat searches it (no LLM): approved Q/A, then facts;
     by words, then by meaning. Medical questions never get here (the engine's guard)."""
-    hit = await kb_hit(clinic, text)
+    hit = await kb_hit(clinic, text, topics)
     return hit[0] if hit else None
 
 
-async def kb_hit(clinic: str, text: str) -> tuple[str, str] | None:
+async def kb_hit(clinic: str, text: str, topics: Collection[str] = ()) -> tuple[str, str] | None:
     """As _kb_answer, with what answered: "qa" (a question staff wrote) or "fact" (a single fact), by its
-    words; "qa_meaning" / "fact_meaning" when only by meaning."""
+    words; "qa_meaning" / "fact_meaning" when only by meaning. Topics: only those Knowledge base categories
+    (a Knowledge block's), none: all."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         for find in (kb.search, kb.fact):
-            hit = await find(conn, clinic, text)
+            hit = await find(conn, clinic, text, topics)
             if hit:
                 return hit.answer, hit.source
         for near in (kb.semantic, kb.fact_semantic):
-            hit, _ = await near(conn, clinic, text)
+            hit, _ = await near(conn, clinic, text, topics)
             if hit:
                 return hit.answer, f"{hit.source}_meaning"  # by meaning: looser than by words
     return None

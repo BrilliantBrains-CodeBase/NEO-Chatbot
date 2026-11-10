@@ -19,7 +19,7 @@ from app.chat.flows import ist_now, normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Media
 from app.chat.slots import doctors_today
 from app.crm import alerts, webhooks, whatsapp
-from app.crm.flow_run import send, start
+from app.crm.flow_run import kb_topics, send, start
 
 SLOT_TAKEN = "Sorry, that time was just booked by someone else. Please choose another time."
 SAVE_KINDS = {"book", "online", "cancel", "reschedule", "callback", "question"}
@@ -110,11 +110,12 @@ async def turn(
         # As the canvas test chat: what this message may need is looked up first (the engine is synchronous).
         waiting = (run_state.get("ask") or {}).get("kind")
         if text and waiting in (None, "knowledge", "lead", "question"):
-            hit = await kb_hit(clinic, text)
+            topics = kb_topics(flow, run_state)  # a Knowledge block: only its topics
+            hit = await kb_hit(clinic, text, topics)
             # Not answered alone: read with the last messages ("and Sunday?" after "what are your timings").
             again = None if hit else context.follow_up(text, state.get("canvas_history") or [])
             if again:
-                via = await kb_hit(clinic, again)
+                via = await kb_hit(clinic, again, topics)
                 hit = (via[0], "followup") if via else None  # found only with the last question
             found = hit[0] if hit else None
             ctx.kb = lambda q: found

@@ -1182,6 +1182,14 @@ def _time(hm: str) -> str:
     return f"{(h - 1) % 12 + 1}:{m:02d} {'AM' if h < 12 else 'PM'}"
 
 
+def kb_topics(flow: dict[str, Any], state: dict[str, Any] | None) -> tuple[str, ...]:
+    """The topics (Knowledge base categories) of the Knowledge block waiting for a question; none: all."""
+    if ((state or {}).get("ask") or {}).get("kind") != "knowledge":
+        return ()
+    node = next((n for n in flow["nodes"] if n["id"] == (state or {}).get("at")), None)
+    return tuple(((node or {}).get("settings") or {}).get("topics") or ())
+
+
 def start(flow: dict[str, Any], ctx: Context) -> dict[str, Any]:
     return Run(flow, ctx).start()
 

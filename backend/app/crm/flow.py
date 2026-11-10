@@ -238,7 +238,10 @@ class KnowledgeSettings(BaseModel):
     by regular and semantic search, no LLM, no self-training). Exits: answered, not_found."""
 
     message: str = Field(default="What would you like to know?", max_length=300)
-    topics: list[str] = Field(default=[], max_length=20)  # limit to these topics (empty: all)
+    # Only answers of these Knowledge base categories (empty: all).
+    topics: list[Literal["clinic_info", "treatment", "cost", "doctor", "policy", "other"]] = Field(
+        default=[], max_length=6
+    )
 
 
 class CheckAppointmentSettings(BaseModel):
