@@ -48,6 +48,12 @@ AUTO = {
 MAX_STEPS = 50  # a loop of automatic blocks stops here
 NO = re.compile(r"no|n|nope|not now|cancel|don'?t|do not")
 # Too general to name one treatment by themselves ("hair" is in many names).
+COST = next(p for p, target in INTENTS if target == ("node", "cost"))  # "cost", "price", "fees" ...
+# A question about a named treatment besides its cost ("laser sessions", "fue recovery", "ivf success rate").
+TOPIC = re.compile(
+    r"\b(sessions?|sittings?|recover\w*|downtime|success|results?|how long|duration|permanent|safe|process|"
+    r"procedure|steps|eligib\w*|candidate|age limit|before and after|how many)\b"
+)
 # Words of a treatment's name that need not be typed for it ("prp" is PRP Treatment).
 NAME_FILLER = {
     "treatment",
@@ -606,7 +612,7 @@ class Run:
         # The live chat's order: buttons and the approved phrases by their words, the keyword rules, a
         # treatment named, the approved Knowledge base; a phrase by meaning only when nothing else fits.
         named = None if hit else self.named_treatment(low, full_only=True)  # a full name beats a phrase
-        if named:
+        if named and not (COST.search(spelled(low)) or TOPIC.search(low)):  # "botox cost": answers first
             self.matched = {"how": "treatment name", "text": named}
             self.act(node, {"id": "t:" + named, "action": "treatment", "value": named})
             return self.reply()
@@ -641,6 +647,8 @@ class Run:
                 }
                 no = {"id": "medical:no", "label": "No, main menu", "action": "menu"}
                 self.say(f"Did you mean {treatment}?", buttons=[yes, no])
+            elif self.about_treatment(treatment, low, text):
+                pass  # its cost or another question about it: answered, or a call back offered
             else:
                 self.act(node, {"id": "t:" + treatment, "action": "treatment", "value": treatment})
         elif page := self.page_rule(low):
@@ -790,10 +798,48 @@ class Run:
                 return str(t["name"])
         return None
 
+    def about_treatment(self, name: str, low: str, text: str) -> bool:
+        """A treatment named with a question about it that has no approved answer ("botox cost", "laser
+        sessions", "ivf success rate"): its text, then its cost or a call back about it (with Book), never
+        its card alone as if the question was not asked."""
+        cost, topic = COST.search(spelled(low)), TOPIC.search(low)
+        if not cost and not topic:
+            return False
+        t = self.service(name)
+        if cost and not topic and t.get("show_price") and t.get("price") is not None:
+            return False  # its card says "From Rs ..."
+        self.fields["treatment"] = name
+        self.say(self.treatment_text(name), **self.photo(name))
+        self.fields["reason"] = (f"Cost of {name}" if cost and not topic else text)[:200]
+        book = [{"id": "book:" + name, "label": "Book", "action": "book", "value": name}]
+        book = book if self.first("book") else []
+        no = {"id": "medical:no", "label": "No, thanks", "action": "menu"}
+        if not self.first("callback"):
+            self.say("", buttons=[*book, no])
+            return True
+        if cost and not topic:
+            said = (
+                f"The cost of {name} depends on your assessment and is confirmed by the doctor. "
+                "Our team can share the exact cost."
+            )
+            label = "Get the exact cost"
+        else:
+            said, label = NO_ANSWER, "Yes, call me back"
+        yes = {"id": "medical:yes", "label": label, "action": "callback", "value": ""}
+        self.say(said, buttons=[yes, *book, no])
+        return True
+
+    def aliases(self, name: str) -> list[str]:
+        """A treatment's short names in brackets: "In-Vitro Fertilization (IVF)" -> ivf; "(DHI / FUE)"."""
+        inside = re.findall(r"\(([^)]*)\)", name)
+        return [norm(a) for part in inside for a in re.split(r"[/,]", part) if len(norm(a)) >= 2]
+
     def only_part_of(self, name: str, low: str) -> bool:
         """Typed only part of the treatment's name: a word of it that says what it is was left out ("acne
         treatment" for Acne Scar Treatment; "prp" for PRP Treatment is the whole of it)."""
         typed = set(norm(low).split())
+        if any(f" {a} " in f" {norm(low)} " for a in self.aliases(name)):
+            return False  # its short name ("ivf") is the whole of it
         return any(w not in typed and w not in NAME_FILLER for w in norm(name).split())
 
     def named_treatment(self, low: str, full_only: bool = False) -> str | None:
@@ -806,6 +852,11 @@ class Run:
                 return str(name)
         if full_only:
             return None
+        shorts = [(n, a) for n in names for a in self.aliases(n)]
+        for name, alias in shorts:  # "ivf" -> In-Vitro Fertilization (IVF), when only one has it
+            once = [a for _, a in shorts].count(alias) == 1
+            if once and alias not in GENERAL_WORDS and f" {alias} " in t:
+                return str(name)
         firsts = [norm(n).split()[0] for n in names]
         for name, first in zip(names, firsts, strict=True):
             unique = len(first) >= 3 and firsts.count(first) == 1 and first not in GENERAL_WORDS

@@ -1103,3 +1103,40 @@ def test_part_of_a_treatment_name_asks_did_you_mean_and_the_whole_of_it_opens_th
     assert chat("acne scar treatment")[0].startswith("Acne Scar Treatment")  # the whole name: the card
     chat = Chat(flow, c)
     assert chat("prp")[0].startswith("PRP Treatment")  # "treatment" need not be typed
+
+
+def test_a_treatment_with_a_cost_or_other_question_answers_that_part_too() -> None:
+    botox = {"name": "Botox", "category": "Skin", "show": True, "description": "Softens lines."}
+    ivf = {
+        "name": "In-Vitro Fertilization (IVF)",
+        "category": "Fertility",
+        "show": True,
+        "description": "IVF.",
+    }
+    c = Context(today=WED, minutes=11 * 60, services=[FUE, botox, ivf])
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"], "consent": False}}
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name"], "consent": False}}
+    flow = {"nodes": [opening(("m1", "Book")), book, cb], "edges": [line("opening", "m1", "book")]}
+
+    chat = Chat(flow, c)
+    said = chat("botox cost")
+    assert said[0] == "Botox\nSoftens lines." and said[1].startswith(
+        "The cost of Botox depends on your assessment"
+    )
+    assert chat.labels() == ["Get the exact cost", "Book", "No, thanks"]
+    chat(tap="medical:yes")
+    chat("Asha Rao")
+    assert chat.r["lead"]["reason"] == "Cost of Botox" and chat.r["lead"]["treatment"] == "Botox"
+
+    chat = Chat(flow, c)
+    said = chat("ivf success rate")  # its short name in brackets, and a question about it
+    assert said[0] == "In-Vitro Fertilization (IVF)\nIVF." and said[1].startswith(
+        "I don't have a confirmed answer"
+    )
+    assert chat.labels() == ["Yes, call me back", "Book", "No, thanks"]
+
+    chat = Chat(flow, c)
+    assert chat("fue price")[0].startswith("FUE\nFrom ₹50,000")  # its price is shown: just its card
+    assert "Book" in chat.labels()
+    chat = Chat(flow, c)
+    assert chat("ivf") == ["In-Vitro Fertilization (IVF)\nIVF."]  # the short name alone: its card
