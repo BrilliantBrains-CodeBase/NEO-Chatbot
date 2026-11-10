@@ -2,7 +2,10 @@
    rule for rule and scoped under .crm so nothing reaches the sign-in pages. Later rules override earlier
    ones exactly as in the design (the left menu has its own block at the end). */
 .crm {  --bg:#FFFFFF;--panel:#F7F9FC;--ink:#16202E;--soft:#5B6676;--mute:#626D7C;--line:#E5EAF1; --brand:#1F3A5F;--brand-d:#162B47;--accent:#3E6FD9;--tint:#EEF3FC; --ok:#1F8A4C;--okt:#E8F6EE;--err:#C62828;--errt:#FDECEC;--warn:#B26A00;--warnt:#FFF4DF;--vio:#6A4FC2;--viot:#F1EDFB; --font:var(--font-inter),system-ui,-apple-system,"Segoe UI",Roboto,sans-serif }
-.crm { height:100%;margin:0 }
+/* The frame is pinned to the window: only .page scrolls inside it, so scrolling never moves the whole frame
+   (the browser's own scroll used to take over at the end of a page and show white space around it). */
+.crm { position:fixed;inset:0;margin:0;overflow:hidden;overscroll-behavior:none }
+.crm .page { overscroll-behavior:contain }
 .crm { background:var(--bg);color:var(--ink);font-family:var(--font);font-size:var(--fs-body);font-weight:450;-webkit-font-smoothing:antialiased }
 .crm svg { fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;width:18px;height:18px;flex:0 0 auto }
 .crm button { font:inherit;color:inherit }
