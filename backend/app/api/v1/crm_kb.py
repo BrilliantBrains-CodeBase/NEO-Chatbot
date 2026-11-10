@@ -147,14 +147,20 @@ async def _knowledge(clinic: str, user: Staff) -> Knowledge:
     )  # fmt: skip
 
 
-async def _not_live(clinic: str, key: str) -> None:
+async def _value(clinic: str, key: str, typed: str) -> str:
+    """The value to keep: as typed, or for a key the Dashboard / CRM answers (live), its live value (only its
+    wordings and category are the Knowledge base's own; the answer always comes from there)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        if key in await live_facts(conn, clinic) or key in SOURCE:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"{{{key}}} is answered in {SOURCE.get(key, 'the Chatbot settings')}: change it there.",
-            )
+        live = await live_facts(conn, clinic)
+    if key not in live and key not in SOURCE:
+        return typed.strip()
+    if not live.get(key):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{{{key}}} is answered in {SOURCE.get(key, 'the Chatbot settings')}: fill it in there first.",
+        )
+    return live[key]
 
 
 async def _write(user: Staff, clinic: str, sql: str, *args: Any) -> Any:
@@ -180,13 +186,14 @@ async def knowledge(user: Annotated[Staff, Depends(staff)], clinic: str) -> Know
 
 @router.post("/{clinic}/kb/facts", response_model=Knowledge)
 async def add_fact(user: Annotated[Staff, Depends(staff)], clinic: str, body: FactIn) -> Knowledge:
-    """A new fact, as a draft (a manager approves it). A key answered by the Dashboard / CRM is refused."""
-    await _not_live(clinic, body.key)
+    """A new fact, as a draft (a manager approves it). For a key the Dashboard / CRM answers, only its
+    wordings are the fact's: its answer is the live value."""
+    value = await _value(clinic, body.key, body.value)
     await _write(
         user,
         clinic,
         "insert into app.kb_facts (clinic_id, key, category, value, variants) values ($1, $2, $3, $4, $5)",
-        clinic, body.key, body.category, body.value.strip(), body.variants,
+        clinic, body.key, body.category, value, body.variants,
     )  # fmt: skip
     return await _knowledge(clinic, user)
 
@@ -196,13 +203,13 @@ async def save_fact(
     user: Annotated[Staff, Depends(staff)], clinic: str, fact_id: str, body: FactIn
 ) -> Knowledge:
     """A changed fact goes back to draft until approved again (every answer linking it waits too)."""
-    await _not_live(clinic, body.key)
+    value = await _value(clinic, body.key, body.value)
     done = await _write(
         user,
         clinic,
         """update app.kb_facts set key = $3, category = $4, value = $5, variants = $6, status = 'draft',
              approved_by = null, approved_at = null where id = $1::uuid and clinic_id = $2 returning id""",
-        _uuid(fact_id), clinic, body.key, body.category, body.value.strip(), body.variants,
+        _uuid(fact_id), clinic, body.key, body.category, value, body.variants,
     )  # fmt: skip
     if done is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Fact not found.")

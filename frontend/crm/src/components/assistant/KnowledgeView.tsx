@@ -222,11 +222,7 @@ export default function KnowledgeView() {
     return (
       <>
         {header}
-        {error ? (
-          <p className="warnbox">{error}</p>
-        ) : (
-          <Loading />
-        )}
+        {error ? <p className="warnbox">{error}</p> : <Loading />}
       </>
     );
 
@@ -294,6 +290,7 @@ export default function KnowledgeView() {
   const factForm = editFact && (
     <FactForm
       fact={editFact}
+      live={k.live}
       busy={busy}
       error={error}
       onChange={setEditFact}
@@ -596,8 +593,8 @@ export default function KnowledgeView() {
                       </div>
                       {f.replaced && f.status !== "retired" && (
                         <div className="sub2" style={{ color: "var(--warn)" }}>
-                          Replaced by {f.replaced}: the chatbot uses that value.
-                          Retire this fact.
+                          Answer live from {f.replaced} (the value shown may be
+                          older); its wordings help patients find it.
                         </div>
                       )}
                       <div className="sub2">
@@ -699,6 +696,7 @@ export default function KnowledgeView() {
 
 function FactForm({
   fact: f,
+  live,
   busy,
   error,
   onChange,
@@ -706,6 +704,7 @@ function FactForm({
   onSave,
 }: {
   fact: Partial<Fact>;
+  live: Live[];
   busy: boolean;
   error: string;
   onChange: (f: Partial<Fact>) => void;
@@ -714,6 +713,8 @@ function FactForm({
 }) {
   const set = (p: Partial<Fact>) => onChange({ ...f, ...p });
   const keyOk = /^[a-z][a-z0-9_]{1,49}$/.test(f.key ?? "");
+  // A key the Dashboard / CRM answers: its answer is always the live value; only the wordings are typed here.
+  const fromLive = live.find((l) => l.key === f.key);
   return (
     <div
       className="card"
@@ -753,13 +754,16 @@ function FactForm({
         </label>
         <label style={{ display: "grid", gap: 4 }}>
           <span className="sub2">
-            Value: what the chatbot says, e.g. Rs 700
+            {fromLive
+              ? `Value: live from ${fromLive.source} (change it there)`
+              : "Value: what the chatbot says, e.g. Rs 700"}
           </span>
           <textarea
             className="f"
             rows={3}
             maxLength={2000}
-            value={f.value ?? ""}
+            readOnly={!!fromLive}
+            value={fromLive ? fromLive.value : (f.value ?? "")}
             onChange={(e) => set({ value: e.target.value })}
           />
         </label>
@@ -776,10 +780,10 @@ function FactForm({
           />
         </label>
       </div>
-      {f.replaced && (
+      {fromLive && (
         <p className="warnbox" style={{ marginTop: 10 }}>
-          This is answered in {f.replaced}: change it there. The chatbot already
-          uses that value, so retire this fact.
+          The answer always comes live from {fromLive.source}. Here you add the
+          ways patients ask for it, so the chatbot finds it.
         </p>
       )}
       {!!f.used_by && (
@@ -797,7 +801,11 @@ function FactForm({
       <div className="row" style={{ gap: 8, marginTop: 14 }}>
         <button
           className="btn"
-          disabled={busy || !keyOk || !(f.value ?? "").trim() || !!f.replaced}
+          disabled={
+            busy ||
+            !keyOk ||
+            !(fromLive ? fromLive.value : (f.value ?? "")).trim()
+          }
           onClick={onSave}
         >
           {busy ? "Saving…" : "Save as draft"}

@@ -143,8 +143,17 @@ async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: p
         assert live["clinic_name"]["value"] == name and "Clinics" in live["clinic_name"]["source"]
         assert "timings_monday" in live and live["consultation_length"]["value"].startswith("About ")
 
-        r = await api.post(f"{URL}/facts", json={"key": "clinic_name", "value": "Other"}, headers=headers)
-        assert r.status_code == 409 and "change it there" in r.text  # answered in the Dashboard
+        # A key the Dashboard answers: only its wordings are the fact's; its answer is always the live value.
+        fact = {"key": "clinic_name", "value": "Other", "variants": "hospital name\nclinic ka naam"}
+        r = await api.post(f"{URL}/facts", json=fact, headers=headers)
+        assert r.status_code == 200
+        [f] = [x for x in r.json()["facts"] if x["key"] == "clinic_name"]
+        assert f["value"] == name and f["variants"] == fact["variants"] and f["replaced"]  # never "Other"
+        assert (await api.post(f"{URL}/facts/{f['id']}/approve", headers=headers)).status_code == 200
+        kb.forget("CL99")
+        async with pool.acquire() as conn:
+            said = await kb.fact(conn, "CL99", "hospital name")
+        assert said is not None and name in said.answer  # found by its wording, answered live
         rows = [{"row": 2, "kind": "fact", "key": "clinic_name", "value": "Other"}]
         got = (await api.post(f"{URL}/import", json={"rows": rows}, headers=headers)).json()
         assert got["added"] == 0 and "change it there" in got["problems"][0]
@@ -165,6 +174,7 @@ async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: p
         await pool.execute(
             "delete from app.kb_qa where clinic_id = 'CL99' and question like 'Test what is the clinic%'"
         )
+        await pool.execute("delete from app.kb_facts where clinic_id = 'CL99' and key = 'clinic_name'")
         kb.forget("CL99")
         await close_pool()
 

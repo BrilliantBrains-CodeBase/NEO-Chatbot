@@ -256,6 +256,9 @@ async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
     if hit and now - hit[0] < CACHE_S:
         return hit[1]
     rows = []
+    live = await live_facts(
+        conn, clinic_id
+    )  # a key the Dashboard / CRM answers: its value today, never as typed
     for r in await conn.fetch(
         "select id, key, value, variants, category from app.kb_facts"
         " where clinic_id = $1 and status = 'approved'",
@@ -264,7 +267,8 @@ async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
         name = r["key"].replace("_", " ")
         said = [name, *[v.strip() for v in r["variants"].splitlines() if v.strip()]]
         keys = tuple(k for k in (words(w) for w in said) if k)
-        rows.append(_Row(str(r["id"]), name, fact_text(r["key"], r["value"]), keys, r["category"]))
+        value = live.get(r["key"]) or r["value"]
+        rows.append(_Row(str(r["id"]), name, fact_text(r["key"], value), keys, r["category"]))
         _fact_wordings[str(r["id"])] = said
     _facts[clinic_id] = (now, rows)
     return rows
