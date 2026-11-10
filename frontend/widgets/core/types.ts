@@ -18,6 +18,7 @@ export interface BotMessage {
   text: string;
   // A Media block (Dashboard → Menu buttons): shown in its place in the chat, the text as its caption.
   media?: { kind: MediaKind; url: string } | null;
+  typing?: number; // seconds of typing dots before this message (0 to 5)
 }
 
 export type MediaKind = 'image' | 'video' | 'file' | 'map';

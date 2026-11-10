@@ -1004,3 +1004,19 @@ def test_a_knowledge_block_limits_answers_to_its_topics() -> None:
     assert kb_topics(chat.flow, start(chat.flow, ctx())["state"]) == ()  # elsewhere: all topics
     with pytest.raises(FlowError, match="clinic_info"):
         normalise({"nodes": [opening(), {**ask, "settings": {"topics": ["anything"]}}], "edges": []})
+
+
+def test_a_blocks_typing_delay_reaches_the_live_chat_and_plain_text_stays_plain() -> None:
+    from app.chat.canvas import _widget
+
+    slow = {"id": "slow", "type": "answer", "typing": 1.5, "settings": {"text": "Let me check."}}
+    flow = {"nodes": [opening(("m1", "Ask")), slow], "edges": [line("opening", "m1", "slow")]}
+    chat = Chat(flow)
+    chat(tap="m1")
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    assert [m.model_dump() for m in res.messages] == [
+        {"type": "text", "text": "Let me check.", "typing": 1.5}
+    ]
+    chat = Chat(flow)
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    assert res.messages[0].model_dump() == {"type": "text", "text": "Hi!"}  # no delay: as before

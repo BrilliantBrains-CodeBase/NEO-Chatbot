@@ -61,12 +61,15 @@ class BotMessage(BaseModel):
     type: Literal["text"] = "text"
     text: str
     media: Media | None = None  # a canvas Media block: the widget shows it here, the text as its caption
+    typing: float = Field(default=0, ge=0, le=5)  # seconds of typing dots before it (the block's setting)
 
     @model_serializer(mode="wrap")
-    def _media_only_when_set(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+    def _extras_only_when_set(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
         out: dict[str, Any] = handler(self)
         if out.get("media") is None:
             out.pop("media", None)  # a plain text message stays {"type": "text", "text": ...}
+        if not out.get("typing"):
+            out.pop("typing", None)
         return out
 
 

@@ -50,19 +50,29 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
 
   // A reply's block goes into the conversation too, under the text it belongs to
   // (the greeting sits above the main menu).
-  const addReply = (res: ChatResponse) => {
-    // A message with media (image, video, file, map) becomes its media block, the text as the caption.
-    const texts: Entry[] = res.messages.map((m) =>
-      m.media && /^https:\/\//.test(m.media.url)
-        ? {
-            id: nextId.current++,
-            from: 'ui',
-            block: { type: 'media', kind: m.media.kind, url: m.media.url, caption: m.text },
-          }
-        : { id: nextId.current++, from: 'bot', text: m.text },
-    );
-    const ui: Entry[] = res.ui ? [{ id: nextId.current++, from: 'ui', block: res.ui }] : [];
-    setEntries((list) => [...list, ...texts, ...ui]);
+  // Each message in turn: a block's typing delay (Dashboard → Menu buttons) shows the typing dots that long
+  // first (busy stays on until the whole reply is shown). False when a restart dropped this reply.
+  const addReply = async (res: ChatResponse, gen: number): Promise<boolean> => {
+    for (const m of res.messages) {
+      const wait = Math.min(Math.max(m.typing ?? 0, 0), 5) * 1000;
+      if (wait) {
+        await new Promise((done) => setTimeout(done, wait));
+        if (gen !== generation.current) return false;
+      }
+      // A message with media (image, video, file, map) becomes its media block, the text as the caption.
+      const entry: Entry =
+        m.media && /^https:\/\//.test(m.media.url)
+          ? {
+              id: nextId.current++,
+              from: 'ui',
+              block: { type: 'media', kind: m.media.kind, url: m.media.url, caption: m.text },
+            }
+          : { id: nextId.current++, from: 'bot', text: m.text };
+      setEntries((list) => [...list, entry]);
+    }
+    const ui = res.ui;
+    if (ui) setEntries((list) => [...list, { id: nextId.current++, from: 'ui', block: ui }]);
+    return true;
   };
 
   const send = useCallback(
@@ -80,7 +90,7 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
           context: { page_url: location.href, device: isMobile() ? 'mobile' : 'desktop', lang: 'en' },
         });
         if (gen !== generation.current) return;
-        addReply(res);
+        if (!(await addReply(res, gen))) return;
         setPlaceholder(res.input.placeholder || t.placeholder);
         setMode(res.input.mode);
       } catch (err) {

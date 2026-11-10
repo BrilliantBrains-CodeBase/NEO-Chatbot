@@ -263,6 +263,14 @@ def _choice(b: dict[str, Any], phone: str) -> dict[str, Any] | None:
     return out | {"action": "canvas", "value": str(b["id"])[:200]}
 
 
+def _typing(m: dict[str, Any]) -> float:
+    """The block's typing delay (seconds, 0 to 5) before this message."""
+    try:
+        return min(max(float(m.get("typing") or 0), 0.0), 5.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> ChatResponse:
     """The canvas's reply in the widget's blocks: its texts, then the last buttons it offered (the opening's
     as the menu, in the chosen Template), and the typing mode it asked for."""
@@ -272,10 +280,15 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         media = m.get("media")
         if media and str(media.get("url") or "").startswith("https://"):  # in its place, its caption with it
             texts.append(
-                BotMessage(text=m.get("text") or "", media=Media(kind=media["kind"], url=media["url"]))
+                BotMessage(
+                    text=m.get("text") or "",
+                    media=Media(kind=media["kind"], url=media["url"]),
+                    typing=_typing(m),
+                )
             )
         elif m.get("text") and not (texts and not texts[-1].media and texts[-1].text == m["text"]):
-            texts.append(BotMessage(text=m["text"]))  # the same text twice in a row once (greeting, opening)
+            # the same text twice in a row once (greeting, opening); the block's typing dots before it
+            texts.append(BotMessage(text=m["text"], typing=_typing(m)))
     texts += [BotMessage(text=note)] if note else []
     last = next(
         (
