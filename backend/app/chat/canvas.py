@@ -15,7 +15,7 @@ from typing import Any
 import asyncpg
 
 from app.chat import context, leads, main_template
-from app.chat.flows import normal_phone
+from app.chat.flows import ist_now, normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input
 from app.chat.slots import doctors_today
 from app.crm import alerts, webhooks, whatsapp
@@ -280,7 +280,15 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         choices = [c for b in last["buttons"] if (c := _choice(b, phone))]
     at = next((n for n in pub["flow"]["nodes"] if n["id"] == reply.get("at")), None)
     ui: dict[str, Any] | None = None
-    if choices and at and at["type"] == "opening":
+    pick = (last or {}).get("pick") or {}
+    if pick.get("kind") == "date" and pick.get("dates"):
+        # Which date: the month calendar, only the free days open (a tap sends the date, as typing it would).
+        dates = sorted(pick["dates"])
+        ui = {"type": "month_calendar", "action": "canvas", "today": ist_now()[0].isoformat(),
+              "min": dates[0], "max": dates[-1], "closed_weekdays": [], "dates": dates}  # fmt: skip
+    elif pick.get("kind") == "time" and pick.get("times"):
+        ui = {"type": "time_grid", "action": "canvas", "slots": pick["times"], "first": 8, "any_time": True}
+    elif choices and at and at["type"] == "opening":
         ui = {"type": "menu", "layout": "cards3", "items": choices}
     elif choices:
         ui = {"type": "chips", "options": choices, "main": True}

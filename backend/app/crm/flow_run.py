@@ -875,7 +875,7 @@ class Run:
             days = ", ".join(_day(d) for d in list(free)[:5]) or "none in the next two weeks"
             self.wrong(node, f"Sorry, there are no free times on {_day(value)}. Free days: {days}.", None)
             if self.ask:
-                self.say("", buttons=self.picks(node, "date"))
+                self.say("", **self.offer(node, "date"))
             return
         if free is not None and key == "time" and value != "any":
             times = free.get(self.fields.get("date", ""), [])
@@ -884,7 +884,7 @@ class Run:
                     node, f"Sorry, {_time(value)} is not free that day. Please pick a free time.", None
                 )
                 if self.ask:
-                    self.say("", buttons=self.picks(node, "time"))
+                    self.say("", **self.offer(node, "time"))
                 return
         self.fields[key] = value
         if key == "date" and ask.get("editing") and "time" in ask["known"]:
@@ -963,6 +963,17 @@ class Run:
             return None
         return self.ctx.slots.get("online" if node.type == "online" else "in_clinic", {})
 
+    def offer(self, node: Node, key: str) -> dict[str, Any]:
+        """The tap answers for a question. A free date or time also carries every free day / that day's free
+        times ("pick"), so the live chat shows its calendar and time grid; the test chat shows buttons."""
+        out: dict[str, Any] = {"buttons": self.picks(node, key)}
+        free = self.free(node)
+        if free and key == "date":
+            out["pick"] = {"kind": "date", "dates": list(free)}
+        elif free is not None and key == "time" and free.get(self.fields.get("date", "")):
+            out["pick"] = {"kind": "time", "times": free[self.fields["date"]]}
+        return out
+
     def picks(self, node: Node, key: str) -> list[dict[str, Any]]:
         """Tap answers: the booking list for the treatment, the next free days, or that day's free times."""
         if key == "treatment":
@@ -1006,7 +1017,7 @@ class Run:
             # No "Thanks, ." when no name was asked, and no thanks when only changing this one answer.
             if "{name}" in wording and (ask.get("editing") or not self.fields.get("name")):
                 wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
-            self.say(wording, buttons=self.picks(node, key), input={"mode": INPUT_MODE.get(key, "text")})
+            self.say(wording, **self.offer(node, key), input={"mode": INPUT_MODE.get(key, "text")})
             return
         if s.get("read_back", True):  # the patient checks their details, as in the live chat
             labels = {"name": "Name", "phone": "Phone", "email": "Email", "treatment": "Treatment",

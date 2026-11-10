@@ -24,7 +24,10 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
     setView(monthKey(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1)).toISOString()));
 
   const open = (ymd: string) =>
-    ymd >= block.min && ymd <= block.max && !block.closed_weekdays.includes(weekday(ymd));
+    ymd >= block.min &&
+    ymd <= block.max &&
+    !block.closed_weekdays.includes(weekday(ymd)) &&
+    (!block.dates || block.dates.includes(ymd));
 
   return (
     <div class="nb-cal">

@@ -54,6 +54,7 @@ export interface CalendarBlock {
   min: string;
   max: string;
   closed_weekdays: number[]; // 0 = Sunday
+  dates?: string[]; // when sent: only these days can be picked (the days with free times)
 }
 
 export interface TimeGridBlock {

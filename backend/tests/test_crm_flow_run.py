@@ -795,3 +795,31 @@ def test_the_name_question_never_takes_a_question_or_a_topic_as_the_name() -> No
     chat = Chat(flow, kb)
     chat(tap="m1")
     assert chat("Mohammed Abid") == ["Thanks, Mohammed Abid. What is your contact number?"]
+
+
+def test_the_live_chat_shows_free_dates_as_a_calendar_and_times_as_a_grid() -> None:
+    from app.chat.canvas import _widget
+
+    book = {"id": "book", "type": "book", "settings": {"fields": ["date", "time"], "consent": False}}
+    free = {"in_clinic": {"2026-10-29": ["11:00", "11:15"], "2026-11-02": ["10:00"]}, "online": {}}
+    flow = {"nodes": [opening(("m1", "Book")), book], "edges": [line("opening", "m1", "book")]}
+    chat = Chat(flow, ctx(slots=free))
+    pub = {"flow": chat.flow, "contact": {"phone": ""}}
+
+    chat(tap="m1")
+    ui = _widget(chat.r, pub, None).ui or {}
+    assert ui["type"] == "month_calendar" and ui["action"] == "canvas"
+    assert (ui["min"], ui["max"], ui["dates"]) == ("2026-10-29", "2026-11-02", ["2026-10-29", "2026-11-02"])
+    assert "no free times" in chat("30 oct")[0]
+    assert (_widget(chat.r, pub, None).ui or {})["type"] == "month_calendar"  # offered again
+    chat(tap="2026-10-29")  # a calendar tap sends the date
+    ui = _widget(chat.r, pub, None).ui or {}
+    assert ui == {
+        "type": "time_grid",
+        "action": "canvas",
+        "slots": ["11:00", "11:15"],
+        "first": 8,
+        "any_time": True,
+    }
+    chat(tap="11:15")
+    assert chat.r["lead"]["date"] == "2026-10-29" and chat.r["lead"]["time"] == "11:15"
