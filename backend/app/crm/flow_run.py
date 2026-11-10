@@ -211,7 +211,7 @@ class Run:
                 {"id": x, "label": label, "action": "go"}
                 for x, label in (("book", "Book"), ("more", "More treatments"))
                 if self._leads(node.id, x)
-            ]
+            ] + self.read_more(node.settings.get("treatment", ""))
         for b in getattr(s, "buttons", []):
             if not b.visible or (not b.action and not self._leads(node.id, b.id)):
                 continue  # hidden, or its line leads nowhere / to a block that is off
@@ -404,6 +404,7 @@ class Run:
             }
         if node.type == "treatment_card":
             text = self.treatment_text(s["treatment"])
+            more.update(self.photo(s["treatment"]))
         if node.type == "location":
             text = "\n".join(x for x in (text, self.ctx.location) if x)
         if node.type == "reviews":
@@ -443,12 +444,26 @@ class Run:
             ]})  # fmt: skip
         return out
 
+    def service(self, name: str) -> dict[str, Any]:
+        return next((x for x in self.ctx.services if x.get("name") == name), None) or {}
+
     def treatment_text(self, name: str) -> str:
-        t = next((x for x in self.ctx.services if x.get("name") == name), None)
-        if t is None:
+        t = self.service(name)
+        if not t:
             return name
         price = f"\nFrom ₹{t['price']:,}" if t.get("show_price") and t.get("price") is not None else ""
-        return f"{name}{price}\n{t.get('description') or ''}".strip()
+        duration = f"\nDuration: {t['duration']}" if t.get("duration") else ""
+        return f"{name}{price}{duration}\n{t.get('description') or ''}".strip()
+
+    def read_more(self, name: str) -> list[dict[str, Any]]:
+        """The treatment's Read more button: its page on the website (Clinic info → Services)."""
+        page = str(self.service(name).get("page") or "")
+        return [{"id": "read:" + name, "label": "Read more", "action": "link", "value": page}] if page else []
+
+    def photo(self, name: str) -> dict[str, Any]:
+        """The treatment's photo (Clinic info → Services), shown with its card."""
+        url = str(self.service(name).get("photo") or "")
+        return {"media": {"kind": "image", "url": url}} if url.startswith("https://") else {}
 
     # ---------- the patient's message ----------
     def tap(self, button_id: str) -> dict[str, Any]:
@@ -465,6 +480,8 @@ class Run:
             b = {"id": button_id, "action": "slot", "value": name}  # a taken one: the booking refuses it
         if b is None and kind == "medical":  # the medical offer: a call back about the question, or the menu
             b = {"id": button_id, "action": "callback" if name == "yes" else "menu", "value": ""}
+        if b is None and kind == "read" and name:  # a treatment's Read more (test chat: says the page)
+            b = next(iter(self.read_more(name)), None)
         if b is None and node.type == "carousel" and kind.startswith("card"):  # a button on one of its cards
             b = next((x for c in self.cards(node) for x in c["buttons"] if x["id"] == button_id), None)
         if b is None:
@@ -481,7 +498,8 @@ class Run:
         elif a == "treatment":
             self.fields["treatment"] = value
             book = [{"id": "book:" + value, "label": "Book", "action": "book", "value": value}]
-            self.say(self.treatment_text(value), buttons=book if self.first("book") else [])
+            buttons = (book if self.first("book") else []) + self.read_more(value)
+            self.say(self.treatment_text(value), buttons=buttons, **self.photo(value))
         elif a == "faq":
             self.say(node.settings["items"][int(value)]["answer"])
         elif a == "list":  # a doctor's treatments, each to its card

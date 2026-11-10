@@ -937,3 +937,25 @@ def test_a_doctor_card_without_buttons_is_still_shown_as_the_card() -> None:
     chat(tap="m1")
     res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
     assert res.messages == [] and (res.ui or {})["type"] == "doctor_card" and (res.ui or {})["options"] == []
+
+
+def test_a_treatment_shows_its_photo_duration_and_read_more_page() -> None:
+    from app.chat.canvas import _widget
+
+    prp = {
+        "name": "PRP", "category": "Hair fall", "show": True, "description": "Platelet rich plasma.",
+        "duration": "45 minutes", "photo": "https://example.com/prp.jpg", "page": "https://example.com/prp",
+    }  # fmt: skip
+    listed = {"id": "list", "type": "treatment_list", "settings": {"category": "Hair fall"}}
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"], "consent": False}}
+    flow = {"nodes": [opening(("m1", "Hair fall")), listed, book], "edges": [line("opening", "m1", "list")]}
+    chat = Chat(flow, Context(today=WED, minutes=11 * 60, services=[FUE, prp]))
+    chat(tap="m1")
+    assert chat(tap="t:PRP") == ["PRP\nDuration: 45 minutes\nPlatelet rich plasma."]
+    assert chat.labels() == ["Book", "Read more"]
+    res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
+    assert res.messages[0].media and res.messages[0].media.url == "https://example.com/prp.jpg"  # the photo
+    options = (res.ui or {})["options"]
+    assert options[1] == {"label": "Read more", "href": "https://example.com/prp"}  # opens the page at once
+    assert chat(tap="read:PRP") == [""]  # the test chat: the page to open
+    assert chat.r["messages"][0]["open"] == {"action": "link", "value": "https://example.com/prp"}
