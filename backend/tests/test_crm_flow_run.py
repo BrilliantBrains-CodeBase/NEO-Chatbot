@@ -1020,3 +1020,24 @@ def test_a_blocks_typing_delay_reaches_the_live_chat_and_plain_text_stays_plain(
     chat = Chat(flow)
     res = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None)
     assert res.messages[0].model_dump() == {"type": "text", "text": "Hi!"}  # no delay: as before
+
+
+def test_book_with_this_doctor_keeps_the_doctor_and_offers_their_free_times() -> None:
+    from app.api.v1.crm_console import slot_doctor
+
+    card = {"id": "doc", "type": "doctor_card",
+            "settings": {"doctor": "Dr. Asha", "book_label": "Book with this doctor"}}  # fmt: skip
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "date"], "consent": False}}
+    flow = {
+        "nodes": [opening(("m1", "Doctors")), card, book],
+        "edges": [line("opening", "m1", "doc"), line("doc", "book", "book")],
+    }
+    chat = Chat(flow, ctx(slots={"in_clinic": {"2026-10-29": ["11:00"]}, "online": {}}))
+    chat(tap="m1")
+    assert "Book with this doctor" in chat.labels()
+    assert chat(tap="book") == ["May I know your full name?"]
+    assert slot_doctor(chat.flow["nodes"][2], chat.r["state"]) == "Dr. Asha"  # Dr. Asha's free times
+    assert slot_doctor({"settings": {"doctor": "Dr. B"}}, chat.r["state"]) == "Dr. B"  # the block's own wins
+    chat("Asha Patient")
+    chat(tap="2026-10-29")
+    assert chat.r["lead"]["doctor"] == "Dr. Asha"  # saved with the doctor chosen on the card

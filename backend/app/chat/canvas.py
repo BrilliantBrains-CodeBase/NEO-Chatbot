@@ -80,7 +80,7 @@ async def turn(
     conn: asyncpg.Connection, req: ChatRequest, state: dict[str, Any], pub: dict[str, Any]
 ) -> tuple[ChatResponse, dict[str, Any], str]:
     """One patient message on the canvas: the reply, the new conversation state and who answered."""
-    from app.api.v1.crm_console import _context, _free, _nearest_phrase, _upcoming, kb_hit
+    from app.api.v1.crm_console import BOOKS, _context, _free, _nearest_phrase, _upcoming, kb_hit, slot_doctor
 
     flow, clinic = pub["flow"], req.client_id
     ctx = _context(pub, req.context.device)
@@ -135,13 +135,13 @@ async def turn(
                 )
             )  # fmt: skip
         at = next((n for n in flow["nodes"] if n["id"] == run_state.get("at")), None)
-        if at and at["type"] in ("book", "online", "reschedule", "follow_up"):
-            ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
+        if at and at["type"] in BOOKS:
+            ctx.slots = await _free(clinic, slot_doctor(at, run_state))
         reply = send(flow, ctx, copy.deepcopy(run_state), tap=tap, text=text)
         now_at = next((n for n in flow["nodes"] if n["id"] == reply.get("at")), None)
-        if ctx.slots is None and now_at and now_at["type"] in ("book", "online", "reschedule", "follow_up"):
+        if ctx.slots is None and now_at and now_at["type"] in BOOKS:
             # e.g. a treatment's Book went straight to "Which date?": the dates are needed in this reply
-            ctx.slots = await _free(clinic, now_at["settings"].get("doctor") or "")
+            ctx.slots = await _free(clinic, slot_doctor(now_at, reply["state"]))
             reply = send(flow, ctx, run_state, tap=tap, text=text)
     lead = reply.get("lead")
     lead_note = await _save(conn, req, lead) if lead else None

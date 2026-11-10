@@ -503,6 +503,10 @@ class Run:
     def act(self, node: Node, b: dict[str, Any]) -> None:
         a, value = b["action"], b.get("value", "")
         if a == "go":
+            if node.type == "doctor_card" and b["id"] == "book":
+                # "Book with this doctor": the booking is with them (their free times; not asked again)
+                self.fields["doctor"] = node.settings["doctor"]
+                self.fields["_picked"] = "doctor"
             self.follow(b["id"])
         elif a == "treatment":
             self.fields["treatment"] = value

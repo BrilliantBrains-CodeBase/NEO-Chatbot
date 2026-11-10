@@ -919,15 +919,29 @@ async def test_chat(user: Annotated[Staff, Depends(staff)], clinic: str, body: T
                 clinic, phone.replace(" ", ""),
             )
         )  # fmt: skip
-    if at and at["type"] in ("book", "online", "reschedule", "follow_up"):
-        ctx.slots = await _free(clinic, at["settings"].get("doctor") or "")
+    if at and at["type"] in BOOKS:
+        ctx.slots = await _free(clinic, slot_doctor(at, body.state))
     reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
+    now_at = next((n for n in draft["flow"]["nodes"] if n["id"] == reply.get("at")), None)
+    if ctx.slots is None and now_at and now_at["type"] in BOOKS:
+        # e.g. a doctor's Book went straight to "Which date?": the dates are needed in this reply (as live)
+        ctx.slots = await _free(clinic, slot_doctor(now_at, reply["state"]))
+        reply = send(draft["flow"], ctx, body.state, tap=body.tap, text=body.text)
     stage = draft["flow"].get("globals", {}).get("request_stage", "follow_up")
     if reply["lead"]:
         reply["saved"] = await _save_test_lead(user, reply["lead"], body.device, stage)
     if reply["alert"]:
         reply["alert_note"] = await _test_alert(user, reply["alert"], body.device)
     return reply
+
+
+BOOKS = ("book", "online", "reschedule", "follow_up")  # the blocks that book a free time
+
+
+def slot_doctor(node: dict[str, Any], state: dict[str, Any] | None) -> str:
+    """Whose free times a booking offers: its block's own doctor, else the one chosen in this chat (a doctor's
+    card's Book), else any doctor ("")."""
+    return str(node["settings"].get("doctor") or ((state or {}).get("fields") or {}).get("doctor") or "")
 
 
 async def _free(clinic: str, doctor: str) -> dict[str, dict[str, list[str]]]:
