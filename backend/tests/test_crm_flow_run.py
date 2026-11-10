@@ -1140,3 +1140,31 @@ def test_a_treatment_with_a_cost_or_other_question_answers_that_part_too() -> No
     assert "Book" in chat.labels()
     chat = Chat(flow, c)
     assert chat("ivf") == ["In-Vitro Fertilization (IVF)\nIVF."]  # the short name alone: its card
+
+
+def test_asking_about_emergency_services_is_not_an_emergency_but_a_real_one_still_is() -> None:
+    from app.chat.understand import is_emergency
+
+    for info in (
+        "what emergency services are available?",
+        "do you have emergency services",
+        "emergency number?",
+    ):
+        assert not is_emergency(info), info
+    for real in (
+        "emergency",
+        "emergency! i am bleeding",
+        "help emergency",
+        "bleeding after surgery",
+        "do you have emergency services? my father fainted",
+        "is there an emergency doctor available now",
+    ):
+        assert is_emergency(real), real  # fmt: skip
+
+    sos = {"id": "sos", "type": "emergency", "settings": {"text": "Call 108 now."}}
+    flow = {"nodes": [opening(("m1", "Hi")), sos], "edges": []}
+    kb = ctx(kb=lambda q: "No emergency services; call the clinic." if "emergency" in q else None)
+    chat = Chat(flow, kb)
+    assert chat("do you have emergency services?") == ["No emergency services; call the clinic."]
+    assert chat.at != "sos" and not chat.r.get("alert")  # answered, no staff alert
+    assert chat("emergency, I am bleeding")[0] == "Call 108 now." and chat.at == "sos"

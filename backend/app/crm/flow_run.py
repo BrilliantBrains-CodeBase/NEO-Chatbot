@@ -20,10 +20,10 @@ from app.chat.intents import treatment_topic
 from app.chat.kb import GENERAL as KB_GENERAL
 from app.chat.understand import (
     COST_OPTIONS,
-    EMERGENCY,
     IDENTITY,
     INTENTS,
     MEDICAL,
+    is_emergency,
     is_menu,
     is_yes,
     match_option,
@@ -567,7 +567,7 @@ class Run:
         g = {t.kind: t for t in self.flow.globals.triggers if t.enabled}
         # Emergency words always come first, from anywhere: the trigger's block, else the flow's Emergency.
         sos = (g["emergency"].target if "emergency" in g else "") or self.first("emergency")
-        if EMERGENCY.search(text.lower()) and sos:
+        if is_emergency(text) and sos:  # not "do you have emergency services?"
             self.enter(sos)
             return self.reply()
         if "start_again" in g and norm(text) in ("start again", "restart", "start over"):

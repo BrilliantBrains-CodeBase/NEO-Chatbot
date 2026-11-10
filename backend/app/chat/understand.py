@@ -130,6 +130,25 @@ EMERGENCY = re.compile(
     r"\b(emergency|bleed(ing)?|faint(ed|ing)?|unconscious|can'?t breathe|breathing (problem|difficulty)|chest pain|"
     r"allergic|anaphyla\w*|severe (swelling|pain)|high fever)\b"
 )
+# Asking ABOUT emergency care is not an emergency: "do you have emergency services?", "emergency number?".
+EMERGENCY_INFO = re.compile(
+    r"\bemergency (services?|facilit\w*|care|number|contact|department|ward|timings?|availab\w*|support)\b"
+    r"|\b(do|does|is|are|any|have|has) (you|u|there|the clinic|your clinic)\b.*\bemergenc\w*"
+    r"|\bemergenc\w*.*\b(available|availability|provided|offered)\b"
+)
+# ...unless it also says what is happening, to whom, or asks for help.
+EMERGENCY_NOW = re.compile(r"\b(i|i'?m|me|my|we|our|he|she|his|her|help|urgent\w*|now|asap|please hurry)\b")
+
+
+def is_emergency(text: str) -> bool:
+    """An emergency to act on at once (the staff alert), not a question about the clinic's emergency care."""
+    low = " ".join(text.lower().split())
+    if not EMERGENCY.search(low):
+        return False
+    symptom = EMERGENCY.search(re.sub(r"\bemergenc\w*", " ", low))  # bleeding, fainted ... beside it
+    return bool(symptom or EMERGENCY_NOW.search(low) or not EMERGENCY_INFO.search(low))
+
+
 # Healthcare and medicine questions are never answered (client decision): they always become a lead.
 MEDICAL = re.compile(
     r"\b(medicines?|medication|tablets?|pills?|doses?|dosage|side ?effects?|safe for me|suitab\w*|candidate|eligib\w*|how many grafts|right for me|"
@@ -337,7 +356,7 @@ def spelled(text: str) -> str:
 def route(raw: str, c: dict[str, Any]) -> tuple[str, str]:
     """("emergency", ""), ("lead", ""), ("start", kind), ("node", key) or ("card", treatment)."""
     text = spelled(" ".join(raw.lower().split()))
-    if EMERGENCY.search(text):
+    if is_emergency(text):
         return "emergency", ""
     if MEDICAL.search(text):
         return "lead", ""
