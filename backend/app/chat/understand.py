@@ -227,7 +227,10 @@ INTENTS: list[tuple[re.Pattern[str], tuple[str, str]]] = [
     ),
     (
         re.compile(
-            r"\b(cost|price|fees?|charges?|package|emi|how much|rates?|financ\w*|instal+ments?|loans?|"
+            # "rate" is a price, but not a success / pregnancy / survival ... rate (an outcome, not a cost)
+            r"\b(cost|price|fees?|charges?|package|emi|how much|"
+            r"(?<!success )(?<!failure )(?<!pregnancy )(?<!survival )(?<!growth )(?<!heart )(?<!live birth )"
+            r"(?<!implantation )rates?|financ\w*|instal+ments?|loans?|"
             r"kharcha|lagega|"
             r"kitna (hoga|paisa|lagta)|kitne (ka|ki|ke|paise|rupaye))\b"
         ),

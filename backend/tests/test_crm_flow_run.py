@@ -1072,3 +1072,18 @@ def test_any_offers_counts_as_a_question_for_the_call_back_offer() -> None:
     cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name"], "consent": False}}
     chat = Chat({"nodes": [opening(("m1", "Call back")), cb], "edges": [line("opening", "m1", "cb")]})
     assert chat("any offers or discounts")[0].startswith("I don't have a confirmed answer")
+
+
+def test_a_success_rate_is_not_a_price_question_but_rates_still_are() -> None:
+    from app.chat.understand import INTENTS
+
+    cost = next(p for p, target in INTENTS if target == ("node", "cost"))
+    for price in ("what are your rates", "rate for prp", "ivf rate kitna", "how much", "cost of fue"):
+        assert cost.search(price), price
+    for outcome in (
+        "ivf success rate",
+        "what is the pregnancy rate",
+        "graft survival rate",
+        "hair growth rate",
+    ):
+        assert not cost.search(outcome), outcome
