@@ -144,7 +144,7 @@ async def turn(
             ctx.slots = await _free(clinic, slot_doctor(now_at, reply["state"]))
             reply = send(flow, ctx, run_state, tap=tap, text=text)
     lead = reply.get("lead")
-    lead_note = await _save(conn, req, lead) if lead else None
+    lead_note = await _save(conn, req, lead, flow) if lead else None
     alert = reply.get("alert")
     # An emergency: the managers are always emailed; with the patient's number, also an urgent call back.
     if alert and alerts.first_time(req.session_id, bool(alert.get("phone"))):
@@ -194,7 +194,9 @@ def _path(flow: dict[str, Any], kind: str) -> list[str]:
     return []
 
 
-async def _save(conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any]) -> str | None:
+async def _save(
+    conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any], flow: dict[str, Any] | None = None
+) -> str | None:
     """A finished booking / call back / question as a real lead and Inbox request. A message for the patient
     when it could not be saved (the time was just taken, or no phone number)."""
     kind = "book" if lead.get("type") == "follow_up" else lead.get("type")
@@ -235,6 +237,13 @@ async def _save(conn: asyncpg.Connection, req: ChatRequest, lead: dict[str, Any]
             code = await leads.save_completed(conn, req, f)
     except leads.SlotTaken:
         return SLOT_TAKEN
+    stage = ((flow or {}).get("globals") or {}).get("request_stage", "follow_up")
+    if kind in ("book", "online") and stage == "follow_up":  # the canvas's "moves the lead to Follow Up"
+        await conn.execute(
+            "update app.leads set stage = 'follow_up', updated_at = now() "
+            "where clinic_id = $1 and lead_code = $2 and stage = 'new'",
+            req.client_id, code,
+        )  # fmt: skip
     if kind in ("book", "online", "callback"):
         webhooks.emit(req.client_id, "callback_request" if kind == "callback" else "booking_request", {
             "lead_code": code, "type": kind, "name": f["name"], "phone": phone, "email": f["email"],
@@ -345,7 +354,12 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
             "options": choices, "main": True,
         }  # fmt: skip
         texts = [m for m in texts if m.text != last.get("text")]
-    elif choices and at and at["type"] == "opening":
+    elif (
+        choices
+        and at
+        and at["type"] == "opening"
+        and _menu_ids(pub["flow"]).keys() >= {str(b["id"]) for b in (last or {}).get("buttons") or []}
+    ):  # the opening's own buttons only: an offer made on the menu screen stays plain buttons
         ui = {"type": "menu", "layout": "cards3", "items": choices}
     elif choices:
         ui = {"type": "chips", "options": choices, "main": True}
