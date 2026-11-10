@@ -771,3 +771,27 @@ def test_change_details_treatment_with_techniques_asks_which_exactly() -> None:
     assert chat(tap="Non-Surgical") == ["Which treatment exactly?"]
     assert "Treatment: GFC" in chat(tap="GFC")[0]
     assert chat.labels() == ["Yes, that's correct", "Change details"]
+
+
+def test_the_name_question_never_takes_a_question_or_a_topic_as_the_name() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name", "phone"]}}
+    page = {"id": "page-cost", "type": "choice", "settings": {"message": "The cost depends on your plan."}}
+    flow = {"nodes": [opening(("m1", "Book")), book, page], "edges": [line("opening", "m1", "book")]}
+    kb = ctx(kb=lambda q: "We are open 10 to 7." if "open" in q else None)
+
+    chat = Chat(flow, kb)
+    chat(tap="m1")
+    # a question the Knowledge base knows: answered, then the name again
+    assert chat("when are you open?") == ["We are open 10 to 7.", "May I know your full name?"]
+    # a topic with the clinic's own page: that page's message, then the name again
+    assert chat("price") == ["The cost depends on your plan.", "May I know your full name?"]
+    for not_a_name in ("what is the price", "reviews", "I want to book an appointment please now ok"):
+        texts = chat(not_a_name)
+        assert not any(t.startswith("Thanks,") for t in texts), (not_a_name, texts)
+        assert chat.at == "book"
+    chat = Chat(flow, kb)
+    chat(tap="m1")
+    assert chat("Will Smith") == ["Thanks, Will Smith. What is your contact number?"]  # a real name
+    chat = Chat(flow, kb)
+    chat(tap="m1")
+    assert chat("Mohammed Abid") == ["Thanks, Mohammed Abid. What is your contact number?"]

@@ -75,6 +75,19 @@ SWITCH = [
 QUESTION = re.compile(
     r"\?\s*$|^(what|how|when|where|why|which|who|is|are|do|does|can|will|kya|kitna|kab|kahan)\b"
 )
+# Typed at "May I know your full name?" but no name: a question ("will" left out: Will is a name), a long
+# sentence, or a word a name never has. It is then answered (Knowledge base / the clinic's page) and the name
+# asked again, instead of "Thanks, what is the price".
+NAME_QUESTION = re.compile(
+    r"\?|^(what|how|when|where|why|which|who|is|are|do|does|can|kya|kitna|kab|kahan)\s"
+)
+NOT_NAME = {
+    "price", "prices", "cost", "costs", "fee", "fees", "charges", "timing", "timings", "hours", "open",
+    "address", "location", "located", "directions", "review", "reviews", "appointment", "appointments",
+    "booking", "book", "cancel", "reschedule", "doctor", "doctors", "treatment", "treatments", "clinic",
+    "help", "menu", "whatsapp", "call", "number", "phone", "email", "today", "tomorrow", "want", "need",
+    "please", "hello", "hi", "thanks", "thank", "ok", "okay", "yes", "no",
+}  # fmt: skip
 
 
 @dataclass
@@ -608,7 +621,28 @@ class Run:
                 self.say(found)
                 self.reask(node)
                 return True
+        # "timings" / "price" typed instead of the answer: the clinic's own page for it says it, then the
+        # same question again (the patient stays in the booking).
+        page = self.nodes.get(self.page_rule(low) or "")
+        said = str(page.settings.get("message") or page.settings.get("text") or "") if page else ""
+        if said and page and page.id != node.id:
+            self.say(said)
+            self.reask(node)
+            return True
         return False
+
+    def not_a_name(self, text: str) -> bool:
+        """Typed at the name question but plainly not a name (see NOT_NAME)."""
+        low = " ".join(text.lower().split())
+        words = set(re.findall(r"[a-z]+", low))
+        return bool(
+            len(low.split()) > 5
+            or NAME_QUESTION.search(low)
+            or MEDICAL.search(low)
+            or words & NOT_NAME
+            or self.page_rule(low)
+            or self.start_rule(low)
+        )
 
     def reask(self, node: Node) -> None:
         if (self.ask or {}).get("kind") == "lead":
@@ -885,7 +919,7 @@ class Run:
         """The answer in a clean form, or None when it does not fit its kind."""
         t = text.strip()
         if kind == "name":
-            return t if valid_name(t) else None
+            return t if valid_name(t) and not self.not_a_name(t) else None
         if kind == "phone":  # "+971 501234567" from the country picker, or a number alone (India)
             m = re.fullmatch(r"(\+\d{1,4})\s+(.+)", t)
             return normal_phone(m[2], m[1]) if m else normal_phone(t, None)
