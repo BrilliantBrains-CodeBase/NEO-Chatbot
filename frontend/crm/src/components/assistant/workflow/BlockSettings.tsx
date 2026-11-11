@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
+import { fitImage, ImageError } from "@/lib/image";
 import type { Service } from "./WorkflowView";
 import {
   BUTTON_ACTIONS,
@@ -152,6 +153,7 @@ export default function BlockSettings({
   const set = (patch: Record<string, unknown>) =>
     onChange({ settings: { ...s, ...patch } });
   const kind = KINDS[block.type];
+  const [photoError, setPhotoError] = useState("");
   const text = (key: string, label: string, rows = 1, max = 1500) => (
     <Row label={label}>
       {rows > 1 ? (
@@ -754,7 +756,85 @@ export default function BlockSettings({
           {text("doctor", "Doctor's name", 1, 80)}
           {text("title", "Title (e.g. Founder and Director)", 1, 120)}
           {text("qualifications", "Qualifications", 2, 300)}
-          {text("photo", "Photo (https://…, optional)", 1, 300)}
+          <Row label="Photo (optional): choose a picture, or paste a link">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              {String(s.photo ?? "") && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={String(s.photo)}
+                  alt=""
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "1px solid var(--line)",
+                  }}
+                />
+              )}
+              <label className="pill" style={{ cursor: "pointer" }}>
+                {String(s.photo ?? "") ? "Change photo" : "Choose photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = ""; // the same file can be chosen again
+                    if (!file) return;
+                    try {
+                      // A square JPEG of a few KB, kept with the card.
+                      const photo = await fitImage(file, {
+                        width: 240,
+                        height: 240,
+                        square: true,
+                        type: "image/jpeg",
+                      });
+                      setPhotoError("");
+                      set({ photo });
+                    } catch (err) {
+                      setPhotoError(
+                        err instanceof ImageError
+                          ? err.message
+                          : "Could not prepare the photo.",
+                      );
+                    }
+                  }}
+                />
+              </label>
+              {String(s.photo ?? "") && (
+                <button
+                  type="button"
+                  className="pill"
+                  onClick={() =>
+                    window.confirm("Remove this photo?") && set({ photo: "" })
+                  }
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <input
+              placeholder="or a link: https://…"
+              maxLength={600}
+              value={
+                String(s.photo ?? "").startsWith("data:")
+                  ? ""
+                  : String(s.photo ?? "")
+              }
+              onChange={(e) => set({ photo: e.target.value })}
+            />
+            {photoError && (
+              <span style={{ color: "var(--err)" }}>{photoError}</span>
+            )}
+          </Row>
           {text("about", "About (optional)", 3, 1000)}
           <Row label="Figures on the card (up to 6, e.g. 20+ Years experience)">
             {((s.stats as { value: string; label: string }[]) ?? []).map(

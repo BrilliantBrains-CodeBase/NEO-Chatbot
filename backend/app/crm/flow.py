@@ -145,7 +145,13 @@ class DoctorSettings(BaseModel):
     doctor: str = Field(min_length=1, max_length=80)  # the name, as in the CRM's Doctors
     title: str = Field(default="", max_length=120)  # e.g. Founder and Director
     qualifications: str = Field(default="", max_length=300)
-    photo: str = Field(default="", max_length=300, pattern=r"^(https://\S+)?$")
+    # A link, or a photo chosen on a PC or phone: made small in the browser (a square JPEG of a few KB, kept
+    # with the card), so up to about 90 KB.
+    photo: str = Field(
+        default="",
+        max_length=120_000,
+        pattern=r"^(https://\S{1,600}|data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)?$",
+    )
     about: str = Field(default="", max_length=1000)
     stats: list[Figure] = Field(default=[], max_length=6)  # e.g. 20+ Years experience
     book_label: str = Field(

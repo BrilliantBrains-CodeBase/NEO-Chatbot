@@ -1168,3 +1168,23 @@ def test_asking_about_emergency_services_is_not_an_emergency_but_a_real_one_stil
     assert chat("do you have emergency services?") == ["No emergency services; call the clinic."]
     assert chat.at != "sos" and not chat.r.get("alert")  # answered, no staff alert
     assert chat("emergency, I am bleeding")[0] == "Call 108 now." and chat.at == "sos"
+
+
+def test_a_doctor_card_photo_is_a_link_or_a_small_uploaded_picture() -> None:
+    import pytest
+
+    from app.crm.flow import FlowError
+
+    def card(photo: str) -> dict[str, Any]:
+        doc = {"id": "doc", "type": "doctor_card", "settings": {"doctor": "Dr. Asha", "photo": photo}}
+        return {"nodes": [opening(("m1", "Doctors")), doc], "edges": [line("opening", "m1", "doc")]}
+
+    for ok in ("", "https://example.com/asha.jpg", "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ=="):
+        normalise(card(ok))
+    for bad in (
+        "http://example.com/a.jpg",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "data:image/jpeg;base64," + "A" * 130_000,
+    ):
+        with pytest.raises(FlowError):
+            normalise(card(bad))
