@@ -21,8 +21,12 @@ export default function TeamPage() {
   const { clinic, me, openModal, closeModal } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const superAdmin = !!me?.bb_admin;
-  const [loaded, setLoaded] = useState<{ clinic: string; team: Team } | null>(null);
-  const [failed, setFailed] = useState<{ clinic: string; text: string } | null>(null);
+  const [loaded, setLoaded] = useState<{ clinic: string; team: Team } | null>(
+    null,
+  );
+  const [failed, setFailed] = useState<{ clinic: string; text: string } | null>(
+    null,
+  );
   const [tab, setTab] = useState<Tab>("members");
 
   useEffect(() => {
@@ -30,7 +34,12 @@ export default function TeamPage() {
     let live = true;
     api<Team>(`/v1/crm/team/${clinicId}`).then(
       (team) => live && setLoaded({ clinic: clinicId, team }),
-      (e) => live && setFailed({ clinic: clinicId, text: message(e, "Could not load the team.") }),
+      (e) =>
+        live &&
+        setFailed({
+          clinic: clinicId,
+          text: message(e, "Could not load the team."),
+        }),
     );
     return () => {
       live = false;
@@ -38,7 +47,8 @@ export default function TeamPage() {
   }, [clinicId]);
 
   const team = loaded && loaded.clinic === clinicId ? loaded.team : null;
-  const error = failed && failed.clinic === clinicId && !team ? failed.text : "";
+  const error =
+    failed && failed.clinic === clinicId && !team ? failed.text : "";
   const saved = useCallback(
     (t: Team) => {
       if (clinicId) setLoaded({ clinic: clinicId, team: t });
@@ -53,7 +63,11 @@ export default function TeamPage() {
         body: body ? JSON.stringify(body) : undefined,
       });
       // Addressed through another clinic (they moved there): this clinic's list is read again.
-      saved(at && at !== clinicId ? await api<Team>(`/v1/crm/team/${clinicId}`) : answer);
+      saved(
+        at && at !== clinicId
+          ? await api<Team>(`/v1/crm/team/${clinicId}`)
+          : answer,
+      );
     },
     [clinicId, saved],
   );
@@ -66,12 +80,15 @@ export default function TeamPage() {
       </div>
     );
 
-  const waiting = team?.requests.filter((r) => r.status === "pending").length ?? 0;
+  const waiting =
+    team?.requests.filter((r) => r.status === "pending").length ?? 0;
   const tabs: [Tab, string, number | null][] = [
     ["members", "Members", team ? team.members.length : null],
     ["requests", "Requests", waiting || null],
     ["roles", "Roles & permissions", null],
-    ...(superAdmin ? ([["clinics", "Clinics", null]] as [Tab, string, null][]) : []),
+    ...(superAdmin
+      ? ([["clinics", "Clinics", null]] as [Tab, string, null][])
+      : []),
   ];
 
   return (
@@ -139,9 +156,16 @@ export default function TeamPage() {
             <RequestsTab team={team} superAdmin={superAdmin} change={change} />
           )}
           {tab === "roles" && (
-            <RolesTab key={clinicId} clinicId={clinicId} clinic={clinic} people={team.members} />
+            <RolesTab
+              key={clinicId}
+              clinicId={clinicId}
+              clinic={clinic}
+              people={team.members}
+            />
           )}
-          {tab === "clinics" && superAdmin && <ClinicsTab onOpen={() => setTab("members")} />}
+          {tab === "clinics" && superAdmin && (
+            <ClinicsTab onOpen={() => setTab("members")} />
+          )}
         </>
       )}
     </div>

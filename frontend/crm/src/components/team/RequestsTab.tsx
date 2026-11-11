@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
-import { Confirm, dateTime, givableRoles, message, Person, roleLabel, type AccessRequest, type Team } from "./shared";
+import {
+  Confirm,
+  dateTime,
+  givableRoles,
+  message,
+  Person,
+  roleLabel,
+  type AccessRequest,
+  type Team,
+} from "./shared";
 
 // People who used "Create an account" and wait for a decision, and the last decisions taken.
 
@@ -30,7 +39,10 @@ export default function RequestsTab({
     setBusy(r.id);
     setError("");
     try {
-      await change(`/requests/${r.id}`, "POST", { status: "approved", role: asRole[r.id] ?? r.role });
+      await change(`/requests/${r.id}`, "POST", {
+        status: "approved",
+        role: asRole[r.id] ?? r.role,
+      });
       toast(`${r.name} can now sign in`);
     } catch (e) {
       setError(message(e, "Could not approve. Please try again."));
@@ -81,7 +93,8 @@ export default function RequestsTab({
               {waiting.length === 0 && (
                 <tr>
                   <td colSpan={5} className="tm-none">
-                    No one is waiting. New requests from Create an account appear here.
+                    No one is waiting. New requests from Create an account
+                    appear here.
                   </td>
                 </tr>
               )}
@@ -90,7 +103,10 @@ export default function RequestsTab({
                 return (
                   <tr key={r.id}>
                     <td>
-                      <Person name={r.name} sub={r.phone ? `${r.email} · ${r.phone}` : r.email} />
+                      <Person
+                        name={r.name}
+                        sub={r.phone ? `${r.email} · ${r.phone}` : r.email}
+                      />
                     </td>
                     <td>{roleLabel(r.role)}</td>
                     <td className="tm-sub">{dateTime(r.created_at)}</td>
@@ -100,7 +116,9 @@ export default function RequestsTab({
                           className="sel"
                           aria-label={`Approve ${r.name} as`}
                           value={asRole[r.id] ?? r.role}
-                          onChange={(e) => setAsRole({ ...asRole, [r.id]: e.target.value })}
+                          onChange={(e) =>
+                            setAsRole({ ...asRole, [r.id]: e.target.value })
+                          }
                         >
                           {roles.map((k) => (
                             <option key={k} value={k}>
@@ -109,7 +127,9 @@ export default function RequestsTab({
                           ))}
                         </select>
                       ) : (
-                        <span className="tm-sub">Waiting for a Super Admin</span>
+                        <span className="tm-sub">
+                          Waiting for a Super Admin
+                        </span>
                       )}
                     </td>
                     <td className="tm-end">
@@ -128,7 +148,11 @@ export default function RequestsTab({
                                     action="Reject"
                                     danger
                                     onConfirm={async () => {
-                                      await change(`/requests/${r.id}`, "POST", { status: "rejected" });
+                                      await change(
+                                        `/requests/${r.id}`,
+                                        "POST",
+                                        { status: "rejected" },
+                                      );
                                       toast("Request rejected");
                                     }}
                                     onClose={closeModal}
@@ -183,7 +207,9 @@ export default function RequestsTab({
                   </td>
                   <td>{roleLabel(r.role)}</td>
                   <td>
-                    <span className={`badge ${r.status === "approved" ? "b-vi" : "b-in"}`}>
+                    <span
+                      className={`badge ${r.status === "approved" ? "b-vi" : "b-in"}`}
+                    >
                       {r.status === "approved" ? "Approved" : "Rejected"}
                     </span>
                   </td>

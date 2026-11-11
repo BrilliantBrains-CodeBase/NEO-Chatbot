@@ -96,16 +96,6 @@ async def _may_give(user: Staff, role: str) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the main Super Admin can change Super Admins.")
 
 
-def one_clinic(roles: dict[str, str]) -> None:
-    """Front Desk works in exactly one clinic, so a patient is never routed to the wrong one. `roles`: clinic
-    id -> role as it would be after the change."""
-    if "front_desk" in roles.values() and "bb_admin" not in roles.values() and len(roles) > 1:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "Front Desk works in one clinic only. Keep one clinic, or use a separate login for the other.",
-        )
-
-
 async def roles_of(conn: Any, uid: str) -> dict[str, Any]:
     """Every clinic this person has a row for (disabled too)."""
     sql = "select clinic_id, role, active from app.user_clinics where user_id::text = $1"
@@ -223,8 +213,6 @@ async def decide(
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         if body.status == "approved" and req["user_id"]:
-            has = await roles_of(conn, str(req["user_id"]))
-            one_clinic({c: r["role"] for c, r in has.items()} | {clinic: role})
             await give_role(conn, str(req["user_id"]), clinic, role)
         elif body.status == "rejected" and req["user_id"]:
             other = await conn.fetchval(
@@ -264,7 +252,6 @@ async def invite(user: Annotated[Staff, Depends(staff)], clinic: str, body: Invi
     chosen = list(dict.fromkeys(body.clinics or [clinic]))
     if any(c not in managed for c in chosen):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You can only give access to clinics you manage.")
-    one_clinic(dict.fromkeys(chosen, body.role))  # before any login is made
     if body.role == "bb_admin":
         chosen = chosen[:1]
     pool = await get_pool()
@@ -290,7 +277,6 @@ async def invite(user: Annotated[Staff, Depends(staff)], clinic: str, body: Invi
         for c in new:
             if c in has:  # disabled here: their old role is only replaced by someone who may change it
                 await _may_give(user, has[c]["role"])
-        one_clinic({c: r["role"] for c, r in has.items()} | dict.fromkeys(new, body.role))
         for c in new:
             await give_role(conn, uid, c, body.role)
     return await _team(user, clinic)
@@ -330,9 +316,6 @@ async def change(user: Annotated[Staff, Depends(staff)], clinic: str, member: st
     role = body.role or now
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
-        if role != now:
-            has = await roles_of(conn, member)
-            one_clinic({c: r["role"] for c, r in has.items()} | {clinic: role})
         if role != "doctor":
             await _unlink_doctor(conn, member, clinic)
         await conn.execute(
@@ -385,9 +368,6 @@ async def set_clinics(
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         has = await roles_of(conn, member)  # disabled too
         now = set(has)
-        if wanted - now:
-            kept = {c: r["role"] for c, r in has.items() if c in wanted or c not in managed}
-            one_clinic(kept | dict.fromkeys(wanted - now, role))
         for c in wanted - now:
             await give_role(conn, member, c, role)
         gone = [c for c in now - wanted if c in managed]

@@ -30,7 +30,11 @@ export type AccessRequest = {
   decided_by: string | null;
   decided_at: string | null;
 };
-export type DoctorRecord = { id: string; name: string; linked_to: string | null };
+export type DoctorRecord = {
+  id: string;
+  name: string;
+  linked_to: string | null;
+};
 export type Team = {
   members: Member[];
   requests: AccessRequest[];
@@ -40,26 +44,33 @@ export type Team = {
   can_add_admins: boolean;
 };
 
-export const ROLES: Record<string, { label: string; badge: string; about: string }> = {
+export const ROLES: Record<
+  string,
+  { label: string; badge: string; about: string }
+> = {
   bb_admin: {
     label: "Super Admin",
     badge: "b-bk",
-    about: "Every clinic. Adds and manages clinics, sets the defaults for all of them.",
+    about:
+      "Every clinic. Adds and manages clinics, sets the defaults for all of them.",
   },
   clinic_manager: {
     label: "Admin",
     badge: "b-new",
-    about: "One clinic's leads, patients, team and chatbot. Cannot add clinics.",
+    about:
+      "One clinic's leads, patients, team and chatbot. Cannot add clinics.",
   },
   front_desk: {
     label: "Front Desk",
     badge: "b-on",
-    about: "Telecallers and reception, in one clinic only: leads, inbox, appointments, patients.",
+    about:
+      "Telecallers and reception, in the clinics you tick: leads, inbox, appointments, patients.",
   },
   doctor: {
     label: "Doctor",
     badge: "b-cl",
-    about: "Their own appointments and patients, and their own hours and leave.",
+    about:
+      "Their own appointments and patients, and their own hours and leave.",
   },
 };
 export const roleLabel = (role: string) => ROLES[role]?.label ?? role;
@@ -79,7 +90,10 @@ export const message = (e: unknown, fallback: string) =>
 
 export const dateTime = (iso: string | null) =>
   iso
-    ? new Date(iso).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    ? new Date(iso).toLocaleString("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      })
     : "Never";
 
 export function lastSeen(iso: string | null) {
@@ -101,7 +115,15 @@ export const initials = (name: string) =>
     .join("")
     .toUpperCase();
 
-export function Person({ name, sub, you }: { name: string; sub: string; you?: boolean }) {
+export function Person({
+  name,
+  sub,
+  you,
+}: {
+  name: string;
+  sub: string;
+  you?: boolean;
+}) {
   return (
     <div className="tm-person">
       <span className="av" aria-hidden="true">
@@ -118,10 +140,21 @@ export function Person({ name, sub, you }: { name: string; sub: string; you?: bo
   );
 }
 
-export type MenuItem = { label: string; onClick: () => void; danger?: boolean; disabled?: boolean };
+export type MenuItem = {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+};
 
 /** The ⋯ on a table row. Drawn over the page, so a table's scrolling never cuts it off. */
-export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) {
+export function RowMenu({
+  label,
+  items,
+}: {
+  label: string;
+  items: MenuItem[];
+}) {
   const [at, setAt] = useState<{ top: number; right: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
 
@@ -165,7 +198,11 @@ export function RowMenu({ label, items }: { label: string; items: MenuItem[] }) 
         <Icon name="more" />
       </button>
       {at && (
-        <div className="tm-menu" role="menu" style={{ top: at.top, right: at.right }}>
+        <div
+          className="tm-menu"
+          role="menu"
+          style={{ top: at.top, right: at.right }}
+        >
           {items.map((i) => (
             <button
               key={i.label}
@@ -209,7 +246,11 @@ export function Confirm({
       {typed && (
         <label className="tm-field" style={{ marginBottom: 12 }}>
           Type {typed} to confirm
-          <input className="f" value={word} onChange={(e) => setWord(e.target.value)} />
+          <input
+            className="f"
+            value={word}
+            onChange={(e) => setWord(e.target.value)}
+          />
         </label>
       )}
       {error && (

@@ -4,7 +4,15 @@ import { useEffect, useState } from "react";
 import Loading from "@/components/crm/Loading";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api } from "@/lib/api";
-import { Confirm, dateTime, message, ROLES, roleLabel, RowMenu, type Member } from "./shared";
+import {
+  Confirm,
+  dateTime,
+  message,
+  ROLES,
+  roleLabel,
+  RowMenu,
+  type Member,
+} from "./shared";
 
 // What each role can do. Super Admin edits the defaults for all clinics or one clinic's own rules; an Admin edits
 // their clinic's Front Desk and Doctor columns, never above their own access. Super Admin always has everything.
@@ -31,7 +39,11 @@ type Rules = {
 };
 
 const RANK: Level[] = ["hidden", "view", "edit"];
-const LEVEL: Record<Level, string> = { hidden: "Hidden", view: "View", edit: "Edit" };
+const LEVEL: Record<Level, string> = {
+  hidden: "Hidden",
+  view: "View",
+  edit: "Edit",
+};
 
 export default function RolesTab({
   clinicId,
@@ -73,7 +85,10 @@ export default function RolesTab({
   const allowed = (role: string, screen: string, level: Level) => {
     if (role === "clinic_manager") return r.can_edit_managers;
     if (r.can_edit_defaults) return true;
-    return RANK.indexOf(level) <= RANK.indexOf(r.effective.clinic_manager[screen] ?? "hidden");
+    return (
+      RANK.indexOf(level) <=
+      RANK.indexOf(r.effective.clinic_manager[screen] ?? "hidden")
+    );
   };
 
   async function save(next: Table | null) {
@@ -94,10 +109,13 @@ export default function RolesTab({
     }
   }
 
-  const label = (key: string) => r.screens.find((s) => s.key === key)?.label ?? key;
+  const label = (key: string) =>
+    r.screens.find((s) => s.key === key)?.label ?? key;
   // Only a Super Admin gives an Admin extra access; Super Admins already have everything.
   const givable = people.filter(
-    (p) => p.role !== "bb_admin" && (r.can_edit_managers || p.role !== "clinic_manager"),
+    (p) =>
+      p.role !== "bb_admin" &&
+      (r.can_edit_managers || p.role !== "clinic_manager"),
   );
 
   return (
@@ -116,7 +134,9 @@ export default function RolesTab({
           <h2>Who sees what</h2>
           <p>
             Hidden: not shown. View: can look, not change. Edit: can change.
-            {scope === "clinic" && Object.keys(r.own).length > 0 && ` ${clinic} has its own rules.`}
+            {scope === "clinic" &&
+              Object.keys(r.own).length > 0 &&
+              ` ${clinic} has its own rules.`}
           </p>
         </div>
         {r.can_edit_defaults && (
@@ -170,12 +190,19 @@ export default function RolesTab({
                             onChange={(e) =>
                               setTable({
                                 ...table,
-                                [role]: { ...table[role], [s.key]: e.target.value as Level },
+                                [role]: {
+                                  ...table[role],
+                                  [s.key]: e.target.value as Level,
+                                },
                               })
                             }
                           >
                             {RANK.map((lv) => (
-                              <option key={lv} value={lv} disabled={!allowed(role, s.key, lv)}>
+                              <option
+                                key={lv}
+                                value={lv}
+                                disabled={!allowed(role, s.key, lv)}
+                              >
                                 {LEVEL[lv]}
                               </option>
                             ))}
@@ -221,10 +248,20 @@ export default function RolesTab({
         )}
         {dirty && (
           <>
-            <button type="button" className="btn g" disabled={busy} onClick={() => setTable(base)}>
+            <button
+              type="button"
+              className="btn g"
+              disabled={busy}
+              onClick={() => setTable(base)}
+            >
               Discard
             </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => void save(table)}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => void save(table)}
+            >
               {busy ? "Saving…" : "Save changes"}
             </button>
           </>
@@ -234,7 +271,9 @@ export default function RolesTab({
       <div className="tm-head" style={{ marginTop: 24 }}>
         <div>
           <h2>Temporary access</h2>
-          <p>Give one person a screen until a date and time. It ends by itself.</p>
+          <p>
+            Give one person a screen until a date and time. It ends by itself.
+          </p>
         </div>
         <button
           type="button"
@@ -297,12 +336,17 @@ export default function RolesTab({
                         label: "End now",
                         danger: true,
                         onClick: () =>
-                          void api<Rules>(`${url}/grants/${g.id}`, { method: "DELETE" }).then(
+                          void api<Rules>(`${url}/grants/${g.id}`, {
+                            method: "DELETE",
+                          }).then(
                             (x) => {
                               setR(x);
                               toast("Access ended");
                             },
-                            (e) => setError(message(e, "Could not end this access.")),
+                            (e) =>
+                              setError(
+                                message(e, "Could not end this access."),
+                              ),
                           ),
                       },
                     ]}
@@ -363,7 +407,11 @@ function GrantForm({
       <div className="tm-form">
         <label className="tm-field full">
           Person
-          <select className="f" value={userId} onChange={(e) => setUserId(e.target.value)}>
+          <select
+            className="f"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+          >
             <option value="">Choose someone</option>
             {people.map((p) => (
               <option key={p.id} value={p.id}>
@@ -374,7 +422,11 @@ function GrantForm({
         </label>
         <label className="tm-field">
           Screen
-          <select className="f" value={screen} onChange={(e) => setScreen(e.target.value)}>
+          <select
+            className="f"
+            value={screen}
+            onChange={(e) => setScreen(e.target.value)}
+          >
             <option value="">Choose a screen</option>
             {screens.map((s) => (
               <option key={s.key} value={s.key}>
@@ -385,7 +437,11 @@ function GrantForm({
         </label>
         <label className="tm-field">
           Level
-          <select className="f" value={level} onChange={(e) => setLevel(e.target.value)}>
+          <select
+            className="f"
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+          >
             <option value="view">View</option>
             <option value="edit">Edit</option>
           </select>
@@ -410,7 +466,11 @@ function GrantForm({
         <button type="button" className="btn g" onClick={onClose}>
           Cancel
         </button>
-        <button type="submit" className="btn" disabled={busy || !userId || !screen || !until}>
+        <button
+          type="submit"
+          className="btn"
+          disabled={busy || !userId || !screen || !until}
+        >
           {busy ? "Giving…" : "Give access"}
         </button>
       </div>

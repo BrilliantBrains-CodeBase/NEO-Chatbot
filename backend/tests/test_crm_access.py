@@ -221,28 +221,29 @@ async def test_a_clinic_manager_reaches_nothing_of_another_clinic(
 
 
 @needs_db
-async def test_front_desk_works_in_exactly_one_clinic(
+async def test_front_desk_can_work_in_several_clinics(
     api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
 ) -> None:
-    calls = _no_emails(monkeypatch)
+    """User, 2026-11-11: a Front Desk person may work in more than one clinic, with a role row in each (each
+    clinic's leads, inbox and turns for new leads stay its own)."""
     headers = signed_in_as(monkeypatch, world["bb"]["id"])
     desk = world["desk"]
-    two = {"full_name": "New Desk", "email": "new-desk@example.com", "role": "front_desk",
-           "clinics": ["CL99", "CL98"]}  # fmt: skip
-    assert (await api.post(f"{TEAM}/invite", json=two, headers=headers)).status_code == 422
-    assert calls == []  # refused before any login is made
-    other = {"full_name": "Desk", "email": desk["email"], "role": "doctor", "clinics": ["CL98"]}
-    assert (await api.post(f"{TEAM}/invite", json=other, headers=headers)).status_code == 422
     url = f"{TEAM}/members/{desk['id']}/clinics"
-    assert (await api.put(url, json={"clinics": ["CL99", "CL98"]}, headers=headers)).status_code == 422
-    # Moving to the other clinic is one clinic still.
-    assert (await api.put(url, json={"clinics": ["CL98"]}, headers=headers)).status_code == 200
+    assert (await api.put(url, json={"clinics": ["CL99", "CL98"]}, headers=headers)).status_code == 200
     pool = await get_pool()
+    rows = await pool.fetch(
+        "select clinic_id, role, in_round_robin from app.user_clinics where user_id = $1::uuid order by 1",
+        desk["id"],
+    )
+    assert [(r["clinic_id"], r["role"]) for r in rows] == [("CL98", "front_desk"), ("CL99", "front_desk")]
+    assert rows[0]["in_round_robin"]  # the new clinic: they take turns for its new leads
+    # Back to one clinic works too.
+    assert (await api.put(url, json={"clinics": ["CL98"]}, headers=headers)).status_code == 200
     rows = await pool.fetch("select clinic_id from app.user_clinics where user_id = $1::uuid", desk["id"])
     assert [r["clinic_id"] for r in rows] == ["CL98"]
-    # Someone with two clinics cannot become Front Desk in one of them.
+    # Someone with two clinics can become Front Desk in one of them.
     both = f"{TEAM}/members/{world['both']['id']}"
-    assert (await api.put(both, json={"role": "front_desk"}, headers=headers)).status_code == 422
+    assert (await api.put(both, json={"role": "front_desk"}, headers=headers)).status_code == 200
 
 
 @needs_db

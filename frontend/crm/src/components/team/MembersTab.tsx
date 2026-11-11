@@ -42,14 +42,14 @@ export default function MembersTab({
     const q = search.trim().toLowerCase();
     return team.members.filter(
       (m) =>
-        (!q || m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)) &&
+        (!q ||
+          m.name.toLowerCase().includes(q) ||
+          m.email.toLowerCase().includes(q)) &&
         (!role || m.role === role) &&
         (!status || (status === "active") === m.active),
     );
   }, [team.members, search, role, status]);
   const present = [...new Set(team.members.map((m) => m.role))];
-  // From before Front Desk was limited to one clinic: shown so it can be put right, never removed by itself.
-  const overLimit = team.members.filter((m) => m.role === "front_desk" && m.clinics.length > 1);
 
   const canChange = (m: Member) =>
     !m.me &&
@@ -57,11 +57,23 @@ export default function MembersTab({
       ? team.can_add_admins
       : m.role !== "clinic_manager" || superAdmin);
 
-  const ask = (title: string, text: string, action: string, run: () => Promise<void>, danger = false) =>
+  const ask = (
+    title: string,
+    text: string,
+    action: string,
+    run: () => Promise<void>,
+    danger = false,
+  ) =>
     openModal({
       title,
       body: (
-        <Confirm text={text} action={action} danger={danger} onConfirm={run} onClose={closeModal} />
+        <Confirm
+          text={text}
+          action={action}
+          danger={danger}
+          onConfirm={run}
+          onClose={closeModal}
+        />
       ),
     });
 
@@ -136,13 +148,6 @@ export default function MembersTab({
   const filtered = !!(search.trim() || role || status);
   return (
     <>
-      {overLimit.length > 0 && (
-        <div className="warnbox" style={{ marginBottom: 12 }}>
-          {overLimit.map((m) => m.name).join(", ")}{" "}
-          {overLimit.length === 1 ? "is" : "are"} Front Desk in more than one clinic. Front Desk should work in one
-          clinic only: open Edit role and access to keep one.
-        </div>
-      )}
       <div className="tm-filters">
         <label className="search">
           <Icon name="search" />
@@ -194,19 +199,29 @@ export default function MembersTab({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={6} className="tm-none">
-                  {filtered ? "No one matches these filters." : `No one can sign in to ${clinic} yet. Invite your first member.`}
+                  {filtered
+                    ? "No one matches these filters."
+                    : `No one can sign in to ${clinic} yet. Invite your first member.`}
                 </td>
               </tr>
             )}
             {rows.map((m) => (
               <tr key={m.id}>
                 <td>
-                  <Person name={m.name} sub={m.phone ? `${m.email} · ${m.phone}` : m.email} you={m.me} />
+                  <Person
+                    name={m.name}
+                    sub={m.phone ? `${m.email} · ${m.phone}` : m.email}
+                    you={m.me}
+                  />
                 </td>
                 <td>
-                  <span className={`badge ${ROLES[m.role]?.badge ?? "b-cl"}`}>{m.role_label}</span>
+                  <span className={`badge ${ROLES[m.role]?.badge ?? "b-cl"}`}>
+                    {m.role_label}
+                  </span>
                   {m.role === "doctor" && !m.doctor_id && (
-                    <div className="tm-sub tm-warn">Not linked to a doctor record</div>
+                    <div className="tm-sub tm-warn">
+                      Not linked to a doctor record
+                    </div>
                   )}
                 </td>
                 <td>
@@ -229,7 +244,9 @@ export default function MembersTab({
                 </td>
                 <td className="tm-sub">{lastSeen(m.last_seen_at)}</td>
                 <td className="tm-end">
-                  {canChange(m) && <RowMenu label={`Actions for ${m.name}`} items={menu(m)} />}
+                  {canChange(m) && (
+                    <RowMenu label={`Actions for ${m.name}`} items={menu(m)} />
+                  )}
                 </td>
               </tr>
             ))}

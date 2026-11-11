@@ -13,7 +13,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 
-from app.api.v1.crm_team import give_role, one_clinic, roles_of
+from app.api.v1.crm_team import give_role
 from app.chat import main_template
 from app.core.codes import CLINIC_CODE, code_from_name
 from app.core.db import get_pool
@@ -134,8 +134,6 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
             list(main_template.PARTS) if body.copy_from == main_template.MAIN else [],
         )  # fmt: skip  (a copy of the main follows it: canvas, Templates, Appearance)
         if manager_id:
-            has = await roles_of(conn, str(manager_id))
-            one_clinic({c: r["role"] for c, r in has.items()} | {code: "clinic_manager"})
             await give_role(conn, str(manager_id), code, "clinic_manager")
     return await _list()
 

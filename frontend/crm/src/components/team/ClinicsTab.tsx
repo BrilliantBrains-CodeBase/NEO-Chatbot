@@ -117,7 +117,10 @@ export default function ClinicsTab({ onOpen }: { onOpen: () => void }) {
       <div className="tm-head">
         <div>
           <h2>Clinics</h2>
-          <p>Every clinic in this project. Only Super Admins add or change clinics.</p>
+          <p>
+            Every clinic in this project. Only Super Admins add or change
+            clinics.
+          </p>
         </div>
         <button
           type="button"
@@ -209,16 +212,30 @@ function AddClinicForm({
   add: (body: object, name: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({ ...EMPTY, copy_from: clinics[0]?.id ?? MAIN });
+  const [form, setForm] = useState({
+    ...EMPTY,
+    copy_from: clinics[0]?.id ?? MAIN,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm({ ...form, [k]: e.target.value });
-  const ready = form.name.trim().length >= 2 && form.bot_name.trim().length >= 2;
-  const field = (k: keyof typeof form, label: string, hint?: string, full?: boolean) => (
+  const ready =
+    form.name.trim().length >= 2 && form.bot_name.trim().length >= 2;
+  const field = (
+    k: keyof typeof form,
+    label: string,
+    hint?: string,
+    full?: boolean,
+  ) => (
     <label className={`tm-field${full ? " full" : ""}`}>
       {label}
-      <input className="f" placeholder={hint} value={form[k]} onChange={set(k)} />
+      <input
+        className="f"
+        placeholder={hint}
+        value={form[k]}
+        onChange={set(k)}
+      />
     </label>
   );
 
@@ -230,7 +247,9 @@ function AddClinicForm({
         setError("");
         try {
           await add(
-            Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim() || null])),
+            Object.fromEntries(
+              Object.entries(form).map(([k, v]) => [k, v.trim() || null]),
+            ),
             form.name.trim(),
           );
         } catch (err) {
@@ -244,7 +263,11 @@ function AddClinicForm({
         {field("bot_name", "Chatbot name", "e.g. Mira")}
         <label className="tm-field full">
           Copy setup from
-          <select className="f" value={form.copy_from} onChange={set("copy_from")}>
+          <select
+            className="f"
+            value={form.copy_from}
+            onChange={set("copy_from")}
+          >
             {clinics.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.id})
@@ -252,8 +275,8 @@ function AddClinicForm({
             ))}
           </select>
           <span className="tm-hint">
-            Copies hours, slots, canvas, Appearance, Templates and Menu wording. Not its contact details, services,
-            doctors, websites or keys.
+            Copies hours, slots, canvas, Appearance, Templates and Menu wording.
+            Not its contact details, services, doctors, websites or keys.
           </span>
         </label>
         {field("phone", "Phone", "+919876543210")}
