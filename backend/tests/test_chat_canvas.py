@@ -71,7 +71,7 @@ async def test_canvas_buttons_flow_and_a_saved_call_back(tx: asyncpg.Connection)
     assert first.ui["type"] == "menu"  # the opening's buttons are the menu
     items = first.ui["items"]
     assert [i["label"] for i in items] == ["Call me back", "Our website"]  # only the canvas's buttons
-    assert items[0] == {"label": "Call me back", "icon": "phone", "action": "canvas", "value": "m1"}
+    assert items[0] == {"label": "Call me back", "icon": "phone", "action": "canvas", "value": "opening|m1"}
     assert items[1]["href"] == "https://example.com"  # a link opens at once
     await say(req("button", action="canvas", value="m1"))  # follows the line to the call back block
     await say(req("text", text="Asha Rao"))
@@ -284,3 +284,52 @@ async def test_a_patients_booking_and_call_back_reach_the_crm(
     assert cb is not None and cb["type"] == "callback"
     assert json.loads(cb["data"])["reason"] == "do you accept insurance?"
     assert hooks[-1][0] == "callback_request"
+
+
+async def test_an_older_button_still_in_the_chat_does_what_it_says(tx: asyncpg.Connection) -> None:
+    """Explore -> Hair transplant list, then the patient taps Eyebrow Restoration on the Explore list above
+    it: that treatment's card, never "Please choose one of the options" or the list's own b2."""
+    flow = {
+        "nodes": [
+            {"id": "opening", "type": "opening", "settings": {"welcome": "Hi", "buttons": [
+                {"id": "m1", "label": "Explore"}]}},
+            {"id": "treat", "type": "choice", "settings": {"message": "Which area?", "buttons": [
+                {"id": "b1", "label": "Hair transplant"},
+                {"id": "b2", "label": "Eyebrow Restoration", "action": "callback", "value": "Eyebrows"}]}},
+            {"id": "ht", "type": "choice", "settings": {"message": "Pick one", "buttons": [
+                {"id": "b2", "label": "Our website", "action": "link", "value": "https://example.com"}]}},
+            {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}},
+        ],
+        "edges": [
+            {"source": "opening", "exit": "m1", "target": "treat"},
+            {"source": "treat", "exit": "b1", "target": "ht"},
+        ],
+    }  # fmt: skip
+    await tx.execute(
+        """insert into app.clinic_settings (clinic_id, draft, published, version, published_at)
+           values ('CL99', $1, $1, 1, now())
+           on conflict (clinic_id) do update
+             set draft = $1, published = $1, version = 1, published_at = now()""",
+        json.dumps({"chat": {"canvas": True}, "flow": flow}),
+    )
+    pub = await canvas.published(tx, "CL99")
+    assert pub is not None
+    state: dict[str, Any] = {}
+
+    async def say(r: Any) -> Any:
+        nonlocal state
+        reply, state, _ = await canvas.turn(tx, r, state, pub)
+        return reply
+
+    await say(req("start"))
+    areas = await say(req("button", action="canvas", value="opening|m1"))
+    eyebrow = next(o for o in areas.ui["options"] if o["label"] == "Eyebrow Restoration")
+    assert eyebrow["value"] == "treat|b2"  # the button knows its screen
+    listed = await say(req("button", action="canvas", value="treat|b1"))
+    labels = [o["label"] for o in listed.ui["options"]]
+    assert labels[:1] == ["Our website"]  # now on the list, whose own b2 is a link
+    later = await say(req("button", action="canvas", value=eyebrow["value"]))  # the older Explore button
+    said = " ".join(m.text for m in later.messages)
+    assert (
+        "Please choose" not in said and "name" in said.lower()
+    )  # Eyebrow Restoration's own job: a call back

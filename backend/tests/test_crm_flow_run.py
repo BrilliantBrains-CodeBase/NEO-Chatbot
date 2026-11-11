@@ -907,7 +907,7 @@ def test_carousel_cards_buttons_work_and_show_as_cards_in_the_live_chat() -> Non
         ("Offer A", "https://example.com/a.jpg"),
         ("Offer B", ""),
     ]
-    assert ui["cards"][0]["options"] == [{"label": "Book this", "action": "canvas", "value": "card0:b1"}]
+    assert ui["cards"][0]["options"] == [{"label": "Book this", "action": "canvas", "value": "car|card0:b1"}]
     assert ui["cards"][1]["options"][0]["href"] == "tel:+919000000000"
     # the card's button does its own job: Book with the treatment filled in, so it is not asked
     assert chat(tap="card0:b1") == ["May I know your full name?"]
@@ -923,7 +923,7 @@ def test_carousel_cards_buttons_work_and_show_as_cards_in_the_live_chat() -> Non
     chat(tap="m1")
     ui = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None).ui or {}
     assert [(c["title"], c["text"]) for c in ui["cards"]] == [("FUE", "From ₹50,000")]
-    assert ui["cards"][0]["options"] == [{"label": "View", "action": "canvas", "value": "t:FUE"}]
+    assert ui["cards"][0]["options"] == [{"label": "View", "action": "canvas", "value": "car|t:FUE"}]
     assert ui["options"] == []  # its View is on the card, not again under the cards
     assert chat(tap="t:FUE")[0].startswith("FUE")
 

@@ -183,8 +183,8 @@ class Run:
     def say(self, text: str, **more: Any) -> None:
         node = self.nodes.get(self.at or "")
         msg = {"text": self.sub(text), "typing": node.typing if node else 0} | more
-        if msg["text"] or len(msg) > 2:
-            self.out.append(msg)
+        if msg["text"] or more:
+            self.out.append(msg | {"from": self.at})  # the screen it belongs to (its buttons too)
 
     def sub(self, text: str) -> str:
         return re.sub(r"\{([a-z][a-z0-9_]*)\}", lambda m: self.fields.get(m[1], ""), text or "")

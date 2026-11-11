@@ -89,6 +89,9 @@ async def turn(
         ctx.doctor_today = await doctors_today(conn, clinic, ctx.today, ctx.minutes)
     run_state = state.get("canvas")
     tap = req.payload.value if req.event == "button" and req.payload.action == "canvas" else None
+    origin = None  # the screen an older button still in the chat came from ("<block>|<button>")
+    if tap and "|" in tap:
+        origin, tap = tap.split("|", 1)
     text = req.payload.text if req.event == "text" else None
     wants = req.payload.value if req.event == "button" and req.payload.action == "start" else None
     if wants:  # the mobile contact row's Book: the taps from the opening to the canvas's booking block
@@ -137,6 +140,10 @@ async def turn(
         at = next((n for n in flow["nodes"] if n["id"] == run_state.get("at")), None)
         if at and at["type"] in BOOKS:
             ctx.slots = await _free(clinic, slot_doctor(at, run_state))
+        if origin and origin != run_state.get("at") and any(n["id"] == origin for n in flow["nodes"]):
+            # A button from an earlier screen, still on the patient's screen: back to that screen, then
+            # its tap (never "choose one of the options", never another screen's button of that id).
+            run_state = {**run_state, "at": origin, "ask": None}
         reply = send(flow, ctx, copy.deepcopy(run_state), tap=tap, text=text)
         now_at = next((n for n in flow["nodes"] if n["id"] == reply.get("at")), None)
         if ctx.slots is None and now_at and now_at["type"] in BOOKS:
@@ -256,8 +263,9 @@ async def _save(
     return None
 
 
-def _choice(b: dict[str, Any], phone: str) -> dict[str, Any] | None:
-    """A canvas button as the widget's: a link opens at once; the rest go back as the canvas's own id."""
+def _choice(b: dict[str, Any], phone: str, origin: str | None = None) -> dict[str, Any] | None:
+    """A canvas button as the widget's: a link opens at once; the rest go back as the canvas's own id, with
+    the screen it belongs to ("<block>|<id>"), so it still works when tapped later."""
     out: dict[str, Any] = {"label": b["label"]}
     if b.get("icon"):
         out["icon"] = b["icon"]
@@ -269,7 +277,8 @@ def _choice(b: dict[str, Any], phone: str) -> dict[str, Any] | None:
         return out | {"href": "tel:" + number} if number else None
     if action in ("link", "whatsapp"):
         return out | {"href": value} if value.startswith("https://") else None
-    return out | {"action": "canvas", "value": str(b["id"])[:200]}
+    tag = f"{origin}|{b['id']}" if origin else str(b["id"])
+    return out | {"action": "canvas", "value": tag[:200]}
 
 
 def _typing(m: dict[str, Any]) -> float:
@@ -314,7 +323,7 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         c = _choice({"id": "open", "label": label, "action": o.get("action"), "value": o.get("value")}, phone)
         choices = [c] if c else []
     elif last:
-        choices = [c for b in last.get("buttons") or [] if (c := _choice(b, phone))]
+        choices = [c for b in last.get("buttons") or [] if (c := _choice(b, phone, last.get("from")))]
     at = next((n for n in pub["flow"]["nodes"] if n["id"] == reply.get("at")), None)
     ui: dict[str, Any] | None = None
     pick = (last or {}).get("pick") or {}
@@ -332,12 +341,15 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
             {
                 "title": c["title"], "text": c.get("text") or "",
                 "image": c["image"] if str(c.get("image") or "").startswith("https://") else "",
-                "options": [x for b in c["buttons"] if (x := _choice(b, phone))],
+                "options": [x for b in c["buttons"] if (x := _choice(b, phone, last.get("from")))],
             }
             for c in last["cards"]
         ]  # fmt: skip
         rest = [
-            c for b in last.get("buttons") or [] if str(b["id"]) not in on_cards if (c := _choice(b, phone))
+            c
+            for b in last.get("buttons") or []
+            if str(b["id"]) not in on_cards
+            if (c := _choice(b, phone, last.get("from")))
         ]
         ui = {"type": "carousel", "cards": cards, "options": rest, "main": True}
     elif last and last.get("card"):
