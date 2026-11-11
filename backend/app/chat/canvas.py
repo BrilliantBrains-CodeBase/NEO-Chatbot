@@ -339,11 +339,13 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         ui = {"type": "month_calendar", "action": "canvas", "today": ist_now()[0].isoformat(),
               "min": dates[0], "max": dates[-1], "closed_weekdays": [], "dates": dates}  # fmt: skip
     elif pick.get("kind") == "booked_date":
-        # Which date is the appointment booked for: any day from today, and "I don't remember" under it.
+        # Which date is the appointment booked for: 15 days back (a missed or past visit, or the day it was
+        # booked) to 4 months ahead, and "I don't remember" under it.
         today = ist_now()[0]
+        first_day = (today - timedelta(days=15)).isoformat()
         last_day = (today + timedelta(days=120)).isoformat()
         ui = {"type": "month_calendar", "action": "canvas", "today": today.isoformat(),
-              "min": today.isoformat(), "max": last_day, "closed_weekdays": [],
+              "min": first_day, "max": last_day, "closed_weekdays": [],
               "options": choices}  # fmt: skip
     elif pick.get("kind") == "time" and pick.get("times"):
         ui = {"type": "time_grid", "action": "canvas", "slots": pick["times"], "first": 8, "any_time": True}

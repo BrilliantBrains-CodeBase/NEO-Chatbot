@@ -1250,7 +1250,7 @@ def test_the_booked_date_shows_a_calendar_and_i_dont_remember_is_an_answer() -> 
     chat = Chat(flow)
     chat(tap="m1")
     ui = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None).ui or {}
-    assert ui["type"] == "month_calendar" and not ui.get("dates")  # any day from today
+    assert ui["type"] == "month_calendar" and not ui.get("dates") and ui["min"] < ui["today"]  # past days too
     assert [o["label"] for o in ui["options"]] == ["I don't remember"]
     assert chat(tap="unknown") == ["May I know your full name?"]  # not remembered: carries on
     chat = Chat(flow)
