@@ -250,6 +250,20 @@
 .crm .cweek .wi.onl { background:#E6F3FF;color:#174E86 }
 .crm .cweek .wi.vis { background:var(--okt);color:#14663A }
 .crm .cweek .wi.ns { background:var(--errt);color:#8E1F1F }
+.crm .cweek .wi.cx, .crm .cmonth .wi.cx { background:var(--panel);color:var(--mute);text-decoration:line-through }
+.crm .cweek th.today, .crm .cmonth td.today .dn { color:var(--accent) }
+/* Month: one cell per day, the day's number (with how many appointments) opens that day. */
+.crm .cmonth { width:100%;table-layout:fixed }
+.crm .cmonth th { text-align:center }
+.crm .cmonth td { vertical-align:top;height:104px;padding:4px 6px;border-top:1px solid var(--line) }
+.crm .cmonth td.out { background:var(--panel);opacity:.55 }
+.crm .cmonth .dn { display:flex;align-items:center;gap:6px;border:0;background:none;padding:0 0 4px;font-weight:700;cursor:pointer;color:var(--ink) }
+.crm .cmonth .dn i { font-style:normal;font-size:var(--fs-tiny);background:var(--tint);color:var(--brand);border-radius:999px;padding:0 7px }
+.crm .cmonth .wi { display:block;font-size:var(--fs-tiny);border-radius:6px;padding:2px 6px;margin-bottom:3px;cursor:pointer;background:#F1EDFB;color:#3E2F7A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.crm .cmonth .wi.onl { background:#E6F3FF;color:#174E86 }
+.crm .cmonth .wi.vis { background:var(--okt);color:#14663A }
+.crm .cmonth .wi.ns { background:var(--errt);color:#8E1F1F }
+.crm .cmonth .more { font-size:var(--fs-tiny);border:0;background:none;padding:0;cursor:pointer }
 .crm .pills { display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px }
 .crm .pills .lb { font-size:var(--fs-small);font-weight:600;color:var(--soft);margin-right:2px }
 .crm .pill { border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font-weight:600;font-size:var(--fs-sec);cursor:pointer;color:#2F3B4B }

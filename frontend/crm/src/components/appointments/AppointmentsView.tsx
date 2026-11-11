@@ -37,6 +37,38 @@ const shift = (day: string, n: number) => {
   d.setDate(d.getDate() + n);
   return ymd(d);
 };
+// Day / Week / Month: the first and last day shown, and how far ‹ and › move.
+type Span = "day" | "week" | "month";
+const monday = (day: string) => {
+  const d = new Date(day + "T00:00:00");
+  return shift(day, -((d.getDay() + 6) % 7));
+};
+function range(span: Span, day: string): [string, string] {
+  if (span === "day") return [day, day];
+  if (span === "week") return [monday(day), shift(monday(day), 6)];
+  const d = new Date(day + "T00:00:00");
+  const first = ymd(new Date(d.getFullYear(), d.getMonth(), 1));
+  const last = ymd(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  return [first, last];
+}
+function step(span: Span, day: string, n: number): string {
+  if (span === "day") return shift(day, n);
+  if (span === "week") return shift(day, 7 * n);
+  const d = new Date(day + "T00:00:00");
+  return ymd(new Date(d.getFullYear(), d.getMonth() + n, 1));
+}
+const shortDay = (day: string) =>
+  new Date(day + "T00:00:00").toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+const monthName = (day: string) =>
+  new Date(day + "T00:00:00").toLocaleDateString("en-IN", {
+    month: "long",
+    year: "numeric",
+  });
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const longDay = (day: string) =>
   new Date(day + "T00:00:00").toLocaleDateString("en-IN", {
     weekday: "long",
@@ -81,11 +113,13 @@ export default function AppointmentsView() {
   const [chosen, setDay] = useState(params.get("day") ?? ""); // "" = today
   const day = chosen || today;
   const [view, setView] = useState<"doctor" | "list">("doctor");
+  const [span, setSpan] = useState<Span>("day");
+  const [first, last] = day ? range(span, day) : ["", ""];
   const [all, setAll] = useState(false); // also cancelled, rejected and moved ones
   const [doctorId, setDoctorId] = useState(""); // "" = all doctors
   const [type, setType] = useState<"all" | "in_clinic" | "online">("all");
   const [version, setVersion] = useState(0); // bumped after a change, to load the day again
-  const key = `${clinicId}|${day}|${all}|${version}`;
+  const key = `${clinicId}|${first}|${last}|${all}|${version}`;
   const role = me?.clinics.find((c) => c.id === clinicId)?.role;
   // Actions in the panel.
   const [busy, setBusy] = useState(false);
@@ -101,10 +135,10 @@ export default function AppointmentsView() {
   const [openId, setOpenId] = useState<string | null>(params.get("open"));
 
   useEffect(() => {
-    if (!clinicId || !day) return;
+    if (!clinicId || !first) return;
     let live = true;
     api<Appointments>(
-      `/v1/crm/appointments?clinic=${clinicId}&from=${day}${all ? "&status=all" : ""}`,
+      `/v1/crm/appointments?clinic=${clinicId}&from=${first}&to=${last}${all ? "&status=all" : ""}`,
     ).then(
       (d) => live && setData({ key, d }),
       (e) =>
@@ -118,7 +152,7 @@ export default function AppointmentsView() {
     return () => {
       live = false;
     };
-  }, [clinicId, day, all, key]);
+  }, [clinicId, first, last, all, key]);
 
   function show(id: string | null) {
     setOpenId(id);
@@ -172,11 +206,29 @@ export default function AppointmentsView() {
         <div>
           <h1>Appointments</h1>
           <p>
-            {day ? longDay(day) : "…"} ·{" "}
+            {!day
+              ? "…"
+              : span === "day"
+                ? longDay(day)
+                : span === "week"
+                  ? `${shortDay(first)} – ${shortDay(last)}`
+                  : monthName(day)}{" "}
+            ·{" "}
             {d
               ? `${items.length} appointment${items.length === 1 ? "" : "s"}`
               : "…"}
           </p>
+        </div>
+        <div className="seg" aria-label="Show">
+          {(["day", "week", "month"] as const).map((x) => (
+            <button
+              key={x}
+              className={span === x ? "on" : ""}
+              onClick={() => setSpan(x)}
+            >
+              {x === "day" ? "Day" : x === "week" ? "Week" : "Month"}
+            </button>
+          ))}
         </div>
         <div className="seg">
           <button
@@ -197,8 +249,8 @@ export default function AppointmentsView() {
         <button
           className="pill"
           disabled={!day}
-          onClick={() => setDay(shift(day, -1))}
-          aria-label="Previous day"
+          onClick={() => setDay(step(span, day, -1))}
+          aria-label={`Previous ${span}`}
         >
           ‹
         </button>
@@ -212,8 +264,8 @@ export default function AppointmentsView() {
         <button
           className="pill"
           disabled={!day}
-          onClick={() => setDay(shift(day, 1))}
-          aria-label="Next day"
+          onClick={() => setDay(step(span, day, 1))}
+          aria-label={`Next ${span}`}
         >
           ›
         </button>
@@ -261,11 +313,9 @@ export default function AppointmentsView() {
       {data.key === key && data.error && (
         <div className="warnbox">{data.error}</div>
       )}
-      {!d && !(data.key === key && data.error) && (
-        <Loading />
-      )}
+      {!d && !(data.key === key && data.error) && <Loading />}
 
-      {d && view === "doctor" && (
+      {d && view === "doctor" && span === "day" && (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
           <table className="cday">
             <thead>
@@ -312,11 +362,129 @@ export default function AppointmentsView() {
         </div>
       )}
 
+      {d && view === "doctor" && span === "week" && (
+        <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+          <table className="cweek">
+            <thead>
+              <tr>
+                {Array.from({ length: 7 }, (_, i) => shift(first, i)).map(
+                  (x) => (
+                    <th key={x} className={x === today ? "today" : ""}>
+                      <button
+                        type="button"
+                        className="lnk"
+                        onClick={() => (setDay(x), setSpan("day"))}
+                      >
+                        {shortDay(x)}
+                      </button>
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {Array.from({ length: 7 }, (_, i) => shift(first, i)).map(
+                  (x) => (
+                    <td key={x}>
+                      {items
+                        .filter((a) => a.day === x)
+                        .sort((a, b) =>
+                          (a.time ?? "99").localeCompare(b.time ?? "99"),
+                        )
+                        .map((a) => (
+                          <span
+                            key={a.id}
+                            className={`wi ${tone(a)}`}
+                            onClick={() => show(a.id)}
+                            title={a.treatment ?? ""}
+                          >
+                            {a.time ? clock(a.time) : "Any time"} · {a.name}
+                            {!doctorId && a.doctor ? ` · ${a.doctor}` : ""}
+                          </span>
+                        ))}
+                    </td>
+                  ),
+                )}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {d && view === "doctor" && span === "month" && (
+        <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+          <table className="cmonth">
+            <thead>
+              <tr>
+                {WEEKDAYS.map((w) => (
+                  <th key={w}>{w}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }, (_, wk) =>
+                shift(monday(first), wk * 7),
+              )
+                .filter((start) => start <= last)
+                .map((start) => (
+                  <tr key={start}>
+                    {Array.from({ length: 7 }, (_, i) => shift(start, i)).map(
+                      (x) => {
+                        const those = items
+                          .filter((a) => a.day === x)
+                          .sort((a, b) =>
+                            (a.time ?? "99").localeCompare(b.time ?? "99"),
+                          );
+                        return (
+                          <td
+                            key={x}
+                            className={`${x < first || x > last ? "out" : ""}${x === today ? " today" : ""}`}
+                          >
+                            <button
+                              type="button"
+                              className="dn"
+                              onClick={() => (setDay(x), setSpan("day"))}
+                              aria-label={`Open ${longDay(x)}`}
+                            >
+                              {Number(x.slice(8))}
+                              {!!those.length && <i>{those.length}</i>}
+                            </button>
+                            {those.slice(0, 3).map((a) => (
+                              <span
+                                key={a.id}
+                                className={`wi ${tone(a)}`}
+                                onClick={() => show(a.id)}
+                              >
+                                {a.time ? clock(a.time) : "Any"} · {a.name}
+                              </span>
+                            ))}
+                            {those.length > 3 && (
+                              <button
+                                type="button"
+                                className="lnk more"
+                                onClick={() => (setDay(x), setSpan("day"))}
+                              >
+                                +{those.length - 3} more
+                              </button>
+                            )}
+                          </td>
+                        );
+                      },
+                    )}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {d && view === "list" && (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
           <table>
             <thead>
               <tr>
+                {span !== "day" && <th>Date</th>}
                 <th>Time</th>
                 <th>Patient</th>
                 <th>Treatment</th>
@@ -328,7 +496,10 @@ export default function AppointmentsView() {
             <tbody>
               {!items.length && (
                 <tr>
-                  <td colSpan={6}>No appointments on this day.</td>
+                  <td colSpan={span === "day" ? 6 : 7}>
+                    No appointments{" "}
+                    {span === "day" ? "on this day" : `this ${span}`}.
+                  </td>
                 </tr>
               )}
               {items.map((a) => (
@@ -337,6 +508,7 @@ export default function AppointmentsView() {
                   onClick={() => show(a.id)}
                   style={{ cursor: "pointer" }}
                 >
+                  {span !== "day" && <td>{shortDay(a.day)}</td>}
                   <td>{a.time ? clock(a.time) : "Any time"}</td>
                   <td>
                     <div className="nm">{a.name}</div>
@@ -368,7 +540,10 @@ export default function AppointmentsView() {
                 <h2>{open.name}</h2>
                 <p>
                   {level(me, clinic, "leads") !== "hidden" ? (
-                    <Link className="lnk" href={`/leads?open=${open.lead_code}`}>
+                    <Link
+                      className="lnk"
+                      href={`/leads?open=${open.lead_code}`}
+                    >
                       {open.lead_code}
                     </Link>
                   ) : (
