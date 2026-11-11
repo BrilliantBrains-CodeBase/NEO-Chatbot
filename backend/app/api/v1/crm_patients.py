@@ -46,6 +46,10 @@ PEOPLE = f"""
       max({_DAY}) filter (where a.status = 'visited') last_visit,
       min({_DAY}) filter (where a.status in ('pending', 'confirmed') and {_DAY} >= now()) next_visit
     from app.appointments a where a.clinic_id = $1 group by a.lead_id
+  ), marked as (
+    -- Moved to Visited by hand (no appointment marked visited): when that was done is their visit day.
+    select e.lead_id, max(e.created_at) at_ from app.lead_events e
+    where e.clinic_id = $1 and e.kind = 'stage_change' and e.data->>'to' = 'visited' group by e.lead_id
   ), people as (
     select l.id, l.lead_code, l.full_name, l.phone_e164, l.email, l.source, l.campaign, l.treatment,
       l.doctor_id,
@@ -53,9 +57,13 @@ PEOPLE = f"""
       l.created_at, l.consent_at,
       -- A lead moved to Visited by hand has no appointment behind it, but they did come.
       greatest(coalesce(s.visits, 0), (l.stage = 'visited')::int) visits,
-      coalesce(s.no_shows, 0) no_shows, s.first_visit, s.last_visit, s.next_visit
+      coalesce(s.no_shows, 0) no_shows,
+      coalesce(s.first_visit, case when l.stage = 'visited' then m.at_ end) first_visit,
+      coalesce(s.last_visit, case when l.stage = 'visited' then m.at_ end) last_visit,
+      s.next_visit
     from app.leads l
     left join seen s on s.lead_id = l.id
+    left join marked m on m.lead_id = l.id
     left join app.doctors d on d.id = l.doctor_id
     left join app.profiles p on p.id = l.assigned_to
     where l.clinic_id = $1 and l.deleted_at is null

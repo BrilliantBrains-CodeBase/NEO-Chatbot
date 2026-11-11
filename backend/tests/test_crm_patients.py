@@ -129,3 +129,37 @@ async def test_patients_lists_everyone_with_filters_sort_and_pages(
 
 async def test_patients_needs_a_sign_in(api: AsyncClient) -> None:
     assert (await api.get("/v1/crm/patients", params={"clinic": "CL99"})).status_code == 401
+
+
+@needs_db
+async def test_a_patient_marked_visited_by_hand_has_that_day_as_their_visit(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Moved to Visited on the lead (their appointment not marked): the day it was done is their first and
+    last visit, so the visit date filters find them."""
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no Super Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    lead = await pool.fetchval(
+        """insert into app.leads (clinic_id, full_name, phone_e164, source, stage)
+           values ('CL99', 'ZzMarked Visited', '+919000007299', 'walk_in', 'visited') returning id"""
+    )
+    try:
+        await pool.execute(
+            """insert into app.lead_events (clinic_id, lead_id, kind, data, created_at)
+               values ('CL99', $1, 'stage_change', '{"from": "booked", "to": "visited"}',
+                 now() - interval '2 days')""",
+            lead,
+        )
+        day = _ago(2).isoformat()
+        params = {"clinic": "CL99", "q": "ZzMarked", "date_field": "first_visit", "from": day, "to": day}
+        got = (await api.get("/v1/crm/patients", params=params, headers=headers)).json()
+        assert got["total"] == 1 and got["items"][0]["first_visit"] and got["items"][0]["visits"] == 1
+        assert got["items"][0]["last_visit"] == got["items"][0]["first_visit"]
+    finally:
+        await pool.execute("delete from app.lead_events where lead_id = $1", lead)
+        await pool.execute("delete from app.leads where id = $1", lead)
