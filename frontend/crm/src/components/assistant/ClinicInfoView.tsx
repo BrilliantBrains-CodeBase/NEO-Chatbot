@@ -156,8 +156,7 @@ export default function ClinicInfoView() {
 
   if (loaded.clinic === clinicId && loaded.error)
     return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !form || !services || !reviews)
-    return <Loading />;
+  if (!s || !form || !services || !reviews) return <Loading />;
 
   async function save() {
     // Each changed tab is its own section of the draft; the last save shows "Draft saved".
@@ -204,7 +203,8 @@ export default function ClinicInfoView() {
         </div>
       </div>
       {error && <div className="warnbox">{error}</div>}
-      <div className="split-preview"
+      <div
+        className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 320px",
@@ -425,7 +425,7 @@ export default function ClinicInfoView() {
           )}
         </div>
         {tab === "reviews" ? (
-          <div className="card" style={{ position: "sticky", top: 70 }}>
+          <div className="card">
             <h3>
               Live preview <small>&quot;Show me reviews&quot;</small>
             </h3>
@@ -440,7 +440,7 @@ export default function ClinicInfoView() {
             />
           </div>
         ) : tab === "services" ? (
-          <div className="card" style={{ position: "sticky", top: 70 }}>
+          <div className="card">
             <h3>
               Live preview <small>the treatment card</small>
             </h3>
@@ -529,11 +529,14 @@ function Preview({
       ? `+91 ${n.slice(3, 8)} ${n.slice(8)}`
       : n;
   return (
-    <div className="card" style={{ position: "sticky", top: 70 }}>
+    <div className="card">
       <h3>
         Live preview <small>&quot;Where is the clinic?&quot;</small>
       </h3>
-      <div className="chat-preview" style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
+      <div
+        className="chat-preview"
+        style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}
+      >
         <div
           style={{ background: "#fff", borderRadius: 14, overflow: "hidden" }}
         >

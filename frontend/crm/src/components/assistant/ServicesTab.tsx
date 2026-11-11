@@ -435,7 +435,9 @@ export function ServiceCard({ s, main }: { s: Service; main: string }) {
       >
         <b style={{ fontSize: 13 }}>{s.name}</b>
         {s.description && (
-          <span style={{ color: "#4B5563" }}>{s.description}</span>
+          <span style={{ color: "#4B5563", whiteSpace: "pre-line" }}>
+            {s.description.trim()}
+          </span>
         )}
         <span style={{ color: "#6B5F63", fontSize: 11.5 }}>
           {[
