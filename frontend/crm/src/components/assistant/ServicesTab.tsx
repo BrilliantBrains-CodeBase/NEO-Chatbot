@@ -149,8 +149,12 @@ export default function ServicesTab({
                     />
                   </label>
                   <label className="wide">
-                    <span>Short description</span>
-                    <input
+                    <span>
+                      Short description ({(s.description ?? "").length}/400;
+                      Enter starts a new line in the chat)
+                    </span>
+                    <textarea
+                      rows={4}
                       maxLength={400}
                       value={s.description}
                       onChange={(e) =>

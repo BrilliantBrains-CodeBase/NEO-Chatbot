@@ -364,7 +364,8 @@
 .crm .ci-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px 10px }
 .crm .ci-grid label { display:flex;flex-direction:column;gap:3px;font-size:var(--fs-small);font-weight:600;color:var(--soft) }
 .crm .ci-grid label.wide { grid-column:1/-1 }
-.crm .ci-grid input, .crm .ci-times input { font:inherit;font-size:var(--fs-sec);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-height:32px;background:#fff }
+.crm .ci-grid input, .crm .ci-grid textarea, .crm .ci-times input { font:inherit;font-size:var(--fs-sec);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;min-height:32px;background:#fff }
+.crm .ci-grid textarea { font-weight:450;line-height:1.45;resize:vertical;white-space:pre-wrap }
 .crm .ci-days { display:flex;flex-wrap:wrap;gap:5px;align-items:center }
 .crm .ci-days > button { width:34px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--mute);font-weight:700;font-size:var(--fs-small);cursor:pointer }
 .crm .ci-days > button.on { background:var(--brand);border-color:var(--brand);color:#fff }
