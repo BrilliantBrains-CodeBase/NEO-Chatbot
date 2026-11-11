@@ -56,6 +56,7 @@ export interface MenuBlock {
 export interface ChipsBlock extends Nav {
   type: 'chips';
   options: Choice[];
+  once?: boolean; // a one-time answer (yes / no, the call back offer): greyed once the patient has moved on
 }
 
 export interface CalendarBlock {
@@ -67,6 +68,7 @@ export interface CalendarBlock {
   max: string;
   closed_weekdays: number[]; // 0 = Sunday
   dates?: string[]; // when sent: only these days can be picked (the days with free times)
+  options?: Choice[]; // buttons under the calendar, e.g. "I don't remember"
 }
 
 export interface TimeGridBlock {

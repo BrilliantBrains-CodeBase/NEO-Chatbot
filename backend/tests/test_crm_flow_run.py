@@ -1214,3 +1214,52 @@ def test_comma_wordings_count_and_another_answers_word_counts_against_a_match() 
     assert hit is not None and hit.answer == "info@clinic.com"  # not the address
     hit = best([address, email], "clinic address")
     assert hit is not None and hit.answer == "1st floor, Scorpio House"  # the address still is the address
+
+
+def test_one_time_answers_are_marked_so_the_widget_greys_them_once_answered() -> None:
+    from app.chat.canvas import _widget
+
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name"], "consent": False}}
+    menu = {
+        "id": "list",
+        "type": "choice",
+        "settings": {"message": "Pick", "buttons": [{"id": "b1", "label": "A"}]},
+    }
+    flow = {
+        "nodes": [opening(("m1", "Call back"), ("m2", "List")), cb, menu],
+        "edges": [line("opening", "m1", "cb"), line("opening", "m2", "list"), line("list", "b1", "cb")],
+    }
+    chat = Chat(flow)
+    pub = {"flow": chat.flow, "contact": {"phone": ""}}
+    chat("do you accept insurance?")  # the call back offer: Yes, call me back / No, thanks
+    assert (_widget(chat.r, pub, None).ui or {}).get("once") is True
+    chat = Chat(flow)
+    chat(tap="m2")  # a list stays tappable later
+    assert "once" not in (_widget(chat.r, pub, None).ui or {})
+
+
+def test_the_booked_date_shows_a_calendar_and_i_dont_remember_is_an_answer() -> None:
+    from app.chat.canvas import _widget
+
+    cancel = {
+        "id": "cancel",
+        "type": "cancel",
+        "settings": {"fields": ["booked_date", "name"], "consent": False},
+    }
+    flow = {"nodes": [opening(("m1", "Cancel")), cancel], "edges": [line("opening", "m1", "cancel")]}
+    chat = Chat(flow)
+    chat(tap="m1")
+    ui = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None).ui or {}
+    assert ui["type"] == "month_calendar" and not ui.get("dates")  # any day from today
+    assert [o["label"] for o in ui["options"]] == ["I don't remember"]
+    assert chat(tap="unknown") == ["May I know your full name?"]  # not remembered: carries on
+    chat = Chat(flow)
+    chat(tap="m1")
+    assert chat("i forgot") == ["May I know your full name?"]  # typed works too
+    chat("Asha Rao")
+    assert not chat.r["lead"].get("booked_date")  # saved as a call back; staff find it by phone
+    chat = Chat(flow)
+    chat(tap="m1")
+    chat(tap="2026-10-30")  # a day tapped on the calendar
+    chat("Asha Rao")
+    assert chat.r["lead"]["booked_date"] == "2026-10-30"

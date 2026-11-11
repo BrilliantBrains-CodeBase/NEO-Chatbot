@@ -579,6 +579,18 @@
   background: var(--rose);
   color: #fff;
 }
+/* Buttons under a calendar ("I don't remember"). */
+.nb-cal-more {
+  margin-top: 8px;
+}
+/* A one-time answer already given: greyed, the chosen one still shown. */
+.nb-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nb-chip.sel:disabled {
+  opacity: 0.75;
+}
 .nb-chip.wa {
   border-color: var(--wa);
   color: #16723d;

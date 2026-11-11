@@ -10,6 +10,7 @@ WhatsApp like the classic chat.
 import copy
 import json
 import time
+from datetime import timedelta
 from typing import Any
 
 import asyncpg
@@ -281,6 +282,11 @@ def _choice(b: dict[str, Any], phone: str, origin: str | None = None) -> dict[st
     return out | {"action": "canvas", "value": tag[:200]}
 
 
+def _once(button_id: str) -> bool:
+    """A one-time answer, not a menu: yes / no, is this correct, the call back offer, Did you mean."""
+    return button_id in ("yes", "no", "change") or button_id.startswith("medical:")
+
+
 def _typing(m: dict[str, Any]) -> float:
     """The block's typing delay (seconds, 0 to 5) before this message."""
     try:
@@ -332,6 +338,13 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         dates = sorted(pick["dates"])
         ui = {"type": "month_calendar", "action": "canvas", "today": ist_now()[0].isoformat(),
               "min": dates[0], "max": dates[-1], "closed_weekdays": [], "dates": dates}  # fmt: skip
+    elif pick.get("kind") == "booked_date":
+        # Which date is the appointment booked for: any day from today, and "I don't remember" under it.
+        today = ist_now()[0]
+        last_day = (today + timedelta(days=120)).isoformat()
+        ui = {"type": "month_calendar", "action": "canvas", "today": today.isoformat(),
+              "min": today.isoformat(), "max": last_day, "closed_weekdays": [],
+              "options": choices}  # fmt: skip
     elif pick.get("kind") == "time" and pick.get("times"):
         ui = {"type": "time_grid", "action": "canvas", "slots": pick["times"], "first": 8, "any_time": True}
     elif last and last.get("cards"):
@@ -375,6 +388,8 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
         ui = {"type": "menu", "layout": "cards3", "items": choices}
     elif choices:
         ui = {"type": "chips", "options": choices, "main": True}
+        if any(_once(str(b.get("id"))) for b in (last or {}).get("buttons") or []):
+            ui["once"] = True  # a one-time answer (yes / no, call back offer): greyed once answered
     mode = next((m["input"]["mode"] for m in reversed(reply["messages"]) if m.get("input")), "text")
     mode = mode if mode in ("text", "phone", "email") else "text"
     placeholder = {"phone": "Your mobile number", "email": "Your email"}.get(mode, "Type your question")

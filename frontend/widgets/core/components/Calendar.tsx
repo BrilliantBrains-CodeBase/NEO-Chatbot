@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import type { CalendarBlock } from '../types';
 import { MONTH_NAMES, addDays, fmtDate, toUtc, weekday } from '../dates';
 import { Icon } from '../icons';
-import type { OnChoose } from './Blocks';
+import { Tap, type OnChoose } from './Blocks';
 import t from '../i18n/en.json';
 
 const WEEK = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -84,6 +84,13 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
           );
         })}
       </div>
+      {!!block.options?.length && (
+        <div class="nb-chips nb-cal-more">
+          {block.options.map((choice) => (
+            <Tap key={choice.label} choice={choice} class="nb-chip" onChoose={onChoose} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

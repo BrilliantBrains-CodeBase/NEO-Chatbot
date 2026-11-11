@@ -94,6 +94,11 @@ QUESTION = re.compile(
     r"\?\s*$|^(what|how|when|where|why|which|who|is|are|do|does|can|will|kya|kitna|kab|kahan)\b"
 )
 ASKED = re.compile(r"(any|anything|tell me|i want to know)\s")  # also a question ("any offers?")
+# "Which date is your appointment booked for?" answered with "I don't remember" (or forgot / not sure).
+DONT_KNOW = re.compile(
+    r"\b(unknown|not sure|no idea|forgot|forget|don'?t (know|remember|recall)|do not (know|remember)|"
+    r"can'?t remember|cannot remember|pata nahi|yaad nahi)\b"
+)
 # Typed at "May I know your full name?" but no name: a question ("will" left out: Will is a name), a long
 # sentence, or a word a name never has. It is then answered (Knowledge base / the clinic's page) and the name
 # asked again, instead of "Thanks, what is the price".
@@ -1083,6 +1088,8 @@ class Run:
             return normal_phone(m[2], m[1]) if m else normal_phone(t, None)
         if kind == "email":
             return t.lower() if EMAIL.match(t) else None
+        if kind == "booked_date" and DONT_KNOW.search(t.lower()):
+            return ""  # "I don't remember": staff find the booking from the phone number
         if kind in ("date", "booked_date"):
             return parse_date(t, self.ctx.today)
         if kind == "time":
@@ -1125,6 +1132,9 @@ class Run:
         """The tap answers for a question. A free date or time also carries every free day / that day's free
         times ("pick"), so the live chat shows its calendar and time grid; the test chat shows buttons."""
         out: dict[str, Any] = {"buttons": self.picks(node, key)}
+        if key == "booked_date":  # any day from today: the calendar, with "I don't remember"
+            out["pick"] = {"kind": "booked_date"}
+            return out
         free = self.free(node)
         if free and key == "date":
             out["pick"] = {"kind": "date", "dates": list(free)}
@@ -1136,6 +1146,8 @@ class Run:
         """Tap answers: the booking list for the treatment, the next free days, or that day's free times."""
         if key == "treatment":
             return [{"id": t, "label": t, "action": "answer"} for t in self.ctx.booking_options]
+        if key == "booked_date":  # under the calendar
+            return [{"id": "unknown", "label": "I don't remember", "action": "answer"}]
         free = self.free(node)
         if free is None:
             return []
@@ -1184,7 +1196,9 @@ class Run:
             lines = []
             for k in s.get("fields", []):
                 v = self.fields.get(k, "")
-                if k in ("date", "booked_date") and v:
+                if k == "booked_date" and not v and k in self.fields:
+                    v = "Not sure"  # "I don't remember"
+                elif k in ("date", "booked_date") and v:
                     v = _day(v)
                 elif k == "time" and v:
                     v = "Any time" if v == "any" else _time(v)

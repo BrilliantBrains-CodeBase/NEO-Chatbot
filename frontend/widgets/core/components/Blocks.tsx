@@ -18,7 +18,17 @@ import { TimeGrid } from './TimeGrid';
 export type OnChoose = (choice: Choice) => void;
 
 // A tappable choice: a link when it has href (call, WhatsApp, website), otherwise a button that sends an event.
-export function Tap({ choice, class: cls, onChoose }: { choice: Choice; class: string; onChoose: OnChoose }) {
+export function Tap({
+  choice,
+  class: cls,
+  onChoose,
+  disabled,
+}: {
+  choice: Choice;
+  class: string;
+  onChoose: OnChoose;
+  disabled?: boolean;
+}) {
   const body = (
     <>
       {choice.icon && (
@@ -43,7 +53,7 @@ export function Tap({ choice, class: cls, onChoose }: { choice: Choice; class: s
     );
   }
   return (
-    <button type="button" class={cls} onClick={() => onChoose(choice)}>
+    <button type="button" class={cls} disabled={disabled} onClick={() => onChoose(choice)}>
       {body}
     </button>
   );
@@ -76,8 +86,11 @@ function Menu({ block, onChoose }: { block: MenuBlock; onChoose: OnChoose }) {
 
 // Sub buttons as pills. The tapped pill turns solid; the group stays usable so a wrong pick can be changed.
 // Back and Main menu show as grey text links under the group.
-function Chips({ block, onChoose }: { block: ChipsBlock; onChoose: OnChoose }) {
+// A one-time answer (yes / no, the call back offer) is greyed once the patient has moved on (answered after
+// it), so an old "No, thanks" can no longer undo the call back that is being asked for.
+function Chips({ block, onChoose, answered }: { block: ChipsBlock; onChoose: OnChoose; answered?: boolean }) {
   const [picked, setPicked] = useState<number | null>(null);
+  const locked = !!block.once && !!answered;
   const back = block.back;
   return (
     <div class="nb-chips">
@@ -90,6 +103,7 @@ function Chips({ block, onChoose }: { block: ChipsBlock; onChoose: OnChoose }) {
             key={choice.label}
             choice={choice}
             class={cls}
+            disabled={locked}
             onChoose={(c) => {
               setPicked(i);
               onChoose(c);
@@ -205,12 +219,20 @@ function Carousel({ block, onChoose }: { block: CarouselBlock; onChoose: OnChoos
 }
 
 // Every block stays visible and usable after a choice, so the patient can change their mind.
-export function Block({ block, onChoose }: { block: UiBlock; onChoose: OnChoose }) {
+export function Block({
+  block,
+  onChoose,
+  answered,
+}: {
+  block: UiBlock;
+  onChoose: OnChoose;
+  answered?: boolean;
+}) {
   switch (block.type) {
     case 'menu':
       return <Menu block={block} onChoose={onChoose} />;
     case 'chips':
-      return <Chips block={block} onChoose={onChoose} />;
+      return <Chips block={block} onChoose={onChoose} answered={answered} />;
     case 'month_calendar':
       return <Calendar block={block} onChoose={onChoose} />;
     case 'time_grid':

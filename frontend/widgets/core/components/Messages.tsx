@@ -28,9 +28,14 @@ export function Messages({ entries, busy, onRetry, onChoose }: Props) {
 
   return (
     <>
-      {entries.map((e) =>
+      {entries.map((e, i) =>
         e.from === 'ui' ? (
-          <Block key={e.id} block={e.block} onChoose={onChoose} />
+          <Block
+            key={e.id}
+            block={e.block}
+            onChoose={onChoose}
+            answered={entries.slice(i + 1).some((x) => x.from === 'me')}
+          />
         ) : (
           <div key={e.id} class={`nb-msg ${e.from}`}>
             {/* Patient text is shown as typed; only bot text may contain **bold**. */}
