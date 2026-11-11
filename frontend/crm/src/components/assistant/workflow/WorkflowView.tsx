@@ -325,8 +325,29 @@ function Canvas() {
   useEffect(() => {
     if (!dirty) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    // Leaving inside the CRM (the side menu, CRM / Chatbot, another clinic, the profile menu) reloads the
+    // canvas from the server, so unsaved edits would be lost without a word: ask first.
+    const guard = (e: MouseEvent) => {
+      const leaves = (e.target as HTMLElement | null)?.closest(
+        ".sb a[href], .tb a[href], .tb-seg button, .tb [role='menuitem'], " +
+          ".tb [role='menuitemradio']:not([aria-checked='true'])",
+      );
+      if (
+        leaves &&
+        !window.confirm(
+          "You have unsaved changes on the canvas. Leave without saving them?",
+        )
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
+    document.addEventListener("click", guard, true);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      document.removeEventListener("click", guard, true);
+    };
   }, [dirty]);
 
   const nodes = useMemo<Node<BlockData>[]>(
@@ -408,7 +429,9 @@ function Canvas() {
         }
         // Keep the rest of the flow (phrases, checks, fields, settings); unchanged when only sizes or the
         // selection changed, so drawing the canvas never counts as an unsaved change.
-        return nodes === f.nodes && edges === f.edges ? f : { ...f, nodes, edges };
+        return nodes === f.nodes && edges === f.edges
+          ? f
+          : { ...f, nodes, edges };
       });
     },
     [],
@@ -945,7 +968,11 @@ function ChecksPanel({
       {checks.map((c, i) => {
         const r = results?.[i];
         return (
-          <div key={i} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
+          <div
+            key={i}
+            className="wf-btn"
+            style={{ fontSize: "var(--fs-small)" }}
+          >
             {r && (
               <span className={`badge ${r.ok ? "b-vi" : "b-in"}`}>
                 {r.ok ? "Pass" : "Fail"}
@@ -998,7 +1025,10 @@ function ChecksPanel({
         </button>
       )}
       {err && <p className="warnbox">{err}</p>}
-      <p className="sub2" style={{ margin: "4px 0 0", fontSize: "var(--fs-tiny)" }}>
+      <p
+        className="sub2"
+        style={{ margin: "4px 0 0", fontSize: "var(--fs-tiny)" }}
+      >
         They run as if the clinic is open at 11 AM.
       </p>
       <TestSets clinicId={clinicId} dirty={dirty} />
@@ -1188,11 +1218,18 @@ function GlobalsPanel({
         Emergency alerts the staff (urgent call back in the Inbox, email to the
         manager)
       </label>
-      <p className="sub2" style={{ margin: "8px 0 4px", fontSize: "var(--fs-tiny)" }}>
+      <p
+        className="sub2"
+        style={{ margin: "8px 0 4px", fontSize: "var(--fs-tiny)" }}
+      >
         Work from anywhere in the chat, typed or tapped:
       </p>
       {globals.triggers.map((t, i) => (
-        <div key={t.kind} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
+        <div
+          key={t.kind}
+          className="wf-btn"
+          style={{ fontSize: "var(--fs-small)" }}
+        >
           <input
             type="checkbox"
             checked={t.enabled}
@@ -1253,11 +1290,18 @@ function FieldsPanel({
   return (
     <div style={{ marginTop: 14 }}>
       <h3 style={{ margin: "0 0 6px" }}>Fields</h3>
-      <p className="sub2" style={{ margin: "0 0 6px", fontSize: "var(--fs-tiny)" }}>
+      <p
+        className="sub2"
+        style={{ margin: "0 0 6px", fontSize: "var(--fs-tiny)" }}
+      >
         Built in: {BUILT_IN_FIELDS.map((f) => `{${f}}`).join(" ")}
       </p>
       {fields.map((f) => (
-        <div key={f.key} className="wf-btn" style={{ fontSize: "var(--fs-small)" }}>
+        <div
+          key={f.key}
+          className="wf-btn"
+          style={{ fontSize: "var(--fs-small)" }}
+        >
           <b style={{ flex: 1 }}>
             {`{${f.key}}`} <span className="sub2">{f.label}</span>
           </b>
