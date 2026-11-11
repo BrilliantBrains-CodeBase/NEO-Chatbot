@@ -939,6 +939,12 @@ export default function BlockSettings({
 
       {LEAD.has(block.type) && (
         <>
+          {text(
+            "intro",
+            "Message before the questions (optional), e.g. Sure! Our team will call you back. Please share a few details.",
+            2,
+            500,
+          )}
           <Row label="How the questions are asked">
             <div className="wf-seg">
               {(

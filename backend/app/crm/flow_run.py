@@ -329,6 +329,8 @@ class Run:
             if t == "callback" and self.fields.get("reason"):  # e.g. the medical question
                 known.append("reason")
             self.ask = {"kind": "lead", "i": 0, "tries": 0, "known": known}
+            if s.get("intro"):  # the block's own message first, then its questions
+                self.say(s["intro"])
             self.next_question(node)
             return
         if t == "question":

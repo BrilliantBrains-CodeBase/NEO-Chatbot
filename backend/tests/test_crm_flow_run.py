@@ -1188,3 +1188,15 @@ def test_a_doctor_card_photo_is_a_link_or_a_small_uploaded_picture() -> None:
     ):
         with pytest.raises(FlowError):
             normalise(card(bad))
+
+
+def test_a_lead_block_says_its_own_message_before_the_first_question() -> None:
+    intro = "Sure! Our team will call you back. Please share a few details."
+    cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone"], "intro": intro}}
+    chat = Chat({"nodes": [opening(("m1", "Call Back")), cb], "edges": [line("opening", "m1", "cb")]})
+    assert chat(tap="m1") == [intro, "May I know your full name?"]
+    chat("Asha Rao")  # the message is said once, not before every question
+    assert chat.r["messages"][-1]["text"] == "Thanks, Asha Rao. What is your contact number?"
+    plain = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
+    bare = Chat({"nodes": [opening(("m1", "Call Back")), plain], "edges": [line("opening", "m1", "cb")]})
+    assert bare(tap="m1") == ["May I know your full name?"]  # no message set: as before

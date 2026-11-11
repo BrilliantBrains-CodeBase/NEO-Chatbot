@@ -107,6 +107,9 @@ class LeadSettings(BaseModel):
     asked again up to `retries` times, then the patient is offered a call back."""
 
     mode: Literal["steps", "form"] = "steps"
+    # Said first, before the questions ("Sure, our team will call you back. A few quick details:"); may use
+    # fields such as {name}. Empty: straight to the first question.
+    intro: str = Field(default="", max_length=500)
     questions: dict[str, str] = {}  # field -> wording; a field left out uses DEFAULT_QUESTIONS
     retries: int = Field(default=2, ge=0, le=3)
     consent: bool = True  # ask for consent before the lead is saved
