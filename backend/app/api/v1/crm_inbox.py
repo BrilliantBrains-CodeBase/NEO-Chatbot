@@ -95,7 +95,7 @@ class InboxLead(LeadRow):
 
 
 class Inbox(BaseModel):
-    total: int  # unassigned leads matching the filters, across all pages
+    total: int  # Inbox leads (no owner yet, or a request waiting) matching the filters, across all pages
     all: int = 0  # the same without the type filter: the "All" chip, the menu and the Dashboard
     types: list[Count]  # leads per waiting request type, and "none" (a lead with no request, e.g. a form)
     items: list[InboxLead]
@@ -261,7 +261,7 @@ async def inbox(
     (days, both included) keep leads created then. The counts per type follow the other filters."""
     can_see(user, clinic)
     await perm.require(await get_pool(), user, clinic, "inbox", "view")  # Who sees what
-    base, args = _lead_filter(clinic, source, q, date_from, date_to, treatment, "unassigned")
+    base, args = _lead_filter(clinic, source, q, date_from, date_to, treatment, "inbox")
     base += INBOX_WHERE
     where = base
     if type == "none":

@@ -12,7 +12,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
-from app.api.v1.crm import STAGES, TZ, Count, can_see
+from app.api.v1.crm import IN_INBOX, STAGES, TZ, Count, can_see
 from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
 from app.crm import permissions as perm
@@ -106,8 +106,8 @@ async def dashboard(
         args = (clinic, start, first)
         k = await conn.fetchrow(
             """select
-              (select count(*) from app.leads where clinic_id=$1 and deleted_at is null
-                 and assigned_to is null and stage not in ('lost','invalid')) ip,
+              (select count(*) from app.leads l where l.clinic_id=$1 and l.deleted_at is null
+                 and l.stage not in ('lost','invalid') and """ + IN_INBOX + """) ip,
               (select count(*) from app.requests r join app.leads l on l.id = r.lead_id
                  where r.clinic_id=$1 and r.status='pending' and r.type='callback'
                    and l.assigned_to is not null) cb,

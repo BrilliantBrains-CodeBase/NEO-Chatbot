@@ -272,16 +272,26 @@ def plain_text(q: str) -> str:
 
 
 # Whose leads: those with an owner (Leads), those waiting in the Inbox for one, or both.
-Owner = Literal["assigned", "unassigned", "all"]
+Owner = Literal["assigned", "unassigned", "inbox", "all"]
 REQUEST_TYPES = ("book", "online", "cancel", "reschedule", "callback", "question")
 # Leads with a request waiting: of any type, or of one.
 RequestFilter = Literal["any", "book", "online", "cancel", "reschedule", "callback", "question"]
 
 
+# The Inbox: new leads with no owner yet, and any lead with a request waiting (a cancel or reschedule from an
+# existing patient too), so the front desk sees every request in one place (user, 2026-11-11).
+IN_INBOX = (
+    "(l.assigned_to is null or exists (select 1 from app.requests rq "
+    "where rq.lead_id = l.id and rq.status = 'pending'))"
+)
+
+
 def owner_where(owner: Owner) -> str:
-    return {"assigned": " and l.assigned_to is not null", "unassigned": " and l.assigned_to is null"}.get(
-        owner, ""
-    )
+    return {
+        "assigned": " and l.assigned_to is not null",
+        "unassigned": " and l.assigned_to is null",
+        "inbox": f" and {IN_INBOX}",
+    }.get(owner, "")
 
 
 def request_where(request: RequestFilter | None) -> str:

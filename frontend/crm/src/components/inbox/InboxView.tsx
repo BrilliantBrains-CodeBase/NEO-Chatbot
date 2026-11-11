@@ -7,7 +7,15 @@ import { useCrm } from "@/components/crm/CrmProvider";
 import Pager from "@/components/crm/Pager";
 import LeadDrawer from "@/components/leads/LeadDrawer";
 import { SOURCE, useDebounced, when } from "@/components/leads/labels";
-import { api, ApiError, INBOX_TABS, REFRESH_MS, type Assigned, type Inbox, type InboxRequest } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  INBOX_TABS,
+  REFRESH_MS,
+  type Assigned,
+  type Inbox,
+  type InboxRequest,
+} from "@/lib/api";
 import AssignControls, { useAssignRights } from "./AssignControls";
 import { asked, day, requestLabel } from "./RequestCard";
 
@@ -17,7 +25,10 @@ const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the brows
 const CHIPS: [string, string][] = [...INBOX_TABS, ["none", "No request"]];
 
 function askedText(r: InboxRequest) {
-  return r.reason ?? (asked(r) || (r.booked_date ? `Booked on ${day(r.booked_date)}` : ""));
+  return (
+    r.reason ??
+    (asked(r) || (r.booked_date ? `Booked on ${day(r.booked_date)}` : ""))
+  );
 }
 
 /** The Inbox: new leads from every source wait here without an owner. Front Desk takes them; an Admin
@@ -30,7 +41,9 @@ export default function InboxView() {
   const params = useSearchParams();
   const openCode = params.get("open");
   const askedType = params.get("type") ?? "";
-  const [type, setType] = useState(CHIPS.some(([k]) => k === askedType) ? askedType : "");
+  const [type, setType] = useState(
+    CHIPS.some(([k]) => k === askedType) ? askedType : "",
+  );
   const [version, setVersion] = useState(0);
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
@@ -59,14 +72,22 @@ export default function InboxView() {
   }
   const listUrl = `/v1/crm/inbox?clinic=${clinicId}&${filterQuery}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}`;
   const key = `${filters}|${page}|${version}`;
-  const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({ key: "" });
+  const [list, setList] = useState<{ key: string; d?: Inbox; error?: string }>({
+    key: "",
+  });
 
   useEffect(() => {
     if (!clinicId) return;
     let live = true;
     api<Inbox>(listUrl).then(
       (d) => live && setList({ key, d }),
-      (e) => live && setList({ key, error: e instanceof ApiError ? e.message : "Could not load the Inbox." }),
+      (e) =>
+        live &&
+        setList({
+          key,
+          error:
+            e instanceof ApiError ? e.message : "Could not load the Inbox.",
+        }),
     );
     return () => {
       live = false;
@@ -91,7 +112,8 @@ export default function InboxView() {
   const total = d?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (d && page > pages) setPage(pages); // the last page emptied (its leads were assigned)
-  const rows = d?.items.map((l) => l.code) ?? [];
+  // Only new leads (no owner yet) are ticked to assign; a patient who has an owner is here for a request.
+  const rows = d?.items.filter((l) => !l.assigned).map((l) => l.code) ?? [];
   const pageTicked = rows.length > 0 && rows.every((c) => picked.has(c));
 
   function tick(code: string, on: boolean) {
@@ -102,7 +124,10 @@ export default function InboxView() {
   }
 
   function open(code: string | null) {
-    router.replace(code ? `/inbox?open=${encodeURIComponent(code)}` : "/inbox", { scroll: false });
+    router.replace(
+      code ? `/inbox?open=${encodeURIComponent(code)}` : "/inbox",
+      { scroll: false },
+    );
   }
 
   function goPage(n: number) {
@@ -130,11 +155,19 @@ export default function InboxView() {
         method: "POST",
         body: JSON.stringify({ clinic: clinicId, codes: [code] }),
       });
-      toast(r.assigned.length ? `${code} is yours: it is in Leads now` : "Already assigned by someone else");
+      toast(
+        r.assigned.length
+          ? `${code} is yours: it is in Leads now`
+          : "Already assigned by someone else",
+      );
       refreshInbox();
       assigned(r);
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : "Could not assign. Please try again.");
+      toast(
+        e instanceof ApiError
+          ? e.message
+          : "Could not assign. Please try again.",
+      );
     } finally {
       setTaking("");
     }
@@ -146,7 +179,11 @@ export default function InboxView() {
       <div className="ph">
         <div>
           <h1>Inbox</h1>
-          <p>New leads from every source wait here. Assign each one to move it to Leads.</p>
+          <p>
+            New leads from every source wait here, and every request still
+            waiting from existing patients (a cancellation, a reschedule, a call
+            back). Assign a new lead to move it to Leads.
+          </p>
         </div>
       </div>
       <div className="tabs" aria-label="What the lead asked for">
@@ -154,9 +191,15 @@ export default function InboxView() {
           All<span className="c">{d?.all ?? "…"}</span>
         </button>
         {CHIPS.map(([k, label]) => (
-          <button key={k} className={type === k ? "on" : ""} onClick={() => setType(k)}>
+          <button
+            key={k}
+            className={type === k ? "on" : ""}
+            onClick={() => setType(k)}
+          >
             {label}
-            <span className="c">{d?.types.find((c) => c.key === k)?.count ?? "…"}</span>
+            <span className="c">
+              {d?.types.find((c) => c.key === k)?.count ?? "…"}
+            </span>
           </button>
         ))}
       </div>
@@ -169,10 +212,18 @@ export default function InboxView() {
           />
         </label>
         <div className="pills" style={{ margin: 0 }} aria-label="Came in">
-          <button type="button" className={`pill${isToday ? " on" : ""}`} onClick={() => range(true)}>
+          <button
+            type="button"
+            className={`pill${isToday ? " on" : ""}`}
+            onClick={() => range(true)}
+          >
             Today
           </button>
-          <button type="button" className={`pill${!from && !to ? " on" : ""}`} onClick={() => range(false)}>
+          <button
+            type="button"
+            className={`pill${!from && !to ? " on" : ""}`}
+            onClick={() => range(false)}
+          >
             All time
           </button>
         </div>
@@ -195,7 +246,12 @@ export default function InboxView() {
           min={from || undefined}
           onChange={(e) => setTo(e.target.value)}
         />
-        <select className="sel" value={source} onChange={(e) => setSource(e.target.value)} aria-label="Source">
+        <select
+          className="sel"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          aria-label="Source"
+        >
           <option value="">All sources</option>
           {Object.entries(SOURCE).map(([k, v]) => (
             <option key={k} value={k}>
@@ -215,7 +271,9 @@ export default function InboxView() {
               {t}
             </option>
           ))}
-          {treatment && d && !d.treatments?.includes(treatment) && <option value={treatment}>{treatment}</option>}
+          {treatment && d && !d.treatments?.includes(treatment) && (
+            <option value={treatment}>{treatment}</option>
+          )}
         </select>
       </div>
       {canAssign && picked.size > 0 && (
@@ -223,8 +281,17 @@ export default function InboxView() {
           <span>
             {picked.size} lead{picked.size === 1 ? "" : "s"} selected
           </span>
-          <AssignControls clinicId={clinicId} codes={[...picked]} onAssigned={assigned} compact />
-          <button type="button" className="btn g sm" onClick={() => setPicked(new Set())}>
+          <AssignControls
+            clinicId={clinicId}
+            codes={[...picked]}
+            onAssigned={assigned}
+            compact
+          />
+          <button
+            type="button"
+            className="btn g sm"
+            onClick={() => setPicked(new Set())}
+          >
             Clear
           </button>
         </div>
@@ -240,7 +307,13 @@ export default function InboxView() {
                     type="checkbox"
                     aria-label="Select all leads on this page"
                     checked={pageTicked}
-                    onChange={(e) => setPicked(e.target.checked ? new Set([...picked, ...rows]) : new Set())}
+                    onChange={(e) =>
+                      setPicked(
+                        e.target.checked
+                          ? new Set([...picked, ...rows])
+                          : new Set(),
+                      )
+                    }
                   />
                 </th>
               )}
@@ -263,43 +336,65 @@ export default function InboxView() {
             )}
             {d && !d.items.length && (
               <tr>
-                <td colSpan={cols}>{filterQuery ? "No leads match." : "Nothing waiting. Every lead has an owner."}</td>
+                <td colSpan={cols}>
+                  {filterQuery
+                    ? "No leads match."
+                    : "Nothing waiting. Every lead has an owner."}
+                </td>
               </tr>
             )}
             {d?.items.map((l) => {
               const first = l.requests[0];
               return (
-                <tr key={l.code} onClick={() => open(l.code)} style={{ cursor: "pointer" }}>
+                <tr
+                  key={l.code}
+                  onClick={() => open(l.code)}
+                  style={{ cursor: "pointer" }}
+                >
                   {canAssign && (
-                    <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${l.name}`}
-                        checked={picked.has(l.code)}
-                        onChange={(e) => tick(l.code, e.target.checked)}
-                      />
+                    <td
+                      style={{ cursor: "default" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {!l.assigned && (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${l.name}`}
+                          checked={picked.has(l.code)}
+                          onChange={(e) => tick(l.code, e.target.checked)}
+                        />
+                      )}
                     </td>
                   )}
                   <td>
                     <div className="nm">
-                      {l.requests.some((r) => r.urgent) && <span className="urgent-tag">Emergency</span>}
+                      {l.requests.some((r) => r.urgent) && (
+                        <span className="urgent-tag">Emergency</span>
+                      )}
                       {l.name}
                     </div>
                     <div className="pn">
                       {l.code} · {l.phone ?? l.email}
                     </div>
+                    {l.assigned && (
+                      <div className="pn">Owner: {l.assigned}</div>
+                    )}
                   </td>
                   <td>
                     {l.requests.length ? (
                       <>
                         <div className="rq-tags">
-                          {[...new Set(l.requests.map((r) => r.type))].map((t) => (
-                            <span key={t} className="badge b-new">
-                              {requestLabel(t)}
-                            </span>
-                          ))}
+                          {[...new Set(l.requests.map((r) => r.type))].map(
+                            (t) => (
+                              <span key={t} className="badge b-new">
+                                {requestLabel(t)}
+                              </span>
+                            ),
+                          )}
                         </div>
-                        {first && askedText(first) && <div className="pn">{askedText(first)}</div>}
+                        {first && askedText(first) && (
+                          <div className="pn">{askedText(first)}</div>
+                        )}
                       </>
                     ) : (
                       <span className="sub2">No request</span>
@@ -313,8 +408,15 @@ export default function InboxView() {
                   <td>{when(l.created_at)}</td>
                   <td>{when(l.last_contact_at)}</td>
                   {canTake && (
-                    <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
-                      <button className="btn sm" disabled={!!taking} onClick={() => take(l.code)}>
+                    <td
+                      style={{ cursor: "default" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        className="btn sm"
+                        disabled={!!taking}
+                        onClick={() => take(l.code)}
+                      >
                         {taking === l.code ? "Assigning…" : "Assign to me"}
                       </button>
                     </td>
@@ -325,9 +427,20 @@ export default function InboxView() {
           </tbody>
         </table>
       </div>
-      {d && total > 0 && <Pager page={page} size={PAGE_SIZE} shown={d.items.length} total={total} onPage={goPage} />}
+      {d && total > 0 && (
+        <Pager
+          page={page}
+          size={PAGE_SIZE}
+          shown={d.items.length}
+          total={total}
+          onPage={goPage}
+        />
+      )}
 
-      <div className={`ov${openCode ? " on" : ""}`} onClick={() => open(null)} />
+      <div
+        className={`ov${openCode ? " on" : ""}`}
+        onClick={() => open(null)}
+      />
       <aside className={`dr${openCode ? " on" : ""}`} aria-hidden={!openCode}>
         {openCode && (
           <LeadDrawer
