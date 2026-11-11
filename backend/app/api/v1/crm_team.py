@@ -40,6 +40,7 @@ class Member(BaseModel):
     me: bool
     clinics: list[str]  # the clinics they can open (of those you manage)
     doctor_id: str | None  # the doctor record linked to this login here
+    joined: bool  # has set a password; not yet: "Invited · not joined yet", with Resend invite
 
 
 class Request_(BaseModel):
@@ -111,7 +112,9 @@ async def _team(user: Staff, clinic: str) -> Team:
     rows = await pool.fetch(
         """select p.id, p.full_name, p.email, p.phone, p.last_seen_at, uc.role, uc.active and p.active active,
              array(select c.clinic_id from app.user_clinics c where c.user_id = p.id) clinics, -- disabled too
-             (select d.id from app.doctors d where d.user_id = p.id and d.clinic_id = $1) doctor_id
+             (select d.id from app.doctors d where d.user_id = p.id and d.clinic_id = $1) doctor_id,
+             exists(select 1 from auth.users a where a.id = p.id and coalesce(a.encrypted_password, '') <> '')
+               joined
            from app.user_clinics uc join app.profiles p on p.id = uc.user_id
            where uc.clinic_id = $1 and ($2 or p.id = $3::uuid) and (uc.role <> 'bb_admin' or $4)
            order by uc.active desc, uc.role, p.full_name""",
@@ -156,7 +159,7 @@ async def _team(user: Staff, clinic: str) -> Team:
                    role_label=ROLE_LABEL.get(r["role"], r["role"]), active=r["active"],
                    last_seen_at=r["last_seen_at"].isoformat() if r["last_seen_at"] else None,
                    me=str(r["id"]) == user.id, clinics=[c for c in r["clinics"] if c in managed],
-                   doctor_id=str(r["doctor_id"]) if r["doctor_id"] else None)
+                   doctor_id=str(r["doctor_id"]) if r["doctor_id"] else None, joined=r["joined"])
             for r in rows
         ],
         requests=[
@@ -447,6 +450,30 @@ async def reset(user: Annotated[Staff, Depends(staff)], clinic: str, member: str
     return result
 
 
+@router.post("/crm/team/{clinic}/members/{member}/resend", response_model=Team)
+async def resend(user: Annotated[Staff, Depends(staff)], clinic: str, member: str) -> Team:
+    """A fresh invite for someone who has not joined yet (their old link stops working)."""
+    role = await _their_role(user, clinic, member)
+    pool = await get_pool()
+    who = await pool.fetchrow(
+        """select p.email, p.full_name, coalesce(a.encrypted_password, '') <> '' joined
+           from app.profiles p left join auth.users a on a.id = p.id where p.id::text = $1""",
+        member,
+    )  # fmt: skip
+    if who["joined"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "They have joined already. Use Reset password.")
+    link = await _admin(supabase_admin.invite_again(who["email"]))
+    if role == "bb_admin":
+        where, sender = "all clinics", None
+    else:
+        where = await pool.fetchval("select name from app.clinics where id = $1", clinic) or clinic
+        sender = clinic
+    subject, text = staff_email.invite_text(who["full_name"] or who["email"], ROLE_LABEL[role], where, link)
+    result = await _team(user, clinic)
+    result.sent = await staff_email.deliver(sender, who["email"], subject, text, link, "invite")
+    return result
+
+
 # ---------- "Create an account" (sign-in pages, no sign-in) ----------
 class AccessRequest(BaseModel):
     full_name: str = Field(min_length=2, max_length=100)
@@ -490,3 +517,44 @@ async def request_access(request: Request, body: AccessRequest) -> dict[str, str
             uid, body.clinic, body.role, body.full_name.strip(), body.email, body.phone,
         )  # fmt: skip
     return {"clinic": str(clinic), "role": ROLE_LABEL[body.role]}
+
+
+class LinkAsk(BaseModel):
+    email: str = Field(max_length=120, pattern=EMAIL)
+
+    @field_validator("email")
+    @classmethod
+    def _lower(cls, v: str) -> str:
+        return v.strip().lower()
+
+
+SENT_IF_KNOWN = "If this email has a NEO CRM login, a link is on its way. Check your inbox and spam."
+
+
+@router.post("/auth/password-link", status_code=status.HTTP_202_ACCEPTED)
+async def password_link(request: Request, body: LinkAsk) -> dict[str, str]:
+    """Forgot password, or an expired link: a new link to set the password, from their clinic's Gmail (else
+    the BB Gmail). Only for someone with access somewhere. The answer never shows whether the email has a
+    login."""
+    ip = guard.client_ip(request.headers, request.client.host if request.client else None)
+    if not (guard.limiter.allow(f"link:{ip}", 3) and guard.limiter.allow(f"link:{body.email}", 1)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests. Please try in a minute.")
+    who = await (await get_pool()).fetchrow(
+        """select p.full_name, uc.clinic_id, uc.role from app.profiles p
+             join app.user_clinics uc on uc.user_id = p.id and uc.active
+           where p.email = $1 and p.active
+           order by uc.role = 'bb_admin' desc, uc.created_at limit 1""",
+        body.email,
+    )  # fmt: skip
+    if who is None:
+        return {"message": SENT_IF_KNOWN}
+    try:
+        link = await supabase_admin.reset_password(body.email)
+    except supabase_admin.AdminError:
+        return {"message": SENT_IF_KNOWN}
+    subject, text = staff_email.reset_text(who["full_name"] or body.email, link)
+    sender = None if who["role"] == "bb_admin" else who["clinic_id"]
+    # Never the link here (only the inbox's owner may have it), and the same answer when Gmail fails, so the
+    # answer still shows nothing; a failure is logged and reported to the clinic (Failures).
+    await staff_email.deliver(sender, body.email, subject, text, link, "password_reset")
+    return {"message": SENT_IF_KNOWN}

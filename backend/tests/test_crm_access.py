@@ -140,7 +140,13 @@ def _no_emails(monkeypatch: pytest.MonkeyPatch, gmail: str | None = None) -> lis
         return gmail
 
     monkeypatch.setattr(supabase_admin, "invite", invite)
+
+    async def again(email: str) -> str:
+        calls.append(email)
+        return f"https://auth.example/verify?type=invite&again&for={email}"
+
     monkeypatch.setattr(supabase_admin, "reset_password", reset)
+    monkeypatch.setattr(supabase_admin, "invite_again", again)
     monkeypatch.setattr(email, "send", send)
     return calls
 
@@ -379,6 +385,50 @@ async def test_invites_and_resets_go_from_the_clinic_gmail(
         assert "as Front Desk" in text and "type=invite" in text and "/sign-in" in text
     finally:
         await pool.execute("delete from auth.users where email = $1", new["email"])
+
+
+@needs_db
+async def test_resend_invite_only_until_they_join(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    """Not joined (no password yet): Team says so and sends a fresh invite. Joined: Reset password instead."""
+    calls = _no_emails(monkeypatch, gmail="clinic@gmail.example")
+    manager = signed_in_as(monkeypatch, world["manager"]["id"])
+    desk = world["desk"]
+    listed = {m["id"]: m for m in (await api.get(TEAM, headers=manager)).json()["members"]}
+    assert listed[desk["id"]]["joined"] is False
+    url = f"{TEAM}/members/{desk['id']}/resend"
+    done = await api.post(url, headers=manager)
+    assert done.status_code == 200, done.text
+    assert calls == [desk["email"]] and done.json()["sent"]["by"] == "clinic@gmail.example"
+    assert "type=invite&again" in MAILS[-1][2] and "as Front Desk" in MAILS[-1][2]
+    pool = await get_pool()
+    await pool.execute("update auth.users set encrypted_password = 'set' where id = $1::uuid", desk["id"])
+    try:
+        listed = {m["id"]: m for m in (await api.get(TEAM, headers=manager)).json()["members"]}
+        assert listed[desk["id"]]["joined"] is True
+        assert (await api.post(url, headers=manager)).status_code == 409
+    finally:
+        await pool.execute("update auth.users set encrypted_password = null where id = $1::uuid", desk["id"])
+
+
+@needs_db
+async def test_password_link_never_shows_who_has_a_login(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    """Forgot password / expired link: the same answer for any email; a link only goes to a member's inbox."""
+    from app.chat import guard
+
+    guard.limiter._hits.clear()
+    _no_emails(monkeypatch, gmail="clinic@gmail.example")
+    unknown = await api.post("/v1/auth/password-link", json={"email": "nobody-here@example.com"})
+    known = await api.post("/v1/auth/password-link", json={"email": world["desk"]["email"].upper()})
+    assert unknown.status_code == known.status_code == 202
+    assert unknown.json() == known.json() and "https" not in known.text
+    assert [(c, to) for c, to, _ in MAILS] == [("CL99", world["desk"]["email"])]
+    assert "type=recovery" in MAILS[0][2]
+    again = await api.post("/v1/auth/password-link", json={"email": world["desk"]["email"]})
+    assert again.status_code == 429  # one a minute per email
 
 
 @needs_db

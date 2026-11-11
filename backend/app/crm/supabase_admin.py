@@ -68,3 +68,12 @@ async def delete_user(user_id: str) -> None:
 async def reset_password(email: str) -> str:
     """A one-time link to set a new password (the CRM's Set password page). Nothing is sent."""
     return str((await _link("recovery", email))["action_link"])
+
+
+async def invite_again(email: str) -> str:
+    """A fresh invite link for someone who has not set a password yet (the old link stops working). Supabase
+    refuses an invite once the email is confirmed: then a password link, which opens the same page."""
+    try:
+        return str((await _link("invite", email))["action_link"])
+    except AdminError:
+        return await reset_password(email)

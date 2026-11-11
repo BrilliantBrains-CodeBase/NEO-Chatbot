@@ -37,11 +37,11 @@ def invite_text(name: str, role: str, where: str, link: str) -> tuple[str, str]:
 
 
 def reset_text(name: str, link: str) -> tuple[str, str]:
-    subject = "Set a new password for NEO CRM"
+    subject = "Set your NEO CRM password"
     text = (
         f"Hi {name},\n\n"
-        "A new password was asked for your NEO CRM login.\n\n"
-        f"Set your new password here:\n{link}\n\n"
+        "A link to set your NEO CRM password was asked for.\n\n"
+        f"Set your password here:\n{link}\n\n"
         f"Then sign in at {_sign_in()}\n\n"
         "The link works once. If you did not ask for this, you can ignore this email: "
         "your password stays the same."
