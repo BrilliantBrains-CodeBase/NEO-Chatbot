@@ -221,8 +221,10 @@ async def week(
     clinic: CLINIC,
     doctor_id: str,
     start: date | None = None,
+    days: Annotated[int, Query(ge=1, le=42)] = 7,
 ) -> Week:
-    """One doctor's week: 7 days from `start` (default today)."""
+    """One doctor's days: `days` from `start` (default today; 1 a day, 7 a week, up to 42 a month's
+    calendar)."""
     await _check(user, clinic)
     try:
         UUID(doctor_id)
@@ -238,10 +240,10 @@ async def week(
         first = start or today
         open_time, close_time = await _hours(conn, clinic)
         limited, mine = await own_doctor(conn, user, clinic)  # a Doctor sees only their own patients
-        days = await _days(conn, clinic, found[0], first, first + timedelta(days=6),
+        shown = await _days(conn, clinic, found[0], first, first + timedelta(days=days - 1),
                            not limited or doctor_id == mine)  # fmt: skip
     return Week(
-        doctor=found[0], today=today.isoformat(), open_time=open_time, close_time=close_time, days=days
+        doctor=found[0], today=today.isoformat(), open_time=open_time, close_time=close_time, days=shown
     )
 
 

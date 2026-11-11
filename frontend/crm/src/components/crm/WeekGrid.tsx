@@ -55,6 +55,17 @@ const addDays = (iso: string, n: number) => {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 };
+// Day / Week / Month: the first day asked for and how many, from the day the view is on.
+type Span = "day" | "week" | "month";
+const firstOfMonth = (iso: string) => `${iso.slice(0, 7)}-01`;
+const mondayOf = (iso: string) =>
+  addDays(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7));
+const nextMonth = (iso: string, n: number) => {
+  const d = new Date(`${firstOfMonth(iso)}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 10);
+};
+const localToday = () => new Date().toLocaleDateString("en-CA");
 const head = (iso: string) => {
   const d = new Date(`${iso}T00:00:00Z`);
   return {
@@ -147,6 +158,7 @@ export default function WeekGrid({
   doctorId: string;
 }) {
   const [start, setStart] = useState<string | null>(null); // null = from today
+  const [span, setSpan] = useState<Span>("week");
   const { me, clinic } = useCrm();
   const canEdit = level(me, clinic, "doctors") === "edit";
   const [editing, setEditing] = useState(false);
@@ -164,12 +176,16 @@ export default function WeekGrid({
   const [kind, setKind] = useState<Kind>("all");
   const [week, setWeek] = useState<{ key: string; data: Week }>();
   const [error, setError] = useState("");
-  const key = `${clinicId}|${doctorId}|${start ?? ""}|${version}`;
+  const key = `${clinicId}|${doctorId}|${start ?? ""}|${span}|${version}`;
 
   useEffect(() => {
     let live = true;
+    // A month: the 6 weeks of its calendar, Monday first; a day or a week: from the day chosen.
+    const from =
+      span === "month" ? mondayOf(firstOfMonth(start ?? localToday())) : start;
+    const days = span === "day" ? 1 : span === "week" ? 7 : 42;
     api<Week>(
-      `/v1/crm/availability/${doctorId}?clinic=${clinicId}${start ? `&start=${start}` : ""}`,
+      `/v1/crm/availability/${doctorId}?clinic=${clinicId}${from ? `&start=${from}` : ""}&days=${days}`,
     ).then(
       (data) => live && setWeek({ key, data }),
       (e) =>
@@ -181,7 +197,7 @@ export default function WeekGrid({
     return () => {
       live = false;
     };
-  }, [clinicId, doctorId, start, key]);
+  }, [clinicId, doctorId, start, span, key]);
 
   const w = week?.key === key ? week.data : undefined;
   const header = (
@@ -200,11 +216,7 @@ export default function WeekGrid({
     return (
       <>
         {header}
-        {error ? (
-          <p className="warnbox">{error}</p>
-        ) : (
-          <Loading />
-        )}
+        {error ? <p className="warnbox">{error}</p> : <Loading />}
       </>
     );
 
@@ -274,31 +286,65 @@ export default function WeekGrid({
             Edit hours &amp; leave
           </button>
         )}
+        <div className="seg" aria-label="Show">
+          {(["day", "week", "month"] as const).map((x) => (
+            <button
+              key={x}
+              className={span === x ? "on" : ""}
+              onClick={() => {
+                setSpan(x);
+                if (x !== "month" && span === "month") setStart(null);
+              }}
+            >
+              {x === "day" ? "Day" : x === "week" ? "Week" : "Month"}
+            </button>
+          ))}
+        </div>
         <button
           className="btn g"
-          onClick={() => setStart(addDays(w.days[0].date, -7))}
+          onClick={() =>
+            setStart(
+              span === "month"
+                ? nextMonth(start ?? w.today, -1)
+                : addDays(w.days[0].date, span === "day" ? -1 : -7),
+            )
+          }
         >
-          ← Previous week
+          ← Previous {span}
         </button>
         <button
           className="btn g"
-          disabled={w.days[0].date === w.today}
+          disabled={start === null}
           onClick={() => setStart(null)}
         >
-          This week
+          {span === "day"
+            ? "Today"
+            : span === "week"
+              ? "This week"
+              : "This month"}
         </button>
         <button
           className="btn g"
-          onClick={() => setStart(addDays(w.days[0].date, 7))}
+          onClick={() =>
+            setStart(
+              span === "month"
+                ? nextMonth(start ?? w.today, 1)
+                : addDays(w.days[0].date, span === "day" ? 1 : 7),
+            )
+          }
         >
-          Next week →
+          Next {span} →
         </button>
         <input
           className="sel"
           type="date"
-          aria-label="Show the week from"
-          title="Show the 7 days from this date"
-          value={w.days[0].date}
+          aria-label="Show from"
+          title={
+            span === "month"
+              ? "Show the month of this date"
+              : "Show from this date"
+          }
+          value={span === "month" ? (start ?? w.today) : w.days[0].date}
           onChange={(e) =>
             e.target.value &&
             setStart(e.target.value === w.today ? null : e.target.value)
@@ -341,134 +387,150 @@ export default function WeekGrid({
           </span>
         </div>
       </div>
-      <div className="tw">
-        <table className="wkg">
-          <thead>
-            <tr>
-              <th />
-              {w.days.map((d) => {
-                const h = head(d.date);
-                const any = d.bookings.filter((b) => !b.start);
-                const hours = [
-                  !d.closed && d.in_clinic.length
-                    ? `In-clinic ${spans(d.in_clinic)}`
-                    : "",
-                  d.online.length ? `Online ${spans(d.online)}` : "",
-                ].filter(Boolean);
-                return (
-                  <th
-                    key={d.date}
-                    className={d.date === w.today ? "today" : ""}
-                    title={hours.join(" · ")}
-                  >
-                    {h.day}
-                    <br />
-                    <span>{h.date}</span>
-                    {any.length > 0 && (
-                      <span
-                        style={{ display: "block", fontSize: "var(--fs-tiny)" }}
-                        title={any.map((b) => b.patient).join(", ")}
-                      >
-                        {any.length} any-time request
-                        {any.length === 1 ? "" : "s"}
-                      </span>
-                    )}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((m, i) => (
-              <tr key={m}>
-                <td className="tm">{label(m)}</td>
+      {span === "month" && (
+        <MonthBoard
+          w={w}
+          month={firstOfMonth(start ?? w.today)}
+          kind={kind}
+          onOpen={(date) => {
+            setSpan("day");
+            setStart(date === w.today ? null : date);
+          }}
+        />
+      )}
+      {span !== "month" && (
+        <div className="tw">
+          <table className="wkg">
+            <thead>
+              <tr>
+                <th />
                 {w.days.map((d) => {
-                  const whole =
-                    d.holiday !== null
-                      ? {
-                          cls: "cl",
-                          text: "Holiday",
-                          title: d.holiday || "Clinic holiday",
-                        }
-                      : d.leave !== null
-                        ? {
-                            cls: "lv",
-                            text: "Leave",
-                            title: d.leave || "On leave",
-                          }
-                        : kind === "online"
-                          ? !d.online.length
-                            ? {
-                                cls: "cl",
-                                text: "No online hours",
-                                title: "No online hours this day",
-                              }
-                            : null
-                          : d.closed &&
-                              (kind === "in_clinic" || !d.online.length)
-                            ? {
-                                cls: "cl",
-                                text: "Closed",
-                                title: "Clinic closed",
-                              }
-                            : null;
-                  if (whole)
-                    return i === 0 ? (
-                      <td
-                        key={d.date}
-                        className={whole.cls}
-                        rowSpan={rows.length}
-                        title={whole.title}
-                      >
-                        {whole.text}
-                      </td>
-                    ) : null;
-                  const past =
-                    d.date < w.today ||
-                    (d.date === w.today && m + step <= nowMin);
-                  const c = cell(d, m, past, kind);
+                  const h = head(d.date);
+                  const any = d.bookings.filter((b) => !b.start);
+                  const hours = [
+                    !d.closed && d.in_clinic.length
+                      ? `In-clinic ${spans(d.in_clinic)}`
+                      : "",
+                    d.online.length ? `Online ${spans(d.online)}` : "",
+                  ].filter(Boolean);
                   return (
-                    <td
+                    <th
                       key={d.date}
-                      className={c.cls}
-                      title={
-                        c.free && canBook
-                          ? `${c.title} · click to add a patient`
-                          : c.booking && canBook
-                            ? `${c.title} · click for details`
-                            : c.title
-                      }
-                      onClick={
-                        c.free && canBook
-                          ? () => {
-                              setDetail(null);
-                              setBooking({
-                                date: d.date,
-                                time: hm(m),
-                                kinds: c.free!,
-                              });
-                            }
-                          : c.booking && canBook
-                            ? () => {
-                                setBooking(null);
-                                setDetail({
-                                  date: d.date,
-                                  booking: c.booking!,
-                                });
-                              }
-                            : undefined
-                      }
+                      className={d.date === w.today ? "today" : ""}
+                      title={hours.join(" · ")}
                     >
-                      {c.text && <b>{c.text}</b>}
-                      {c.sub && <span>{c.sub}</span>}
-                    </td>
+                      {h.day}
+                      <br />
+                      <span>{h.date}</span>
+                      {any.length > 0 && (
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: "var(--fs-tiny)",
+                          }}
+                          title={any.map((b) => b.patient).join(", ")}
+                        >
+                          {any.length} any-time request
+                          {any.length === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </th>
                   );
                 })}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((m, i) => (
+                <tr key={m}>
+                  <td className="tm">{label(m)}</td>
+                  {w.days.map((d) => {
+                    const whole =
+                      d.holiday !== null
+                        ? {
+                            cls: "cl",
+                            text: "Holiday",
+                            title: d.holiday || "Clinic holiday",
+                          }
+                        : d.leave !== null
+                          ? {
+                              cls: "lv",
+                              text: "Leave",
+                              title: d.leave || "On leave",
+                            }
+                          : kind === "online"
+                            ? !d.online.length
+                              ? {
+                                  cls: "cl",
+                                  text: "No online hours",
+                                  title: "No online hours this day",
+                                }
+                              : null
+                            : d.closed &&
+                                (kind === "in_clinic" || !d.online.length)
+                              ? {
+                                  cls: "cl",
+                                  text: "Closed",
+                                  title: "Clinic closed",
+                                }
+                              : null;
+                    if (whole)
+                      return i === 0 ? (
+                        <td
+                          key={d.date}
+                          className={whole.cls}
+                          rowSpan={rows.length}
+                          title={whole.title}
+                        >
+                          {whole.text}
+                        </td>
+                      ) : null;
+                    const past =
+                      d.date < w.today ||
+                      (d.date === w.today && m + step <= nowMin);
+                    const c = cell(d, m, past, kind);
+                    return (
+                      <td
+                        key={d.date}
+                        className={c.cls}
+                        title={
+                          c.free && canBook
+                            ? `${c.title} · click to add a patient`
+                            : c.booking && canBook
+                              ? `${c.title} · click for details`
+                              : c.title
+                        }
+                        onClick={
+                          c.free && canBook
+                            ? () => {
+                                setDetail(null);
+                                setBooking({
+                                  date: d.date,
+                                  time: hm(m),
+                                  kinds: c.free!,
+                                });
+                              }
+                            : c.booking && canBook
+                              ? () => {
+                                  setBooking(null);
+                                  setDetail({
+                                    date: d.date,
+                                    booking: c.booking!,
+                                  });
+                                }
+                              : undefined
+                        }
+                      >
+                        {c.text && <b>{c.text}</b>}
+                        {c.sub && <span>{c.sub}</span>}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <p className="sub2" style={{ marginTop: 8 }}>
         Free times are what the chatbot offers patients now. A time booked
         in-clinic or online is taken for both.
@@ -571,7 +633,10 @@ function ScheduleCard({
             onChange={(h) => setS({ ...s, online: h })}
           />
           {s.calcom && (
-            <p className="sub2" style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}>
+            <p
+              className="sub2"
+              style={{ margin: "6px 0 0", fontSize: "var(--fs-small)" }}
+            >
               Connected to Cal.com: online hours and leave are sent there when
               you save.
             </p>
@@ -1152,6 +1217,88 @@ function DetailCard({
           Close
         </button>
       </div>
+    </div>
+  );
+}
+
+// Month: one cell per day with the doctor's free times, bookings, leave or closed; a click opens that day.
+function MonthBoard({
+  w,
+  month,
+  kind,
+  onOpen,
+}: {
+  w: Week;
+  month: string;
+  kind: Kind;
+  onOpen: (date: string) => void;
+}) {
+  const inMonth = (iso: string) => iso.slice(0, 7) === month.slice(0, 7);
+  const weeks = [0, 1, 2, 3, 4, 5]
+    .map((i) => w.days.slice(i * 7, i * 7 + 7))
+    .filter((wk) => wk.length && wk.some((d) => inMonth(d.date)));
+  return (
+    <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+      <table className="cmonth">
+        <thead>
+          <tr>
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((x) => (
+              <th key={x}>{x}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((wk) => (
+            <tr key={wk[0].date}>
+              {wk.map((d) => {
+                const free =
+                  (kind !== "online" ? d.free_in_clinic.length : 0) +
+                  (kind !== "in_clinic" ? d.free_online.length : 0);
+                const booked = d.bookings.filter(
+                  (b) => kind === "all" || b.type === kind,
+                ).length;
+                const past = d.date < w.today;
+                return (
+                  <td
+                    key={d.date}
+                    className={`${inMonth(d.date) ? "" : "out"}${d.date === w.today ? " today" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="dn"
+                      onClick={() => onOpen(d.date)}
+                      aria-label={`Open ${d.date}`}
+                    >
+                      {Number(d.date.slice(8))}
+                      {!!booked && <i>{booked}</i>}
+                    </button>
+                    {d.leave !== null ? (
+                      <span className="wi ns">
+                        Leave{d.leave ? `: ${d.leave}` : ""}
+                      </span>
+                    ) : d.holiday ? (
+                      <span className="wi cx">{d.holiday}</span>
+                    ) : d.closed && kind !== "online" && !d.online.length ? (
+                      <span className="wi cx">Closed</span>
+                    ) : (
+                      <>
+                        {!!booked && (
+                          <span className="wi">{booked} booked</span>
+                        )}
+                        {!past && (
+                          <span className={`wi ${free ? "vis" : "cx"}`}>
+                            {free ? `${free} free` : "Full"}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
