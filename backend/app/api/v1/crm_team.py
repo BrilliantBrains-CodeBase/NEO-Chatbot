@@ -4,9 +4,9 @@
   request; the CRM refuses them until it is approved.
 - Team (Admin, Super Admin): approve (the role may be changed) or reject requests, invite by email with
   a role, change a role, disable or enable someone, send a password reset, link a Doctor's login to their
-  doctor record. Only Super Admin approves, invites or changes Admins; only the main Super Admin adds or
-  changes other
-  Super Admins. Nobody changes their own access. Front Desk works in exactly one clinic.
+  doctor record. Invite and reset emails go from the clinic's Gmail, else the BB Gmail (app.crm.staff_email);
+  when neither can send, Team gets the link back to pass on. Only Super Admin approves, invites or changes
+  Admins; only the main Super Admin adds or changes other Super Admins. Nobody changes their own access.
 Every change is logged (audit trigger).
 """
 
@@ -19,7 +19,7 @@ from app.api.v1.crm_security import main_email
 from app.chat import guard
 from app.core.codes import CLINIC_CODE
 from app.core.db import get_pool
-from app.crm import supabase_admin
+from app.crm import staff_email, supabase_admin
 from app.crm.auth import ROLE_LABEL, Staff, staff
 
 router = APIRouter(tags=["crm"])
@@ -67,6 +67,7 @@ class Team(BaseModel):
     managed: dict[str, str]  # the clinics you can give access to: id -> name (Super Admin: every clinic)
     doctors: list[DoctorRecord]  # this clinic's doctor records (managers only)
     can_add_admins: bool  # the main Super Admin adds and changes other Super Admins
+    sent: staff_email.Sent | None = None  # after an invite or a reset: how the email went
 
 
 def _can_manage(user: Staff, clinic: str) -> bool:
@@ -256,7 +257,8 @@ async def invite(user: Annotated[Staff, Depends(staff)], clinic: str, body: Invi
         chosen = chosen[:1]
     pool = await get_pool()
     known = await pool.fetchval("select id from app.profiles where email = $1", body.email)
-    new_id = None if known else await _admin(supabase_admin.invite(body.email, body.full_name.strip()))
+    made = None if known else await _admin(supabase_admin.invite(body.email, body.full_name.strip()))
+    new_id = made[0] if made else None
     async with pool.acquire() as conn, conn.transaction():
         await conn.execute("select set_config('request.jwt.claim.sub', $1, true)", user.id)
         if new_id:
@@ -279,7 +281,16 @@ async def invite(user: Annotated[Staff, Depends(staff)], clinic: str, body: Invi
                 await _may_give(user, has[c]["role"])
         for c in new:
             await give_role(conn, uid, c, body.role)
-    return await _team(user, clinic)
+    result = await _team(user, clinic)
+    if made:  # someone new: the email with their link (someone known just signs in as before)
+        if body.role == "bb_admin":
+            where, sender = "all clinics", None  # from the BB Gmail
+        else:
+            where = ", ".join(managed[c] for c in new)
+            sender = clinic if clinic in new else new[0]
+        subject, text = staff_email.invite_text(body.full_name.strip(), ROLE_LABEL[body.role], where, made[1])
+        result.sent = await staff_email.deliver(sender, body.email, subject, text, made[1], "invite")
+    return result
 
 
 async def give_role(conn: Any, uid: str, clinic: str, role: str) -> None:
@@ -422,15 +433,18 @@ async def link_doctor(
 async def reset(user: Annotated[Staff, Depends(staff)], clinic: str, member: str) -> Team:
     """Emails them a link to set a new password (only people whose access you may change)."""
     await _their_role(user, clinic, member)
-    email = await (await get_pool()).fetchval(
-        """select p.email from app.profiles p join app.user_clinics uc on uc.user_id = p.id
+    who = await (await get_pool()).fetchrow(
+        """select p.email, p.full_name from app.profiles p join app.user_clinics uc on uc.user_id = p.id
            where p.id::text = $1 and uc.clinic_id = $2""",
         member, clinic,
     )  # fmt: skip
-    if email is None:
+    if who is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not a member of this clinic.")
-    await _admin(supabase_admin.reset_password(email))
-    return await _team(user, clinic)
+    link = await _admin(supabase_admin.reset_password(who["email"]))
+    subject, text = staff_email.reset_text(who["full_name"] or who["email"], link)
+    result = await _team(user, clinic)
+    result.sent = await staff_email.deliver(clinic, who["email"], subject, text, link, "password_reset")
+    return result
 
 
 # ---------- "Create an account" (sign-in pages, no sign-in) ----------

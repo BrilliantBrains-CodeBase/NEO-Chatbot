@@ -12,8 +12,8 @@ from httpx import AsyncClient
 
 from app.api.v1 import crm_team
 from app.core.db import close_pool, get_pool
+from app.crm import email, supabase_admin
 from app.crm import permissions as perm
-from app.crm import supabase_admin
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
@@ -112,24 +112,36 @@ async def world() -> AsyncIterator[dict[str, Any]]:
         await close_pool()
 
 
-def _no_emails(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Nothing reaches Supabase Auth; new logins get an id, and each call is noted."""
-    calls: list[str] = []
+MAILS: list[tuple[str | None, str, str]] = []  # (sender clinic, to, text) of each email the CRM tried
 
-    async def invite(email: str, name: str) -> str:
+
+def _no_emails(monkeypatch: pytest.MonkeyPatch, gmail: str | None = None) -> list[str]:
+    """Nothing reaches Supabase Auth or Gmail; new logins get an id, and each call is noted. `gmail`: the
+    address emails go from (None: no Gmail connected, so nothing is sent)."""
+    calls: list[str] = []
+    MAILS.clear()
+
+    async def invite(email: str, name: str) -> tuple[str, str]:
         calls.append(email)
         pool = await get_pool()
-        return str(
-            await pool.fetchval(
-                "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", email
-            )
+        made = await pool.fetchval(
+            "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id", email
         )
+        return str(made), f"https://auth.example/verify?type=invite&for={email}"
 
-    async def reset(email: str) -> None:
+    async def reset(email: str) -> str:
         calls.append(email)
+        return f"https://auth.example/verify?type=recovery&for={email}"
+
+    async def send(clinic: str | None, to: str, subject: str, text: str, kind: str) -> str:
+        MAILS.append((clinic, to, text))
+        if gmail is None:
+            raise email.EmailError("No Gmail is connected.")
+        return gmail
 
     monkeypatch.setattr(supabase_admin, "invite", invite)
     monkeypatch.setattr(supabase_admin, "reset_password", reset)
+    monkeypatch.setattr(email, "send", send)
     return calls
 
 
@@ -336,8 +348,37 @@ async def test_team_is_for_managers_and_password_resets_respect_rank(
         assert (await api.post(url, headers=manager)).status_code == 403
     assert calls == []
     url = f"{TEAM}/members/{world['desk']['id']}/reset"
-    assert (await api.post(url, headers=manager)).status_code == 200
+    done = await api.post(url, headers=manager)
+    assert done.status_code == 200
     assert calls == [world["desk"]["email"]]
+    # No Gmail connected: nothing sent, and the link comes back to pass on.
+    sent = done.json()["sent"]
+    assert sent["by"] is None and sent["error"] and sent["link"].endswith(world["desk"]["email"])
+    assert MAILS[0][0] == "CL99" and sent["link"] in MAILS[0][2]
+
+
+@needs_db
+async def test_invites_and_resets_go_from_the_clinic_gmail(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch, world: dict[str, Any]
+) -> None:
+    """Sent: Team shows from which Gmail, and never hands the link over. A Super Admin invite goes from the
+    BB Gmail; one for a clinic names the clinic and the role."""
+    _no_emails(monkeypatch, gmail="clinic@gmail.example")
+    manager = signed_in_as(monkeypatch, world["manager"]["id"])
+    done = await api.post(f"{TEAM}/members/{world['desk']['id']}/reset", headers=manager)
+    assert done.json()["sent"] == {"to": world["desk"]["email"], "by": "clinic@gmail.example", "error": None,
+                                   "link": None}  # fmt: skip
+    new = {"full_name": "New Desk", "email": f"desk-{uuid.uuid4().hex[:6]}@example.com", "role": "front_desk"}
+    pool = await get_pool()
+    try:
+        done = await api.post(f"{TEAM}/invite", json=new, headers=manager)
+        assert done.status_code == 200, done.text
+        assert done.json()["sent"]["by"] == "clinic@gmail.example" and done.json()["sent"]["link"] is None
+        clinic, to, text = MAILS[-1]
+        assert (clinic, to) == ("CL99", new["email"])
+        assert "as Front Desk" in text and "type=invite" in text and "/sign-in" in text
+    finally:
+        await pool.execute("delete from auth.users where email = $1", new["email"])
 
 
 @needs_db
@@ -370,6 +411,7 @@ async def test_only_the_main_bb_admin_changes_bb_admins(
     monkeypatch.setattr(crm_team, "main_email", me)
     done = await api.post(f"{TEAM}/invite", json=new, headers=bb)
     assert done.status_code == 200 and calls == [new["email"]]
+    assert MAILS[-1][0] is None and "all clinics" in MAILS[-1][2]  # from the BB Gmail
     pool = await get_pool()
     added = await pool.fetchval("select id from app.profiles where email = $1", new["email"])
     try:

@@ -1,10 +1,10 @@
 """Supabase Auth's admin API, for Team & access only: create a requested login, invite by email, remove a
 rejected login, send a password reset. Uses the project's secret key (SUPABASE_SECRET_KEY), server only.
-Supabase sends the invite and reset emails itself (its SMTP settings decide the sender).
+Supabase only makes the invite and reset links (it sends nothing): app.crm.staff_email emails them from the
+clinic's Gmail or the BB Gmail.
 """
 
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 
@@ -36,8 +36,15 @@ async def _call(method: str, path: str, body: dict[str, Any] | None = None) -> d
 
 
 def _redirect() -> str:
-    """Where the emailed link lands (the CRM's Set password page), for Supabase's redirect_to."""
-    return quote(get_settings().crm_url.rstrip("/") + "/set-password", safe="")
+    """Where the emailed link lands: the CRM's Set password page (must be in Supabase's Redirect URLs)."""
+    return get_settings().crm_url.rstrip("/") + "/set-password"
+
+
+async def _link(kind: str, email: str, name: str | None = None) -> dict[str, Any]:
+    body: dict[str, Any] = {"type": kind, "email": email, "redirect_to": _redirect()}
+    if name:
+        body["data"] = {"full_name": name}
+    return await _call("POST", "/admin/generate_link", body)
 
 
 async def create_user(email: str, password: str, name: str) -> str:
@@ -48,17 +55,16 @@ async def create_user(email: str, password: str, name: str) -> str:
     return str(user["id"])
 
 
-async def invite(email: str, name: str) -> str:
-    """Emails an invite; the link opens the CRM's Set password page. The new login's id."""
-    body = {"email": email, "data": {"full_name": name}}
-    user = await _call("POST", f"/invite?redirect_to={_redirect()}", body)
-    return str(user["id"])
+async def invite(email: str, name: str) -> tuple[str, str]:
+    """A new login and its one-time link to the CRM's Set password page: (login id, link). Nothing is sent."""
+    made = await _link("invite", email, name)
+    return str(made["id"]), str(made["action_link"])
 
 
 async def delete_user(user_id: str) -> None:
     await _call("DELETE", f"/admin/users/{user_id}")
 
 
-async def reset_password(email: str) -> None:
-    """Emails a password reset link (to the CRM's Set password page)."""
-    await _call("POST", f"/recover?redirect_to={_redirect()}", {"email": email})
+async def reset_password(email: str) -> str:
+    """A one-time link to set a new password (the CRM's Set password page). Nothing is sent."""
+    return str((await _link("recovery", email))["action_link"])

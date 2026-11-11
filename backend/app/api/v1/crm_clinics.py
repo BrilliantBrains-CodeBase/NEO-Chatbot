@@ -17,7 +17,7 @@ from app.api.v1.crm_team import give_role
 from app.chat import main_template
 from app.core.codes import CLINIC_CODE, code_from_name
 from app.core.db import get_pool
-from app.crm import supabase_admin
+from app.crm import staff_email, supabase_admin
 from app.crm.auth import Staff, staff
 
 router = APIRouter(prefix="/crm/clinics", tags=["crm"])
@@ -89,14 +89,14 @@ async def clinics(user: Annotated[Staff, Depends(staff)]) -> list[Clinic]:
 async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) -> list[Clinic]:
     _bb(user)
     pool = await get_pool()
-    manager_id = None
+    manager_id = link = None
     if body.manager_email:  # before the clinic is made: an invite that fails leaves nothing half done
         sql = "select id::text from app.profiles where email = $1"
         manager_id = await pool.fetchval(sql, body.manager_email)
         if manager_id is None:
             try:
                 name = (body.manager_name or body.manager_email.split("@")[0]).strip()
-                manager_id = await supabase_admin.invite(body.manager_email, name)
+                manager_id, link = await supabase_admin.invite(body.manager_email, name)
             except supabase_admin.AdminError as e:
                 raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from None
             await pool.execute(
@@ -135,6 +135,10 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
         )  # fmt: skip  (a copy of the main follows it: canvas, Templates, Appearance)
         if manager_id:
             await give_role(conn, str(manager_id), code, "clinic_manager")
+    if link and body.manager_email:  # a new clinic has no Gmail yet: from the BB Gmail. Not sent: Team →
+        # Reset password in the new clinic hands the link over.
+        subject, text = staff_email.invite_text(name, "Admin", body.name.strip(), link)
+        await staff_email.deliver(code, body.manager_email, subject, text, link, "invite")
     return await _list()
 
 

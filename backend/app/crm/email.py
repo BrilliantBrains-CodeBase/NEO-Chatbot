@@ -40,8 +40,9 @@ def _send(address: str, password: str, from_name: str, to: str, subject: str, te
         smtp.send_message(msg)
 
 
-async def send(clinic: str | None, to: str, subject: str, text: str, kind: str) -> None:
-    """Sends now from the clinic's Gmail (or the BB Gmail) and logs it. EmailError when it was not sent."""
+async def send(clinic: str | None, to: str, subject: str, text: str, kind: str) -> str:
+    """Sends now from the clinic's Gmail (or the BB Gmail) and logs it: the Gmail it went from. EmailError
+    when it was not sent."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await sender(conn, clinic)
@@ -64,3 +65,4 @@ async def send(clinic: str | None, to: str, subject: str, text: str, kind: str) 
         if kind != "test":  # someone testing already sees the answer
             await failures.report(clinic, "Email")
         raise EmailError(error)
+    return str(row["address"])
