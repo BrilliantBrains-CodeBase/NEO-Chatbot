@@ -152,7 +152,8 @@ async def test_facts_answer_by_their_name_only_when_approved(tx: asyncpg.Connect
            ('CL99', 'wifi_password', 'Draft only.', 'draft', null)"""
     )
     name = await kb.fact(tx, "CL99", "clinic name")
-    assert name and name.answer == "Test Clinic, Bengaluru." and name.source == "fact"
+    live = await tx.fetchval("select name from app.clinics where id = 'CL99'")  # Chatbot settings win
+    assert name and name.answer == live and name.source == "fact"
     email = await kb.fact(tx, "CL99", "email id")
     assert email and email.answer == "Email: hello@test.example"
     assert await kb.fact(tx, "CL99", "wifi password") is None  # a draft never answers

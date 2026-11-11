@@ -1200,3 +1200,17 @@ def test_a_lead_block_says_its_own_message_before_the_first_question() -> None:
     plain = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
     bare = Chat({"nodes": [opening(("m1", "Call Back")), plain], "edges": [line("opening", "m1", "cb")]})
     assert bare(tap="m1") == ["May I know your full name?"]  # no message set: as before
+
+
+def test_comma_wordings_count_and_another_answers_word_counts_against_a_match() -> None:
+    from app.chat.kb import _Row, best, wordings, words
+
+    assert wordings("What is your email address?, email address; clinic email address\nmail id") == [
+        "What is your email address?", "email address", "clinic email address", "mail id",
+    ]  # fmt: skip
+    address = _Row("1", "clinic address", "1st floor, Scorpio House", (words("clinic address"),))
+    email = _Row("2", "clinic email", "info@clinic.com", (words("clinic email"), words("email address")))
+    hit = best([address, email], "clinic email address")
+    assert hit is not None and hit.answer == "info@clinic.com"  # not the address
+    hit = best([address, email], "clinic address")
+    assert hit is not None and hit.answer == "1st floor, Scorpio House"  # the address still is the address

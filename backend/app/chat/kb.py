@@ -19,6 +19,7 @@ from app.core.db import get_pool
 log = logging.getLogger(__name__)
 CACHE_S = 60  # approved rows change rarely; a minute keeps CRM edits quick to show
 MIN_SCORE = 86  # below this, no answer (a wrong answer is worse than a call back)
+FOREIGN_WORD = 10  # taken off for each typed word that belongs to another answer and not this one
 
 # Words that carry no meaning for matching ("is it", "do you" alone must never match anything).
 STOP = set(
@@ -108,6 +109,12 @@ def words(text: str) -> str:
     return " ".join(w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP)
 
 
+def wordings(variants: str) -> list[str]:
+    """The other ways a question is asked: one per line, or separated by commas or semicolons (staff often
+    type "email address, clinic email" on one line)."""
+    return [v.strip() for v in re.split(r"[\n,;]+", variants or "") if v.strip()]
+
+
 async def _rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
     now = time.monotonic()
     hit = _cache.get(clinic_id)
@@ -123,7 +130,7 @@ async def _rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
         answer = fill(r["answer"], values)
         if answer is None:  # a linked fact is missing: this answer is not given
             continue
-        keys = tuple(k for k in (words(x) for x in [r["question"], *r["variants"].splitlines()]) if k)
+        keys = tuple(k for k in (words(x) for x in [r["question"], *wordings(r["variants"])]) if k)
         rows.append(_Row(str(r["id"]), r["question"], answer, keys, r["category"]))
     _cache[clinic_id] = (now, rows)
     return rows
@@ -151,9 +158,13 @@ def best(rows: list[_Row], text: str) -> Answer | None:
             return Answer(r.id, r.question, r.answer, 90.0)
         # not found as a word: still checked below for typos ("adress")
     asked = set(query.split())
+    everyone = {w for r in rows for k in r.keys for w in k.split()}
     top: tuple[float, float, _Row] | None = None
     for row in rows:
         own = FILLER | {w for k in row.keys for w in k.split()}  # its own words also fit ("transplant kitne")
+        # A word typed that belongs to another answer and not to this one ("clinic EMAIL address" against
+        # "clinic address") counts against this one: the answer that has it should win.
+        foreign = len({w for w in asked - own if w in everyone})
         for key in row.keys:
             # Whole wording against whole question, tolerant of word order and small typos. One being
             # inside the other also counts (a little lower). Ties go to the closer overall wording.
@@ -163,7 +174,7 @@ def best(rows: list[_Row], text: str) -> Answer | None:
             inside = len(key.split()) > 1 or asked - {key} <= own
             within = fuzz.token_set_ratio(query, key) - 4 if inside else 0
             # One word is never matched by being inside a longer wording ("surgery" is not "need surgery").
-            score = close if single else max(close, within)
+            score = (close if single else max(close, within)) - FOREIGN_WORD * foreign
             if score >= MIN_SCORE and (top is None or (score, close) > top[:2]):
                 top = (score, close, row)
     return Answer(top[2].id, top[2].question, top[2].answer, top[0]) if top else None
@@ -196,7 +207,7 @@ async def _fill(conn: asyncpg.Connection, clinic_id: str) -> None:
         "where clinic_id = $1 and status = 'approved' and embedding is null",
         clinic_id,
     ):
-        v = await embed.meaning([r["question"], *[x for x in r["variants"].splitlines() if x.strip()]])
+        v = await embed.meaning([r["question"], *wordings(r["variants"])])
         await conn.execute(
             "update app.kb_qa set embedding = $2::extensions.vector where id = $1", r["id"], embed.as_pg(v)
         )
@@ -265,7 +276,7 @@ async def _fact_rows(conn: asyncpg.Connection, clinic_id: str) -> list[_Row]:
         clinic_id,
     ):
         name = r["key"].replace("_", " ")
-        said = [name, *[v.strip() for v in r["variants"].splitlines() if v.strip()]]
+        said = [name, *wordings(r["variants"])]
         keys = tuple(k for k in (words(w) for w in said) if k)
         value = live.get(r["key"]) or r["value"]
         rows.append(_Row(str(r["id"]), name, fact_text(r["key"], value), keys, r["category"]))
