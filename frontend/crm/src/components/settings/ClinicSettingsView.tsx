@@ -4,7 +4,10 @@ import DataImg from "@/components/crm/DataImg";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import Loading from "@/components/crm/Loading";
-import PhoneField, { phoneError, phoneValue } from "@/components/crm/PhoneField";
+import PhoneField, {
+  phoneError,
+  phoneValue,
+} from "@/components/crm/PhoneField";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type Branding, type Me } from "@/lib/api";
 import { fitImage, ImageError, type Fit } from "@/lib/image";
@@ -17,13 +20,31 @@ import { fitImage, ImageError, type Fit } from "@/lib/image";
 type Assign = "inbox" | "round_robin" | "manager";
 type Stored = Record<string, string | null>;
 type Alerts = { emergency_admins: boolean; emergency_emails: string[] };
-type Settings = { id: string; details: Stored; alerts: Alerts; can_edit: boolean };
+type Settings = {
+  id: string;
+  details: Stored;
+  alerts: Alerts;
+  can_edit: boolean;
+};
 
 const FIELDS = [
-  "name", "email", "phone", "alt_phone", "whatsapp", "website", "address", "city", "state", "postal_code",
-  "country", "registration_no", "gstin",
+  "name",
+  "email",
+  "phone",
+  "alt_phone",
+  "whatsapp",
+  "website",
+  "address",
+  "city",
+  "state",
+  "postal_code",
+  "country",
+  "registration_no",
+  "gstin",
 ] as const;
-type Form = Record<(typeof FIELDS)[number], string> & { lead_assignment: Assign };
+type Form = Record<(typeof FIELDS)[number], string> & {
+  lead_assignment: Assign;
+};
 
 const TABS = [
   ["general", "General"],
@@ -38,8 +59,16 @@ const ASSIGN: [Assign, string, string][] = [
     "Assign from the Inbox (recommended)",
     "New leads wait in the Inbox. Front Desk takes them, or an Admin assigns them; they then move to Leads.",
   ],
-  ["round_robin", "Share among Front Desk", "Each new lead goes straight to the next Front Desk member who takes part in lead sharing (Team), skipping the Inbox."],
-  ["manager", "Give to the Admin", "Every new lead goes straight to the clinic's first Admin, skipping the Inbox."],
+  [
+    "round_robin",
+    "Share among Front Desk",
+    "Each new lead goes straight to the next Front Desk member who takes part in lead sharing (Team), skipping the Inbox.",
+  ],
+  [
+    "manager",
+    "Give to the Admin",
+    "Every new lead goes straight to the clinic's first Admin, skipping the Inbox.",
+  ],
 ];
 
 const LOGO: Fit = { width: 480, height: 160, type: "image/png" };
@@ -50,16 +79,20 @@ function toForm(d: Stored): Form {
   const f = Object.fromEntries(FIELDS.map((k) => [k, d[k] ?? ""])) as Form;
   f.country ||= "India";
   // "manual" is the old name of the Inbox setting.
-  const saved = d.lead_assignment === "manual" ? "inbox" : (d.lead_assignment as Assign);
+  const saved =
+    d.lead_assignment === "manual" ? "inbox" : (d.lead_assignment as Assign);
   f.lead_assignment = saved || "inbox";
   return f;
 }
 
 /** What to send: blanks as null, phones without a number as null, a website with https://. */
 function toSave(f: Form): Record<string, string | null> {
-  const out: Record<string, string | null> = { lead_assignment: f.lead_assignment };
+  const out: Record<string, string | null> = {
+    lead_assignment: f.lead_assignment,
+  };
   for (const k of FIELDS) out[k] = f[k].trim() || null;
-  for (const k of ["phone", "alt_phone", "whatsapp"] as const) out[k] = phoneValue(f[k]);
+  for (const k of ["phone", "alt_phone", "whatsapp"] as const)
+    out[k] = phoneValue(f[k]);
   const site = out.website;
   if (site && !/^https?:\/\//i.test(site)) out.website = `https://${site}`;
   else if (site) out.website = site.replace(/^http:\/\//i, "https://");
@@ -69,23 +102,37 @@ function toSave(f: Form): Record<string, string | null> {
 
 function check(f: Form): string {
   if (f.name.trim().length < 2) return "Please enter the clinic's name.";
-  if (f.email.trim() && !EMAIL.test(f.email.trim())) return "Please enter a valid clinic email.";
-  for (const [k, label] of [["phone", "Main phone"], ["alt_phone", "Other phone"], ["whatsapp", "WhatsApp"]] as const) {
+  if (f.email.trim() && !EMAIL.test(f.email.trim()))
+    return "Please enter a valid clinic email.";
+  for (const [k, label] of [
+    ["phone", "Main phone"],
+    ["alt_phone", "Other phone"],
+    ["whatsapp", "WhatsApp"],
+  ] as const) {
     const e = phoneError(f[k]);
     if (e) return `${label}: ${e}`;
   }
-  if (f.postal_code.trim() && !/^[A-Za-z0-9][A-Za-z0-9 -]{1,9}$/.test(f.postal_code.trim()))
+  if (
+    f.postal_code.trim() &&
+    !/^[A-Za-z0-9][A-Za-z0-9 -]{1,9}$/.test(f.postal_code.trim())
+  )
     return "Please check the PIN / postal code.";
   const gst = f.gstin.replace(/\s/g, "").toUpperCase();
-  if (gst && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gst)) return "A GSTIN has 15 letters and numbers, starting with 2 numbers.";
+  if (gst && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gst))
+    return "A GSTIN has 15 letters and numbers, starting with 2 numbers.";
   return "";
 }
 
-const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+const message = (e: unknown, fallback: string) =>
+  e instanceof ApiError ? e.message : fallback;
 
 export default function ClinicSettingsView() {
   const { clinicId, toast, setMe, setClinic, branding, setBranding } = useCrm();
-  const [loaded, setLoaded] = useState<{ clinic: string; s?: Settings; error?: string }>({ clinic: "" });
+  const [loaded, setLoaded] = useState<{
+    clinic: string;
+    s?: Settings;
+    error?: string;
+  }>({ clinic: "" });
   const [form, setForm] = useState<Form | null>(null);
   const [alerts, setAlerts] = useState<Alerts | null>(null);
   const [tab, setTab] = useState<Tab>("general");
@@ -103,7 +150,12 @@ export default function ClinicSettingsView() {
         setAlerts(s.alerts);
         setError("");
       },
-      (e) => live && setLoaded({ clinic: clinicId, error: message(e, "Could not load the clinic settings.") }),
+      (e) =>
+        live &&
+        setLoaded({
+          clinic: clinicId,
+          error: message(e, "Could not load the clinic settings."),
+        }),
     );
     return () => {
       live = false;
@@ -115,7 +167,8 @@ export default function ClinicSettingsView() {
     !!s &&
     !!form &&
     !!alerts &&
-    (JSON.stringify(form) !== JSON.stringify(toForm(s.details)) || JSON.stringify(alerts) !== JSON.stringify(s.alerts));
+    (JSON.stringify(form) !== JSON.stringify(toForm(s.details)) ||
+      JSON.stringify(alerts) !== JSON.stringify(s.alerts));
 
   useEffect(() => {
     if (!dirty) return;
@@ -124,8 +177,10 @@ export default function ClinicSettingsView() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  if (loaded.clinic === clinicId && loaded.error) return <div className="warnbox">{loaded.error}</div>;
-  if (!s || !form || !alerts || !clinicId) return <Loading label="Loading the clinic settings" />;
+  if (loaded.clinic === clinicId && loaded.error)
+    return <div className="warnbox">{loaded.error}</div>;
+  if (!s || !form || !alerts || !clinicId)
+    return <Loading label="Loading the clinic settings" />;
 
   const ro = !s.can_edit;
   const set = (patch: Partial<Form>) => setForm({ ...form, ...patch });
@@ -157,7 +212,17 @@ export default function ClinicSettingsView() {
     }
   }
 
-  const field = (key: (typeof FIELDS)[number], label: string, extra: { full?: boolean; hint?: string; placeholder?: string; max?: number; type?: string } = {}) => (
+  const field = (
+    key: (typeof FIELDS)[number],
+    label: string,
+    extra: {
+      full?: boolean;
+      hint?: string;
+      placeholder?: string;
+      max?: number;
+      type?: string;
+    } = {},
+  ) => (
     <label className={`tm-field${extra.full ? " full" : ""}`}>
       {label}
       <input
@@ -172,10 +237,19 @@ export default function ClinicSettingsView() {
       {extra.hint && <span className="tm-hint">{extra.hint}</span>}
     </label>
   );
-  const phone = (key: "phone" | "alt_phone" | "whatsapp", label: string, hint?: string) => (
+  const phone = (
+    key: "phone" | "alt_phone" | "whatsapp",
+    label: string,
+    hint?: string,
+  ) => (
     <div className="tm-field">
       {label}
-      <PhoneField label={label} value={form[key]} disabled={ro} onChange={(v) => set({ [key]: v })} />
+      <PhoneField
+        label={label}
+        value={form[key]}
+        disabled={ro}
+        onChange={(v) => set({ [key]: v })}
+      />
       {hint && <span className="tm-hint">{hint}</span>}
     </div>
   );
@@ -186,7 +260,8 @@ export default function ClinicSettingsView() {
         <div>
           <h1>Clinic settings</h1>
           <p>
-            {s.details.name} · clinic code {s.id}. How this clinic looks and works in the CRM.
+            {s.details.name} · clinic code {s.id}. How this clinic looks and
+            works in the CRM.
           </p>
         </div>
       </div>
@@ -198,7 +273,13 @@ export default function ClinicSettingsView() {
 
       <div className="tabs" role="tablist" aria-label="Clinic settings">
         {TABS.map(([key, label]) => (
-          <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "on" : ""} onClick={() => setTab(key)}>
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "on" : ""}
+            onClick={() => setTab(key)}
+          >
             {label}
           </button>
         ))}
@@ -206,21 +287,46 @@ export default function ClinicSettingsView() {
 
       {tab === "general" && (
         <>
-          <Card title="Logo and favicon" text="Shown in the CRM while this clinic is chosen: the logo at the top of the menu, the favicon in the browser tab and the narrow menu. The chatbot's own logo is in Dashboard → Appearance.">
-            <BrandingEditor clinicId={clinicId} branding={branding} readOnly={ro} onSaved={setBranding} />
+          <Card
+            title="Logo and favicon"
+            text="Shown in the CRM while this clinic is chosen: the logo at the top of the menu, the favicon in the browser tab and the narrow menu. The chatbot's own logo is in Dashboard → Appearance."
+          >
+            <BrandingEditor
+              clinicId={clinicId}
+              branding={branding}
+              readOnly={ro}
+              onSaved={setBranding}
+            />
           </Card>
-          <Card title="Clinic" text="The clinic's name in the CRM: the clinic switch, emails to staff and the browser tab.">
+          <Card
+            title="Clinic"
+            text="The clinic's name in the CRM: the clinic switch, emails to staff and the browser tab."
+          >
             <div className="tm-form">
               {field("name", "Clinic name", { full: true })}
-              {field("registration_no", "Registration number", { hint: "Optional. e.g. the clinical establishment number.", max: 60 })}
-              {field("gstin", "GSTIN", { hint: "Optional. 15 letters and numbers.", max: 15, placeholder: "29ABCDE1234F1Z5" })}
+              {field("registration_no", "Registration number", {
+                hint: "Optional. e.g. the clinical establishment number.",
+                max: 60,
+              })}
+              {field("gstin", "GSTIN", {
+                hint: "Optional. 15 letters and numbers.",
+                max: 15,
+                placeholder: "29ABCDE1234F1Z5",
+              })}
             </div>
           </Card>
-          <Card title="New leads" text="Who a new lead from the chatbot, a form, a sheet or a webhook is given to.">
+          <Card
+            title="New leads"
+            text="Who a new lead from the chatbot, a form, a sheet or a webhook is given to."
+          >
             <div className="fg" role="radiogroup" aria-label="New leads">
               <div className="fld" style={{ gap: 10 }}>
                 {ASSIGN.map(([key, label, hint]) => (
-                  <label key={key} className="opt" style={{ alignItems: "flex-start" }}>
+                  <label
+                    key={key}
+                    className="opt"
+                    style={{ alignItems: "flex-start" }}
+                  >
                     <input
                       type="radio"
                       name="lead_assignment"
@@ -231,7 +337,9 @@ export default function ClinicSettingsView() {
                     />
                     <span>
                       <b style={{ fontWeight: 600 }}>{label}</b>
-                      <span className="sub2" style={{ display: "block" }}>{hint}</span>
+                      <span className="sub2" style={{ display: "block" }}>
+                        {hint}
+                      </span>
                     </span>
                   </label>
                 ))}
@@ -242,12 +350,26 @@ export default function ClinicSettingsView() {
       )}
 
       {tab === "contact" && (
-        <Card title="Contact details" text="The clinic's official details for staff. What the chatbot tells patients is set separately in Dashboard → Clinic info.">
+        <Card
+          title="Contact details"
+          text="The clinic's official details for staff. What the chatbot tells patients is set separately in Dashboard → Clinic info."
+        >
           <div className="tm-form">
-            {field("email", "Clinic email", { type: "email", max: 120, placeholder: "hello@clinic.com" })}
-            {field("website", "Website", { max: 200, placeholder: "https://clinic.com" })}
+            {field("email", "Clinic email", {
+              type: "email",
+              max: 120,
+              placeholder: "hello@clinic.com",
+            })}
+            {field("website", "Website", {
+              max: 200,
+              placeholder: "https://clinic.com",
+            })}
             {phone("phone", "Main phone")}
-            {phone("alt_phone", "Other phone", "Optional. e.g. a landline or front desk number.")}
+            {phone(
+              "alt_phone",
+              "Other phone",
+              "Optional. e.g. a landline or front desk number.",
+            )}
             {phone("whatsapp", "WhatsApp")}
             <span />
             <label className="tm-field full">
@@ -272,26 +394,42 @@ export default function ClinicSettingsView() {
 
       {tab === "notifications" && (
         <>
-          <Card title="Emergency emails" text="When a patient uses emergency words in the chatbot, these people are emailed at once. The email names the lead, never what the patient wrote.">
+          <Card
+            title="Emergency emails"
+            text="When a patient uses emergency words in the chatbot, these people are emailed at once. The email names the lead, never what the patient wrote."
+          >
             <div className="fg">
               <label className="opt">
                 <input
                   type="checkbox"
                   checked={alerts.emergency_admins}
                   disabled={ro}
-                  onChange={(e) => setAlerts({ ...alerts, emergency_admins: e.target.checked })}
+                  onChange={(e) =>
+                    setAlerts({ ...alerts, emergency_admins: e.target.checked })
+                  }
                 />
                 Email the clinic&apos;s Admins
               </label>
             </div>
-            <EmailList value={alerts.emergency_emails} readOnly={ro} onChange={(emergency_emails) => setAlerts({ ...alerts, emergency_emails })} />
-            {!alerts.emergency_admins && alerts.emergency_emails.length === 0 && (
-              <div className="warnbox" style={{ marginTop: 12 }}>
-                No one will be emailed about emergencies. They still show in the bell.
-              </div>
-            )}
+            <EmailList
+              value={alerts.emergency_emails}
+              readOnly={ro}
+              onChange={(emergency_emails) =>
+                setAlerts({ ...alerts, emergency_emails })
+              }
+            />
+            {!alerts.emergency_admins &&
+              alerts.emergency_emails.length === 0 && (
+                <div className="warnbox" style={{ marginTop: 12 }}>
+                  No one will be emailed about emergencies. They still show in
+                  the bell.
+                </div>
+              )}
           </Card>
-          <Card title="Your own notifications" text="What shows in each person's bell, sounds and desktop alerts are each person's own choice.">
+          <Card
+            title="Your own notifications"
+            text="What shows in each person's bell, sounds and desktop alerts are each person's own choice."
+          >
             <Link className="btn g" href="/profile?tab=notifications">
               Open My profile → Notifications
             </Link>
@@ -321,7 +459,11 @@ export default function ClinicSettingsView() {
             </button>
           )}
           {!ro && (
-            <button className="btn" disabled={busy || !dirty} onClick={() => void save()}>
+            <button
+              className="btn"
+              disabled={busy || !dirty}
+              onClick={() => void save()}
+            >
               {busy ? "Saving…" : "Save changes"}
             </button>
           )}
@@ -331,7 +473,15 @@ export default function ClinicSettingsView() {
   );
 }
 
-function Card({ title, text, children }: { title: string; text: string; children: ReactNode }) {
+function Card({
+  title,
+  text,
+  children,
+}: {
+  title: string;
+  text: string;
+  children: ReactNode;
+}) {
   return (
     <section className="st-card">
       <h2>{title}</h2>
@@ -356,18 +506,26 @@ function BrandingEditor({
   const { toast } = useCrm();
   const [busy, setBusy] = useState<"logo" | "favicon" | null>(null);
   const [error, setError] = useState("");
-  const current = { logo: branding?.logo ?? null, favicon: branding?.favicon ?? null };
+  const current = {
+    logo: branding?.logo ?? null,
+    favicon: branding?.favicon ?? null,
+  };
 
   async function put(which: "logo" | "favicon", value: string | null) {
     setBusy(which);
     setError("");
     try {
-      const b = await api<Branding>(`/v1/crm/clinic-settings/${clinicId}/branding`, {
-        method: "PUT",
-        body: JSON.stringify({ ...current, [which]: value }),
-      });
+      const b = await api<Branding>(
+        `/v1/crm/clinic-settings/${clinicId}/branding`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ ...current, [which]: value }),
+        },
+      );
       onSaved(b);
-      toast(`${which === "logo" ? "Logo" : "Favicon"} ${value ? "saved" : "removed"}`);
+      toast(
+        `${which === "logo" ? "Logo" : "Favicon"} ${value ? "saved" : "removed"}`,
+      );
     } catch (e) {
       setError(message(e, "Could not save the image. Please try again."));
     } finally {
@@ -380,7 +538,9 @@ function BrandingEditor({
     try {
       await put(which, await fitImage(file, which === "logo" ? LOGO : FAVICON));
     } catch (e) {
-      setError(e instanceof ImageError ? e.message : "Could not prepare the image.");
+      setError(
+        e instanceof ImageError ? e.message : "Could not prepare the image.",
+      );
     }
   }
 
@@ -388,12 +548,20 @@ function BrandingEditor({
     <div className="st-image">
       {label}
       <div className={`st-drop${which === "favicon" ? " sq" : ""}`}>
-        {current[which] ? <DataImg src={current[which]} alt={`${label} preview`} /> : <span>No {label.toLowerCase()}</span>}
+        {current[which] ? (
+          <DataImg src={current[which]} alt={`${label} preview`} />
+        ) : (
+          <span>No {label.toLowerCase()}</span>
+        )}
       </div>
       <span className="tm-hint">{hint}</span>
       {!readOnly && (
         <div className="st-btns">
-          <label className="btn g sm" style={{ cursor: "pointer" }} aria-disabled={busy !== null}>
+          <label
+            className="btn g sm"
+            style={{ cursor: "pointer" }}
+            aria-disabled={busy !== null}
+          >
             {busy === which ? "Saving…" : current[which] ? "Replace" : "Upload"}
             <input
               type="file"
@@ -407,7 +575,18 @@ function BrandingEditor({
             />
           </label>
           {current[which] && (
-            <button className="btn g sm" disabled={busy !== null} onClick={() => void put(which, null)}>
+            <button
+              className="btn g sm"
+              disabled={busy !== null}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Remove the clinic ${which === "logo" ? "logo" : "favicon"}? It is removed at once.`,
+                  )
+                )
+                  void put(which, null);
+              }}
+            >
               Remove
             </button>
           )}
@@ -419,7 +598,11 @@ function BrandingEditor({
   return (
     <>
       <div className="st-images">
-        {slot("logo", "Logo", "A wide logo on a clear background works best. PNG, JPG, WebP or SVG; resized to fit 480 × 160.")}
+        {slot(
+          "logo",
+          "Logo",
+          "A wide logo on a clear background works best. PNG, JPG, WebP or SVG; resized to fit 480 × 160.",
+        )}
         {slot("favicon", "Favicon", "A square icon. Resized to 64 × 64.")}
       </div>
       {error && (
@@ -432,14 +615,23 @@ function BrandingEditor({
 }
 
 /** Extra addresses, up to 10. */
-function EmailList({ value, readOnly, onChange }: { value: string[]; readOnly: boolean; onChange: (v: string[]) => void }) {
+function EmailList({
+  value,
+  readOnly,
+  onChange,
+}: {
+  value: string[];
+  readOnly: boolean;
+  onChange: (v: string[]) => void;
+}) {
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const add = () => {
     const e = draft.trim().toLowerCase();
     if (!e) return;
     if (!EMAIL.test(e)) return setError("Please enter a valid email address.");
-    if (value.includes(e)) return setError("That address is already in the list.");
+    if (value.includes(e))
+      return setError("That address is already in the list.");
     if (value.length >= 10) return setError("Up to 10 addresses.");
     onChange([...value, e]);
     setDraft("");
@@ -454,7 +646,10 @@ function EmailList({ value, readOnly, onChange }: { value: string[]; readOnly: b
             <span key={e}>
               {e}
               {!readOnly && (
-                <button aria-label={`Remove ${e}`} onClick={() => onChange(value.filter((x) => x !== e))}>
+                <button
+                  aria-label={`Remove ${e}`}
+                  onClick={() => onChange(value.filter((x) => x !== e))}
+                >
                   ×
                 </button>
               )}
@@ -489,7 +684,9 @@ function EmailList({ value, readOnly, onChange }: { value: string[]; readOnly: b
           {error}
         </span>
       ) : (
-        <span className="tm-hint">For example a shared front desk inbox. Up to 10.</span>
+        <span className="tm-hint">
+          For example a shared front desk inbox. Up to 10.
+        </span>
       )}
     </div>
   );

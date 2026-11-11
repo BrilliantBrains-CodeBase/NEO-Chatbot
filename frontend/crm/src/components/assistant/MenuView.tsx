@@ -372,7 +372,8 @@ export default function MenuView() {
         </div>
       </div>
       {error && <div className="warnbox">{error}</div>}
-      <div className="split-preview"
+      <div
+        className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 360px",
@@ -442,6 +443,7 @@ export default function MenuView() {
                   <button
                     className="pill"
                     onClick={() =>
+                      window.confirm("Remove this figure?") &&
                       setMenu({
                         ...menu,
                         figures: menu.figures.filter((_, k) => k !== i),
@@ -495,7 +497,9 @@ export default function MenuView() {
                   setTpl({ ...tpl, columns: Number(e.target.value) })
                 }
               >
-                <option value={3}>3 per row (Neo Follicle Hair Transplant today)</option>
+                <option value={3}>
+                  3 per row (Neo Follicle Hair Transplant today)
+                </option>
                 <option value={2}>2 per row (Neo Fertility design)</option>
               </select>
             </label>
@@ -1000,7 +1004,10 @@ function Preview({
       <h3>
         Live preview <small>tap a button to see its sub-buttons</small>
       </h3>
-      <div className="chat-preview" style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}>
+      <div
+        className="chat-preview"
+        style={{ background: "#F3F5F9", borderRadius: 12, padding: 10 }}
+      >
         <div
           style={{
             background: "#fff",

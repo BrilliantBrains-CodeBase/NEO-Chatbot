@@ -192,6 +192,7 @@ export default function ReviewsTab({
                       className="pill"
                       style={{ color: "var(--err)" }}
                       onClick={() => {
+                        if (!window.confirm("Remove this review?")) return;
                         set({ quotes: value.quotes.filter((_, k) => k !== i) });
                         onSelect(null);
                       }}
@@ -280,7 +281,8 @@ export function ReviewsPreview({
     </span>
   );
   return (
-    <div className="chat-preview"
+    <div
+      className="chat-preview"
       style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}
     >
       <span

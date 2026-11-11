@@ -271,7 +271,8 @@ export default function AppearanceView() {
         call={call}
       />
       {error && <div className="warnbox">{error}</div>}
-      <div className="split-preview"
+      <div
+        className="split-preview"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) 380px",
@@ -405,7 +406,10 @@ export default function AppearanceView() {
                     {form.look.logo && (
                       <button
                         className="pill"
-                        onClick={() => set("look", { logo: "" })}
+                        onClick={() =>
+                          window.confirm("Remove the chatbot logo?") &&
+                          set("look", { logo: "" })
+                        }
                       >
                         Remove
                       </button>
@@ -1026,7 +1030,8 @@ function Preview({ a }: { a: Appearance }) {
           </div>
         )}
       </div>
-      <div className="chat-preview"
+      <div
+        className="chat-preview"
         style={{
           background: night ? c.dark_page : "#F4F1F2",
           borderRadius: mobile ? 28 : 12,

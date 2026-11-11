@@ -5,7 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import BellCard from "@/components/crm/BellCard";
 import PasswordCard from "@/components/crm/PasswordCard";
-import PhoneField, { phoneError, phoneValue } from "@/components/crm/PhoneField";
+import PhoneField, {
+  phoneError,
+  phoneValue,
+} from "@/components/crm/PhoneField";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError, type Me } from "@/lib/api";
 import { fitImage, ImageError } from "@/lib/image";
@@ -23,12 +26,15 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+const message = (e: unknown, fallback: string) =>
+  e instanceof ApiError ? e.message : fallback;
 
 export default function ProfileView() {
   const { me } = useCrm();
   const asked = useSearchParams().get("tab");
-  const [tab, setTab] = useState<Tab>(TABS.some(([k]) => k === asked) ? (asked as Tab) : "details");
+  const [tab, setTab] = useState<Tab>(
+    TABS.some(([k]) => k === asked) ? (asked as Tab) : "details",
+  );
   if (!me) return null;
 
   return (
@@ -36,12 +42,21 @@ export default function ProfileView() {
       <div className="ph">
         <div>
           <h1>My profile</h1>
-          <p>Your details, sign-in and notifications. They are the same in every clinic.</p>
+          <p>
+            Your details, sign-in and notifications. They are the same in every
+            clinic.
+          </p>
         </div>
       </div>
       <div className="tabs" role="tablist" aria-label="My profile">
         {TABS.map(([key, label]) => (
-          <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "on" : ""} onClick={() => setTab(key)}>
+          <button
+            key={key}
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "on" : ""}
+            onClick={() => setTab(key)}
+          >
             {label}
           </button>
         ))}
@@ -64,7 +79,15 @@ export default function ProfileView() {
   );
 }
 
-function Card({ title, text, children }: { title: string; text?: string; children: ReactNode }) {
+function Card({
+  title,
+  text,
+  children,
+}: {
+  title: string;
+  text?: string;
+  children: ReactNode;
+}) {
   return (
     <section className="st-card">
       <h2>{title}</h2>
@@ -82,7 +105,8 @@ function DetailsCard({ me }: { me: Me }) {
   const [phone, setPhone] = useState(me.phone ?? "");
   const [busy, setBusy] = useState<"save" | "photo" | null>(null);
   const [error, setError] = useState("");
-  const dirty = name.trim() !== me.name || (phoneValue(phone) ?? "") !== (me.phone ?? "");
+  const dirty =
+    name.trim() !== me.name || (phoneValue(phone) ?? "") !== (me.phone ?? "");
 
   async function save() {
     if (name.trim().length < 2) return setError("Please enter your name.");
@@ -110,7 +134,12 @@ function DetailsCard({ me }: { me: Me }) {
     setBusy("photo");
     setError("");
     try {
-      setMe(await api<Me>("/v1/crm/me/photo", { method: "PUT", body: JSON.stringify({ photo: value }) }));
+      setMe(
+        await api<Me>("/v1/crm/me/photo", {
+          method: "PUT",
+          body: JSON.stringify({ photo: value }),
+        }),
+      );
       toast(value ? "Photo saved" : "Photo removed");
     } catch (e) {
       setError(message(e, "Could not save the photo. Please try again."));
@@ -120,7 +149,10 @@ function DetailsCard({ me }: { me: Me }) {
   }
 
   return (
-    <Card title="Your details" text="Your name shows to your team: on leads you work on, in Team and in notes.">
+    <Card
+      title="Your details"
+      text="Your name shows to your team: on leads you work on, in Team and in notes."
+    >
       <div className="st-who">
         <span className="st-photo" aria-hidden>
           {me.photo ? <DataImg src={me.photo} alt="" /> : me.initials}
@@ -131,8 +163,16 @@ function DetailsCard({ me }: { me: Me }) {
             {me.role_label} · {me.email}
           </div>
           <div className="st-btns" style={{ marginTop: 8 }}>
-            <label className="btn g sm" style={{ cursor: "pointer" }} aria-disabled={busy !== null}>
-              {busy === "photo" ? "Saving…" : me.photo ? "Change photo" : "Upload photo"}
+            <label
+              className="btn g sm"
+              style={{ cursor: "pointer" }}
+              aria-disabled={busy !== null}
+            >
+              {busy === "photo"
+                ? "Saving…"
+                : me.photo
+                  ? "Change photo"
+                  : "Upload photo"}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -143,15 +183,32 @@ function DetailsCard({ me }: { me: Me }) {
                   e.target.value = "";
                   if (!file) return;
                   try {
-                    await photo(await fitImage(file, { width: 160, height: 160, square: true, type: "image/jpeg" }));
+                    await photo(
+                      await fitImage(file, {
+                        width: 160,
+                        height: 160,
+                        square: true,
+                        type: "image/jpeg",
+                      }),
+                    );
                   } catch (err) {
-                    setError(err instanceof ImageError ? err.message : "Could not prepare the photo.");
+                    setError(
+                      err instanceof ImageError
+                        ? err.message
+                        : "Could not prepare the photo.",
+                    );
                   }
                 }}
               />
             </label>
             {me.photo && (
-              <button className="btn g sm" disabled={busy !== null} onClick={() => void photo(null)}>
+              <button
+                className="btn g sm"
+                disabled={busy !== null}
+                onClick={() => {
+                  if (window.confirm("Remove your photo?")) void photo(null);
+                }}
+              >
                 Remove
               </button>
             )}
@@ -161,7 +218,12 @@ function DetailsCard({ me }: { me: Me }) {
       <div className="tm-form">
         <label className="tm-field">
           Full name
-          <input className="f" maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="f"
+            maxLength={100}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </label>
         <div className="tm-field">
           Phone
@@ -188,7 +250,11 @@ function DetailsCard({ me }: { me: Me }) {
             Cancel
           </button>
         )}
-        <button className="btn" disabled={busy !== null || !dirty} onClick={() => void save()}>
+        <button
+          className="btn"
+          disabled={busy !== null || !dirty}
+          onClick={() => void save()}
+        >
           {busy === "save" ? "Saving…" : "Save"}
         </button>
       </div>
@@ -209,12 +275,21 @@ function EmailCard({ me }: { me: Me }) {
     setBusy(true);
     setError("");
     try {
-      await api("/v1/crm/me/email", { method: "POST", body: JSON.stringify({ email: value }) });
+      await api("/v1/crm/me/email", {
+        method: "POST",
+        body: JSON.stringify({ email: value }),
+      });
       const { error: e } = await supabase().auth.updateUser(
         { email: value },
         { emailRedirectTo: `${window.location.origin}/profile` },
       );
-      if (e) throw new ApiError(0, e.message.includes("rate") ? "Too many tries. Please wait a few minutes." : "Could not send the confirmation email. Please try again.");
+      if (e)
+        throw new ApiError(
+          0,
+          e.message.includes("rate")
+            ? "Too many tries. Please wait a few minutes."
+            : "Could not send the confirmation email. Please try again.",
+        );
       setSent(value);
       setOpen(false);
       setEmail("");
@@ -226,8 +301,14 @@ function EmailCard({ me }: { me: Me }) {
   }
 
   return (
-    <Card title="Sign-in email" text="The address you sign in with, and where the CRM sends your codes and alerts.">
-      <div className="row" style={{ gap: 12, justifyContent: "space-between", flexWrap: "wrap" }}>
+    <Card
+      title="Sign-in email"
+      text="The address you sign in with, and where the CRM sends your codes and alerts."
+    >
+      <div
+        className="row"
+        style={{ gap: 12, justifyContent: "space-between", flexWrap: "wrap" }}
+      >
         <b style={{ fontWeight: 600 }}>{me.email}</b>
         {!open && (
           <button className="btn g sm" onClick={() => setOpen(true)}>
@@ -237,8 +318,9 @@ function EmailCard({ me }: { me: Me }) {
       </div>
       {sent && !open && (
         <p className="sub2" style={{ margin: "10px 0 0" }}>
-          We sent a confirmation link to {sent}. Your email changes when you click it (Supabase may also ask you to
-          confirm from your current address). Until then, keep signing in with {me.email}.
+          We sent a confirmation link to {sent}. Your email changes when you
+          click it (Supabase may also ask you to confirm from your current
+          address). Until then, keep signing in with {me.email}.
         </p>
       )}
       {open && (
@@ -253,7 +335,9 @@ function EmailCard({ me }: { me: Me }) {
               placeholder="name@clinic.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && email.trim() && void change()}
+              onKeyDown={(e) =>
+                e.key === "Enter" && email.trim() && void change()
+              }
             />
           </label>
           {error && (
@@ -272,7 +356,11 @@ function EmailCard({ me }: { me: Me }) {
             >
               Cancel
             </button>
-            <button className="btn" disabled={busy || !email.trim()} onClick={() => void change()}>
+            <button
+              className="btn"
+              disabled={busy || !email.trim()}
+              onClick={() => void change()}
+            >
               {busy ? "Sending…" : "Send confirmation link"}
             </button>
           </div>
@@ -287,7 +375,10 @@ function SessionsCard() {
   const { toast } = useCrm();
   const [busy, setBusy] = useState(false);
   return (
-    <Card title="Other devices" text="Signed in on a shared or lost computer? Sign out there. This device stays signed in.">
+    <Card
+      title="Other devices"
+      text="Signed in on a shared or lost computer? Sign out there. This device stays signed in."
+    >
       <button
         className="btn g"
         disabled={busy}
@@ -295,7 +386,11 @@ function SessionsCard() {
           setBusy(true);
           const { error } = await supabase().auth.signOut({ scope: "others" });
           setBusy(false);
-          toast(error ? "Could not sign out the other devices" : "Signed out on every other device");
+          toast(
+            error
+              ? "Could not sign out the other devices"
+              : "Signed out on every other device",
+          );
         }}
       >
         {busy ? "Signing out…" : "Sign out of other devices"}
@@ -306,12 +401,16 @@ function SessionsCard() {
 
 function ClinicsCard({ me }: { me: Me }) {
   return (
-    <Card title="Clinics & roles" text="The clinics you can open and your role in each. To change them, ask your admin (Team).">
+    <Card
+      title="Clinics & roles"
+      text="The clinics you can open and your role in each. To change them, ask your admin (Team)."
+    >
       <ul className="st-list">
         {me.clinics.map((c) => (
           <li key={c.id}>
             <span>
-              <b style={{ fontWeight: 600 }}>{c.name}</b> <span className="sub2">{c.id}</span>
+              <b style={{ fontWeight: 600 }}>{c.name}</b>{" "}
+              <span className="sub2">{c.id}</span>
             </span>
             <span>{c.role_label}</span>
           </li>

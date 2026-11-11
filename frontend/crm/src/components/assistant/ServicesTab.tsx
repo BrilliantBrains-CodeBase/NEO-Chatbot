@@ -222,7 +222,10 @@ export default function ServicesTab({
                   >
                     <label
                       className="opt"
-                      style={{ flexDirection: "row", fontSize: "var(--fs-small)" }}
+                      style={{
+                        flexDirection: "row",
+                        fontSize: "var(--fs-small)",
+                      }}
                     >
                       <input
                         type="checkbox"
@@ -239,6 +242,12 @@ export default function ServicesTab({
                       className="pill"
                       style={{ color: "var(--err)" }}
                       onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Remove the treatment "${s.name || "this treatment"}"? It disappears from the chatbot's lists after you save and publish.`,
+                          )
+                        )
+                          return;
                         onChange({
                           ...value,
                           items: value.items.filter((_, k) => k !== i),
@@ -389,7 +398,8 @@ function Words({
 /** The chat's card for one treatment, as patients see it. */
 export function ServiceCard({ s, main }: { s: Service; main: string }) {
   return (
-    <div className="chat-preview"
+    <div
+      className="chat-preview"
       style={{
         border: "1px solid #EFE3E6",
         borderRadius: 12,
