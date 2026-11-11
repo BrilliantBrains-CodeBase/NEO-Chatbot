@@ -5,9 +5,22 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Pager from "@/components/crm/Pager";
-import { SOURCE, STAGE_LABEL, useDebounced } from "@/components/leads/LeadsView";
+import AddLeadForm from "@/components/leads/AddLeadForm";
+import { ConfirmDelete } from "@/components/leads/DeleteLeads";
+import {
+  SOURCE,
+  STAGE_LABEL,
+  useDebounced,
+} from "@/components/leads/LeadsView";
 import { level } from "@/lib/access";
-import { api, ApiError, REFRESH_MS, type PatientList } from "@/lib/api";
+import {
+  api,
+  apiBlob,
+  ApiError,
+  REFRESH_MS,
+  saveFile,
+  type PatientList,
+} from "@/lib/api";
 
 const PAGE_SIZE = 30;
 
@@ -44,7 +57,13 @@ const NEWEST: Sort = { by: "added", dir: "desc" };
 
 const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
 const day = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  iso
+    ? new Date(iso).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 
 function Select({
   label,
@@ -58,7 +77,12 @@ function Select({
   children: ReactNode;
 }) {
   return (
-    <select className="sel" aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      className="sel"
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
       <option value="">{label}</option>
       {children}
     </select>
@@ -66,10 +90,20 @@ function Select({
 }
 
 export default function PatientsView() {
-  const { clinic, me } = useCrm();
+  const { clinic, me, toast, openModal, closeModal } = useCrm();
   const clinicId = me?.clinics.find((c) => c.name === clinic)?.id;
   const router = useRouter();
   const canOpen = level(me, clinic, "leads") !== "hidden"; // a row opens its lead
+  const canAdd = level(me, clinic, "leads") === "edit"; // Add patient, as the top bar's Add lead
+  // Tick patients to export, assign or delete them: Clinic Managers and Super Admin (as on Leads).
+  const canBulk =
+    !!clinicId &&
+    (!!me?.bb_admin ||
+      me?.clinics.find((c) => c.id === clinicId)?.role === "clinic_manager");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [assignTo, setAssignTo] = useState("");
+  const [working, setWorking] = useState(false);
+  const [version, setVersion] = useState(0); // bumped after a change, to load the list again
 
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
@@ -121,9 +155,13 @@ export default function PatientsView() {
     setSeenFilters(filters);
     setPage(1);
   }
-  const key = `${filters}|${page}`;
+  const key = `${filters}|${page}|${version}`;
   const listUrl = `/v1/crm/patients?clinic=${clinicId}&sort=${sort.by}&direction=${sort.dir}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&${filterQuery}`;
-  const [list, setList] = useState<{ key: string; d?: PatientList; error?: string }>({ key: "" });
+  const [list, setList] = useState<{
+    key: string;
+    d?: PatientList;
+    error?: string;
+  }>({ key: "" });
   // The last list stays on screen while the next one loads, so the tabs and drop-downs do not flicker.
   const [last, setLast] = useState<PatientList | undefined>();
 
@@ -136,7 +174,12 @@ export default function PatientsView() {
         setList({ key, d });
         setLast(d);
       },
-      (e) => live && setList({ key, error: e instanceof ApiError ? e.message : "Could not load patients." }),
+      (e) =>
+        live &&
+        setList({
+          key,
+          error: e instanceof ApiError ? e.message : "Could not load patients.",
+        }),
     );
     return () => {
       live = false;
@@ -202,42 +245,160 @@ export default function PatientsView() {
 
   // Dates open newest first and names A to Z; a second click turns the order round.
   function sortBy(by: string) {
-    setSort((s) => (s.by === by ? { by, dir: s.dir === "asc" ? "desc" : "asc" } : { by, dir: by === "name" ? "asc" : "desc" }));
+    setSort((s) =>
+      s.by === by
+        ? { by, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { by, dir: by === "name" ? "asc" : "desc" },
+    );
   }
   const head = (by: string, label: string) => (
-    <th aria-sort={sort.by === by ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-      <button type="button" className={`sortb${sort.by === by ? " on" : ""}`} onClick={() => sortBy(by)}>
+    <th
+      aria-sort={
+        sort.by === by
+          ? sort.dir === "asc"
+            ? "ascending"
+            : "descending"
+          : "none"
+      }
+    >
+      <button
+        type="button"
+        className={`sortb${sort.by === by ? " on" : ""}`}
+        onClick={() => sortBy(by)}
+      >
         {label}
-        <span aria-hidden="true">{sort.by === by ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}</span>
+        <span aria-hidden="true">
+          {sort.by === by ? (sort.dir === "asc" ? " ↑" : " ↓") : ""}
+        </span>
       </button>
     </th>
   );
 
-  const COLUMNS = 10;
+  const COLUMNS = canBulk ? 11 : 10;
+  const onPage = d?.items.map((x) => x.code) ?? [];
+  const pageTicked = onPage.length > 0 && onPage.every((c) => picked.has(c));
+  const tick = (code: string, on: boolean) => {
+    const next = new Set(picked);
+    if (on) next.add(code);
+    else next.delete(code);
+    setPicked(next);
+  };
+  const reload = () => {
+    setPicked(new Set());
+    setVersion((v) => v + 1);
+  };
+
+  async function exportPicked() {
+    setWorking(true);
+    try {
+      const file = await apiBlob("/v1/crm/leads/export", {
+        method: "POST",
+        body: JSON.stringify({ clinic: clinicId, codes: [...picked] }),
+      });
+      saveFile(
+        file,
+        `patients-${clinicId}-${new Date().toLocaleDateString("en-CA")}.csv`,
+      );
+      toast("Patients exported");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Could not export.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function assignPicked() {
+    if (!assignTo) return;
+    setWorking(true);
+    let failed = 0;
+    for (const code of picked) {
+      try {
+        await api(`/v1/crm/leads/${encodeURIComponent(code)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ assigned_to: assignTo }),
+        });
+      } catch {
+        failed += 1;
+      }
+    }
+    const name = opts?.owners?.find((x) => x.id === assignTo)?.name ?? "them";
+    toast(
+      failed
+        ? `Assigned ${picked.size - failed}; ${failed} could not be`
+        : `Assigned to ${name}`,
+    );
+    setWorking(false);
+    setAssignTo("");
+    reload();
+  }
+
   return (
     <>
       <div className="ph">
         <div>
           <h1>Patients</h1>
-          <p>Everyone who has contacted the clinic, visited or not. One record per phone number.</p>
+          <p>
+            Everyone who has contacted the clinic, visited or not. One record
+            per phone number.
+          </p>
         </div>
+        {canAdd && clinicId && (
+          <button
+            className="btn"
+            onClick={() =>
+              openModal({
+                title: "Add patient",
+                body: (
+                  <AddLeadForm
+                    clinicId={clinicId}
+                    onDone={() => {
+                      closeModal();
+                      reload();
+                    }}
+                  />
+                ),
+              })
+            }
+          >
+            + Add patient
+          </button>
+        )}
       </div>
       <div className="tabs">
-        <button className={activity ? "" : "on"} onClick={() => setActivity("")}>
+        <button
+          className={activity ? "" : "on"}
+          onClick={() => setActivity("")}
+        >
           All<span className="c">{everyone ?? "…"}</span>
         </button>
         {ACTIVITY.map(([k, label, rule]) => (
-          <button key={k} className={activity === k ? "on" : ""} title={rule} onClick={() => setActivity(k)}>
+          <button
+            key={k}
+            className={activity === k ? "on" : ""}
+            title={rule}
+            onClick={() => setActivity(k)}
+          >
             {label}
-            <span className="c">{opts?.activities.find((a) => a.key === k)?.count ?? "…"}</span>
+            <span className="c">
+              {opts?.activities.find((a) => a.key === k)?.count ?? "…"}
+            </span>
           </button>
         ))}
       </div>
       <div className="tools">
         <label className="search">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, treatment, email or code" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, phone, treatment, email or code"
+          />
         </label>
-        <select className="sel" aria-label="Which date" value={dateField} onChange={(e) => setDateField(e.target.value)}>
+        <select
+          className="sel"
+          aria-label="Which date"
+          value={dateField}
+          onChange={(e) => setDateField(e.target.value)}
+        >
           {DATE_FIELDS.map(([k, label]) => (
             <option key={k} value={k}>
               {label}
@@ -246,7 +407,12 @@ export default function PatientsView() {
         </select>
         <div className="pills" style={{ margin: 0 }} aria-label="Date range">
           {PRESETS.map(([label, days]) => (
-            <button key={label} type="button" className={`pill${preset === days ? " on" : ""}`} onClick={() => range(days)}>
+            <button
+              key={label}
+              type="button"
+              className={`pill${preset === days ? " on" : ""}`}
+              onClick={() => range(days)}
+            >
               {label}
             </button>
           ))}
@@ -297,7 +463,11 @@ export default function PatientsView() {
             </option>
           ))}
         </Select>
-        <Select label="All treatments" value={treatment} onChange={setTreatment}>
+        <Select
+          label="All treatments"
+          value={treatment}
+          onChange={setTreatment}
+        >
           {opts?.treatments.map((t) => (
             <option key={t} value={t}>
               {t}
@@ -311,7 +481,11 @@ export default function PatientsView() {
             </option>
           ))}
         </Select>
-        <Select label="Assigned to anyone" value={assigned} onChange={setAssigned}>
+        <Select
+          label="Assigned to anyone"
+          value={assigned}
+          onChange={setAssigned}
+        >
           <option value="none">Unassigned</option>
           {opts?.staff.map((x) => (
             <option key={x.id} value={x.id}>
@@ -323,7 +497,11 @@ export default function PatientsView() {
           <option value="yes">Has no-shows</option>
           <option value="no">No no-shows</option>
         </Select>
-        <Select label="Next appointment: any" value={upcoming} onChange={setUpcoming}>
+        <Select
+          label="Next appointment: any"
+          value={upcoming}
+          onChange={setUpcoming}
+        >
           <option value="yes">Has one booked</option>
           <option value="no">Nothing booked</option>
         </Select>
@@ -357,10 +535,98 @@ export default function PatientsView() {
         </button>
       </div>
       {error && <div className="warnbox">{error}</div>}
+      {canBulk && picked.size > 0 && (
+        <div className="pills" style={{ alignItems: "center" }}>
+          <b>
+            {picked.size} patient{picked.size === 1 ? "" : "s"} selected
+          </b>
+          <button
+            type="button"
+            className="btn g sm"
+            disabled={working}
+            onClick={exportPicked}
+          >
+            Export
+          </button>
+          <select
+            className="sel"
+            aria-label="Assign to"
+            value={assignTo}
+            disabled={working}
+            onChange={(e) => setAssignTo(e.target.value)}
+          >
+            <option value="">Assign to…</option>
+            {(opts?.owners ?? []).map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn g sm"
+            disabled={working || !assignTo}
+            onClick={assignPicked}
+          >
+            Assign
+          </button>
+          <button
+            type="button"
+            className="btn g sm"
+            style={{ color: "var(--err)" }}
+            disabled={working || picked.size > 200}
+            onClick={() =>
+              openModal({
+                title: "Delete patients",
+                body: (
+                  <ConfirmDelete
+                    clinicId={clinicId!}
+                    codes={[...picked]}
+                    label={
+                      picked.size === 1
+                        ? [...picked][0]
+                        : `${picked.size} patients`
+                    }
+                    onDone={reload}
+                  />
+                ),
+              })
+            }
+          >
+            Delete selected
+          </button>
+          <button
+            type="button"
+            className="btn g sm"
+            disabled={working}
+            onClick={() => setPicked(new Set())}
+          >
+            Clear
+          </button>
+        </div>
+      )}
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
+              {canBulk && (
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all patients on this page"
+                    checked={pageTicked}
+                    onChange={(e) =>
+                      setPicked(
+                        e.target.checked
+                          ? new Set([...picked, ...onPage])
+                          : new Set(
+                              [...picked].filter((c) => !onPage.includes(c)),
+                            ),
+                      )
+                    }
+                  />
+                </th>
+              )}
               {head("name", "Patient")}
               <th>Source</th>
               <th>Treatment</th>
@@ -393,9 +659,23 @@ export default function PatientsView() {
                   key={p.code}
                   style={canOpen ? undefined : { cursor: "default" }}
                   onClick={() => {
-                    if (canOpen) router.push(`/leads?open=${encodeURIComponent(p.code)}`);
+                    if (canOpen)
+                      router.push(`/leads?open=${encodeURIComponent(p.code)}`);
                   }}
                 >
+                  {canBulk && (
+                    <td
+                      style={{ cursor: "default" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${p.name}`}
+                        checked={picked.has(p.code)}
+                        onChange={(e) => tick(p.code, e.target.checked)}
+                      />
+                    </td>
+                  )}
                   <td>
                     <div className="nm">{p.name}</div>
                     <div className="pn">
@@ -411,7 +691,9 @@ export default function PatientsView() {
                     {p.doctor && <div className="pn">{p.doctor}</div>}
                   </td>
                   <td>
-                    <span className={`badge ${STAGE_LABEL[p.stage]?.[1]}`}>{STAGE_LABEL[p.stage]?.[0] ?? p.stage}</span>
+                    <span className={`badge ${STAGE_LABEL[p.stage]?.[1]}`}>
+                      {STAGE_LABEL[p.stage]?.[0] ?? p.stage}
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${tag?.[3]}`} title={tag?.[2]}>
@@ -420,7 +702,11 @@ export default function PatientsView() {
                   </td>
                   <td>
                     {p.visits}
-                    {p.no_shows > 0 && <div className="pn">{p.no_shows} no-show{p.no_shows === 1 ? "" : "s"}</div>}
+                    {p.no_shows > 0 && (
+                      <div className="pn">
+                        {p.no_shows} no-show{p.no_shows === 1 ? "" : "s"}
+                      </div>
+                    )}
                   </td>
                   <td>{day(p.first_visit)}</td>
                   <td>{day(p.last_visit)}</td>
@@ -432,7 +718,15 @@ export default function PatientsView() {
           </tbody>
         </table>
       </div>
-      {d && d.total > 0 && <Pager page={page} size={PAGE_SIZE} shown={d.items.length} total={d.total} onPage={goPage} />}
+      {d && d.total > 0 && (
+        <Pager
+          page={page}
+          size={PAGE_SIZE}
+          shown={d.items.length}
+          total={d.total}
+          onPage={goPage}
+        />
+      )}
     </>
   );
 }

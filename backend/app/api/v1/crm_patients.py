@@ -116,6 +116,7 @@ class PatientList(BaseModel):
     campaigns: list[str]
     doctors: list[Option]
     staff: list[Option]
+    owners: list[Option] = []  # who may own leads here (active, not a doctor): Assign to on the list
 
 
 class _Where:
@@ -276,6 +277,11 @@ async def patients(
                where l.clinic_id = $1 and l.deleted_at is null order by 2""",
             clinic,
         )
+        owners = await conn.fetch(
+            """select p.id, p.full_name from app.user_clinics u join app.profiles p on p.id = u.user_id
+               where u.clinic_id = $1 and u.active and u.role <> 'doctor' order by 2""",
+            clinic,
+        )
 
     def iso(value: Any) -> str | None:
         return value.isoformat() if value else None
@@ -312,4 +318,5 @@ async def patients(
         campaigns=[r[0] for r in campaigns],
         doctors=[Option(id=str(r["id"]), name=r["name"]) for r in doctors],
         staff=[Option(id=str(r["id"]), name=r["full_name"]) for r in people],
+        owners=[Option(id=str(r["id"]), name=r["full_name"]) for r in owners],
     )

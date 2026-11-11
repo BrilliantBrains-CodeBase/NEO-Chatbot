@@ -153,7 +153,14 @@ export type Branding = {
 
 export type Count = { key: string; count: number };
 /** One period's headline numbers on the Dashboard. */
-export type Totals = { leads: number; converted: number; bookings: number; visits: number; chats: number; chat_leads: number };
+export type Totals = {
+  leads: number;
+  converted: number;
+  bookings: number;
+  visits: number;
+  chats: number;
+  chat_leads: number;
+};
 
 export type TodayAppt = {
   time: string | null;
@@ -177,7 +184,14 @@ export type Dashboard = {
   followups_due: number; // leads in the Follow Up stage
   now: Totals;
   before: Totals; // the same number of days just before
-  series: { day: string; leads: number; leads_before: number; bookings: number; visits: number; chats: number }[];
+  series: {
+    day: string;
+    leads: number;
+    leads_before: number;
+    bookings: number;
+    visits: number;
+    chats: number;
+  }[];
   outcomes: Count[]; // appointments on days in the period, by status
   today: TodayAppt[];
   sources: Count[];
@@ -247,6 +261,7 @@ export type PatientList = {
   campaigns: string[];
   doctors: { id: string; name: string }[];
   staff: { id: string; name: string }[];
+  owners?: { id: string; name: string }[]; // who may own leads here: Assign to
 };
 export type LeadImportNote = { row: number; name: string; reason: string };
 export type LeadImportResult = {
