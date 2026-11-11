@@ -6,7 +6,16 @@ import { useEffect, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import Icon from "@/components/crm/Icon";
 import Pager from "@/components/crm/Pager";
-import { api, apiBlob, ApiError, INBOX_TABS, REFRESH_MS, saveFile, type LeadList } from "@/lib/api";
+import {
+  api,
+  apiBlob,
+  ApiError,
+  INBOX_TABS,
+  REFRESH_MS,
+  saveFile,
+  type LeadList,
+} from "@/lib/api";
+import { ConfirmDelete, RecentlyDeleted } from "./DeleteLeads";
 import ImportLeadsForm from "./ImportLeadsForm";
 import LeadDrawer from "./LeadDrawer";
 import { SOURCE, STAGE_LABEL, useDebounced, when } from "./labels";
@@ -17,7 +26,8 @@ const PAGE_SIZE = 30;
 const REQUESTS = ["any", ...INBOX_TABS.map(([k]) => k)];
 
 const ymd = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD, the browser's day
-const errorText = (e: unknown) => (e instanceof ApiError ? e.message : "Could not load leads.");
+const errorText = (e: unknown) =>
+  e instanceof ApiError ? e.message : "Could not load leads.";
 
 export default function LeadsView() {
   const { clinic, me, toast, openModal } = useCrm();
@@ -53,11 +63,14 @@ export default function LeadsView() {
   // "Needs action": leads with a request waiting for their owner (any, or one type). In the address, so the
   // Dashboard's "Callbacks waiting" opens it.
   const askedRequest = params.get("request");
-  const [request, setRequest] = useState(askedRequest && REQUESTS.includes(askedRequest) ? askedRequest : "");
+  const [request, setRequest] = useState(
+    askedRequest && REQUESTS.includes(askedRequest) ? askedRequest : "",
+  );
   const [seenRequest, setSeenRequest] = useState(askedRequest);
   if (askedRequest !== seenRequest) {
     setSeenRequest(askedRequest);
-    if (askedRequest && REQUESTS.includes(askedRequest)) setRequest(askedRequest);
+    if (askedRequest && REQUESTS.includes(askedRequest))
+      setRequest(askedRequest);
   }
   // Leads shows assigned leads; an Admin can also look at those still waiting in the Inbox.
   const [unassigned, setUnassigned] = useState(false);
@@ -89,7 +102,11 @@ export default function LeadsView() {
   if (unassigned) shown.set("owner", "unassigned");
   const filterQuery = shown.toString();
   const listUrl = `/v1/crm/leads?clinic=${clinicId}&limit=${PAGE_SIZE}&offset=${(page - 1) * PAGE_SIZE}&${filterQuery}`;
-  const [list, setList] = useState<{ key: string; d?: LeadList; error?: string }>({ key: "" });
+  const [list, setList] = useState<{
+    key: string;
+    d?: LeadList;
+    error?: string;
+  }>({ key: "" });
 
   useEffect(() => {
     if (!clinicId) return;
@@ -144,9 +161,11 @@ export default function LeadsView() {
   const pages = d ? Math.max(1, Math.ceil(d.total / PAGE_SIZE)) : 1;
   if (d && page > pages) setPage(pages); // the last page emptied (e.g. leads moved to another stage)
   // A lead opened from outside the page shown (just added): the newest are on the first page.
-  if (d && openCode && page > 1 && !d.items.some((l) => l.code === openCode)) setPage(1);
+  if (d && openCode && page > 1 && !d.items.some((l) => l.code === openCode))
+    setPage(1);
   const clinicRole = me?.clinics.find((c) => c.id === clinicId)?.role;
-  const canBulk = !!clinicId && (me?.bb_admin || clinicRole === "clinic_manager");
+  const canBulk =
+    !!clinicId && (me?.bb_admin || clinicRole === "clinic_manager");
   const [exporting, setExporting] = useState(false);
 
   function goPage(n: number) {
@@ -211,25 +230,54 @@ export default function LeadsView() {
       <div className="ph">
         <div>
           <h1>Leads</h1>
-          <p>Assigned leads: confirm their bookings, call back and move them through the stages.</p>
+          <p>
+            Assigned leads: confirm their bookings, call back and move them
+            through the stages.
+          </p>
         </div>
         {canBulk && (
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn g" disabled={exporting} onClick={exportLeads}>
+            <button
+              className="btn g"
+              disabled={exporting}
+              onClick={exportLeads}
+            >
               <Icon name="download" />
-              {exporting ? "Exporting…" : pickedCount ? `Export (${pickedCount})` : "Export all"}
+              {exporting
+                ? "Exporting…"
+                : pickedCount
+                  ? `Export (${pickedCount})`
+                  : "Export all"}
             </button>
             <button
               className="btn g"
               onClick={() =>
                 openModal({
                   title: "Import leads",
-                  body: <ImportLeadsForm clinicId={clinicId!} onDone={imported} />,
+                  body: (
+                    <ImportLeadsForm clinicId={clinicId!} onDone={imported} />
+                  ),
                 })
               }
             >
               <Icon name="upload" />
               Import
+            </button>
+            <button
+              className="btn g"
+              onClick={() =>
+                openModal({
+                  title: "Recently deleted",
+                  body: (
+                    <RecentlyDeleted
+                      clinicId={clinicId!}
+                      onRestored={() => setVersion((v) => v + 1)}
+                    />
+                  ),
+                })
+              }
+            >
+              Recently deleted
             </button>
           </div>
         )}
@@ -239,15 +287,25 @@ export default function LeadsView() {
           All<span className="c">{all ?? "…"}</span>
         </button>
         {Object.entries(STAGE_LABEL).map(([k, [label]]) => (
-          <button key={k} className={stage === k ? "on" : ""} onClick={() => setStage(k)}>
+          <button
+            key={k}
+            className={stage === k ? "on" : ""}
+            onClick={() => setStage(k)}
+          >
             {label}
-            <span className="c">{d?.stages.find((s) => s.key === k)?.count ?? "…"}</span>
+            <span className="c">
+              {d?.stages.find((s) => s.key === k)?.count ?? "…"}
+            </span>
           </button>
         ))}
       </div>
       <div className="tools">
         <label className="search">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, treatment, email or code" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, phone, treatment, email or code"
+          />
         </label>
         <div className="pills" style={{ margin: 0 }} aria-label="Created">
           {(
@@ -256,15 +314,39 @@ export default function LeadsView() {
               ["All time", null],
             ] as [string, number | null][]
           ).map(([label, days]) => (
-            <button key={label} type="button" className={`pill${preset(days) ? " on" : ""}`} onClick={() => range(days)}>
+            <button
+              key={label}
+              type="button"
+              className={`pill${preset(days) ? " on" : ""}`}
+              onClick={() => range(days)}
+            >
               {label}
             </button>
           ))}
         </div>
-        <input className="sel" type="date" aria-label="From" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+        <input
+          className="sel"
+          type="date"
+          aria-label="From"
+          value={from}
+          max={to || undefined}
+          onChange={(e) => setFrom(e.target.value)}
+        />
         <span className="sub2">to</span>
-        <input className="sel" type="date" aria-label="To" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
-        <select className="sel" value={source} onChange={(e) => setSource(e.target.value)} aria-label="Source">
+        <input
+          className="sel"
+          type="date"
+          aria-label="To"
+          value={to}
+          min={from || undefined}
+          onChange={(e) => setTo(e.target.value)}
+        />
+        <select
+          className="sel"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          aria-label="Source"
+        >
           <option value="">All sources</option>
           {Object.entries(SOURCE).map(([k, v]) => (
             <option key={k} value={k}>
@@ -272,16 +354,28 @@ export default function LeadsView() {
             </option>
           ))}
         </select>
-        <select className="sel" value={treatment} onChange={(e) => setTreatment(e.target.value)} aria-label="Treatment">
+        <select
+          className="sel"
+          value={treatment}
+          onChange={(e) => setTreatment(e.target.value)}
+          aria-label="Treatment"
+        >
           <option value="">All treatments</option>
           {d?.treatments?.map((t) => (
             <option key={t} value={t}>
               {t}
             </option>
           ))}
-          {treatment && d && !d.treatments?.includes(treatment) && <option value={treatment}>{treatment}</option>}
+          {treatment && d && !d.treatments?.includes(treatment) && (
+            <option value={treatment}>{treatment}</option>
+          )}
         </select>
-        <select className="sel" value={request} onChange={(e) => setRequest(e.target.value)} aria-label="Needs action">
+        <select
+          className="sel"
+          value={request}
+          onChange={(e) => setRequest(e.target.value)}
+          aria-label="Needs action"
+        >
           <option value="">All leads</option>
           <option value="any">Needs action (any request)</option>
           {INBOX_TABS.map(([k, label]) => (
@@ -291,26 +385,82 @@ export default function LeadsView() {
           ))}
         </select>
         {canBulk && (
-          <label className="sub2" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
-            <input type="checkbox" checked={unassigned} onChange={(e) => setUnassigned(e.target.checked)} />
+          <label
+            className="sub2"
+            style={{ display: "inline-flex", gap: 6, alignItems: "center" }}
+          >
+            <input
+              type="checkbox"
+              checked={unassigned}
+              onChange={(e) => setUnassigned(e.target.checked)}
+            />
             Waiting in Inbox (unassigned)
           </label>
         )}
       </div>
       {error && <div className="warnbox">{error}</div>}
       {canBulk && pickedCount > 0 && d && (
-        <p className="sub2" style={{ margin: "0 0 8px", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <p
+          className="sub2"
+          style={{
+            margin: "0 0 8px",
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <span>
-            {pickedAll ? `All ${d.total} leads selected.` : `${picked.size} lead${picked.size === 1 ? "" : "s"} selected.`}
+            {pickedAll
+              ? `All ${d.total} leads selected.`
+              : `${picked.size} lead${picked.size === 1 ? "" : "s"} selected.`}
           </span>
           {!pickedAll && pageTicked && d.total > picked.size && (
-            <button type="button" className="btn g sm" onClick={() => setPickedAll(true)}>
+            <button
+              type="button"
+              className="btn g sm"
+              onClick={() => setPickedAll(true)}
+            >
               Select all {d.total}
             </button>
           )}
           <button type="button" className="btn g sm" onClick={clearPicked}>
             Clear
           </button>
+          {pickedAll ? (
+            <span>To delete, tick the leads themselves (up to 200).</span>
+          ) : (
+            picked.size <= 200 && (
+              <button
+                type="button"
+                className="btn g sm"
+                style={{ color: "var(--err)" }}
+                onClick={() =>
+                  openModal({
+                    title: "Delete leads",
+                    body: (
+                      <ConfirmDelete
+                        clinicId={clinicId!}
+                        codes={[...picked]}
+                        label={
+                          picked.size === 1
+                            ? [...picked][0]
+                            : `${picked.size} leads`
+                        }
+                        onDone={(gone) => {
+                          clearPicked();
+                          if (openCode && gone.includes(openCode)) close();
+                          setVersion((v) => v + 1);
+                        }}
+                      />
+                    ),
+                  })
+                }
+              >
+                Delete selected ({picked.size})
+              </button>
+            )
+          )}
         </p>
       )}
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
@@ -350,9 +500,16 @@ export default function LeadsView() {
               </tr>
             )}
             {d?.items.map((l) => (
-              <tr key={l.code} onClick={() => show(l.code)} style={{ cursor: "pointer" }}>
+              <tr
+                key={l.code}
+                onClick={() => show(l.code)}
+                style={{ cursor: "pointer" }}
+              >
                 {canBulk && (
-                  <td style={{ cursor: "default" }} onClick={(e) => e.stopPropagation()}>
+                  <td
+                    style={{ cursor: "default" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
                       aria-label={`Select ${l.name}`}
@@ -365,7 +522,11 @@ export default function LeadsView() {
                   <div className="nm">
                     {l.name}
                     {l.pending > 0 && (
-                      <span className="badge b-fu" style={{ marginLeft: 6 }} title="Requests waiting for the owner">
+                      <span
+                        className="badge b-fu"
+                        style={{ marginLeft: 6 }}
+                        title="Requests waiting for the owner"
+                      >
                         {l.pending} to handle
                       </span>
                     )}
@@ -381,7 +542,9 @@ export default function LeadsView() {
                 <td>{l.treatment ?? "—"}</td>
                 <td>{l.doctor ?? "—"}</td>
                 <td>
-                  <span className={`badge ${STAGE_LABEL[l.stage]?.[1]}`}>{STAGE_LABEL[l.stage]?.[0] ?? l.stage}</span>
+                  <span className={`badge ${STAGE_LABEL[l.stage]?.[1]}`}>
+                    {STAGE_LABEL[l.stage]?.[0] ?? l.stage}
+                  </span>
                 </td>
                 <td>{l.assigned ?? "Unassigned"}</td>
                 <td>{when(l.last_contact_at)}</td>
@@ -390,12 +553,25 @@ export default function LeadsView() {
           </tbody>
         </table>
       </div>
-      {d && d.total > 0 && <Pager page={page} size={PAGE_SIZE} shown={d.items.length} total={d.total} onPage={goPage} />}
+      {d && d.total > 0 && (
+        <Pager
+          page={page}
+          size={PAGE_SIZE}
+          shown={d.items.length}
+          total={d.total}
+          onPage={goPage}
+        />
+      )}
 
       <div className={`ov${openCode ? " on" : ""}`} onClick={close} />
       <aside className={`dr${openCode ? " on" : ""}`} aria-hidden={!openCode}>
         {openCode && (
-          <LeadDrawer code={openCode} clinicId={clinicId} onClose={close} onChanged={() => setVersion((v) => v + 1)} />
+          <LeadDrawer
+            code={openCode}
+            clinicId={clinicId}
+            onClose={close}
+            onChanged={() => setVersion((v) => v + 1)}
+          />
         )}
       </aside>
     </>

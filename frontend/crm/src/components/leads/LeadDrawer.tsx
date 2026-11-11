@@ -12,6 +12,7 @@ import {
   type LeadDetail,
   type LeadOptions,
 } from "@/lib/api";
+import { ConfirmDelete } from "./DeleteLeads";
 import EditDetails from "./EditDetails";
 import { EVENT, SOURCE, STAGE_LABEL, when } from "./labels";
 import LeadActions from "./LeadActions";
@@ -33,7 +34,12 @@ export default function LeadDrawer({
   onClose: () => void;
   onChanged: () => void; // the list behind should load again
 }) {
-  const { me, clinic, toast, refreshInbox } = useCrm();
+  const { me, clinic, toast, refreshInbox, openModal } = useCrm();
+  // Delete: Clinic Managers and Super Admin only (the backend checks too).
+  const canDelete =
+    !!clinicId &&
+    (me?.bb_admin ||
+      me?.clinics.find((c) => c.id === clinicId)?.role === "clinic_manager");
   const [version, setVersion] = useState(0);
   const [detail, setDetail] = useState<{
     key: string;
@@ -300,6 +306,34 @@ export default function LeadDrawer({
                 <p className="sub2">No chat with this lead.</p>
               )}
             </div>
+            {canDelete && clinicId && (
+              <div className="sec">
+                <button
+                  type="button"
+                  className="btn g sm"
+                  style={{ color: "var(--err)" }}
+                  onClick={() =>
+                    openModal({
+                      title: "Delete lead",
+                      body: (
+                        <ConfirmDelete
+                          clinicId={clinicId}
+                          codes={[lead.code]}
+                          label={`${lead.code} ${lead.name}`}
+                          onDone={() => {
+                            refreshInbox();
+                            onChanged();
+                            onClose();
+                          }}
+                        />
+                      ),
+                    })
+                  }
+                >
+                  Delete lead
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
