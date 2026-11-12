@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.v1.crm import can_see
+from app.api.v1.crm_inbox import account
 from app.core.codes import CLINIC_CODE, current_lead
 from app.core.db import get_pool
 from app.crm import calcom
@@ -60,7 +61,7 @@ async def delete_leads(user: Annotated[Staff, Depends(staff)], body: Codes) -> D
     managers_only(user, body.clinic)
     codes = sorted({current_lead(c) for c in body.codes})
     pool = await get_pool()
-    calendar: list[str] = []
+    calendar: list[tuple[str, object]] = []  # (Cal.com booking, doctor)
     async with pool.acquire() as conn, conn.transaction():
         await _as(conn, user)
         leads = await conn.fetch(
@@ -76,10 +77,10 @@ async def delete_leads(user: Annotated[Staff, Depends(staff)], body: Codes) -> D
                  and a.status in ('pending', 'confirmed')
                  and coalesce(lower(a.slot), a.preferred_date::timestamp at time zone c.timezone)
                      >= date_trunc('day', now() at time zone c.timezone) at time zone c.timezone
-               returning a.calendar_event_id""",
+               returning a.calendar_event_id, a.doctor_id""",
             ids,
         )  # fmt: skip
-        calendar = [r[0] for r in cancelled if r[0]]
+        calendar = [(r[0], r[1]) for r in cancelled if r[0]]
         await conn.execute(
             """update app.requests set status = 'rejected'
                where lead_id = any($1::uuid[]) and status = 'pending'""",
@@ -93,10 +94,12 @@ async def delete_leads(user: Annotated[Staff, Depends(staff)], body: Codes) -> D
         await conn.execute(
             "update app.leads set deleted_at = now(), updated_at = now() where id = any($1::uuid[])", ids
         )
-    for uid in calendar:  # after the save: Cal.com refusing never keeps a lead the manager deleted
+    for uid, doctor in calendar:  # after the save: Cal.com refusing never keeps a lead the manager deleted
         try:
-            await calcom.cancel(uid, "Cancelled by the clinic")
-        except calcom.CalcomError:
+            async with pool.acquire() as conn:
+                acc = await account(conn, body.clinic, doctor)  # the clinic's own Cal.com, as when booked
+            await calcom.cancel(uid, "Cancelled by the clinic", acc)
+        except Exception:  # noqa: BLE001 (the lead is deleted; a Cal.com problem is only logged)
             log.warning("Cal.com booking %s could not be cancelled after a lead was deleted", uid)
     found = {r["lead_code"] for r in leads}
     return Done(

@@ -47,7 +47,10 @@ async def _call(
             r = await client.request(method, API + path, json=body, headers=_headers(key, version))
     except httpx.HTTPError:
         raise CalcomError("Cal.com could not be reached. Please try again.") from None
-    data: dict[str, Any] = r.json() if r.content else {}
+    try:
+        data: dict[str, Any] = r.json() if r.content else {}
+    except ValueError:  # not JSON (an error page from Cal.com or a proxy): refused, never a crash
+        data = {}
     if r.status_code >= 400 or data.get("status") != "success":
         err = data.get("error")
         msg = err.get("message") if isinstance(err, dict) else err
