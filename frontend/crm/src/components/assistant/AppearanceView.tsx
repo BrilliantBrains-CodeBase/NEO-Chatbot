@@ -4,7 +4,6 @@ import Loading from "@/components/crm/Loading";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
-import MainTemplateBar, { publishLabel } from "./MainTemplateBar";
 
 // Dashboard → Appearance: Look (and header), Colours, Widget style (chat panel) and Launcher, one draft with a
 // live preview. Saving keeps a draft; patients see it only after Publish (backend: /v1/crm/console/{clinic}).
@@ -256,20 +255,10 @@ export default function AppearanceView() {
             disabled={busy || dirty || !s.changed}
             onClick={() => call("publish", "POST", undefined, "Published")}
           >
-            {publishLabel(clinicId)}
+            Publish
           </button>
         </div>
       </div>
-      <MainTemplateBar
-        clinicId={clinicId}
-        part="appearance"
-        follows={s.follows}
-        mainBehind={s.main_behind}
-        changed={s.changed}
-        busy={busy}
-        blocked={dirty}
-        call={call}
-      />
       {error && <div className="warnbox">{error}</div>}
       <div
         className="split-preview"
@@ -1007,7 +996,7 @@ function Preview({ a }: { a: Appearance }) {
   );
 
   return (
-    <div className="card" style={{ position: "sticky", top: 70 }}>
+    <div className="card">
       <h3>
         Live preview{" "}
         <small>
@@ -1037,7 +1026,10 @@ function Preview({ a }: { a: Appearance }) {
           borderRadius: mobile ? 28 : 12,
           border: mobile ? "8px solid #1F2937" : "1px solid #E3E8EF",
           width: mobile ? 250 : "100%",
-          height: mobile ? 500 : Math.round(h * 0.8) + 90,
+          // Fits the window (the page does not scroll for it): the space below the page title, 380px at least.
+          height: mobile
+            ? 500
+            : `clamp(380px, calc(100vh - 280px), ${Math.round(h * 0.8) + 90}px)`,
           margin: "0 auto",
           position: "relative",
           overflow: "hidden",
@@ -1084,7 +1076,7 @@ function Preview({ a }: { a: Appearance }) {
                     bottom: button + 24,
                     [left ? "left" : "right"]: 10,
                     width: Math.round(w * 0.8),
-                    height: Math.round(h * 0.8),
+                    height: `min(${Math.round(h * 0.8)}px, calc(100% - ${Math.round(button + 34)}px))`,
                   }),
               background: card,
               borderRadius: mobile ? 0 : RADIUS[a.widget.radius],
