@@ -162,6 +162,10 @@ const reply = (texts: string[], ui: UiBlock | null = null, input = TYPE): ChatRe
   input,
 });
 
+// A request saved (booking, cancel, reschedule, call back), as the backend says it: the widget locks the
+// calendars and time grids above.
+const saved = (r: ChatResponse): ChatResponse => ({ ...r, done: true });
+
 const INTRO: Record<Kind, string> = {
   book: "Sure, let's book your appointment. May I know your full name?",
   online: "Sure, let's book your online video consultation. May I know your full name?",
@@ -309,35 +313,41 @@ const DONE: UiBlock = {
 // Cancel and reschedule end here. The real backend matches name and number to a booking; with or
 // without a match the request goes to the clinic team, and the patient sees the same message.
 function cancelled(f: Flow): ChatResponse {
-  return reply(
-    [
-      `Thanks, ${firstName(f.name!)}. Your request to cancel the appointment on **${fmtDate(f.bookedDate!)}** is received. Our team will contact you on ${f.phone} to confirm the cancellation.`,
-    ],
-    DONE,
+  return saved(
+    reply(
+      [
+        `Thanks, ${firstName(f.name!)}. Your request to cancel the appointment on **${fmtDate(f.bookedDate!)}** is received. Our team will contact you on ${f.phone} to confirm the cancellation.`,
+      ],
+      DONE,
+    ),
   );
 }
 
 // Callback and typed-question leads end here; the real backend saves the lead to the CRM.
 function calledBack(f: Flow): ChatResponse {
-  return reply(
-    [
-      `Thanks, ${firstName(f.name!)}. Our team will call you on ${f.phone} about **${f.reason}** during clinic hours.`,
-    ],
-    DONE,
+  return saved(
+    reply(
+      [
+        `Thanks, ${firstName(f.name!)}. Our team will call you on ${f.phone} about **${f.reason}** during clinic hours.`,
+      ],
+      DONE,
+    ),
   );
 }
 
 function leadTaken(f: Flow): ChatResponse {
-  return reply([`Thanks, ${firstName(f.name!)}. Our team will contact you on ${f.phone}.`], DONE);
+  return saved(reply([`Thanks, ${firstName(f.name!)}. Our team will contact you on ${f.phone}.`], DONE));
 }
 
 function rescheduled(f: Flow): ChatResponse {
   const to = f.time === 'any' ? `${fmtDate(f.date!)} (any time)` : whenText(f);
-  return reply(
-    [
-      `Thanks, ${firstName(f.name!)}. Your request to move your appointment from **${fmtDate(f.bookedDate!)}** to **${to}** is received. Our team will contact you on ${f.phone} to confirm the new slot.`,
-    ],
-    DONE,
+  return saved(
+    reply(
+      [
+        `Thanks, ${firstName(f.name!)}. Your request to move your appointment from **${fmtDate(f.bookedDate!)}** to **${to}** is received. Our team will contact you on ${f.phone} to confirm the new slot.`,
+      ],
+      DONE,
+    ),
   );
 }
 
@@ -347,7 +357,7 @@ function confirmed(f: Flow): ChatResponse {
     f.kind === 'online'
       ? `Your online consultation request for **${treatmentText(f)}** ${when} is received. You will get the Google Meet link on WhatsApp and email once the clinic confirms.`
       : `Your appointment request for **${treatmentText(f)}** ${when} is received.`;
-  return reply([text], DONE);
+  return saved(reply([text], DONE));
 }
 
 const menu = (client: string, text: string) => reply([text], client === 'NFHT' ? MENU : null);

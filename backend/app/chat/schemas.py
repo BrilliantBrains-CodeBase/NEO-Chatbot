@@ -83,3 +83,6 @@ class ChatResponse(BaseModel):
     # The block shapes (menu, chips, calendar, ...) are checked by the flows that build them.
     ui: dict[str, Any] | None = None
     input: Input = Field(default_factory=Input)
+    # A booking, cancel or reschedule was just saved: the widget locks the calendars and time grids above,
+    # so scrolling up never picks a date again (user, 2026-11-12).
+    done: bool = False

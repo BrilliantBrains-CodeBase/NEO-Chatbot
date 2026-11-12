@@ -247,7 +247,9 @@ async def test_a_patients_booking_and_call_back_reach_the_crm(
     time = grid.ui["slots"][0]
     check = await say(req("button", action="canvas", value=time))
     assert check.messages[-1].text == "Is this correct?"
-    await say(req("button", action="canvas", value="yes"))
+    assert not calendar.done and not grid.done and not check.done  # still open: a day can still change
+    saved = await say(req("button", action="canvas", value="yes"))
+    assert saved.done  # saved: the widget locks the calendar and the times above
 
     lead = await tx.fetchrow(
         "select id, lead_code, stage, full_name, source from app.leads "

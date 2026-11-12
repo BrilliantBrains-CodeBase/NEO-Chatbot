@@ -98,4 +98,8 @@ test('reschedule: the new date can still be changed while the times show', async
   await expect(bot(panel)).toHaveText('And what new time would you prefer?');
   await tap(panel, 'Any time');
   await expect(bot(panel)).toContainText('to 29 Oct 2026 (any time) is received');
+  // Saved: scrolling up to the calendars and the times never moves the appointment again.
+  await expect(day(panel, '30 Oct 2026')).toBeDisabled();
+  await expect(panel.locator('.nb-cal.nb-locked')).toHaveCount(2);
+  await expect(panel.locator('.nb-times.nb-locked button').first()).toBeDisabled();
 });

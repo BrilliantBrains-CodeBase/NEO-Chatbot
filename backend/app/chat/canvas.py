@@ -395,4 +395,5 @@ def _widget(reply: dict[str, Any], pub: dict[str, Any], note: str | None) -> Cha
     mode = next((m["input"]["mode"] for m in reversed(reply["messages"]) if m.get("input")), "text")
     mode = mode if mode in ("text", "phone", "email") else "text"
     placeholder = {"phone": "Your mobile number", "email": "Your email"}.get(mode, "Type your question")
-    return ChatResponse(messages=texts, ui=ui, input=Input(mode=mode, placeholder=placeholder))
+    done = bool(reply.get("lead")) and note is None  # saved (a taken time says so instead)
+    return ChatResponse(messages=texts, ui=ui, input=Input(mode=mode, placeholder=placeholder), done=done)

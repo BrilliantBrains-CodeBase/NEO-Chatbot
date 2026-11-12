@@ -223,10 +223,12 @@ export function Block({
   block,
   onChoose,
   answered,
+  locked,
 }: {
   block: UiBlock;
   onChoose: OnChoose;
   answered?: boolean;
+  locked?: boolean;
 }) {
   switch (block.type) {
     case 'menu':
@@ -234,9 +236,9 @@ export function Block({
     case 'chips':
       return <Chips block={block} onChoose={onChoose} answered={answered} />;
     case 'month_calendar':
-      return <Calendar block={block} onChoose={onChoose} />;
+      return <Calendar block={block} onChoose={onChoose} locked={locked} />;
     case 'time_grid':
-      return <TimeGrid block={block} onChoose={onChoose} />;
+      return <TimeGrid block={block} onChoose={onChoose} locked={locked} />;
     case 'doctor_card':
       return <DoctorCard block={block} onChoose={onChoose} />;
     case 'media':

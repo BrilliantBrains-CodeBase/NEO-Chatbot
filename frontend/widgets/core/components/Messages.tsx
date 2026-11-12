@@ -7,7 +7,8 @@ import t from '../i18n/en.json';
 export type Entry =
   // error: a request failed; the bubble offers "Try again".
   | { id: number; from: 'bot' | 'me'; text: string; error?: boolean }
-  | { id: number; from: 'ui'; block: UiBlock };
+  // locked: a calendar or time grid of a booking, cancel or reschedule that is finished (never tapped again).
+  | { id: number; from: 'ui'; block: UiBlock; locked?: boolean };
 
 interface Props {
   entries: Entry[];
@@ -35,6 +36,7 @@ export function Messages({ entries, busy, onRetry, onChoose }: Props) {
             block={e.block}
             onChoose={onChoose}
             answered={entries.slice(i + 1).some((x) => x.from === 'me')}
+            locked={e.locked}
           />
         ) : (
           <div key={e.id} class={`nb-msg ${e.from}`}>

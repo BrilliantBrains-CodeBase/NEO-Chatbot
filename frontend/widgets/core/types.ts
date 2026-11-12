@@ -109,6 +109,8 @@ export interface ChatResponse {
   ui?: UiBlock | null;
   input: { mode: InputMode; placeholder: string };
   quick?: Choice[];
+  // A booking, cancel or reschedule was just saved: the calendars and time grids above are locked.
+  done?: boolean;
 }
 
 // The clinic's Call and WhatsApp for the mobile contact row ("" when not set).

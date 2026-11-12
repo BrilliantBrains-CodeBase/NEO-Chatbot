@@ -70,6 +70,15 @@ function Widget({ handle, face, api }: { handle: WidgetHandle; face: Face; api: 
           : { id: nextId.current++, from: 'bot', text: m.text };
       setEntries((list) => [...list, entry]);
     }
+    // A finished booking, cancel or reschedule: its calendars and time grids above can no longer be tapped.
+    if (res.done)
+      setEntries((list) =>
+        list.map((e) =>
+          e.from === 'ui' && (e.block.type === 'month_calendar' || e.block.type === 'time_grid')
+            ? { ...e, locked: true }
+            : e,
+        ),
+      );
     const ui = res.ui;
     if (ui) setEntries((list) => [...list, { id: nextId.current++, from: 'ui', block: ui }]);
     return true;

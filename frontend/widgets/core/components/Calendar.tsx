@@ -11,7 +11,17 @@ const monthKey = (ymd: string) => ymd.slice(0, 7); // "2026-10"
 // Month calendar. The backend sends the clinic's today, the first and last allowed date and the closed
 // weekdays, so dates never depend on the patient's own clock or time zone. It stays usable after a pick,
 // so the date can still be changed while the times show.
-export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: OnChoose }) {
+// Locked once its booking, cancel or reschedule is saved: scrolling up to an old calendar never books, cancels
+// or moves an appointment again (user, 2026-11-12). Until then a different day can still be picked.
+export function Calendar({
+  block,
+  onChoose,
+  locked = false,
+}: {
+  block: CalendarBlock;
+  onChoose: OnChoose;
+  locked?: boolean;
+}) {
   const start = block.today < block.min ? block.min : block.today > block.max ? block.max : block.today;
   const [view, setView] = useState(monthKey(start));
   const [picked, setPicked] = useState<string | null>(null);
@@ -30,12 +40,12 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
     (!block.dates || block.dates.includes(ymd));
 
   return (
-    <div class="nb-cal">
+    <div class={locked ? 'nb-cal nb-locked' : 'nb-cal'} aria-disabled={locked}>
       <div class="nb-cal-h">
         <button
           type="button"
           aria-label={t.prev_month}
-          disabled={view <= monthKey(block.min)}
+          disabled={locked || view <= monthKey(block.min)}
           onClick={() => shift(-1)}
         >
           <Icon name="back" />
@@ -46,7 +56,7 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
         <button
           type="button"
           aria-label={t.next_month}
-          disabled={view >= monthKey(block.max)}
+          disabled={locked || view >= monthKey(block.max)}
           onClick={() => shift(1)}
         >
           <Icon name="next" />
@@ -71,7 +81,7 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
               key={ymd}
               type="button"
               class={cls || undefined}
-              disabled={!open(ymd)}
+              disabled={locked || !open(ymd)}
               aria-label={fmtDate(ymd)}
               aria-pressed={ymd === picked}
               onClick={() => {
@@ -87,7 +97,7 @@ export function Calendar({ block, onChoose }: { block: CalendarBlock; onChoose: 
       {!!block.options?.length && (
         <div class="nb-chips nb-cal-more">
           {block.options.map((choice) => (
-            <Tap key={choice.label} choice={choice} class="nb-chip" onChoose={onChoose} />
+            <Tap key={choice.label} choice={choice} class="nb-chip" disabled={locked} onChoose={onChoose} />
           ))}
         </div>
       )}

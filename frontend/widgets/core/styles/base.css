@@ -629,6 +629,13 @@
   }
 }
 
+/* An answered calendar or time grid: faded, nothing tappable; the picked day or time still shows. */
+.nb-locked {
+  opacity: 0.55;
+}
+.nb-locked button {
+  cursor: default;
+}
 /* Month calendar (mockup): past, closed and out-of-window days greyed, today outlined, picked day solid. */
 .nb-cal {
   width: 100%;
