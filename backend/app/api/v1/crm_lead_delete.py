@@ -87,7 +87,8 @@ async def delete_leads(user: Annotated[Staff, Depends(staff)], body: Codes) -> D
             ids,
         )
         await conn.execute(
-            """update app.tasks set status = 'cancelled', completed_at = now()
+            # Cancelled, not done: completed_at stays empty (only a done task has one, tasks_check2).
+            """update app.tasks set status = 'cancelled'
                where lead_id = any($1::uuid[]) and status = 'open'""",
             ids,
         )

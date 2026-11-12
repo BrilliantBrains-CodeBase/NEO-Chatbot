@@ -30,10 +30,16 @@ async def test_only_a_manager_or_super_admin_deletes_and_restores_a_lead(
     theirs = {"clinic": "CL98", "codes": [world["other_lead"]["lead_code"]]}
     assert (await api.post("/v1/crm/leads/delete", json=theirs, headers=other)).status_code == 403
 
+    lead_id = world["lead"]["id"]
+    task = await pool.fetchval(  # an open task (e.g. "Online request from the chatbot") is closed too
+        """insert into app.tasks (clinic_id, lead_id, type, title, due_at)
+           values ('CL99', $1, 'confirm_booking', 'Online request from the chatbot', now()) returning id""",
+        lead_id,
+    )
     h = signed_in_as(monkeypatch, world["manager"]["id"])
     r = await api.post("/v1/crm/leads/delete", json=body, headers=h)
     assert r.status_code == 200 and r.json() == {"done": [code], "problems": []}
-    lead_id = world["lead"]["id"]
+    assert await pool.fetchval("select status from app.tasks where id = $1", task) == "cancelled"
     assert await pool.fetchval("select deleted_at is not null from app.leads where id = $1", lead_id)
     statuses = await pool.fetch("select status from app.appointments where lead_id = $1", lead_id)
     assert {s["status"] for s in statuses} == {"cancelled"}  # the doctor's time is free again
