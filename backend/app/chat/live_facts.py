@@ -26,6 +26,7 @@ SOURCE = {
     "parking_available": "Chatbot → Clinic info → Contact & hours",
     "emergency_contact_number": "Chatbot → Clinic info → Contact & hours",
     "outside_working_hours": "Chatbot → Clinic info → Contact & hours (closed message)",
+    "clinic_timings": "Chatbot → Clinic info → Contact & hours (the whole week)",
     **{f"timings_{d.lower()}": "Chatbot → Clinic info → Contact & hours" for d in DAYS},
     "clinic_open_time": "Chatbot → Clinic info → Contact & hours",
     "clinic_close_time": "Chatbot → Clinic info → Contact & hours",
@@ -53,6 +54,20 @@ def _t(hm: Any) -> str:
 def _settings(raw: Any) -> dict[str, Any]:
     value = json.loads(raw) if isinstance(raw, str) else raw
     return value if isinstance(value, dict) else {}
+
+
+def week(days: dict[str, str]) -> str:
+    """The whole week in one answer, Monday first, days with the same hours joined: "Monday to Sunday:
+    9:30 AM to 6:30 PM", or "Monday: 9:00 AM to 6:00 PM; Tuesday: Closed; Wednesday to Sunday: ..."."""
+    order = [*DAYS[1:], DAYS[0]]
+    groups: list[tuple[str, str, str]] = []  # (first day, last day, hours)
+    for day in order:
+        hours = days.get(f"timings_{day.lower()}") or "Closed"
+        if groups and groups[-1][2] == hours:
+            groups[-1] = (groups[-1][0], day, hours)
+        else:
+            groups.append((day, day, hours))
+    return "; ".join(f"{a}{'' if a == b else ' to ' + b}: {h}" for a, b, h in groups)
 
 
 _kept: dict[str, tuple[float, dict[str, str]]] = {}
@@ -103,6 +118,7 @@ async def _read(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
             out[f"timings_{day.lower()}"] = (
                 "Closed" if closed else f"{_t(c['open_time'])} to {_t(c['close_time'])}"
             )
+    out["clinic_timings"] = week(out)
     out["clinic_open_time"] = _t(c["open_time"])
     out["clinic_close_time"] = _t(c["close_time"])
     last = timedelta(hours=c["close_time"].hour, minutes=c["close_time"].minute) - timedelta(

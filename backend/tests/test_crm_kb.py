@@ -6,12 +6,25 @@ import pytest
 from httpx import AsyncClient
 
 from app.chat import kb
+from app.chat.live_facts import week
 from app.core.db import close_pool, get_pool
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
 
 URL = "/v1/crm/console/CL99/kb"
+
+
+def test_clinic_timings_is_the_whole_week_in_one_answer() -> None:
+    same = {
+        f"timings_{d}": "9:30 AM to 6:30 PM"
+        for d in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    }
+    assert week(same) == "Monday to Sunday: 9:30 AM to 6:30 PM"
+    closed = {**same, "timings_tuesday": "Closed", "timings_monday": "10:00 AM to 7:00 PM"}
+    assert week(closed) == (
+        "Monday: 10:00 AM to 7:00 PM; Tuesday: Closed; Wednesday to Sunday: 9:30 AM to 6:30 PM"
+    )
 
 
 def test_links_are_filled_only_when_every_fact_is_known() -> None:
@@ -141,7 +154,8 @@ async def test_dashboard_answers_are_live_facts(api: AsyncClient, monkeypatch: p
         live = {x["key"]: x for x in got["live"]}
         name = await pool.fetchval("select name from app.clinics where id = 'CL99'")
         assert live["clinic_name"]["value"] == name and "Clinics" in live["clinic_name"]["source"]
-        assert "timings_monday" in live and live["consultation_length"]["value"].startswith("About ")
+        assert "timings_monday" in live and "clinic_timings" in live
+        assert live["consultation_length"]["value"].startswith("About ")
 
         # A key the Dashboard answers: only its wordings are the fact's; its answer is always the live value.
         fact = {"key": "clinic_name", "value": "Other", "variants": "hospital name\nclinic ka naam"}
