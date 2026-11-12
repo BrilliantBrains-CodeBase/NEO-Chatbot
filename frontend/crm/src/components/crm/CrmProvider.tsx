@@ -280,7 +280,8 @@ export default function CrmProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((m: string) => {
     setToastText(m);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToastText(""), 1800);
+    // Long enough to read (user, 2026-11-12: 4 to 5 seconds).
+    timer.current = setTimeout(() => setToastText(""), 4500);
   }, []);
   useEffect(() => {
     toastRef.current = toast;
