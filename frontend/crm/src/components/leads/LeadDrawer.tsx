@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import AssignControls from "@/components/inbox/AssignControls";
 import RequestCard from "@/components/inbox/RequestCard";
@@ -265,43 +265,42 @@ export default function LeadDrawer({
               </div>
             )}
             <div className="sec">
-              <h4>TIMELINE</h4>
+              <h4>
+                TIMELINE
+                {lead.events.length ? ` · ${lead.events.length}` : ""}
+              </h4>
               {lead.events.length ? (
-                <div className="tl">
-                  {lead.events.map((e, i) => (
-                    <div key={i}>
-                      {EVENT[e.kind] ?? e.kind}
-                      {typeof e.data.outcome === "string" &&
-                        `: ${e.data.outcome.replace("_", " ")}`}
-                      {typeof e.data.text === "string" &&
-                        e.data.text &&
-                        `: ${e.data.text}`}
-                      {typeof e.data.to === "string" &&
-                        ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
-                      <small>
-                        {when(e.at)}
-                        {e.by ? " · " + e.by : ""}
-                      </small>
-                    </div>
-                  ))}
+                <div className="lbox">
+                  <div className="tl">
+                    {lead.events.map((e, i) => (
+                      <div key={i}>
+                        {EVENT[e.kind] ?? e.kind}
+                        {typeof e.data.outcome === "string" &&
+                          `: ${e.data.outcome.replace("_", " ")}`}
+                        {typeof e.data.text === "string" &&
+                          e.data.text &&
+                          `: ${e.data.text}`}
+                        {typeof e.data.to === "string" &&
+                          ` to ${STAGE_LABEL[e.data.to]?.[0] ?? e.data.to}`}
+                        <small>
+                          {when(e.at)}
+                          {e.by ? " · " + e.by : ""}
+                        </small>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <p className="sub2">Nothing yet.</p>
               )}
             </div>
             <div className="sec">
-              <h4>LATEST CHAT</h4>
+              <h4>
+                LATEST CHAT
+                {lead.chat.length ? ` · ${lead.chat.length} messages` : ""}
+              </h4>
               {lead.chat.length ? (
-                <div className="list">
-                  {lead.chat.map((m, i) => (
-                    <div className="li" key={i}>
-                      <div className="x">
-                        <b>{m.role === "bot" ? "Bot" : "Patient"}</b>
-                        <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <LatestChat lines={lead.chat} />
               ) : (
                 <p className="sub2">No chat with this lead.</p>
               )}
@@ -338,5 +337,25 @@ export default function LeadDrawer({
         )}
       </div>
     </>
+  );
+}
+
+/** The latest chat as bubbles (bot left, patient right) in a box of its own height, opened at the newest. */
+function LatestChat({ lines }: { lines: LeadDetail["chat"] }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (box.current) box.current.scrollTop = box.current.scrollHeight;
+  }, [lines]);
+  return (
+    <div className="lbox lchat" ref={box}>
+      {lines.map((m, i) => (
+        <div key={i} className={`lmsg ${m.role === "bot" ? "bot" : "pt"}`}>
+          <span>{m.text}</span>
+          <small>
+            {m.role === "bot" ? "Bot" : "Patient"} · {when(m.at)}
+          </small>
+        </div>
+      ))}
+    </div>
   );
 }
