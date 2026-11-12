@@ -732,6 +732,13 @@ async def publish(user: Annotated[Staff, Depends(staff)], clinic: str, for_all: 
                values ($1, $2, $3::jsonb, $4::uuid)""",
             clinic, version, json.dumps(live), user.id,
         )  # fmt: skip
+        # The assistant's name is Appearance → Look (user, 2026-11-12): the clinic record follows it, so the
+        # test chat, the onboarding file and copied templates use the same name.
+        name = str(((live.get("appearance") or {}).get("look") or {}).get("name") or "").strip()
+        if 2 <= len(name) <= 50:
+            await conn.execute(
+                "update app.clinics set bot_name = $2 where id = $1 and bot_name <> $2", clinic, name
+            )
         if for_all:
             await main_template.share(conn, live)
     return await _load(clinic)

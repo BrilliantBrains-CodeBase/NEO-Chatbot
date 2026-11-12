@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.api.v1.crm_team import give_role
 from app.chat import main_template
-from app.core.codes import CLINIC_CODE, code_from_name
+from app.core.codes import CLINIC_CODE, RENAMED, code_from_name
 from app.core.db import get_pool
 from app.crm import staff_email, supabase_admin
 from app.crm.auth import Staff, staff
@@ -39,6 +39,9 @@ class Clinic(BaseModel):
 
 class NewClinic(BaseModel):
     name: str = Field(min_length=2, max_length=80)
+    # The short name (user, 2026-11-12): the clinic code staff choose, e.g. NF, DS, NFHT. Left out: made
+    # from the name's first letters.
+    code: str | None = Field(default=None, pattern=CLINIC_CODE)
     bot_name: str = Field(min_length=2, max_length=40)
     copy_from: str = Field(pattern=CLINIC_CODE)
     phone: str | None = Field(default=None, pattern=r"^\+[1-9][0-9]{6,14}$")
@@ -79,6 +82,11 @@ def next_code(name: str, taken: set[str]) -> str:
         raise HTTPException(status.HTTP_409_CONFLICT, "No free clinic code for this name.") from None
 
 
+async def _code_taken(db: Any, code: str) -> bool:
+    """A clinic has it, or it is an old code still answered for a renamed clinic (CL01)."""
+    return code in RENAMED or bool(await db.fetchval("select 1 from app.clinics where id = $1", code))
+
+
 @router.get("", response_model=list[Clinic])
 async def clinics(user: Annotated[Staff, Depends(staff)]) -> list[Clinic]:
     _bb(user)
@@ -89,6 +97,8 @@ async def clinics(user: Annotated[Staff, Depends(staff)]) -> list[Clinic]:
 async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) -> list[Clinic]:
     _bb(user)
     pool = await get_pool()
+    if body.code and await _code_taken(pool, body.code):  # before any invite, so nothing is half done
+        raise HTTPException(status.HTTP_409_CONFLICT, f"The short name {body.code} is already used.")
     manager_id = link = None
     if body.manager_email:  # before the clinic is made: an invite that fails leaves nothing half done
         sql = "select id::text from app.profiles where email = $1"
@@ -110,7 +120,10 @@ async def add_clinic(user: Annotated[Staff, Depends(staff)], body: NewClinic) ->
         source = await conn.fetchrow("select * from app.clinics where id = $1", body.copy_from)
         if source is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "The clinic to copy from does not exist.")
-        code = next_code(body.name, {r["id"] for r in await conn.fetch("select id from app.clinics")})
+        taken = {r["id"] for r in await conn.fetch("select id from app.clinics")}
+        if body.code and await _code_taken(conn, body.code):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"The short name {body.code} is already used.")
+        code = body.code or next_code(body.name, taken)
         cols = ["id", "name", "bot_name", "phone", "whatsapp", "website", *SETUP]
         values = [code, body.name.strip(), body.bot_name.strip(), body.phone, body.whatsapp, body.website,
                   *(source[c] for c in SETUP)]  # fmt: skip

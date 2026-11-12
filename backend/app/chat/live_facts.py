@@ -51,6 +51,15 @@ def _t(hm: Any) -> str:
     return f"{(h + 11) % 12 + 1}:{m:02d} {'AM' if h < 12 else 'PM'}"
 
 
+def shown_phone(number: str) -> str:
+    """An Indian number as patients read it: +919741223217 -> +91 97412 23217 (others unchanged). Only how
+    the bot says it: the number is stored without spaces, and call / WhatsApp links use the stored one."""
+    digits = number.replace(" ", "")
+    if len(digits) == 13 and digits.startswith("+91") and digits[1:].isdigit():
+        return f"+91 {digits[3:8]} {digits[8:]}"
+    return number
+
+
 def _settings(raw: Any) -> dict[str, Any]:
     value = json.loads(raw) if isinstance(raw, str) else raw
     return value if isinstance(value, dict) else {}
@@ -93,8 +102,8 @@ async def _read(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
     contact, services = pub.get("contact") or {}, pub.get("services") or {}
     out: dict[str, str] = {
         "clinic_name": c["name"] or "",
-        "clinic_phone": contact.get("phone") or c["phone"] or "",
-        "clinic_whatsapp": contact.get("whatsapp") or c["whatsapp"] or "",
+        "clinic_phone": shown_phone(contact.get("phone") or c["phone"] or ""),
+        "clinic_whatsapp": shown_phone(contact.get("whatsapp") or c["whatsapp"] or ""),
         "clinic_website": c["website"] or "",
         "clinic_address": contact.get("address") or "",
         "landmark": contact.get("landmark") or "",
@@ -103,7 +112,10 @@ async def _read(conn: asyncpg.Connection, clinic_id: str) -> dict[str, str]:
         "parking_available": contact.get("parking") or "",
         "emergency_contact_number": contact.get("emergency_number") or "",
         "outside_working_hours": contact.get("closed_message") or "",
-        "chatbot_clinic_name": c["bot_name"] or "",
+        # The assistant's name is the one in Chatbot → Appearance → Look (user, 2026-11-12).
+        "chatbot_clinic_name": ((pub.get("appearance") or {}).get("look") or {}).get("name")
+        or c["bot_name"]
+        or "",
         "consultation_length": f"About {c['slot_minutes']} minutes",
         "booking_window": f"Up to {c['booking_window_days']} days ahead",
     }

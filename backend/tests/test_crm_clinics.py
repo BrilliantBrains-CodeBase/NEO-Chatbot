@@ -62,6 +62,33 @@ async def test_add_a_clinic_copied_from_another(api: AsyncClient, monkeypatch: p
 
 
 @needs_db
+async def test_a_clinic_gets_the_short_name_staff_choose(
+    api: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pool = await get_pool()
+    admin = await pool.fetchval(
+        "select user_id from app.user_clinics where role = 'bb_admin' and active limit 1"
+    )
+    if admin is None:
+        pytest.skip("no Super Admin in this database")
+    headers = signed_in_as(monkeypatch, str(admin))
+    try:
+        body = {"name": "Test Short Name Clinic", "code": "TQZ7", "bot_name": "Zed", "copy_from": "NFHT"}
+        r = await api.post("/v1/crm/clinics", json=body, headers=headers)
+        assert r.status_code == 201, r.text
+        assert any(c["id"] == "TQZ7" for c in r.json())
+        for taken in ("TQZ7", "NFHT", "CL01"):  # a clinic's, or an old code still answered
+            r = await api.post("/v1/crm/clinics", json=body | {"code": taken}, headers=headers)
+            assert r.status_code == 409 and "already used" in r.text
+        bad = await api.post("/v1/crm/clinics", json=body | {"code": "nf"}, headers=headers)
+        assert bad.status_code == 422  # capitals and digits only
+    finally:
+        await pool.execute("delete from app.clinic_settings where clinic_id = 'TQZ7'")
+        await pool.execute("delete from app.clinics where id = 'TQZ7'")
+        await close_pool()
+
+
+@needs_db
 async def test_delete_only_an_empty_clinic(api: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
     pool = await get_pool()
     admin = await pool.fetchval(

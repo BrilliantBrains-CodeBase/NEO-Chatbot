@@ -193,8 +193,20 @@ export default function ClinicsTab({ onOpen }: { onOpen: () => void }) {
   );
 }
 
+/** The first letter of each word, in capitals (Neo Fertility: NF); one word gives its first two letters. */
+function initials(name: string): string {
+  const words = name.match(/[A-Za-z0-9]+/g) ?? [];
+  let code = words
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+  if (code.length < 2 && words[0]) code = words[0].slice(0, 2).toUpperCase();
+  return code.replace(/^[^A-Z]+/, "").slice(0, 10);
+}
+
 const EMPTY = {
   name: "",
+  code: "",
   bot_name: "",
   phone: "",
   whatsapp: "",
@@ -218,10 +230,22 @@ function AddClinicForm({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
-    setForm({ ...form, [k]: e.target.value });
+  // The short name follows the clinic name (its first letters) until staff type their own.
+  const [ownCode, setOwnCode] = useState(false);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => {
+    const value = e.target.value;
+    if (k === "code") {
+      setOwnCode(true);
+      setForm({ ...form, code: value.toUpperCase().replace(/[^A-Z0-9]/g, "") });
+    } else if (k === "name" && !ownCode) {
+      setForm({ ...form, name: value, code: initials(value) });
+    } else {
+      setForm({ ...form, [k]: value });
+    }
+  };
+  const codeOk = /^[A-Z][A-Z0-9]{1,9}$/.test(form.code);
   const ready =
-    form.name.trim().length >= 2 && form.bot_name.trim().length >= 2;
+    form.name.trim().length >= 2 && form.bot_name.trim().length >= 2 && codeOk;
   const field = (
     k: keyof typeof form,
     label: string,
@@ -259,7 +283,22 @@ function AddClinicForm({
       }}
     >
       <div className="tm-form">
-        {field("name", "Clinic name")}
+        {field("name", "Clinic name", "e.g. Neo Fertility")}
+        <label className="tm-field">
+          Short name
+          <input
+            className="f"
+            placeholder="e.g. NF"
+            maxLength={10}
+            value={form.code}
+            onChange={set("code")}
+            aria-invalid={form.code !== "" && !codeOk}
+          />
+          <span className="tm-hint">
+            The clinic&apos;s code (NF, DS, NFHT): capital letters and digits,
+            starting with a letter. It can&apos;t be changed later.
+          </span>
+        </label>
         {field("bot_name", "Chatbot name", "e.g. Mira")}
         <label className="tm-field full">
           Copy setup from

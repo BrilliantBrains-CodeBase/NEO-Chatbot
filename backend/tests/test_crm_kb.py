@@ -6,13 +6,19 @@ import pytest
 from httpx import AsyncClient
 
 from app.chat import kb
-from app.chat.live_facts import week
+from app.chat.live_facts import shown_phone, week
 from app.core.db import close_pool, get_pool
 from tests.test_crm_auth import api, needs_db, signed_in_as
 
 __all__ = ["api"]  # the client fixture
 
 URL = "/v1/crm/console/CL99/kb"
+
+
+def test_phone_numbers_are_said_with_spaces() -> None:
+    assert shown_phone("+919741223217") == "+91 97412 23217"
+    assert shown_phone("+91 97412 23217") == "+91 97412 23217"
+    assert shown_phone("108") == "108" and shown_phone("+14155550100") == "+14155550100"
 
 
 def test_clinic_timings_is_the_whole_week_in_one_answer() -> None:
