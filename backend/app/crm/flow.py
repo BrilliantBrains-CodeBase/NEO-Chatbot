@@ -75,6 +75,7 @@ class TreatmentListSettings(BaseModel):
     message: str = Field(default="", max_length=1500)
     category: str = Field(default="", max_length=40)  # a Services category, e.g. Hair transplant
     buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+    yes_books: bool = True  # a typed "yes" after a treatment's details starts the booking (as Book)
 
 
 class AnswerSettings(BaseModel):
@@ -138,6 +139,7 @@ class LeadSettings(BaseModel):
 
 class TreatmentSettings(BaseModel):
     treatment: str = Field(min_length=1, max_length=80)  # a treatment from Clinic info → Services
+    yes_books: bool = True  # a typed "yes" after its details follows its Book line
 
 
 class DoctorSettings(BaseModel):
@@ -302,6 +304,7 @@ class CarouselSettings(BaseModel):
     category: str = Field(default="", max_length=40)  # treatments: a Services category (empty: all shown)
     cards: list[Card] = Field(default=[], max_length=10)  # custom
     buttons: list[Button] = Field(default=[], max_length=MAX_BUTTONS)
+    yes_books: bool = True  # a typed "yes" after a treatment's details starts the booking (as Book)
 
     @model_validator(mode="after")
     def _cards(self) -> "CarouselSettings":

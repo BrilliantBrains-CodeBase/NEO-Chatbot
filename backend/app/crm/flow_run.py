@@ -70,6 +70,13 @@ GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "la
 # The answer box the widget shows for each question (phone: with the country picker).
 INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
 BACK = re.compile(r"back|go back|previous|undo")
+# A typed yes to "Would you like to book an appointment?" under a treatment's details (user, 2026-11-12).
+YES_BOOK = re.compile(
+    r"(yes|yeah|yea|yep|yup|ya|ok|okay|okk|ok sure|sure|alright|fine|haan|han|haa|ha|ji|haan ji|ji haan|"
+    r"yes please|yes sure|yes ok|yes i want|yes i would like|yes i want to book|yes book|yes book it|"
+    r"book|book it|book now|book please|please book|book appointment|book an appointment|go ahead|"
+    r"definitely|of course|why not|i want to book|i would like to book|i want an appointment)"
+)
 # "Which details would you like to change?": the button for each question, and the words that also pick it.
 CHANGE_OPTIONS = {
     "name": ("Name", r"name"),
@@ -439,6 +446,8 @@ class Run:
         if node.type == "treatment_card":
             text = self.treatment_text(s["treatment"])
             more.update(self.photo(s["treatment"]))
+            if s.get("yes_books", True) and self._leads(node.id, "book"):
+                self.fields["_offer"] = "card:" + s["treatment"]
         if node.type == "location":
             hours = self.ctx.hours_today if s.get("hours", True) else ""
             text = "\n".join(x for x in (text, self.ctx.location, hours) if x)
@@ -502,6 +511,7 @@ class Run:
 
     # ---------- the patient's message ----------
     def tap(self, button_id: str) -> dict[str, Any]:
+        self.fields.pop("_offer", None)  # a tap answers the treatment's question itself
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
@@ -539,6 +549,8 @@ class Run:
             book = [{"id": "book:" + value, "label": "Book", "action": "book", "value": value}]
             buttons = (book if self.first("book") else []) + self.read_more(value)
             self.say(self.treatment_text(value), buttons=buttons, **self.photo(value))
+            if self.first("book") and node.settings.get("yes_books", True):
+                self.fields["_offer"] = "book:" + value
         elif a == "faq":
             self.say(node.settings["items"][int(value)]["answer"])
         elif a == "list":  # a doctor's treatments, each to its card
@@ -571,6 +583,7 @@ class Run:
     def text(self, raw: str) -> dict[str, Any]:
         text = raw.strip()
         self.last_text = text
+        offer = self.fields.pop("_offer", "")  # only the very next message can answer a treatment's question
         g = {t.kind: t for t in self.flow.globals.triggers if t.enabled}
         # Emergency words always come first, from anywhere: the trigger's block, else the flow's Emergency.
         sos = (g["emergency"].target if "emergency" in g else "") or self.first("emergency")
@@ -599,6 +612,14 @@ class Run:
             self.offer_callback(text)
             return self.reply()
         low = " ".join(text.lower().split())
+        if offer and not self.ask and YES_BOOK.fullmatch(norm(text)):
+            kind, _, name = offer.partition(":")
+            self.matched = {"how": "yes to booking after a treatment", "text": name}
+            if kind == "card":  # the card's own Book line
+                self.act(node, {"id": "book", "action": "go", "value": ""})
+            else:
+                self.act(node, {"id": "book:" + name, "action": "book", "value": name})
+            return self.reply()
         if BACK.fullmatch(norm(text)):
             self.go_back()
             return self.reply()

@@ -161,6 +161,45 @@ def test_live_treatments_card_and_book_skips_the_treatment_question() -> None:
     assert chat(tap="book:FUE") == ["May I know your full name?"]  # treatment already known
 
 
+def test_a_typed_yes_after_a_treatment_starts_the_booking() -> None:
+    """The details end "Would you like to book an appointment?": a typed yes is the Book button."""
+    tl: dict[str, Any] = {
+        "id": "tl",
+        "type": "treatment_list",
+        "settings": {"message": "Pick one", "category": "Hair transplant"},
+    }
+    book = {"id": "book", "type": "book", "settings": {"fields": ["treatment", "name"]}}
+    flow = {"nodes": [opening(("m1", "Treatments")), tl, book], "edges": [line("opening", "m1", "tl")]}
+    for yes in ("yes", "Yes please", "ok", "haan", "book it"):
+        chat = Chat(flow)
+        chat(tap="m1")
+        chat(tap="t:FUE")
+        assert chat(yes) == ["May I know your full name?"], yes  # the treatment is already known
+        assert chat.at == "book"
+    chat = Chat(flow)
+    chat(tap="m1")
+    chat(tap="t:FUE")
+    chat("hello")  # something else first: the question is no longer the one being answered
+    assert chat("yes") != ["May I know your full name?"]
+    off = {**tl, "settings": {**tl["settings"], "yes_books": False}}
+    chat = Chat({**flow, "nodes": [opening(("m1", "Treatments")), off, book]})
+    chat(tap="m1")
+    chat(tap="t:FUE")
+    assert chat("yes") != ["May I know your full name?"]  # turned off on the card
+
+
+def test_a_typed_yes_on_a_treatment_card_follows_its_book_line() -> None:
+    card = {"id": "card", "type": "treatment_card", "settings": {"treatment": "FUE"}}
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}
+    flow = {
+        "nodes": [opening(("m1", "FUE")), card, book],
+        "edges": [line("opening", "m1", "card"), line("card", "book", "book")],
+    }
+    chat = Chat(flow)
+    chat(tap="m1")
+    assert chat("Yes") == ["May I know your full name?"] and chat.at == "book"
+
+
 def test_off_blocks_hide_their_buttons_and_global_emergency() -> None:
     off = {"id": "off", "type": "answer", "enabled": False, "settings": {"text": "Hidden"}}
     sos = {

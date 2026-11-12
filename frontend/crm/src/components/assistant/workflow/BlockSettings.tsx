@@ -751,6 +751,19 @@ export default function BlockSettings({
       )}
       {block.type === "treatment_card" &&
         text("treatment", "Treatment (from Clinic info → Services)", 1, 80)}
+      {(block.type === "treatment_list" ||
+        block.type === "treatment_card" ||
+        (block.type === "carousel" && s.source !== "custom")) && (
+        <label style={{ display: "flex", gap: 6, fontSize: "var(--fs-small)" }}>
+          <input
+            type="checkbox"
+            checked={s.yes_books !== false}
+            onChange={(e) => set({ yes_books: e.target.checked })}
+          />
+          A typed &quot;yes&quot; after the treatment&apos;s details starts the
+          booking (asks name, phone…), the same as tapping Book
+        </label>
+      )}
       {block.type === "doctor_card" && (
         <>
           {text("doctor", "Doctor's name", 1, 80)}
