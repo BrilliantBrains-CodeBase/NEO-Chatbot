@@ -188,6 +188,50 @@ def test_a_typed_yes_after_a_treatment_starts_the_booking() -> None:
     assert chat("yes") != ["May I know your full name?"]  # turned off on the card
 
 
+def test_a_plain_no_is_never_a_knowledge_base_answer() -> None:
+    """ "No" to "Would you like to book an appointment?" matched the fact "phone no" (the clinic's number).
+    A plain no gets a polite reply and the menu; a "No" button on the screen still answers."""
+    tl = {
+        "id": "tl",
+        "type": "treatment_list",
+        "settings": {"message": "Pick one", "category": "Hair transplant"},
+    }
+    flow = {"nodes": [opening(("m1", "Treatments")), tl], "edges": [line("opening", "m1", "tl")]}
+    asked: list[str] = []
+
+    def kb(question: str) -> str:
+        asked.append(question)
+        return "+91 97312 07940"  # what the Knowledge base answered for "No"
+
+    for no in ("No", "no thanks", "not now", "nahi"):
+        chat = Chat(flow, ctx(kb=kb))
+        chat(tap="m1")
+        chat(tap="t:FUE")
+        assert chat(no) == [
+            'No problem. If you\'d like to book later, just type "book". Is there anything else '
+            "I can help you with?"
+        ], no
+        assert chat.labels() == ["Main menu"]
+    assert asked == []  # never searched
+    yes_no = {
+        "id": "q",
+        "type": "choice",
+        "settings": {
+            "message": "Existing patient?",
+            "buttons": [{"id": "y", "label": "Yes"}, {"id": "n", "label": "No"}],
+        },
+    }
+    new = {"id": "new", "type": "answer", "settings": {"text": "Welcome, new patient"}}
+    chat = Chat(
+        {
+            "nodes": [opening(("m1", "Start")), yes_no, new],
+            "edges": [line("opening", "m1", "q"), line("q", "n", "new")],
+        }
+    )
+    chat(tap="m1")
+    assert chat("No") == ["Welcome, new patient"]  # the screen's own No button
+
+
 def test_a_typed_yes_on_a_treatment_card_follows_its_book_line() -> None:
     card = {"id": "card", "type": "treatment_card", "settings": {"treatment": "FUE"}}
     book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}

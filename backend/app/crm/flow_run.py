@@ -70,6 +70,15 @@ GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "la
 # The answer box the widget shows for each question (phone: with the country picker).
 INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
 BACK = re.compile(r"back|go back|previous|undo")
+# A plain "no" outside a question (e.g. to "Would you like to book an appointment?"): never a Knowledge base
+# search, where "No" matched "phone no" and was answered with the clinic's number (user, 2026-11-12).
+PLAIN_NO = re.compile(
+    r"no|n|nope|nah|na|no thanks|no thank you|not now|not interested|not yet|maybe later|later|"
+    r"no need|no i dont want|no i do not want|nahi|nahin|nai|nako|beda"
+)
+NO_THANKS = (
+    'No problem. If you\'d like to book later, just type "book". Is there anything else I can help you with?'
+)
 # A typed yes to "Would you like to book an appointment?" under a treatment's details (user, 2026-11-12).
 YES_BOOK = re.compile(
     r"(yes|yeah|yea|yep|yup|ya|ok|okay|okk|ok sure|sure|alright|fine|haan|han|haa|ha|ji|haan ji|ji haan|"
@@ -619,6 +628,11 @@ class Run:
                 self.act(node, {"id": "book", "action": "go", "value": ""})
             else:
                 self.act(node, {"id": "book:" + name, "action": "book", "value": name})
+            return self.reply()
+        if not self.ask and PLAIN_NO.fullmatch(norm(text)) and not match_option(text, self.buttons(node)):
+            # (a "No" button on the screen is still chosen by typing it)
+            self.matched = {"how": "a plain no", "text": text}
+            self.say(NO_THANKS, buttons=[{"id": "medical:no", "label": "Main menu", "action": "menu"}])
             return self.reply()
         if BACK.fullmatch(norm(text)):
             self.go_back()
