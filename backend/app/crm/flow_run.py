@@ -140,6 +140,42 @@ YES_CALL = re.compile(
     r"yes call|yes call me|yes call me back|ok call me|call back|callback|haan call karo|call karo|"
     r"definitely|of course|why not)"
 )
+# Small replies (user, 2026-11-13, patient-behaviour notes). Politeness words are taken off first.
+POLITE = re.compile(r"\b(sir|madam|maam|ma am|mam|ji|pls|plz|please|bro|dear|boss|bhai|yaar)\b")
+ENDING = re.compile(
+    r"(ok+|okay|okk|hmm+|hm+|thanks?|thank you|thank u|thanku|thx|ty|ok thanks|okay thanks|ok thank you|"
+    r"okay thank you|great thanks|thanks a lot|thank you so much|thank you very much|fine|cool|got it|"
+    r"alright|noted|nice|super|great|good|dhanyavad|shukriya|ok fine|okay fine)"
+)
+FRUSTRATED = re.compile(
+    r"\b(useless|stupid|worst|waste|nonsense|bakwas|bekar|not helpful|no help|you dont understand|"
+    r"you don t understand|real person|human|agent|customer care|talk to someone|speak to someone|"
+    r"talk to a person|speak to a person|person please)\b|\?{3,}"
+)
+FAMILY = re.compile(
+    r"\b(for|about|asking for) my (brother|sister|son|daughter|husband|wife|father|mother|dad|mom|mum|"
+    r"friend|relative|uncle|aunt|partner|fiance|fiancee|boyfriend|girlfriend|cousin)\b"
+    r"|\bmy (son|daughter|brother|sister|husband|wife|father|mother|friend|dad|mom) (is|has|wants)\b"
+)
+JUST_ASKING = re.compile(
+    r"(just asking|only asking|just checking|only checking|only for information|just for information|"
+    r"for information|just info|only info|just browsing|just looking|just curious|no reason)"
+)
+# First-message probes: checking someone is there, or whether this is a bot (the welcome says who it is).
+PROBE = re.compile(
+    r"\?+|anyone there|is anyone there|any one there|hello anyone|anybody there|is somebody there|koi hai|"
+    r"are you there|you there|r u there"
+)
+ARE_YOU = re.compile(
+    r"\b(is this|is it|are you|r u|am i (talking|chatting|speaking) (to|with)) (a |an )?"
+    r"(real |actual |live )?(person|human|bot|robot|machine|ai|computer)\b"
+)
+CTA_TEXT = "You're welcome! Would you like to book a consultation?"
+FAMILY_TEXT = (
+    "Of course. You're welcome to bring them along to the consultation. What would you like to know?"
+)
+JUST_ASKING_TEXT = "No problem, take your time. Ask me anything, or have a look at our treatments."
+HANDOVER_TEXT = "I'm sorry I couldn't help with that. Shall our team call you?"
 # A call back about a question the bot could not answer (user, 2026-11-13): any more questions for the team?
 MORE_Q_TEXT = "Is this your only question, or would you like to ask more?"
 MORE_Q_BUTTONS = [
@@ -634,6 +670,8 @@ class Run:
             b = {"id": button_id, "action": "slot", "value": name}  # a taken one: the booking refuses it
         if b is None and kind == "medical":  # the medical offer: a call back about the question, or the menu
             b = {"id": button_id, "action": "callback" if name == "yes" else "menu", "value": ""}
+        if b is None and kind == "cta":  # "Book a consultation" after "thanks" or "for my brother"
+            b = {"id": button_id, "action": "book", "value": ""}
         if b is None and kind == "read" and name:  # a treatment's Read more (test chat: says the page)
             b = next(iter(self.read_more(name)), None)
         if b is None and node.type == "carousel" and kind.startswith("card"):  # a button on one of its cards
@@ -728,7 +766,7 @@ class Run:
             self.matched = {"how": "yes to the call back offer", "text": text}
             self.act(node, {"id": "medical:yes", "action": "callback", "value": ""})  # its reason is kept
             return self.reply()
-        if kind in ("book", "card") and not self.ask and MORE.fullmatch(norm(text)):
+        if kind in ("book", "card") and name and not self.ask and MORE.fullmatch(norm(text)):
             self.matched = {"how": "more about a treatment", "text": name}
             self.more_about(node, kind, name)
             return self.reply()
@@ -749,6 +787,8 @@ class Run:
             return self.reply()
         if self.ask:
             self.answer(node, text)
+            return self.reply()
+        if self.small_replies(node, text):
             return self.reply()
         said = self.small(low)
         if said is not None:
@@ -824,8 +864,17 @@ class Run:
                 ),
                 None,
             )
+            plain = " ".join(POLITE.sub(" ", norm(text)).split())
             if topic:
                 self.enter(topic)
+            elif FAMILY.search(plain):  # "for my brother": they are welcome to come along
+                self.matched = {"how": "asking for someone else", "text": text}
+                self.say(FAMILY_TEXT, buttons=self.cta_buttons())
+            elif JUST_ASKING.fullmatch(plain):  # "just asking": no push, a low-pressure next step
+                self.matched = {"how": "just asking", "text": text}
+                self.say(
+                    JUST_ASKING_TEXT, buttons=[{"id": "medical:no", "label": "Main menu", "action": "menu"}]
+                )
             elif (QUESTION.search(low) or ASKED.match(low)) and self.first("callback"):
                 # A real question with no approved answer: no dead end, the team calls back about it.
                 self.matched = {"how": "no answer", "text": text}
@@ -836,6 +885,45 @@ class Run:
                 )
                 self.say(fallback or "Sorry, I didn't get that. Please choose one of the options.")
         return self.reply()
+
+    def cta_buttons(self) -> list[dict[str, Any]]:
+        """Book a consultation (when the canvas has a booking) and the main menu."""
+        book = [{"id": "cta:book", "label": "Book a consultation", "action": "book", "value": ""}]
+        menu = [{"id": "medical:no", "label": "Main menu", "action": "menu"}]
+        return (book if self.first("book") else []) + menu
+
+    def small_replies(self, node: Node, text: str) -> bool:
+        """Endings, frustration and a lone "?" outside a question (user, 2026-11-13). Politeness words ("sir",
+        "ji", "pls") are taken off first. True when answered."""
+        plain = " ".join(POLITE.sub(" ", norm(text)).split())
+        last = self.fields.get("_last_q", "")
+        if plain and not (ENDING.fullmatch(plain) or PLAIN_NO.fullmatch(plain) or small_talk(plain)):
+            self.fields["_last_q"] = plain  # to notice the same question asked again
+        if text.strip() in ("?", "??") or PROBE.fullmatch(plain) or ARE_YOU.search(plain):
+            # A probe ("anyone there", "is this a real person?"): the welcome, which says it is the assistant.
+            self.matched = {"how": "probe", "text": text}
+            said = self.small("hi")
+            if said:
+                self.say(said)
+            return True
+        if FRUSTRATED.search(plain) or FRUSTRATED.search(text) or (plain and plain == last):
+            # Annoyed, or the same question again (the first answer missed): a person, at once.
+            self.matched = {"how": "frustration", "text": text}
+            self.fields["reason"] = (last if plain == last else text)[:200]
+            self.say(HANDOVER_TEXT, buttons=[
+                {"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""},
+                {"id": "medical:no", "label": "No, thanks", "action": "menu"},
+            ])  # fmt: skip
+            self.fields["_offer"] = "callback:"
+            return True
+        if plain and ENDING.fullmatch(plain):  # "ok", "thanks": an ending, the moment to offer a booking
+            self.matched = {"how": "ending", "text": text}
+            self.say(CTA_TEXT if self.first("book") else str(self.small("thanks") or CTA_TEXT),
+                     buttons=self.cta_buttons())  # fmt: skip
+            if self.first("book"):
+                self.fields["_offer"] = "book:"  # a typed "yes" books
+            return True
+        return False
 
     def offer_callback(self, text: str) -> None:
         """No confirmed answer (a medical question, or one the Knowledge base does not have): a call back

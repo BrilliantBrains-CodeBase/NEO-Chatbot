@@ -67,7 +67,7 @@ def test_booking_step_by_step_with_a_wrong_answer_and_consent() -> None:
             "edges": [line("opening", "m1", "book"), line("book", "done", "thanks")],
         }
     )
-    assert chat("book") == ["May I know your full name?"]
+    assert chat("book") == ["What is your full name?"]
     assert chat("Asha Rao") == ["Thanks, Asha Rao. What is your contact number?"]
     assert "valid phone" in chat("12345")[0]  # asked again
     chat("98765 43210")
@@ -158,7 +158,7 @@ def test_live_treatments_card_and_book_skips_the_treatment_question() -> None:
     chat(tap="m1")
     assert chat.labels() == ["FUE"]  # live from Services
     assert chat(tap="t:FUE")[0].startswith("FUE\nFrom ₹50,000")
-    assert chat(tap="book:FUE") == ["May I know your full name?"]  # treatment already known
+    assert chat(tap="book:FUE") == ["What is your full name?"]  # treatment already known
 
 
 def test_a_typed_yes_after_a_treatment_starts_the_booking() -> None:
@@ -174,18 +174,18 @@ def test_a_typed_yes_after_a_treatment_starts_the_booking() -> None:
         chat = Chat(flow)
         chat(tap="m1")
         chat(tap="t:FUE")
-        assert chat(yes) == ["May I know your full name?"], yes  # the treatment is already known
+        assert chat(yes) == ["What is your full name?"], yes  # the treatment is already known
         assert chat.at == "book"
     chat = Chat(flow)
     chat(tap="m1")
     chat(tap="t:FUE")
     chat("hello")  # something else first: the question is no longer the one being answered
-    assert chat("yes") != ["May I know your full name?"]
+    assert chat("yes") != ["What is your full name?"]
     off = {**tl, "settings": {**tl["settings"], "yes_books": False}}
     chat = Chat({**flow, "nodes": [opening(("m1", "Treatments")), off, book]})
     chat(tap="m1")
     chat(tap="t:FUE")
-    assert chat("yes") != ["May I know your full name?"]  # turned off on the card
+    assert chat("yes") != ["What is your full name?"]  # turned off on the card
 
 
 def test_a_service_named_with_a_medical_word_is_a_service_question() -> None:
@@ -266,12 +266,46 @@ def test_a_typed_yes_takes_the_call_back_offer() -> None:
     for yes in ("yes", "ok", "haan", "sure", "pls call", "yes call me", "call me back"):
         chat = Chat(flow)
         assert "call you back" in chat("do you sell shampoo")[0]  # no approved answer: the offer
-        assert chat(yes) == ["May I know your full name?"], yes
+        assert chat(yes) == ["What is your full name?"], yes
         assert chat.at == "cb"
     chat = Chat(flow)
     chat("do you sell shampoo")
     chat("hello")  # something else first: a later "yes" is not taken as the offer
-    assert chat("yes") != ["May I know your full name?"]
+    assert chat("yes") != ["What is your full name?"]
+
+
+def test_small_replies_endings_frustration_family_and_just_asking() -> None:
+    book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}
+    callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
+    flow = {"nodes": [opening(("m1", "Start")), book, callback], "edges": []}
+    for ending in ("ok", "thanks", "thank u sir", "okay thanks", "hmm"):  # the moment to offer a booking
+        chat = Chat(flow)
+        assert chat(ending) == ["You're welcome! Would you like to book a consultation?"], ending
+        assert chat.labels() == ["Book a consultation", "Main menu"]
+    chat = Chat(flow)
+    chat("thanks")
+    assert chat("yes") == ["What is your full name?"] and chat.at == "book"  # a typed yes books
+    chat = Chat(flow)
+    chat("thanks")
+    assert chat(tap="cta:book") == ["What is your full name?"]
+    for upset in ("USELESS", "???", "real person please", "you don't understand"):
+        chat = Chat(flow)
+        assert chat(upset) == ["I'm sorry I couldn't help with that. Shall our team call you?"], upset
+        assert chat("yes") == ["What is your full name?"] and chat.at == "cb"
+    chat = Chat(flow)
+    chat("zxqw blorp")
+    assert chat("zxqw blorp")[0].startswith("I'm sorry I couldn't help")  # the same message twice
+    chat = Chat(flow)
+    chat("hi")
+    assert chat("hi") == ["Hi!"]  # a greeting twice is not frustration
+    for family in ("for my brother", "my son is 19", "asking for my wife"):
+        chat = Chat(flow)
+        assert chat(family)[0].startswith("Of course. You're welcome to bring them along"), family
+    for casual in ("just asking", "only for information", "just checking"):
+        chat = Chat(flow)
+        assert chat(casual)[0].startswith("No problem, take your time"), casual
+    for probe in ("?", "anyone there", "is this a real person", "are you a bot", "am i talking to a human"):
+        assert Chat(flow)(probe) == ["Hi!"], probe  # a probe: the welcome (it says who it is)
 
 
 def test_a_typed_group_opens_that_groups_list() -> None:
@@ -393,7 +427,7 @@ def test_tell_me_more_under_a_treatment_opens_its_read_more_page() -> None:
         chat(tap="t:FUE")
         assert chat(more)[0].startswith("Here is everything about FUE"), more
         assert chat.labels() == ["Book", "Read more"]
-        assert chat("yes") == ["May I know your full name?"]  # then a typed yes still books it
+        assert chat("yes") == ["What is your full name?"]  # then a typed yes still books it
     plain = Chat(flow)  # no Read more page: the team explains (a call back offer)
     plain(tap="m1")
     plain(tap="t:FUE")
@@ -409,7 +443,7 @@ def test_a_typed_yes_on_a_treatment_card_follows_its_book_line() -> None:
     }
     chat = Chat(flow)
     chat(tap="m1")
-    assert chat("Yes") == ["May I know your full name?"] and chat.at == "book"
+    assert chat("Yes") == ["What is your full name?"] and chat.at == "book"
 
 
 def test_off_blocks_hide_their_buttons_and_global_emergency() -> None:
@@ -491,7 +525,7 @@ def test_medical_questions_are_never_answered() -> None:
     texts = chat("which tablets should I take after the transplant?")
     assert texts[0].startswith("I don't have a confirmed answer") and "Take two" not in " ".join(texts)
     assert chat.labels() == ["Yes, call me back", "No, thanks"]
-    assert chat(tap="medical:yes") == ["May I know your full name?"]  # the reason is already known
+    assert chat(tap="medical:yes") == ["What is your full name?"]  # the reason is already known
     assert chat.r["state"]["fields"]["reason"].startswith("which tablets")
     chat("Asha Rao")
     assert chat.labels() == ["That's all", "I have more questions"]  # any more questions for the team?
@@ -561,7 +595,7 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
         return chat
 
     chat = fresh()
-    assert chat("i want to bok") == ["May I know your full name?"]  # an approved phrase, with a typo
+    assert chat("i want to bok") == ["What is your full name?"]  # an approved phrase, with a typo
     assert chat.r["matched"] == {"how": "typo", "text": "I want to book"}
     chat = fresh()
     assert chat("hi, how much does it cost for me") == ["From ₹60 a graft."]  # another screen's button
@@ -572,7 +606,7 @@ def test_approved_phrases_lead_to_their_buttons() -> None:
     assert chat("kab aa sakta hoon")[0].startswith("Sorry")  # pending: never used
     near = {"target": "opening:m1", "text": "I want to book", "score": 88.0}
     chat = fresh(meaning=lambda t: near)
-    assert chat("zxq soon please") == ["May I know your full name?"]  # by meaning (no rule, no answer)
+    assert chat("zxq soon please") == ["What is your full name?"]  # by meaning (no rule, no answer)
     assert chat.r["matched"] == {"how": "meaning", "text": "I want to book", "score": 88.0}
 
 
@@ -595,7 +629,7 @@ def test_typed_text_beside_the_flow() -> None:
     chat(tap="m1")
     assert chat("thanks") == [
         "You're welcome! Is there anything else I can help you with?",
-        "May I know your full name?",
+        "What is your full name?",
     ]
     chat("Asha Rao")
     texts = chat("when are you open?")  # a side question mid-booking: answered, then the same question
@@ -742,7 +776,7 @@ def test_doctor_card_shows_today_and_books_a_free_time() -> None:
     said = chat(tap="m1")
     assert "In the clinic today: 10:00 AM – 1:00 PM. Online today: 6:00 PM – 8:00 PM." in said[0]
     assert chat.labels()[:3] == ["11:00 AM", "11:10 AM", "11:20 AM"]
-    assert chat(tap="slot:11:10") == ["May I know your full name?"]  # date and time are not asked
+    assert chat(tap="slot:11:10") == ["What is your full name?"]  # date and time are not asked
     chat("Asha Patient")
     assert chat.r["lead"] == {
         "type": "book", "block": "book", "name": "Asha Patient", "doctor": "Dr. Asha",
@@ -907,7 +941,7 @@ def test_change_details_asks_which_and_the_next_request_starts_fresh() -> None:
     said = chat(tap="change")  # nothing is lost or sent
     assert said == ["No problem. Which details would you like to change?"]
     assert chat.labels() == ["Name", "Contact number", "Reason"]  # only what this block asked (no email)
-    assert chat(tap="Name") == ["May I know your full name?"]
+    assert chat(tap="Name") == ["What is your full name?"]
     said = chat("Asha Rao")  # only that one question, then the check again
     assert said[0] == (
         "Please check your details:\nName: Asha Rao\nPhone: +91 9876543210\nAbout: International patient"
@@ -1035,9 +1069,9 @@ def test_the_name_question_never_takes_a_question_or_a_topic_as_the_name() -> No
     chat = Chat(flow, kb)
     chat(tap="m1")
     # a question the Knowledge base knows: answered, then the name again
-    assert chat("when are you open?") == ["We are open 10 to 7.", "May I know your full name?"]
+    assert chat("when are you open?") == ["We are open 10 to 7.", "What is your full name?"]
     # a topic with the clinic's own page: that page's message, then the name again
-    assert chat("price") == ["The cost depends on your plan.", "May I know your full name?"]
+    assert chat("price") == ["The cost depends on your plan.", "What is your full name?"]
     for not_a_name in ("what is the price", "reviews", "I want to book an appointment please now ok"):
         texts = chat(not_a_name)
         assert not any(t.startswith("Thanks,") for t in texts), (not_a_name, texts)
@@ -1163,7 +1197,7 @@ def test_carousel_cards_buttons_work_and_show_as_cards_in_the_live_chat() -> Non
     assert ui["cards"][0]["options"] == [{"label": "Book this", "action": "canvas", "value": "car|card0:b1"}]
     assert ui["cards"][1]["options"][0]["href"] == "tel:+919000000000"
     # the card's button does its own job: Book with the treatment filled in, so it is not asked
-    assert chat(tap="card0:b1") == ["May I know your full name?"]
+    assert chat(tap="card0:b1") == ["What is your full name?"]
     assert chat.at == "book"
 
     live = {
@@ -1288,7 +1322,7 @@ def test_book_with_this_doctor_keeps_the_doctor_and_offers_their_free_times() ->
     chat = Chat(flow, ctx(slots={"in_clinic": {"2026-10-29": ["11:00"]}, "online": {}}))
     chat(tap="m1")
     assert "Book with this doctor" in chat.labels()
-    assert chat(tap="book") == ["May I know your full name?"]
+    assert chat(tap="book") == ["What is your full name?"]
     assert slot_doctor(chat.flow["nodes"][2], chat.r["state"]) == "Dr. Asha"  # Dr. Asha's free times
     assert slot_doctor({"settings": {"doctor": "Dr. B"}}, chat.r["state"]) == "Dr. B"  # the block's own wins
     chat("Asha Patient")
@@ -1307,7 +1341,7 @@ def test_an_unanswered_question_offers_a_call_back_about_it_not_a_dead_end() -> 
     assert chat("do you accept insurance?")[0].startswith("I don't have a confirmed answer for that yet.")
     assert chat.labels() == ["Yes, call me back", "No, thanks"]
     assert chat.r["matched"] == {"how": "no answer", "text": "do you accept insurance?"}
-    assert chat(tap="medical:yes") == ["May I know your full name?"]
+    assert chat(tap="medical:yes") == ["What is your full name?"]
     chat("Asha Rao")
     chat("9876543210")
     chat(tap="q:done")  # "Is this your only question?": that's all
@@ -1449,12 +1483,12 @@ def test_a_lead_block_says_its_own_message_before_the_first_question() -> None:
     intro = "Sure! Our team will call you back. Please share a few details."
     cb = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone"], "intro": intro}}
     chat = Chat({"nodes": [opening(("m1", "Call Back")), cb], "edges": [line("opening", "m1", "cb")]})
-    assert chat(tap="m1") == [intro, "May I know your full name?"]
+    assert chat(tap="m1") == [intro, "What is your full name?"]
     chat("Asha Rao")  # the message is said once, not before every question
     assert chat.r["messages"][-1]["text"] == "Thanks, Asha Rao. What is your contact number?"
     plain = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
     bare = Chat({"nodes": [opening(("m1", "Call Back")), plain], "edges": [line("opening", "m1", "cb")]})
-    assert bare(tap="m1") == ["May I know your full name?"]  # no message set: as before
+    assert bare(tap="m1") == ["What is your full name?"]  # no message set: as before
 
 
 def test_comma_wordings_count_and_another_answers_word_counts_against_a_match() -> None:
@@ -1507,10 +1541,10 @@ def test_the_booked_date_shows_a_calendar_and_i_dont_remember_is_an_answer() -> 
     ui = _widget(chat.r, {"flow": chat.flow, "contact": {"phone": ""}}, None).ui or {}
     assert ui["type"] == "month_calendar" and not ui.get("dates") and ui["min"] < ui["today"]  # past days too
     assert [o["label"] for o in ui["options"]] == ["I don't remember"]
-    assert chat(tap="unknown") == ["May I know your full name?"]  # not remembered: carries on
+    assert chat(tap="unknown") == ["What is your full name?"]  # not remembered: carries on
     chat = Chat(flow)
     chat(tap="m1")
-    assert chat("i forgot") == ["May I know your full name?"]  # typed works too
+    assert chat("i forgot") == ["What is your full name?"]  # typed works too
     chat("Asha Rao")
     assert not chat.r["lead"].get("booked_date")  # saved as a call back; staff find it by phone
     chat = Chat(flow)

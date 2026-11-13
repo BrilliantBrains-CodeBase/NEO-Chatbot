@@ -90,7 +90,7 @@ FIELDS = Literal["name", "phone", "email", "treatment", "doctor", "date", "time"
 
 # Today's wording of each question (app/chat/flows.py); a block can change any of them.
 DEFAULT_QUESTIONS = {
-    "name": "May I know your full name?",
+    "name": "What is your full name?",
     "phone": "Thanks, {name}. What is your contact number?",
     "email": "What is your email address?",
     "treatment": "Which treatment are you looking for?",
