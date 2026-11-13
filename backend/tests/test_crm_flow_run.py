@@ -308,6 +308,21 @@ def test_small_replies_endings_frustration_family_and_just_asking() -> None:
         assert Chat(flow)(probe) == ["Hi!"], probe  # a probe: the welcome (it says who it is)
 
 
+def test_an_amount_is_a_cost_question_and_experience_opens_the_doctors() -> None:
+    cost = {"id": "page-cost", "type": "answer", "settings": {"text": "Our prices"}}
+    about = {"id": "page-about", "type": "doctor_list", "settings": {"message": "Our doctors", "buttons": [
+        {"id": "d1", "label": "Dr. Test"}]}}  # fmt: skip
+    flow = {"nodes": [opening(("m1", "Start")), cost, about], "edges": []}
+    for amount in ("1.5L budget", "50k me hoga kya", "1 lakh budget", "2 lac", "my budget is 80k"):
+        chat = Chat(flow)
+        chat(amount)
+        assert chat.at == "page-cost", amount
+    for asked in ("experience?", "doctor qualification", "is he certified"):
+        chat = Chat(flow)
+        chat(asked)
+        assert chat.at == "page-about", asked
+
+
 def test_a_typed_group_opens_that_groups_list() -> None:
     """ "laser treatments", "tell me about hair fall" -> that group's list; a full treatment name still opens
     its card, and a cost question is still a cost question."""

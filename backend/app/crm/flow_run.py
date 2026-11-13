@@ -170,6 +170,15 @@ ARE_YOU = re.compile(
     r"\b(is this|is it|are you|r u|am i (talking|chatting|speaking) (to|with)) (a |an )?"
     r"(real |actual |live )?(person|human|bot|robot|machine|ai|computer)\b"
 )
+# Indian amounts ("1.5L", "50k", "1 lakh", "2 lac budget"): a cost question.
+MONEY = re.compile(
+    r"\b\d+(\.\d+)?\s*(k|l|lakh|lakhs|lac|lacs|thousand|cr|crore)\b|\bbudget\b|₹\s*\d|\brs\.?\s*\d|\binr\b"
+)
+# The doctors' experience or qualifications asked in a few words.
+DOCTOR_Q = re.compile(
+    r"\b(experience|experienced|qualification|qualifications|qualified|degree|degrees|certified|"
+    r"credentials|specialist|specialists|surgeon|dermatologist|gynecologist|gynaecologist|doctors?)\b"
+)
 CTA_TEXT = "You're welcome! Would you like to book a consultation?"
 FAMILY_TEXT = (
     "Of course. You're welcome to bring them along to the consultation. What would you like to know?"
@@ -867,6 +876,14 @@ class Run:
             plain = " ".join(POLITE.sub(" ", norm(text)).split())
             if topic:
                 self.enter(topic)
+            elif MONEY.search(plain) and (cost := self.page_rule("price " + low)):
+                # "1.5L budget", "50k me hoga kya": an amount is a cost question (its cost screen)
+                self.matched = {"how": "money amount", "text": text}
+                self.enter(cost)
+            elif DOCTOR_Q.search(plain) and (doctors := self.first("doctor_list")):
+                # "experience?", "doctor qualification": the clinic's doctors, with their profiles
+                self.matched = {"how": "about the doctors", "text": text}
+                self.enter(doctors)
             elif FAMILY.search(plain):  # "for my brother": they are welcome to come along
                 self.matched = {"how": "asking for someone else", "text": text}
                 self.say(FAMILY_TEXT, buttons=self.cta_buttons())
