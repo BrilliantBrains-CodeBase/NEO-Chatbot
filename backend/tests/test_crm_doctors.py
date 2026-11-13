@@ -40,9 +40,6 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
     if admin is None:
         pytest.skip("no Super Admin in this database")
     headers = signed_in_as(monkeypatch, str(admin))
-    before = await pool.fetchrow(
-        "select slot_minutes, online_slot_minutes from app.clinics where id = 'CL99'"
-    )
     made: str | None = None
     try:
         # Add: every setting comes back as saved.
@@ -105,10 +102,11 @@ async def test_doctor_with_all_settings(api: AsyncClient, monkeypatch: pytest.Mo
     finally:
         if made:
             await pool.execute("delete from app.doctors where id = $1::uuid", made)
+        # Always back to the test clinic's standard lengths (15 / 30, as the slot tests expect), never to the
+        # value found at the start: a run that stopped half way once left 10 / 20 behind for every later run.
         await pool.execute(
-            "update app.clinics set slot_minutes = $1, online_slot_minutes = $2 where id = 'CL99'",
-            before["slot_minutes"], before["online_slot_minutes"],
-        )  # fmt: skip
+            "update app.clinics set slot_minutes = 15, online_slot_minutes = 30 where id = 'CL99'"
+        )
         await close_pool()
 
 
