@@ -86,6 +86,27 @@ YES_BOOK = re.compile(
     r"book|book it|book now|book please|please book|book appointment|book an appointment|go ahead|"
     r"definitely|of course|why not|i want to book|i would like to book|i want an appointment)"
 )
+# A typed yes to "Would you like our team to call you back?" (instead of the button).
+YES_CALL = re.compile(
+    r"(yes|yeah|yea|yep|yup|ya|ok|okay|okk|sure|alright|fine|haan|han|haa|ha|ji|haan ji|ji haan|go ahead|"
+    r"yes please|yes sure|yes ok|please|pls|call|call me|call me back|pls call|please call|please call me|"
+    r"yes call|yes call me|yes call me back|ok call me|call back|callback|haan call karo|call karo|"
+    r"definitely|of course|why not)"
+)
+# "Is this correct?" answered in words (user, 2026-11-13): confirmed, or something is wrong.
+CONFIRMED = re.compile(
+    r"(yes thats correct|yes that s correct|correct|confirm|confirmed|yes confirm|yes it is|yes its correct|"
+    r"yes it s correct|yes correct|its correct|it s correct|it is correct|all correct|all good|all fine|"
+    r"right|yes right|thats right|that s right|correct only|perfect|looks good|looks fine|fine|ok correct|"
+    r"sahi hai|haan sahi hai|sab sahi hai|ji sahi hai|done|yes done)"
+)
+WRONG = re.compile(r"\b(wrong|not correct|incorrect|galat|mistake|change|edit|update|typo)\b")
+# "Tell me more" typed under a treatment's details: its Read more page (else a call back about it).
+MORE = re.compile(
+    r"(tell me more|more|more details|more detail|more info|more information|details|detail|full details|"
+    r"i want to know more|want to know more|know more|i want more details|explain|explain more|read more|"
+    r"more about it|tell me about it|aur batao|batao|aur bataiye|details please|pls explain)"
+)
 # "Which details would you like to change?": the button for each question, and the words that also pick it.
 CHANGE_OPTIONS = {
     "name": ("Name", r"name"),
@@ -621,8 +642,16 @@ class Run:
             self.offer_callback(text)
             return self.reply()
         low = " ".join(text.lower().split())
-        if offer and not self.ask and YES_BOOK.fullmatch(norm(text)):
-            kind, _, name = offer.partition(":")
+        kind, _, name = offer.partition(":")
+        if kind == "callback" and not self.ask and YES_CALL.fullmatch(norm(text)):
+            self.matched = {"how": "yes to the call back offer", "text": text}
+            self.act(node, {"id": "medical:yes", "action": "callback", "value": ""})  # its reason is kept
+            return self.reply()
+        if kind in ("book", "card") and not self.ask and MORE.fullmatch(norm(text)):
+            self.matched = {"how": "more about a treatment", "text": name}
+            self.more_about(node, kind, name)
+            return self.reply()
+        if kind in ("book", "card") and not self.ask and YES_BOOK.fullmatch(norm(text)):
             self.matched = {"how": "yes to booking after a treatment", "text": name}
             if kind == "card":  # the card's own Book line
                 self.act(node, {"id": "book", "action": "go", "value": ""})
@@ -727,6 +756,25 @@ class Run:
         offer = [{"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""}]
         offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
         self.say(NO_ANSWER, buttons=offer)
+        self.fields["_offer"] = "callback:"  # a typed "yes" / "call me" takes it (the next message only)
+
+    def more_about(self, node: Node, kind: str, name: str) -> None:
+        """ "Tell me more" under a treatment: its Read more page and Book again; without a page, a call back
+        about it (the team explains)."""
+        more = self.read_more(name)
+        if not more:
+            self.offer_callback(f"More about {name}")
+            return
+        book = (
+            [{"id": "book", "label": "Book", "action": "go"}]
+            if kind == "card"
+            else [{"id": "book:" + name, "label": "Book", "action": "book", "value": name}]
+        )
+        self.say(
+            f"Here is everything about {name} on our website. Would you like to book an appointment?",
+            buttons=book + more,
+        )
+        self.fields["_offer"] = f"{kind}:{name}"  # a typed yes still books it
 
     # ---------- typed text beside the flow ----------
     def small(self, low: str) -> str | None:
@@ -886,6 +934,7 @@ class Run:
             said, label = NO_ANSWER, "Yes, call me back"
         yes = {"id": "medical:yes", "label": label, "action": "callback", "value": ""}
         self.say(said, buttons=[yes, *book, no])
+        self.fields["_offer"] = "callback:"  # a typed "yes" / "call me" takes the call back
         return True
 
     def aliases(self, name: str) -> list[str]:
@@ -1026,10 +1075,18 @@ class Run:
             return
         if kind == "consent":  # "Is this correct?"
             low = norm(text)
-            if is_yes(text) or low in ("yes that's correct", "yes thats correct", "correct", "confirm"):
+            if is_yes(text) or CONFIRMED.fullmatch(low):
                 self.finish(node)
-            elif low in ("change", "change details", "edit", "update") or NO.fullmatch(low):
-                self.change_details(node)
+            elif (
+                low in ("change", "change details", "edit", "update")
+                or NO.fullmatch(low)
+                or WRONG.search(low)
+            ):
+                key = self.change_choice(node, text) if WRONG.search(low) else None
+                if key:  # "wrong number": straight to that question
+                    self.edit_field(node, key)
+                else:
+                    self.change_details(node)
             else:
                 self.say("Please choose one: is this correct, or change your details?",
                          buttons=self.confirm_buttons())  # fmt: skip

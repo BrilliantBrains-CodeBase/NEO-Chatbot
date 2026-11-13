@@ -259,6 +259,66 @@ def test_a_plain_no_is_never_a_knowledge_base_answer() -> None:
     assert chat("No") == ["Welcome, new patient"]  # the screen's own No button
 
 
+def test_a_typed_yes_takes_the_call_back_offer() -> None:
+    """The call back offer shows buttons; patients type instead: yes, haan, pls call."""
+    callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name"]}}
+    flow = {"nodes": [opening(("m1", "Start")), callback], "edges": []}
+    for yes in ("yes", "ok", "haan", "sure", "pls call", "yes call me", "call me back"):
+        chat = Chat(flow)
+        assert "call you back" in chat("do you sell shampoo")[0]  # no approved answer: the offer
+        assert chat(yes) == ["May I know your full name?"], yes
+        assert chat.at == "cb"
+    chat = Chat(flow)
+    chat("do you sell shampoo")
+    chat("hello")  # something else first: a later "yes" is not taken as the offer
+    assert chat("yes") != ["May I know your full name?"]
+
+
+def test_is_this_correct_answered_in_words() -> None:
+    """ "Is this correct?" typed: "yes it is" sends it; "wrong number" asks the number again."""
+    callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone"]}}
+    flow = {"nodes": [opening(("m1", "Call back")), callback], "edges": [line("opening", "m1", "cb")]}
+
+    def to_check() -> Chat:
+        chat = Chat(flow)
+        chat(tap="m1")
+        chat("Asha Rao")
+        assert chat("9800000123")[-1] == "Is this correct?"
+        return chat
+
+    for yes in ("yes it is", "yes correct", "it's correct", "all correct", "looks good", "sahi hai"):
+        chat = to_check()
+        chat(yes)
+        assert chat.r.get("lead"), yes  # sent
+    chat = to_check()
+    assert "number" in chat("wrong number")[-1].lower()  # straight to that question
+    chat = to_check()
+    assert chat("not correct")[-1].startswith("No problem. Which details")
+
+
+def test_tell_me_more_under_a_treatment_opens_its_read_more_page() -> None:
+    fue = {**FUE, "page": "https://clinic.example/fue"}
+    tl = {
+        "id": "tl",
+        "type": "treatment_list",
+        "settings": {"message": "Pick one", "category": "Hair transplant"},
+    }
+    book = {"id": "book", "type": "book", "settings": {"fields": ["treatment", "name"]}}
+    flow = {"nodes": [opening(("m1", "Treatments")), tl, book], "edges": [line("opening", "m1", "tl")]}
+    c = Context(today=WED, minutes=11 * 60, services=[fue])
+    for more in ("tell me more", "more details", "I want to know more", "details"):
+        chat = Chat(flow, c)
+        chat(tap="m1")
+        chat(tap="t:FUE")
+        assert chat(more)[0].startswith("Here is everything about FUE"), more
+        assert chat.labels() == ["Book", "Read more"]
+        assert chat("yes") == ["May I know your full name?"]  # then a typed yes still books it
+    plain = Chat(flow)  # no Read more page: the team explains (a call back offer)
+    plain(tap="m1")
+    plain(tap="t:FUE")
+    assert "call you back" in plain("tell me more")[0]
+
+
 def test_a_typed_yes_on_a_treatment_card_follows_its_book_line() -> None:
     card = {"id": "card", "type": "treatment_card", "settings": {"treatment": "FUE"}}
     book = {"id": "book", "type": "book", "settings": {"fields": ["name"]}}
