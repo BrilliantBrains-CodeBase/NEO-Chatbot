@@ -67,6 +67,53 @@ NAME_FILLER = {
     "&",
 }
 GENERAL_WORDS = KB_GENERAL | {"female", "body", "direct", "failed", "scalp", "laser", "stem"}
+# Words a treatment group's name or a message about it may have that say nothing about which group.
+GROUP_FILLER = {
+    "treatment",
+    "treatments",
+    "option",
+    "options",
+    "service",
+    "services",
+    "care",
+    "solution",
+    "solutions",
+    "procedure",
+    "procedures",
+    "and",
+    "the",
+    "for",
+    "of",
+    "my",
+    "your",
+    "you",
+    "all",
+    "tell",
+    "me",
+    "about",
+    "know",
+    "want",
+    "to",
+    "i",
+    "what",
+    "are",
+    "is",
+    "do",
+    "have",
+    "show",
+    "list",
+    "types",
+    "type",
+    "available",
+    "in",
+    "on",
+    "a",
+    "an",
+    "please",
+    "pls",
+    "details",
+    "info",
+}
 # The answer box the widget shows for each question (phone: with the country picker).
 INPUT_MODE = {"name": "text", "phone": "phone", "email": "email", "reason": "text"}
 BACK = re.compile(r"back|go back|previous|undo")
@@ -105,7 +152,7 @@ TYPE_Q_TEXT = (
 NEXT_Q_TEXT = "Noted. Any other question? Type it, or tap Done."
 DONE_BUTTON = [{"id": "q:done", "label": "Done", "action": "answer"}]
 MORE_Q_YES = re.compile(
-    r"(yes|yeah|ya|yep|haan|ha|ji|ok|okay|sure|more|i have more|i have more questions|more questions|"
+    r"(yes|yeah|ya|yep|haan|ha|ji|sure|more|i have more|i have more questions|more questions|"
     r"one more|another question|i have a question|i have questions|yes i have|yes more|haan hai)"
 )
 NO_MORE_Q = re.compile(
@@ -722,6 +769,13 @@ class Run:
             self.act(node, {"id": "t:" + named, "action": "treatment", "value": named})
             return self.reply()
         phrase = None if hit else self.phrase(text, meaning=False)
+        # A group named ("laser treatments", "tell me about Fertility Treatment"): that group's list.
+        asks_about = COST.search(spelled(low)) or TOPIC.search(low)
+        group = None if hit or phrase or asks_about else self.named_group(low)
+        if group:
+            self.matched = {"how": "treatment group", "text": group}
+            self.enter(group)
+            return self.reply()
         start = None if hit or phrase else self.start_rule(low)
         start = self.first(start) if start else None
         found = None if hit or phrase or start else self.ctx.kb(text)  # approved answers; never medical
@@ -798,11 +852,17 @@ class Run:
         """ "Is this your only question?" then each extra question typed, until Done (never answered here:
         all go to the team with the call back, and to CRM → Lead questions)."""
         ask, low = self.ask or {}, norm(text)
-        done = text == "q:done" or NO_MORE_Q.fullmatch(low)
+        done = text == "q:done" or bool(NO_MORE_Q.fullmatch(low))
         if ask["kind"] == "more_q" and (text == "q:more" or MORE_Q_YES.fullmatch(low)):
             self.ask = {**ask, "kind": "more_text"}
             self.say(TYPE_Q_TEXT, buttons=DONE_BUTTON)
             return
+        # Only something that reads as a question is kept ("?", a question word, or 4+ words): a short "ok",
+        # "correct" or "thanks" means that's all, never a question for the team.
+        looks_asked = (
+            "?" in text or bool(QUESTION.search(low) or ASKED.search(low + " ")) or len(low.split()) >= 4
+        )
+        done = done or not looks_asked
         if not done:  # a question typed (also straight away, without "I have more questions")
             asked = [q for q in (self.fields.get("questions") or "").split("\n") if q]  # one per line
             if text.strip() and len(asked) < MAX_QUESTIONS:
@@ -993,6 +1053,48 @@ class Run:
         self.say(said, buttons=[yes, *book, no])
         self.fields["_offer"] = "callback:"  # a typed "yes" / "call me" takes the call back
         return True
+
+    def named_group(self, low: str) -> str | None:
+        """The treatment group a message names (user, 2026-11-13): a category button of Explore treatments
+        (its line's block) or a Treatment list block's category. Its words without filler ("treatments",
+        "options", "tell me about") must all be in the message, or its first two words side by side ("hair
+        fall treatment" for Hair Fall & Scalp Treatments). The one group that fits best, else None."""
+        typed = f" {norm(low)} "
+        words_in = set(typed.split())
+        groups: list[tuple[list[str], str]] = []
+        for n in self.flow.nodes:
+            if not self.shown(n):
+                continue
+            if n.type == "treatment_categories":
+                for b in n.settings.get("buttons", []):
+                    label = str(b.get("label") or "")
+                    target = self.lines.get((n.id, str(b.get("id"))))
+                    if target and not re.search(r"not sure|help me|choose", label.lower()):
+                        groups.append((self._group_words(label), target))
+            elif n.type == "treatment_list" and n.settings.get("category"):
+                groups.append((self._group_words(str(n.settings["category"])), n.id))
+        scored: dict[str, int] = {}
+        for words, target in groups:
+            if not words or set(words) <= {"other", "others", "more", "general", "all"}:
+                continue
+            if not self.shown(self.nodes.get(target)):
+                continue
+            if set(words) <= words_in:
+                score = len(words) + 1
+            elif len(words) >= 2 and f" {words[0]} {words[1]} " in typed:
+                score = 2
+            else:
+                continue
+            scored[target] = max(scored.get(target, 0), score)
+        if not scored:
+            return None
+        best = max(scored.values())
+        top = [t for t, s in scored.items() if s == best]
+        return top[0] if len(top) == 1 else None  # two groups fit as well: never a guess
+
+    @staticmethod
+    def _group_words(label: str) -> list[str]:
+        return [w for w in norm(label).split() if w not in GROUP_FILLER]
 
     def aliases(self, name: str) -> list[str]:
         """A treatment's short names in brackets: "In-Vitro Fertilization (IVF)" -> ivf; "(DHI / FUE)"."""

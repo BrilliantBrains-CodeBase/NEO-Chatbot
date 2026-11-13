@@ -274,6 +274,42 @@ def test_a_typed_yes_takes_the_call_back_offer() -> None:
     assert chat("yes") != ["May I know your full name?"]
 
 
+def test_a_typed_group_opens_that_groups_list() -> None:
+    """ "laser treatments", "tell me about hair fall" -> that group's list; a full treatment name still opens
+    its card, and a cost question is still a cost question."""
+    laser = {"name": "Laser Hair Removal", "category": "Laser", "show": True}
+    prp = {"name": "PRP Treatment", "category": "Hair fall & scalp", "show": True}
+    cats = {
+        "id": "cats",
+        "type": "treatment_categories",
+        "settings": {"message": "Which area?", "buttons": [
+            {"id": "b1", "label": "Hair Transplant"}, {"id": "b2", "label": "Hair Fall & Scalp Treatments"},
+            {"id": "b3", "label": "Laser Treatment"}, {"id": "b4", "label": "Not sure, help me choose"}]},
+    }  # fmt: skip
+    lists = [
+        {"id": f"l{i}", "type": "treatment_list", "settings": {"message": f"{c} list", "category": c}}
+        for i, c in (("1", "Hair transplant"), ("2", "Hair fall & scalp"), ("3", "Laser"))
+    ]
+    flow = {
+        "nodes": [opening(("m1", "Explore")), cats, *lists],
+        "edges": [line("opening", "m1", "cats"), line("cats", "b1", "l1"), line("cats", "b2", "l2"),
+                  line("cats", "b3", "l3")],
+    }  # fmt: skip
+    c = Context(today=WED, minutes=11 * 60, services=[FUE, laser, prp])
+    for typed, at in (
+        ("laser treatments", "l3"), ("tell me about laser", "l3"), ("hair transplant", "l1"),
+        ("hair transplant options", "l1"), ("hair fall treatment", "l2"), ("Hair Fall & Scalp", "l2"),
+    ):  # fmt: skip
+        chat = Chat(flow, c)
+        chat(typed)
+        assert chat.at == at, typed
+    chat = Chat(flow, c)
+    assert chat("Laser Hair Removal")[0].startswith("Laser Hair Removal")  # the treatment itself: its card
+    chat = Chat(flow, c)
+    chat("hair transplant cost")
+    assert chat.at != "l1"  # a cost question is not the list
+
+
 def test_an_unanswered_question_asks_for_more_questions_for_the_team() -> None:
     """No answer -> kept at once; a call back -> "only this question, or more?" -> each one typed until Done
     -> all on the read-back and in the lead (CRM -> Lead questions)."""
@@ -302,6 +338,14 @@ def test_an_unanswered_question_asks_for_more_questions_for_the_team() -> None:
     quick("Asha Rao")
     quick("9800000123")
     assert quick("that's all")[0].startswith("Please check your details")
+    for short in ("correct", "ok", "thanks"):  # not a question: that's all, never kept for the team
+        brief = Chat(flow)
+        brief("do you sell shampoo")
+        brief("yes")
+        brief("Asha Rao")
+        brief("9800000123")
+        assert brief(short)[0].startswith("Please check your details"), short
+        assert "questions" not in brief.r["state"]["fields"]
     direct = Chat(flow)
     direct("do you sell shampoo")
     direct("yes")
