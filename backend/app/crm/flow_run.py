@@ -616,7 +616,7 @@ class Run:
             return self.start()
         # Medical questions are never answered (client rule), not even from the Knowledge base: the same
         # offer as the live chat, a call back about the question. A booking answer is still taken as typed.
-        if MEDICAL.search(text.lower()) and (not self.ask or self.ask["kind"] == "knowledge"):
+        if self.medical(text) and (not self.ask or self.ask["kind"] == "knowledge"):
             self.ask = None
             self.offer_callback(text)
             return self.reply()
@@ -760,7 +760,7 @@ class Run:
                 self.reask(node)
                 return True
             return False
-        if MEDICAL.search(low):
+        if self.medical(low):
             self.say(NOTED)
             self.reask(node)
             return True
@@ -779,6 +779,23 @@ class Run:
             self.reask(node)
             return True
         return False
+
+    def medical(self, text: str) -> bool:
+        """A healthcare question (never answered: a call back instead). The clinic's own service and category
+        names are taken out first, so "I want to know about Pregnancy Care" or "STI Treatment" is a service
+        question; "Is Pregnancy Care painful?" is still medical (user, 2026-11-13)."""
+        rest = f" {norm(text)} "
+        names = [str(t.get("name") or "") for t in self.ctx.services if t.get("show")]
+        names += [str(t.get("category") or "") for t in self.ctx.services if t.get("show")]
+        names += [  # the canvas's own category buttons ("Pregnancy Services")
+            str(b.get("label") or "")
+            for n in self.flow.nodes
+            if n.type == "treatment_categories"
+            for b in n.settings.get("buttons", [])
+        ]
+        for name in sorted({norm(x) for x in names if norm(x)}, key=len, reverse=True):
+            rest = rest.replace(f" {name} ", " ")
+        return bool(MEDICAL.search(rest.lower()))
 
     def not_a_name(self, text: str) -> bool:
         """Typed at the name question but plainly not a name (see NOT_NAME)."""

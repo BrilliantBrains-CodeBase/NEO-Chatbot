@@ -188,6 +188,33 @@ def test_a_typed_yes_after_a_treatment_starts_the_booking() -> None:
     assert chat("yes") != ["May I know your full name?"]  # turned off on the card
 
 
+def test_a_service_named_with_a_medical_word_is_a_service_question() -> None:
+    """ "Pregnancy Care" holds a word of the medical rule: asking about the service opens its card; asking a
+    medical question about it is still never answered (the call back offer)."""
+    care = {
+        "name": "Pregnancy Care",
+        "category": "Pregnancy Services",
+        "show": True,
+        "description": "Monthly care.",
+    }
+    flow = {"nodes": [opening(("m1", "Start"))], "edges": []}
+    for asked in (
+        "I want to know about Pregnancy Care",
+        "tell me about pregnancy care",
+        "Pregnancy Care details",
+    ):
+        chat = Chat(flow, Context(today=WED, minutes=11 * 60, services=[FUE, care]))
+        assert chat(asked)[0].startswith("Pregnancy Care"), asked
+    for medical in (
+        "Is Pregnancy Care painful?",
+        "pregnancy care side effects",
+        "I am pregnant and bleeding",
+    ):
+        chat = Chat(flow, Context(today=WED, minutes=11 * 60, services=[FUE, care]))
+        out = chat(medical)
+        assert not out[0].startswith("Pregnancy Care"), medical  # never answered as the service
+
+
 def test_a_plain_no_is_never_a_knowledge_base_answer() -> None:
     """ "No" to "Would you like to book an appointment?" matched the fact "phone no" (the clinic's number).
     A plain no gets a polite reply and the menu; a "No" button on the screen still answers."""

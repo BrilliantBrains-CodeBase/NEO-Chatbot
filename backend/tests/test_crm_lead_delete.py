@@ -72,7 +72,7 @@ async def test_the_night_job_removes_leads_deleted_over_30_days_ago_only() -> No
     await tr.start()
     try:
         add = """insert into app.leads (clinic_id, full_name, phone_e164, source, deleted_at)
-                 values ('CL99', $1, $2, 'manual', now() - $3::interval) returning id"""
+                 values ('CL99', $1, $2, 'manual', now() - $3::text::interval) returning id"""
         old = await conn.fetchval(add, "ZzPurge Old", "+919000007301", "31 days")
         recent = await conn.fetchval(add, "ZzPurge Recent", "+919000007302", "5 days")
         await conn.execute(
