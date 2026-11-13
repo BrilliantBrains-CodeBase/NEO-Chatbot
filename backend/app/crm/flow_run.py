@@ -93,6 +93,26 @@ YES_CALL = re.compile(
     r"yes call|yes call me|yes call me back|ok call me|call back|callback|haan call karo|call karo|"
     r"definitely|of course|why not)"
 )
+# A call back about a question the bot could not answer (user, 2026-11-13): any more questions for the team?
+MORE_Q_TEXT = "Is this your only question, or would you like to ask more?"
+MORE_Q_BUTTONS = [
+    {"id": "q:done", "label": "That's all", "action": "answer"},
+    {"id": "q:more", "label": "I have more questions", "action": "answer"},
+]
+TYPE_Q_TEXT = (
+    "Sure, please type your questions. I'll pass them all to our team. Tap Done when you've finished."
+)
+NEXT_Q_TEXT = "Noted. Any other question? Type it, or tap Done."
+DONE_BUTTON = [{"id": "q:done", "label": "Done", "action": "answer"}]
+MORE_Q_YES = re.compile(
+    r"(yes|yeah|ya|yep|haan|ha|ji|ok|okay|sure|more|i have more|i have more questions|more questions|"
+    r"one more|another question|i have a question|i have questions|yes i have|yes more|haan hai)"
+)
+NO_MORE_Q = re.compile(
+    r"(no|nope|nah|na|nothing|thats all|that s all|thats it|that s it|only this|only this one|no more|"
+    r"no more questions|done|finished|that is all|nahi|bas|bas itna|all done|nothing else)"
+)
+MAX_QUESTIONS = 10
 # "Is this correct?" answered in words (user, 2026-11-13): confirmed, or something is wrong.
 CONFIRMED = re.compile(
     r"(yes thats correct|yes that s correct|correct|confirm|confirmed|yes confirm|yes it is|yes its correct|"
@@ -209,6 +229,9 @@ class Run:
         self.lead: dict[str, Any] | None = None  # a finished booking / call back ... (saved by the caller)
         self.matched: dict[str, Any] | None = None  # what typed text matched (shown in the test chat)
         self.alert: dict[str, Any] | None = None  # a staff alert raised now (the caller sends it)
+        # A question the bot has no approved answer for: saved at once by the caller (CRM → Lead questions),
+        # even when the patient then says no to the call back.
+        self.unanswered: str | None = None
         self.last_text = ""
 
     # ---------- the result ----------
@@ -219,6 +242,7 @@ class Run:
             "lead": self.lead,
             "matched": self.matched,
             "alert": self.alert,
+            "unanswered": self.unanswered,
             "state": {"at": self.at, "fields": self.fields, "ask": self.ask, "back": self.back[-10:]},
         }
 
@@ -545,7 +569,15 @@ class Run:
         node = self.nodes.get(self.at or "")
         if node is None:
             return self.start()
-        if self.ask and self.ask["kind"] in ("question", "consent", "change", "lead", "switch"):
+        if self.ask and self.ask["kind"] in (
+            "question",
+            "consent",
+            "change",
+            "lead",
+            "switch",
+            "more_q",
+            "more_text",
+        ):
             return self.text(button_id)
         b = next((x for x in self.buttons(node) if x["id"] == button_id), None)
         kind, _, name = button_id.partition(":")
@@ -600,6 +632,8 @@ class Run:
             target = self.first("book" if a == "book" else "callback")
             if value:
                 self.fields["treatment" if a == "book" else "reason"] = value
+            if b["id"] == "medical:yes":  # a call back about a question: "only this one, or more?" is asked
+                self.fields["_more_q"] = "1"
             if target:
                 self.enter(target)
         else:  # link, whatsapp, call: the widget opens it
@@ -753,10 +787,33 @@ class Run:
         """No confirmed answer (a medical question, or one the Knowledge base does not have): a call back
         about it, or the menu."""
         self.fields["reason"] = text[:200]  # what the call back is about
+        if not text.startswith("More about "):  # a patient's own question (not "tell me more" about a card)
+            self.unanswered = text[:1000]
         offer = [{"id": "medical:yes", "label": "Yes, call me back", "action": "callback", "value": ""}]
         offer.append({"id": "medical:no", "label": "No, thanks", "action": "menu"})
         self.say(NO_ANSWER, buttons=offer)
         self.fields["_offer"] = "callback:"  # a typed "yes" / "call me" takes it (the next message only)
+
+    def more_questions(self, node: Node, text: str) -> None:
+        """ "Is this your only question?" then each extra question typed, until Done (never answered here:
+        all go to the team with the call back, and to CRM → Lead questions)."""
+        ask, low = self.ask or {}, norm(text)
+        done = text == "q:done" or NO_MORE_Q.fullmatch(low)
+        if ask["kind"] == "more_q" and (text == "q:more" or MORE_Q_YES.fullmatch(low)):
+            self.ask = {**ask, "kind": "more_text"}
+            self.say(TYPE_Q_TEXT, buttons=DONE_BUTTON)
+            return
+        if not done:  # a question typed (also straight away, without "I have more questions")
+            asked = [q for q in (self.fields.get("questions") or "").split("\n") if q]  # one per line
+            if text.strip() and len(asked) < MAX_QUESTIONS:
+                asked.append(" ".join(text.split())[:500])
+            self.fields["questions"] = "\n".join(asked)
+            if len(asked) < MAX_QUESTIONS:
+                self.ask = {**ask, "kind": "more_text"}
+                self.say(NEXT_Q_TEXT, buttons=DONE_BUTTON)
+                return
+        self.ask = {**ask, "kind": "lead"}  # back to the form: the read-back and "Is this correct?"
+        self.next_question(node)
 
     def more_about(self, node: Node, kind: str, name: str) -> None:
         """ "Tell me more" under a treatment: its Read more page and Book again; without a page, a call back
@@ -1042,6 +1099,9 @@ class Run:
     def answer(self, node: Node, text: str) -> None:
         ask = self.ask or {}
         kind = ask["kind"]
+        if kind in ("more_q", "more_text"):
+            self.more_questions(node, text)
+            return
         if kind == "knowledge":
             found = self.ctx.kb(text)
             if found:
@@ -1298,6 +1358,10 @@ class Run:
                 wording = re.sub(r"^[^.?!]*\{name\}[^.?!]*[.?!]\s*", "", wording) or wording
             self.say(wording, **self.offer(node, key), input={"mode": INPUT_MODE.get(key, "text")})
             return
+        if self.fields.pop("_more_q", ""):  # a call back about their question: any more for the team?
+            self.ask = {**ask, "kind": "more_q"}
+            self.say(MORE_Q_TEXT, buttons=MORE_Q_BUTTONS)
+            return
         if s.get("read_back", True):  # the patient checks their details, as in the live chat
             labels = {"name": "Name", "phone": "Phone", "email": "Email", "treatment": "Treatment",
                       "doctor": "Doctor", "date": "Date", "time": "Time", "booked_date": "Booked date",
@@ -1313,6 +1377,9 @@ class Run:
                     v = "Any time" if v == "any" else _time(v)
                 if v:
                     lines.append(f"{labels.get(k, k)}: {v}")
+            more = [q for q in (self.fields.get("questions") or "").split("\n") if q]
+            if more:  # the extra questions for the team
+                lines.append("More questions: " + "; ".join(more))
             if lines:
                 self.say("Please check your details:\n" + "\n".join(lines))
         if s.get("consent", True):  # the clinic's consent line, then "Is this correct?" (change, never lost)
@@ -1378,7 +1445,7 @@ class Run:
             self.fields["doctor"] = s["doctor"]
         if s.get("topic"):
             self.fields.setdefault("reason", s["topic"])
-        keys = set(s.get("fields", [])) | {"treatment", "doctor", "reason", "campaign"}
+        keys = set(s.get("fields", [])) | {"treatment", "doctor", "reason", "campaign", "questions"}
         kind = "book" if node.type == "follow_up" else node.type  # a follow-up is a booking on the same lead
         self.lead = (
             {"type": kind, "block": node.id}

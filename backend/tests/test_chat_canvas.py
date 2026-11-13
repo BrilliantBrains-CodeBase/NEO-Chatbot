@@ -275,16 +275,34 @@ async def test_a_patients_booking_and_call_back_reach_the_crm(
     await say(req("start"))
     offer = await say(req("text", text="do you accept insurance?"))
     assert [o["label"] for o in offer.ui["options"]][:1] == ["Yes, call me back"]
+    kept = await tx.fetchval(  # kept at once, before any call back (CRM -> Lead questions)
+        "select count(*) from app.unanswered_questions where clinic_id = 'CL99' and session_id = $1 "
+        "and question_text = 'do you accept insurance?' and lead_id is null",
+        req().session_id,
+    )
+    assert kept == 1
     await say(req("button", action="canvas", value="medical:yes"))
     await say(req("text", text="Ravi Canvas"))
-    await say(req("text", text="9800000188"))
+    more = await say(req("text", text="9800000188"))
+    assert more.messages[-1].text == "Is this your only question, or would you like to ask more?"
+    await say(req("button", action="canvas", value="q:more"))
+    await say(req("text", text="Do you have parking?"))
+    await say(req("button", action="canvas", value="q:done"))
     await say(req("button", action="canvas", value="yes"))
     cb = await tx.fetchrow(
-        "select r.type, r.data from app.requests r join app.leads l on l.id = r.lead_id "
+        "select r.type, r.data, l.id lead from app.requests r join app.leads l on l.id = r.lead_id "
         "where l.clinic_id = 'CL99' and l.phone_e164 = '+919800000188'"
     )
     assert cb is not None and cb["type"] == "callback"
-    assert json.loads(cb["data"])["reason"] == "do you accept insurance?"
+    reason = json.loads(cb["data"])["reason"]
+    assert (
+        reason.startswith("do you accept insurance?") and "- Do you have parking?" in reason
+    )  # for the call
+    asked = await tx.fetch(
+        "select question_text from app.unanswered_questions where lead_id = $1 order by created_at, id",
+        cb["lead"],
+    )
+    assert [a["question_text"] for a in asked] == ["do you accept insurance?", "Do you have parking?"]
     assert hooks[-1][0] == "callback_request"
 
 

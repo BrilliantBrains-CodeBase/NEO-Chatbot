@@ -274,6 +274,43 @@ def test_a_typed_yes_takes_the_call_back_offer() -> None:
     assert chat("yes") != ["May I know your full name?"]
 
 
+def test_an_unanswered_question_asks_for_more_questions_for_the_team() -> None:
+    """No answer -> kept at once; a call back -> "only this question, or more?" -> each one typed until Done
+    -> all on the read-back and in the lead (CRM -> Lead questions)."""
+    callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone"]}}
+    flow = {"nodes": [opening(("m1", "Start")), callback], "edges": []}
+    chat = Chat(flow)
+    chat("do you sell shampoo")
+    assert chat.r["unanswered"] == "do you sell shampoo"  # kept even if they say no
+    chat("yes")
+    chat("Asha Rao")
+    assert chat("9800000123") == ["Is this your only question, or would you like to ask more?"]
+    assert chat.labels() == ["That's all", "I have more questions"]
+    assert chat(tap="q:more")[0].startswith("Sure, please type your questions")
+    assert chat("Do you have parking?")[0].startswith("Noted. Any other question?")
+    chat("Is the clinic open on Sunday?")
+    out = chat(tap="q:done")
+    assert any("More questions: Do you have parking?; Is the clinic open on Sunday?" in m for m in out)
+    chat("yes it is")
+    lead = chat.r["lead"]
+    assert lead["reason"] == "do you sell shampoo"
+    assert lead["questions"] == "Do you have parking?\nIs the clinic open on Sunday?"
+
+    quick = Chat(flow)  # "That's all": straight to the read-back; a question typed at once is kept too
+    quick("do you sell shampoo")
+    quick("yes")
+    quick("Asha Rao")
+    quick("9800000123")
+    assert quick("that's all")[0].startswith("Please check your details")
+    direct = Chat(flow)
+    direct("do you sell shampoo")
+    direct("yes")
+    direct("Asha Rao")
+    direct("9800000123")
+    assert direct("what about EMI?")[0].startswith("Noted.")
+    assert direct("no")[0].startswith("Please check your details")
+
+
 def test_is_this_correct_answered_in_words() -> None:
     """ "Is this correct?" typed: "yes it is" sends it; "wrong number" asks the number again."""
     callback = {"id": "cb", "type": "callback", "settings": {"fields": ["name", "phone"]}}
@@ -413,6 +450,8 @@ def test_medical_questions_are_never_answered() -> None:
     assert chat(tap="medical:yes") == ["May I know your full name?"]  # the reason is already known
     assert chat.r["state"]["fields"]["reason"].startswith("which tablets")
     chat("Asha Rao")
+    assert chat.labels() == ["That's all", "I have more questions"]  # any more questions for the team?
+    chat(tap="q:done")
     assert chat.labels() == ["Yes, that's correct", "Change details"]  # the reason was not asked again
     chat(tap="yes")
     assert chat.r["lead"]["reason"].startswith("which tablets")
@@ -1227,6 +1266,7 @@ def test_an_unanswered_question_offers_a_call_back_about_it_not_a_dead_end() -> 
     assert chat(tap="medical:yes") == ["May I know your full name?"]
     chat("Asha Rao")
     chat("9876543210")
+    chat(tap="q:done")  # "Is this your only question?": that's all
     assert chat.r["lead"]["reason"] == "do you accept insurance?"  # the team knows what to call about
     chat = Chat(flow)
     assert chat("zxqw blorp") == [
@@ -1296,6 +1336,7 @@ def test_a_treatment_with_a_cost_or_other_question_answers_that_part_too() -> No
     assert chat.labels() == ["Get the exact cost", "Book", "No, thanks"]
     chat(tap="medical:yes")
     chat("Asha Rao")
+    chat(tap="q:done")  # "Is this your only question?": that's all
     assert chat.r["lead"]["reason"] == "Cost of Botox" and chat.r["lead"]["treatment"] == "Botox"
 
     chat = Chat(flow, c)

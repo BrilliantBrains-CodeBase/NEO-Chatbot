@@ -19,6 +19,7 @@ from app.chat import context, leads, main_template
 from app.chat.flows import ist_now, normal_phone
 from app.chat.schemas import BotMessage, ChatRequest, ChatResponse, Input, Media
 from app.chat.slots import doctors_today
+from app.chat.understand import MEDICAL
 from app.crm import alerts, webhooks, whatsapp
 from app.crm.flow_run import kb_topics, send, start
 
@@ -151,6 +152,15 @@ async def turn(
             # e.g. a treatment's Book went straight to "Which date?": the dates are needed in this reply
             ctx.slots = await _free(clinic, slot_doctor(now_at, reply["state"]))
             reply = send(flow, ctx, run_state, tap=tap, text=text)
+    if reply.get(
+        "unanswered"
+    ):  # no approved answer: kept at once for CRM → Lead questions (user, 2026-11-13)
+        q = str(reply["unanswered"])
+        await conn.execute(
+            """insert into app.unanswered_questions (clinic_id, question_text, reason, session_id)
+               values ($1, $2, $3, $4)""",
+            clinic, q[:1000], "medical" if MEDICAL.search(q.lower()) else "no_match", req.session_id,
+        )  # fmt: skip
     lead = reply.get("lead")
     lead_note = await _save(conn, req, lead, flow) if lead else None
     alert = reply.get("alert")
@@ -220,6 +230,8 @@ async def _save(
         "treatment": lead.get("treatment"), "reason": lead.get("reason"), "date": lead.get("date"),
         "time": lead.get("time") or ("any" if lead.get("date") else None),
         "booked_date": lead.get("booked_date"), "urgent": lead.get("urgent"),
+        # the extra questions ("Is this your only question?"): CRM → Lead questions, with the lead
+        "questions": [q for q in str(lead.get("questions") or "").split("\n") if q.strip()],
     }  # fmt: skip
     if lead.get("doctor"):  # the canvas keeps the doctor's name; a booking needs their id
         f["doctor"] = await conn.fetchval(
@@ -242,7 +254,17 @@ async def _save(
         f["kind"] = kind = "callback"
     try:
         async with conn.transaction():  # a savepoint: a taken slot undoes the save, not the chat turn
+            if f["questions"]:  # the Inbox request lists every question for the call
+                more = "\n".join(f"- {q}" for q in f["questions"])
+                f["reason"] = f"{f['reason'] or 'Questions'}\nMore questions:\n{more}"[:2000]
             code = await leads.save_completed(conn, req, f)
+            # The question asked before the call back was kept without a patient: now it is theirs.
+            await conn.execute(
+                """update app.unanswered_questions u set lead_id = l.id from app.leads l
+                   where l.clinic_id = $1 and l.lead_code = $2 and u.clinic_id = $1 and u.session_id = $3
+                     and u.lead_id is null""",
+                req.client_id, code, req.session_id,
+            )  # fmt: skip
     except leads.SlotTaken:
         return SLOT_TAKEN
     stage = ((flow or {}).get("globals") or {}).get("request_stage", "follow_up")
