@@ -4,6 +4,7 @@ import Loading from "@/components/crm/Loading";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCrm } from "@/components/crm/CrmProvider";
 import { api, ApiError } from "@/lib/api";
+import LeadQuestionsTab from "./LeadQuestionsTab";
 import ReviewsTab, { ReviewsPreview, type Reviews } from "./ReviewsTab";
 import ServicesTab, { ServiceCard, type Services } from "./ServicesTab";
 
@@ -207,7 +208,9 @@ export default function ClinicInfoView() {
         className="split-preview"
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          // Lead questions is a list, not a chatbot setting: the full width, no preview.
+          gridTemplateColumns:
+            tab === "flows" ? "minmax(0, 1fr)" : "minmax(0, 1fr) 320px",
           gap: 16,
           alignItems: "start",
         }}
@@ -238,8 +241,10 @@ export default function ClinicInfoView() {
               selected={svc}
               onSelect={setSvc}
             />
-          ) : tab !== "contact" ? (
-            <p className="sub2">This tab is built next, one by one.</p>
+          ) : tab === "flows" ? (
+            clinicId ? (
+              <LeadQuestionsTab clinicId={clinicId} />
+            ) : null
           ) : (
             <div className="ci">
               <section>
@@ -424,7 +429,7 @@ export default function ClinicInfoView() {
             </div>
           )}
         </div>
-        {tab === "reviews" ? (
+        {tab === "flows" ? null : tab === "reviews" ? (
           <div className="card">
             <h3>
               Live preview <small>&quot;Show me reviews&quot;</small>
