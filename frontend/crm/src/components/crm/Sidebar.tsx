@@ -368,13 +368,17 @@ export default function Sidebar({
               {group("doctors", "doc")}
             </>
           )}
-          {/* The same place on both sides of the switch. */}
-          {showAdmin && (
+          {/* The same place on both sides of the switch. Everyone also gets their own Notifications and
+              My profile here on the CRM side (they are in the top bar too). */}
+          {(showAdmin || !console_) && (
             <>
               <div className="dv" />
-              <div className="grp">ADMIN</div>
+              <div className="grp">{showAdmin ? "ADMIN" : "ACCOUNT"}</div>
               {item("/team", "team", "Team", path === "/team")}
               {!console_ && item("/settings", "set", "Clinic settings", path === "/settings")}
+              {!console_ &&
+                item("/notifications", "bell", "Notifications", path === "/notifications")}
+              {!console_ && item("/profile", "user", "My profile", path === "/profile")}
             </>
           )}
         </div>
